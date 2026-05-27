@@ -1,0 +1,14 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "帮我打开浏览器，用百度查一下今天天气",
+      "timestamp": 1779676111.0807347,
+      "metadata": {},
+      "tool_call_id": null,
+      "tool_result": null
+    }
+  ],
+  "context": {},
+  "updated_at": 1779676111.081937
+}

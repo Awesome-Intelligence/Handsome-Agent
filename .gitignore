@@ -1,0 +1,84 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+
+# Unit test / coverage reports
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.env
+.env.local
+.env.*.local
+.venv/
+venv/
+env/
+virtualenv/
+
+# Credentials & Secrets - IMPORTANT: Never commit these
+*.pem
+*.key
+*.crt
+*.cert
+credentials.json
+service_account.json
+secrets.json
+token_cache/
+*.token
+*.secret
+api_keys.txt
+
+# API Keys patterns (regex style - for reference only)
+# MINIMAX_API_KEY=xxx
+# OPENAI_API_KEY=xxx
+
+# Local Configuration
+*.local.json
+*.local.yaml
+*.local.yml
+config.local
+settings.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+easy_install.pkg
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+
+# OS specific
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/

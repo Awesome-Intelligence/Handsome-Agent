@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+*.md
+docs/
+tests/
+core/
+advanced_reasoning/
+cli/
+.trae/
+.pytest_cache/
