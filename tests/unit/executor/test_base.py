@@ -71,6 +71,7 @@ class TestBaseExecutor:
         )
         executor = MagicMock(spec=BaseExecutor)
         executor.config = config
+        executor._check_safety = BaseExecutor._check_safety.__get__(executor, MagicMock)
         
         is_safe, error = executor._check_safety("git status")
         assert is_safe is True
@@ -83,6 +84,7 @@ class TestBaseExecutor:
         )
         executor = MagicMock(spec=BaseExecutor)
         executor.config = config
+        executor._check_safety = BaseExecutor._check_safety.__get__(executor, MagicMock)
         
         is_safe, error = executor._check_safety("rm file.txt")
         assert is_safe is False
@@ -93,6 +95,7 @@ class TestBaseExecutor:
         config = ExecutorConfig(blocked_patterns=["rm -rf"])
         executor = MagicMock(spec=BaseExecutor)
         executor.config = config
+        executor._check_safety = BaseExecutor._check_safety.__get__(executor, MagicMock)
         
         is_safe, error = executor._check_safety("rm -rf /")
         assert is_safe is False

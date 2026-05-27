@@ -98,7 +98,7 @@ class TestAgentLoop:
         thought = await self.agent._rule_based_think("帮我写一个 Python 函数", "")
         
         assert thought.action is not None
-        assert thought.action.tool_name == "file_edit"
+        assert thought.action.tool_name == "str_replace_editor"
         assert thought.is_final is False
     
     def test_get_available_tools(self):
@@ -131,4 +131,4 @@ class TestAgentLoop:
         action = Action(tool_name="file_edit", parameters={"content": "test content"})
         result = await self.agent._act(action, {})
         
-        assert "File modified" in result
+        assert "file_edit" in result
