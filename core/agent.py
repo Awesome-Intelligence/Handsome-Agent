@@ -6,6 +6,7 @@ Inspired by Hermes Agent Architecture
 
 This module implements the foundational architecture for the Handsome Agent,
 including configuration management, response structuring, and task routing.
+Three-layer architecture: Access / Decision / Execution
 """
 
 import os
@@ -177,7 +178,8 @@ class ExplanationModule(BaseAgentModule):
 class CustomAgent:
     __slots__ = ('config', 'explanation_module', 'logger', '_cache', '_config_hash',
                  '_session', '_intent_classifier', 'llm_provider', '_i18n',
-                 '_user_logger', '_control_logger', '_storage_logger', '_tools_logger')
+                 '_access_logger', '_decision_logger', '_execution_logger',
+                 '_intent_logger', '_memory_logger', '_routing_logger', '_tool_logger', '_post_logger')
     
     def __init__(self, config: Optional[AgentConfig] = None, session_id: Optional[str] = None):
         self.config = config or AgentConfig()
@@ -187,10 +189,15 @@ class CustomAgent:
         self.setup_logging()
         self.logger = logging.getLogger(self.__class__.__name__)
         
-        self._user_logger = get_layer_logger("user", "CLI")
-        self._control_logger = get_layer_logger("control", "CustomAgent")
-        self._storage_logger = get_layer_logger("storage", "SessionManager")
-        self._tools_logger = get_layer_logger("tools", "SkillManager")
+        self._access_logger = get_layer_logger("access", "CLI")
+        self._decision_logger = get_layer_logger("decision", "CustomAgent")
+        self._execution_logger = get_layer_logger("execution", "SessionManager")
+        
+        self._intent_logger = get_layer_logger("decision", "IntentClassifier", "intent")
+        self._memory_logger = get_layer_logger("decision", "MemoryCache", "memory")
+        self._routing_logger = get_layer_logger("decision", "TaskRouter", "routing")
+        self._tool_logger = get_layer_logger("decision", "SkillManager", "tool_select")
+        self._post_logger = get_layer_logger("decision", "ResponsePost", "post_process")
         
         if self.config.enable_caching:
             self._cache = LRUCache(maxsize=100)
@@ -206,7 +213,6 @@ class CustomAgent:
         
         self.llm_provider = None
         
-        # Set LLM provider for intent classifier
         self._intent_classifier.set_llm_provider(self.llm_provider)
     
     def set_llm_provider(self, provider):
@@ -223,15 +229,19 @@ class CustomAgent:
     async def respond(self, user_input: str) -> AgentResponse:
         execution_flow = []
         t = self._i18n.t
-        ctrl = self._control_logger
-        storage = self._storage_logger
-        tools = self._tools_logger
-        user_log = self._user_logger
         
-        user_log.info(f"{t('flow_header')}")
-        user_log.info(f"respond() 接收用户输入: {user_input[:80]}{'...' if len(user_input) > 80 else ''}")
-        user_log.info(f"   → 下一步: 进行输入验证")
-        execution_flow.append("👤 [用户层] 接收用户输入 → [控制层] 进行验证")
+        access = self._access_logger
+        intent = self._intent_logger
+        memory = self._memory_logger
+        routing = self._routing_logger
+        tool = self._tool_logger
+        post = self._post_logger
+        execution = self._execution_logger
+        
+        access.info(f"{t('flow_header')}")
+        access.info(f"respond() 接收用户输入: {user_input[:80]}{'...' if len(user_input) > 80 else ''}")
+        access.info(f"   → 下一步: 进行输入验证")
+        execution_flow.append("🚪 [接入层] 接收用户输入 → [决策层-意图识别层] 进行验证")
         
         self.logger.info(f"Using explanation_module: {type(self.explanation_module)}")
         
@@ -239,41 +249,41 @@ class CustomAgent:
             raise InputValidationError("Input must be a string")
         if not user_input.strip():
             raise InputValidationError("Input cannot be empty")
-        ctrl.info(t('validation_pass'))
-        ctrl.info(f"   → 下一步将调用: [存储层] 保存消息到会话")
-        execution_flow.append("🎛️ [控制层] 输入格式验证通过 → [存储层] 保存消息")
+        intent.info(t('validation_pass'))
+        intent.info(f"   → 下一步将调用: [执行层] 保存消息到会话")
+        execution_flow.append("🧠 [决策层-意图识别层] 输入格式验证通过 → [执行层] 保存消息")
         
         if self._session:
-            ctrl.info(f"{t('session_add')} (session_id: {self._session.session_id})")
+            memory.info(f"{t('session_add')} (session_id: {self._session.session_id})")
             self._session.add_message('user', user_input)
-            ctrl.info(f"   → 下一步将调用: [控制层] 检查缓存")
-            storage.info(f"消息已添加到会话 [{self._session.session_id}] → 检查缓存")
-            execution_flow.append(f"💾 [存储层] 消息已添加到会话 [{self._session.session_id}] → [控制层] 检查缓存")
+            memory.info(f"   → 下一步将调用: [决策层-记忆检索层] 检查缓存")
+            execution.info(f"消息已添加到会话 [{self._session.session_id}] → 检查缓存")
+            execution_flow.append(f"⚡ [执行层] 消息已添加到会话 [{self._session.session_id}] → [决策层-记忆检索层] 检查缓存")
         
         if self._cache is not None:
             cache_key = create_cache_key(user_input, self._config_hash)
             cached_response = self._cache.get(cache_key)
             if cached_response is not None:
-                ctrl.info(t('cache_hit'))
-                ctrl.info(f"   → 流程结束，直接返回缓存响应")
-                execution_flow.append("🎛️ [控制层] 缓存命中 → 直接返回")
-                ctrl.info(f"{t('flow_header')}")
+                memory.info(t('cache_hit'))
+                memory.info(f"   → 流程结束，直接返回缓存响应")
+                execution_flow.append("🧠 [决策层-记忆检索层] 缓存命中 → 直接返回")
+                memory.info(f"{t('flow_header')}")
                 cached_response.execution_time = 0.0
                 return cached_response
-            ctrl.info(t('cache_miss'))
-            ctrl.info(f"   → 下一步将调用: [控制层] 开始处理请求")
-            execution_flow.append("🎛️ [控制层] 缓存未命中 → 开始处理请求")
+            memory.info(t('cache_miss'))
+            memory.info(f"   → 下一步将调用: [决策层-路由层] 开始处理请求")
+            execution_flow.append("🧠 [决策层-记忆检索层] 缓存未命中 → [决策层-路由层] 开始处理")
         
-        ctrl.info(t('processing_start'))
-        ctrl.info(f"   → 下一步将调用: [控制层] 进入任务路由模块")
-        execution_flow.append("🎛️ [控制层] 开始处理请求 → [控制层] 进入任务路由")
+        routing.info(t('processing_start'))
+        routing.info(f"   → 下一步将调用: [决策层-路由层] 进入任务路由模块")
+        execution_flow.append("🧠 [决策层-路由层] 开始处理请求 → [决策层-路由层] 任务路由")
         start_time = time.time()
         
         try:
             if self.config.enable_routing:
-                ctrl.info(f"TaskRouter 启用路由功能")
-                ctrl.info(f"   → 下一步将调用: IntentClassifier 进行意图分类")
-                execution_flow.append("🎛️ [控制层] TaskRouter 启用路由功能 → IntentClassifier")
+                routing.info(f"TaskRouter 启用路由功能")
+                routing.info(f"   → 下一步将调用: IntentClassifier 进行意图分类")
+                execution_flow.append("🧠 [决策层-路由层] TaskRouter 启用路由功能 → IntentClassifier")
                 
                 route_context = {
                     'llm_provider': getattr(self, 'llm_provider', None),
@@ -281,22 +291,22 @@ class CustomAgent:
                 }
                 route_match = await router.route_async(user_input)
                 if route_match:
-                    ctrl.info(f"TaskRouter 找到匹配的路由: {route_match.route_id} (置信度: {route_match.confidence:.2f})")
+                    routing.info(f"TaskRouter 找到匹配的路由: {route_match.route_id} (置信度: {route_match.confidence:.2f})")
                     execution_flow.append(f"   ├─ TaskRouter 匹配路由: {route_match.route_id}")
                     execution_flow.append(f"   └─ TaskRouter 置信度: {route_match.confidence:.2f}")
                     
-                    ctrl.info(f"   → 下一步: [LLM层] {route_match.route_id}.handler()")
-                    execution_flow.append(f"🎛️ [控制层] TaskRouter → [LLM层] {route_match.route_id}")
+                    routing.info(f"   → 下一步: [决策层-路由层] {route_match.route_id}.handler()")
+                    execution_flow.append(f"🧠 [决策层-路由层] TaskRouter → [决策层-路由层] {route_match.route_id}")
                     
                     route_response, handler_flow = await self._handle_route(route_match, user_input, route_context)
                     execution_flow.extend(handler_flow)
                     
                     if route_response:
-                        ctrl.info(f"TaskRouter 路由匹配成功")
-                        ctrl.info(f"   → 流程结束，返回响应")
-                        execution_flow.append("🧠 [LLM层] 返回响应 → 完成")
-                        ctrl.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
-                        ctrl.info(f"{t('flow_header')}")
+                        routing.info(f"TaskRouter 路由匹配成功")
+                        routing.info(f"   → 流程结束，返回响应")
+                        execution_flow.append("🧠 [决策层-路由层] 返回响应 → 完成")
+                        post.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
+                        post.info(f"{t('flow_header')}")
                         
                         execution_time = time.time() - start_time
                         return AgentResponse(
@@ -306,37 +316,37 @@ class CustomAgent:
                             execution_time=execution_time
                         )
                 else:
-                    ctrl.info(f"TaskRouter 未匹配任何路由")
-                    ctrl.info(f"   → 下一步将调用: SkillManager 进行技能发现")
-                    execution_flow.append("🎛️ [控制层] TaskRouter 未匹配路由 → SkillManager")
+                    routing.info(f"TaskRouter 未匹配任何路由")
+                    routing.info(f"   → 下一步将调用: SkillManager 进行技能发现")
+                    execution_flow.append("🧠 [决策层-路由层] TaskRouter 未匹配路由 → SkillManager")
             
             if self.config.enable_skills:
-                ctrl.info(f"SkillManager 启用技能执行")
-                ctrl.info(f"   → 下一步将调用: IntentClassifier 进行意图分类")
-                execution_flow.append("🎛️ [控制层] SkillManager 启用技能执行")
+                tool.info(f"SkillManager 启用技能执行")
+                tool.info(f"   → 下一步将调用: IntentClassifier 进行意图分类")
+                execution_flow.append("🧠 [决策层-工具选择层] SkillManager 启用技能执行")
                 
-                intent = await self._intent_classifier.classify_async(user_input)
-                ctrl.info(f"IntentClassifier 分类结果: {intent}")
-                ctrl.info(f"   → 下一步将调用: SkillManager.discover_skills()")
-                execution_flow.append(f"   ├─ [控制层] IntentClassifier 意图: {intent}")
+                intent_result = await self._intent_classifier.classify_async(user_input)
+                intent.info(f"IntentClassifier 分类结果: {intent_result}")
+                intent.info(f"   → 下一步将调用: SkillManager.discover_skills()")
+                execution_flow.append(f"   ├─ [决策层-意图识别层] IntentClassifier 意图: {intent_result}")
                 
-                relevant_skills = await skill_manager.discover_skills(intent, user_input)
-                tools.info(f"SkillManager 发现 {len(relevant_skills)} 个相关技能")
-                ctrl.info(f"   → 下一步将调用: Skill.execute() 执行技能")
-                execution_flow.append(f"   └─ [工具层] SkillManager 发现 {len(relevant_skills)} 个技能")
+                relevant_skills = await skill_manager.discover_skills(intent_result, user_input)
+                execution.info(f"SkillManager 发现 {len(relevant_skills)} 个相关技能")
+                tool.info(f"   → 下一步将调用: Skill.execute() 执行技能")
+                execution_flow.append(f"   └─ [执行层] SkillManager 发现 {len(relevant_skills)} 个技能")
                 
                 for skill_meta in relevant_skills:
-                    tools.info(f"Skill.execute() 执行技能: {skill_meta.id} ({skill_meta.name})")
-                    ctrl.info(f"   → 调用: {skill_meta.id}.execute()")
-                    execution_flow.append(f"   → [工具层] Skill.execute({skill_meta.id})")
+                    execution.info(f"Skill.execute() 执行技能: {skill_meta.id} ({skill_meta.name})")
+                    tool.info(f"   → 调用: {skill_meta.id}.execute()")
+                    execution_flow.append(f"   → [执行层] Skill.execute({skill_meta.id})")
                     
                     skill_result = await skill_manager.execute_skill(skill_meta.id)
                     if skill_result and skill_result.success:
-                        tools.info(f"Skill.execute() 执行成功")
-                        ctrl.info(f"   → 流程结束，返回技能执行结果")
-                        execution_flow.append("   🔧 [工具层] Skill.execute() 成功 → 完成")
-                        ctrl.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
-                        ctrl.info(f"{t('flow_header')}")
+                        execution.info(f"Skill.execute() 执行成功")
+                        post.info(f"   → 流程结束，返回技能执行结果")
+                        execution_flow.append("   ⚡ [执行层] Skill.execute() 成功 → 完成")
+                        post.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
+                        post.info(f"{t('flow_header')}")
                         
                         execution_time = time.time() - start_time
                         return AgentResponse(
@@ -346,47 +356,47 @@ class CustomAgent:
                             execution_time=execution_time
                         )
                     else:
-                        ctrl.warning(f"{t('skill_fail')}: {skill_result.error if skill_result else 'Unknown'}")
-                        ctrl.info(f"   → 尝试下一个技能")
-                ctrl.info(f"❌ [控制层] 所有技能执行失败")
-                ctrl.info(f"   → 下一步将调用: [推理层] 解释模块")
-                execution_flow.append("❌ [控制层] 技能执行均失败 → [推理层] 解释模块")
+                        tool.warning(f"{t('skill_fail')}: {skill_result.error if skill_result else 'Unknown'}")
+                        tool.info(f"   → 尝试下一个技能")
+                tool.info(f"❌ [决策层-工具选择层] 所有技能执行失败")
+                tool.info(f"   → 下一步将调用: [决策层-后处理层] 解释模块")
+                execution_flow.append("❌ [决策层-工具选择层] 技能执行均失败 → [决策层-后处理层] 解释模块")
             
-            ctrl.info(t('explanation_module'))
-            ctrl.info(f"   → 下一步将调用: [推理层] AdvancedReasoningModule.process()")
-            execution_flow.append("🧠 [控制层] 回退到解释模块 → [推理层] AdvancedReasoningModule")
+            post.info(t('explanation_module'))
+            post.info(f"   → 下一步将调用: [决策层-后处理层] AdvancedReasoningModule.process()")
+            execution_flow.append("🧠 [决策层-后处理层] 回退到解释模块 → [决策层-后处理层] AdvancedReasoningModule")
             response = await self._generate_response(user_input)
             
-            ctrl.info(f"{t('response_complete')} (长度: {len(response.content)} 字符)")
-            ctrl.info(f"   → 下一步将调用: [存储层] 保存响应到会话")
-            execution_flow.append("   ✅ [推理层] 响应生成完成 → [存储层] 保存")
+            post.info(f"{t('response_complete')} (长度: {len(response.content)} 字符)")
+            post.info(f"   → 下一步将调用: [执行层] 保存响应到会话")
+            execution_flow.append("   ✅ [决策层-后处理层] 响应生成完成 → [执行层] 保存")
             
             execution_time = time.time() - start_time
             response.execution_time = execution_time
             
             if self._session:
-                ctrl.info(t('session_add_assistant'))
-                ctrl.info(f"   → 下一步将调用: [控制层] 缓存响应")
+                execution.info(t('session_add_assistant'))
+                memory.info(f"   → 下一步将调用: [决策层-记忆检索层] 缓存响应")
                 self._session.add_message('assistant', response.content)
-                storage.info("保存助手响应 → 缓存")
-                execution_flow.append("💾 [存储层] 保存助手响应 → [控制层] 缓存")
+                execution.info("保存助手响应 → 缓存")
+                execution_flow.append("⚡ [执行层] 保存助手响应 → [决策层-记忆检索层] 缓存")
             
             if self._cache is not None:
-                ctrl.info(t('cache_store'))
+                memory.info(t('cache_store'))
                 cache_key = create_cache_key(user_input, self._config_hash)
                 self._cache.put(cache_key, response)
-                ctrl.info("响应已缓存")
-                execution_flow.append("🎛️ [控制层] 响应已缓存")
+                memory.info("响应已缓存")
+                execution_flow.append("🧠 [决策层-记忆检索层] 响应已缓存")
             
-            ctrl.info(f"🧠 [完成] 响应生成完成，耗时 {execution_time:.2f} 秒")
-            execution_flow.append(f"🧠 [完成] 总耗时 {execution_time:.2f}s → 完成")
-            ctrl.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
-            ctrl.info(f"{t('flow_header')}")
+            post.info(f"🧠 [完成] 响应生成完成，耗时 {execution_time:.2f} 秒")
+            execution_flow.append(f"🚪 [完成] 总耗时 {execution_time:.2f}s → 完成")
+            post.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
+            post.info(f"{t('flow_header')}")
             return response
             
         except asyncio.TimeoutError:
             timeout_error = TimeoutError(self.config.timeout_seconds)
-            ctrl.error(f"Timeout error: {timeout_error}")
+            post.error(f"Timeout error: {timeout_error}")
             return AgentResponse(
                 content=f"I apologize, but your request took too long to process (timeout after {self.config.timeout_seconds} seconds). Please try a simpler query.",
                 confidence_score=0.0,
@@ -395,7 +405,7 @@ class CustomAgent:
             )
             
         except InputValidationError as e:
-            ctrl.error(f"Input validation error: {e}")
+            intent.error(f"Input validation error: {e}")
             return AgentResponse(
                 content=f"I apologize, but there was an issue with your input: {str(e)}",
                 confidence_score=0.0,
@@ -408,7 +418,7 @@ class CustomAgent:
                 f"Failed to generate response for input: {user_input[:100]}...",
                 original_exception=e
             )
-            ctrl.error(f"Response generation error: {response_error}", exc_info=True)
+            post.error(f"Response generation error: {response_error}", exc_info=True)
             return AgentResponse(
                 content=f"I apologize, but I encountered an unexpected error while processing your request. Please try again or rephrase your question.",
                 confidence_score=0.0,
@@ -417,23 +427,23 @@ class CustomAgent:
             )
     
     async def _handle_route(self, route_match: RouteMatch, user_input: str, context: Dict[str, Any] = None) -> tuple:
-        ctrl = self._control_logger
+        decision = self._decision_logger
         try:
-            ctrl.info(f"Handling route: {route_match.route_id} with handler: {route_match.handler}")
+            decision.info(f"Handling route: {route_match.route_id} with handler: {route_match.handler}")
             ctx = context or {}
             result = await route_match.handler(user_input, ctx)
             if result:
                 if isinstance(result, tuple):
                     response, handler_flow = result
-                    ctrl.info(f"Route handler returned: {response[:50] if response else 'None'}...")
+                    decision.info(f"Route handler returned: {response[:50] if response else 'None'}...")
                     return response, handler_flow
                 else:
-                    ctrl.info(f"Route handler returned: {result[:50] if result else 'None'}...")
+                    decision.info(f"Route handler returned: {result[:50] if result else 'None'}...")
                     return result, []
-            ctrl.info(f"Route handler returned: None")
+            decision.info(f"Route handler returned: None")
             return None, []
         except Exception as e:
-            ctrl.error(f"Error handling route {route_match.route_id}: {e}")
+            decision.error(f"Error handling route {route_match.route_id}: {e}")
             return None, []
     
     async def _generate_response(self, user_input: str) -> AgentResponse:

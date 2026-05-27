@@ -1,0 +1,123 @@
+openapi: 3.0.0
+info:
+  title: Handsome Agent Brain Service
+  description: Hermes-Brain + OpenClaw-Body Architecture API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8001
+    description: Brain Service
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+
+  /api/v1/process:
+    post:
+      summary: Process user message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessRequest'
+      responses:
+        '200':
+          description: Processing result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessResponse'
+
+  /api/v1/execute:
+    post:
+      summary: Execute tool call
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionRequest'
+      responses:
+        '200':
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionResponse'
+
+components:
+  schemas:
+    ProcessRequest:
+      type: object
+      properties:
+        message:
+          $ref: '#/components/schemas/StandardMessage'
+        context:
+          type: object
+
+    ProcessResponse:
+      type: object
+      properties:
+        message_id:
+          type: string
+        status:
+          type: string
+        response:
+          type: string
+        tool_calls:
+          type: array
+        metadata:
+          type: object
+
+    ExecutionRequest:
+      type: object
+      properties:
+        tool_call:
+          $ref: '#/components/schemas/ToolCall'
+        executor_type:
+          type: string
+        safety_policy:
+          type: string
+
+    ExecutionResponse:
+      type: object
+      properties:
+        execution_id:
+          type: string
+        status:
+          type: string
+        result:
+          type: object
+
+    StandardMessage:
+      type: object
+      properties:
+        message_id:
+          type: string
+        channel:
+          type: string
+        user_id:
+          type: string
+        session_id:
+          type: string
+        content:
+          type: object
+        metadata:
+          type: object
+
+    ToolCall:
+      type: object
+      properties:
+        tool_name:
+          type: string
+        parameters:
+          type: object
+        reasoning:
+          type: string
+        confidence:
+          type: number

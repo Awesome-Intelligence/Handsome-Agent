@@ -64,10 +64,10 @@ async def llm_web_search_handler(input_text: str, context: Dict[str, Any]) -> Tu
             open_url = intent_data.get('open_url')
             
             execution_flow = []
-            execution_flow.append("🤖 [LLM层] 意图分析完成")
+            execution_flow.append("🧠 [决策层] 意图分析完成")
             
             if intent == 'browser_search' and skill_manager:
-                execution_flow.append("🔧 [工具层] 执行浏览器搜索任务")
+                execution_flow.append("⚡ [执行层] 执行浏览器搜索任务")
                 
                 if open_url:
                     url = open_url
@@ -84,7 +84,7 @@ async def llm_web_search_handler(input_text: str, context: Dict[str, Any]) -> Tu
                                                           url=url)
                 
                 if result and result.success:
-                    execution_flow.append("🔧 [工具层] 打开浏览器成功")
+                    execution_flow.append("⚡ [执行层] 打开浏览器成功")
                     return result.output, execution_flow, True
                 
             elif search_query:
@@ -102,7 +102,7 @@ async def llm_web_search_handler(input_text: str, context: Dict[str, Any]) -> Tu
             return None, execution_flow, False
             
         except (json.JSONDecodeError, KeyError) as e:
-            return None, [f"⚠️ [LLM层] JSON 解析失败: {str(e)}"], False
+            return None, [f"⚠️ [决策层] JSON 解析失败: {str(e)}"], False
             
     except Exception as e:
-        return None, [f"❌ [LLM层] LLM 调用失败: {str(e)}"], False
+        return None, [f"❌ [决策层] LLM 调用失败: {str(e)}"], False

@@ -87,21 +87,18 @@ class SkillManager:
         self.skills: Dict[str, BaseSkill] = {}
         self.categories: Dict[str, List[str]] = {}
         self.logger = logging.getLogger(self.__class__.__name__)
-        self._control_logger = get_layer_logger("control", "SkillManager")
-        self._tools_logger = get_layer_logger("tools", "SkillManager")
+        self._decision_logger = get_layer_logger("decision", "SkillManager")
+        self._execution_logger = get_layer_logger("execution", "SkillManager")
     
     def register_skill(self, skill: BaseSkill):
         """Register a skill instance."""
         metadata = skill.get_metadata()
         
-        # Register main ID
         self.skills[metadata.id] = skill
         
-        # Register aliases
         for alias in metadata.aliases:
             self.skills[alias] = skill
         
-        # Add to category
         if metadata.category not in self.categories:
             self.categories[metadata.category] = []
         if metadata.id not in self.categories[metadata.category]:
@@ -114,17 +111,14 @@ class SkillManager:
         if skill_id in self.skills:
             metadata = self.skills[skill_id].get_metadata()
             
-            # Remove from categories
             if metadata.category in self.categories:
                 if skill_id in self.categories[metadata.category]:
                     self.categories[metadata.category].remove(skill_id)
             
-            # Remove aliases
             for alias in metadata.aliases:
                 if alias in self.skills:
                     del self.skills[alias]
             
-            # Remove skill
             del self.skills[skill_id]
             self.logger.info(f"Unregistered skill: {skill_id}")
     
@@ -149,30 +143,26 @@ class SkillManager:
         relevant_skills = []
         query_lower = query.lower()
         
-        ctrl = self._control_logger
-        ctrl.info(f"⚙️ [控制层] 开始技能发现:")
-        ctrl.info(f"  ├─ 意图: {intent}")
-        ctrl.info(f"  ├─ 查询: {query[:50]}...")
-        ctrl.info(f"  └─ 总技能数: {len(self.skills)}")
+        decision = self._decision_logger
+        decision.info(f"⚙️ [决策层] 开始技能发现:")
+        decision.info(f"  ├─ 意图: {intent}")
+        decision.info(f"  ├─ 查询: {query[:50]}...")
+        decision.info(f"  └─ 总技能数: {len(self.skills)}")
         
         for skill_id, skill in self.skills.items():
             metadata = skill.get_metadata()
             
-            # Skip duplicates
             if any(s.id == metadata.id for s in relevant_skills):
                 continue
             
-            # Check if skill matches intent
             is_relevant = False
             match_reason = ""
             
-            # Check keywords in description
             description_lower = metadata.description.lower()
             if intent in description_lower or intent in query_lower:
                 is_relevant = True
                 match_reason = "意图匹配"
             
-            # Check aliases (check against both intent and query)
             for alias in metadata.aliases:
                 alias_lower = alias.lower()
                 if alias_lower in query_lower or alias_lower == intent:
@@ -180,7 +170,6 @@ class SkillManager:
                     match_reason = f"别名 '{alias}' 匹配"
                     break
             
-            # Check examples
             for example in metadata.examples:
                 if example.lower() in query_lower:
                     is_relevant = True
@@ -188,26 +177,26 @@ class SkillManager:
                     break
             
             if is_relevant:
-                ctrl.info(f"  ✓ 发现技能: {metadata.id} - {match_reason}")
+                decision.info(f"  ✓ 发现技能: {metadata.id} - {match_reason}")
                 relevant_skills.append(metadata)
         
-        ctrl.info(f"  └─ 发现 {len(relevant_skills)} 个相关技能")
+        decision.info(f"  └─ 发现 {len(relevant_skills)} 个相关技能")
         
         return relevant_skills
     
     async def execute_skill(self, skill_id: str, **kwargs) -> SkillResult:
         """Execute a skill by ID."""
-        ctrl = self._control_logger
-        tools = self._tools_logger
+        decision = self._decision_logger
+        execution = self._execution_logger
         
-        tools.info(f"execute_skill() 尝试执行技能: {skill_id}")
-        ctrl.info(f"execute_skill() 尝试执行技能: {skill_id}")
+        execution.info(f"execute_skill() 尝试执行技能: {skill_id}")
+        decision.info(f"execute_skill() 尝试执行技能: {skill_id}")
         
         skill = self.get_skill(skill_id)
         
         if not skill:
-            tools.warning(f"技能未找到: {skill_id}")
-            ctrl.warning(f"技能未找到: {skill_id}")
+            execution.warning(f"技能未找到: {skill_id}")
+            decision.warning(f"技能未找到: {skill_id}")
             return SkillResult(
                 success=False,
                 output="",
@@ -217,35 +206,34 @@ class SkillManager:
         metadata = skill.get_metadata()
         skill_class = metadata.name
         
-        # Validate parameters
         if not skill.validate_parameters(**kwargs):
             required_params = [p.name for p in metadata.parameters if p.required]
-            tools.warning(f"{skill_class}.validate_parameters() 失败，缺少必需参数: {', '.join(required_params)}")
-            ctrl.warning(f"{skill_class}.validate_parameters() 失败")
+            execution.warning(f"{skill_class}.validate_parameters() 失败，缺少必需参数: {', '.join(required_params)}")
+            decision.warning(f"{skill_class}.validate_parameters() 失败")
             return SkillResult(
                 success=False,
                 output="",
                 error=f"Missing required parameters: {', '.join(required_params)}"
             )
         
-        tools.info(f"{skill_class}.validate_parameters() 验证通过")
-        tools.info(f"{skill_class}.execute() 开始执行...")
+        execution.info(f"{skill_class}.validate_parameters() 验证通过")
+        execution.info(f"{skill_class}.execute() 开始执行...")
         
         try:
             result = await skill.execute(**kwargs)
             
             if result.success:
-                tools.info(f"{skill_class}.execute() 执行成功 (输出长度: {len(result.output) if result.output else 0} 字符)")
-                ctrl.info(f"{skill_class}.execute() 执行成功")
+                execution.info(f"{skill_class}.execute() 执行成功 (输出长度: {len(result.output) if result.output else 0} 字符)")
+                decision.info(f"{skill_class}.execute() 执行成功")
             else:
-                tools.warning(f"{skill_class}.execute() 执行失败: {result.error}")
-                ctrl.warning(f"{skill_class}.execute() 执行失败: {result.error}")
+                execution.warning(f"{skill_class}.execute() 执行失败: {result.error}")
+                decision.warning(f"{skill_class}.execute() 执行失败: {result.error}")
             
             return result
             
         except Exception as e:
-            tools.error(f"{skill_class}.execute() 执行异常: {str(e)}", exc_info=True)
-            ctrl.error(f"{skill_class}.execute() 执行异常: {str(e)}")
+            execution.error(f"{skill_class}.execute() 执行异常: {str(e)}", exc_info=True)
+            decision.error(f"{skill_class}.execute() 执行异常: {str(e)}")
             return SkillResult(
                 success=False,
                 output="",
@@ -253,7 +241,6 @@ class SkillManager:
             )
 
 
-# Global skill manager instance
 skill_manager = SkillManager()
 
 
@@ -279,7 +266,6 @@ def skill(id: str, name: str, description: str, category: str = 'general',
         instance._skill_aliases = aliases or []
         instance._skill_examples = examples or []
         
-        # Auto-detect parameters from execute method signature
         sig = inspect.signature(instance.execute)
         parameters = []
         for param_name, param in sig.parameters.items():
@@ -303,7 +289,6 @@ def skill(id: str, name: str, description: str, category: str = 'general',
     return decorator
 
 
-# Built-in skills
 @skill(
     id='greeting',
     name='Greeting',
@@ -428,7 +413,6 @@ class HelpSkill(BaseSkill):
         )
 
 
-# Tool wrapper skill - enables tools as skills
 class ToolWrapperSkill(BaseSkill):
     """Wrapper to convert a tool function into a skill."""
     
@@ -465,7 +449,6 @@ class ToolWrapperSkill(BaseSkill):
     async def execute(self, **kwargs) -> SkillResult:
         import asyncio
         try:
-            # Run tool in executor to support both sync and async
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, lambda: self._tool_func(**kwargs))
             
@@ -512,5 +495,4 @@ def register_tools_as_skills():
         pass
 
 
-# Auto-register tools on import
 register_tools_as_skills()

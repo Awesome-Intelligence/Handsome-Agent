@@ -38,11 +38,11 @@ async def llm_terminal_command_handler(input_text: str, context: Dict[str, Any])
     "action_type": "open_app" / "open_folder" / "open_file" / "execute_command" / "unknown",
     "target": 要打开的应用名/文件夹名/文件路径，如 "chrome", "edge", "桌面", "我的电脑", "notepad", "计算器" 等
     "command": 要执行的完整命令，如果 action_type 为 execute_command 则必须提供
-    "parameters": {}  // 额外参数对象，根据不同 action_type 可能包含：
-        // open_app 时: {"url": "可选的网址"}
-        // open_folder 时: {}
-        // open_file 时: {"path": "文件路径"}
-        // execute_command 时: {}
+    "parameters": {{}}  // 额外参数对象，根据不同 action_type 可能包含：
+        // open_app 时: {{"url": "可选的网址"}}
+        // open_folder 时: {{}}
+        // open_file 时: {{"path": "文件路径"}}
+        // execute_command 时: {{}}
 }}
 
 支持的应用和命令：
@@ -74,25 +74,25 @@ async def llm_terminal_command_handler(input_text: str, context: Dict[str, Any])
             parameters = intent_data.get('parameters', {})
             
             execution_flow = []
-            execution_flow.append(f"🤖 [LLM层] 意图识别: {action_type} - {target}")
+            execution_flow.append(f"🧠 [决策层] 意图识别: {action_type} - {target}")
             
             if action_type == 'open_app' and target and skill_manager:
                 browser_name = None
                 if target.lower() in ['chrome', 'edge', 'firefox', 'safari', 'browser', '浏览器']:
                     browser_name = target.lower()
                     if browser_name in ['browser', '浏览器']:
-                        browser_name = None  # 使用默认浏览器
+                        browser_name = None
                 
                 url = parameters.get('url')
                 
-                execution_flow.append("🔧 [工具层] 执行打开应用")
+                execution_flow.append("⚡ [执行层] 执行打开应用")
                 
                 result = await skill_manager.execute_skill('tool_open_browser', 
                                                           browser_name=browser_name, 
                                                           url=url)
                 
                 if result and result.success:
-                    execution_flow.append("🔧 [工具层] 打开应用成功")
+                    execution_flow.append("⚡ [执行层] 打开应用成功")
                     return result.output, execution_flow, True
                 
             elif action_type == 'open_folder' and target and skill_manager:
@@ -122,27 +122,27 @@ async def llm_terminal_command_handler(input_text: str, context: Dict[str, Any])
                         break
                 
                 if folder_cmd:
-                    execution_flow.append("🔧 [工具层] 执行打开文件夹")
+                    execution_flow.append("⚡ [执行层] 执行打开文件夹")
                     
                     result = await skill_manager.execute_skill('tool_terminal', command=folder_cmd)
                     
                     if result and result.success:
-                        execution_flow.append("🔧 [工具层] 打开文件夹成功")
+                        execution_flow.append("⚡ [执行层] 打开文件夹成功")
                         return result.output, execution_flow, True
                 
             elif action_type == 'execute_command' and command and skill_manager:
-                execution_flow.append("🔧 [工具层] 执行终端命令")
+                execution_flow.append("⚡ [执行层] 执行终端命令")
                 
                 result = await skill_manager.execute_skill('tool_terminal', command=command)
                 
                 if result and result.success:
-                    execution_flow.append("🔧 [工具层] 命令执行成功")
+                    execution_flow.append("⚡ [执行层] 命令执行成功")
                     return result.output, execution_flow, True
             
             return None, execution_flow, False
             
         except (json.JSONDecodeError, KeyError) as e:
-            return None, [f"⚠️ [LLM层] JSON 解析失败: {str(e)}"], False
+            return None, [f"⚠️ [决策层] JSON 解析失败: {str(e)}"], False
             
     except Exception as e:
-        return None, [f"❌ [LLM层] LLM 调用失败: {str(e)}"], False
+        return None, [f"❌ [决策层] LLM 调用失败: {str(e)}"], False

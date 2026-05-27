@@ -22,7 +22,7 @@ class AdvancedReasoningModule(BaseAgentModule):
     Advanced reasoning module that provides AI-like responses.
     Supports both internal knowledge base and external LLM integration.
     """
-    __slots__ = ('knowledge_base', '_cache', '_config_hash', '_llm_provider', '_reasoning_logger', '_llm_logger')
+    __slots__ = ('knowledge_base', '_cache', '_config_hash', '_llm_provider', '_decision_logger')
     
     def __init__(self, config: AgentConfig):
         super().__init__(config)
@@ -36,8 +36,7 @@ class AdvancedReasoningModule(BaseAgentModule):
             self._config_hash = None
         
         self._llm_provider = None
-        self._reasoning_logger = get_layer_logger("reasoning", "AdvancedReasoningModule")
-        self._llm_logger = None
+        self._decision_logger = get_layer_logger("decision", "AdvancedReasoningModule")
     
     def set_llm_provider(self, llm_provider):
         """Set LLM provider for AI-powered responses."""
@@ -55,43 +54,43 @@ class AdvancedReasoningModule(BaseAgentModule):
         Raises:
             ResponseGenerationError: If response generation fails unexpectedly.
         """
-        reasoning = self._reasoning_logger
+        decision = self._decision_logger
         
-        reasoning.info(f"generate_response() 收到请求: {input_data[:30]}...")
-        reasoning.info(f"   → 下一步: LRUCache 检查缓存")
+        decision.info(f"generate_response() 收到请求: {input_data[:30]}...")
+        decision.info(f"   → 下一步: LRUCache 检查缓存")
         
         if hasattr(self, '_cache') and self._cache is not None:
             cache_key = create_cache_key(input_data, self._config_hash)
             cached_response = self._cache.get(cache_key)
             if cached_response is not None:
-                reasoning.info(f"LRUCache 缓存命中，直接返回")
-                reasoning.info(f"   → 返回结果到 [控制层]")
+                decision.info(f"LRUCache 缓存命中，直接返回")
+                decision.info(f"   → 返回结果到 [决策层]")
                 return cached_response
-            reasoning.info(f"LRUCache 缓存未命中，继续处理")
+            decision.info(f"LRUCache 缓存未命中，继续处理")
         
         start_time = time.time()
         
         try:
-            reasoning.info(f"_classify_input() 分析输入类型...")
-            reasoning.info(f"   → 下一步: _assess_complexity()")
+            decision.info(f"_classify_input() 分析输入类型...")
+            decision.info(f"   → 下一步: _assess_complexity()")
             input_type = self._classify_input(input_data)
             complexity = self._assess_complexity(input_data)
-            reasoning.info(f"InputClassifier 分类结果: {input_type}, 复杂度: {complexity}")
-            reasoning.info(f"   → 下一步: 判断是否配置了 LLM provider")
+            decision.info(f"InputClassifier 分类结果: {input_type}, 复杂度: {complexity}")
+            decision.info(f"   → 下一步: 判断是否配置了 LLM provider")
             
             if self._llm_provider is not None:
                 provider_name = self._llm_provider.__class__.__name__
-                reasoning.info(f"{provider_name} 准备调用大模型...")
-                reasoning.info(f"   → 下一步: _generate_llm_response()")
+                decision.info(f"{provider_name} 准备调用大模型...")
+                decision.info(f"   → 下一步: _generate_llm_response()")
                 response_content = await self._generate_llm_response(input_data, input_type, complexity)
-                reasoning.info(f"{provider_name} 大模型返回成功 (长度: {len(response_content)} 字符)")
-                reasoning.info(f"   → 返回结果到 [推理层]")
+                decision.info(f"{provider_name} 大模型返回成功 (长度: {len(response_content)} 字符)")
+                decision.info(f"   → 返回结果到 [决策层]")
             else:
-                reasoning.info(f"_generate_intelligent_response() 使用知识库...")
-                reasoning.info(f"   → 调用: _generate_intelligent_response()")
+                decision.info(f"_generate_intelligent_response() 使用知识库...")
+                decision.info(f"   → 调用: _generate_intelligent_response()")
                 response_content = self._generate_intelligent_response(input_data, input_type, complexity)
-                reasoning.info(f"KnowledgeBase 返回成功 (长度: {len(response_content)} 字符)")
-                reasoning.info(f"   → 返回结果到 [控制层]")
+                decision.info(f"KnowledgeBase 返回成功 (长度: {len(response_content)} 字符)")
+                decision.info(f"   → 返回结果到 [决策层]")
             
             reasoning_steps = self._extract_reasoning_steps(response_content)
             
@@ -109,7 +108,6 @@ class AdvancedReasoningModule(BaseAgentModule):
                 execution_time=execution_time
             )
             
-            # Store in cache if enabled
             if hasattr(self, '_cache') and self._cache is not None:
                 cache_key = create_cache_key(input_data, self._config_hash)
                 self._cache.put(cache_key, response)
@@ -123,12 +121,11 @@ class AdvancedReasoningModule(BaseAgentModule):
     
     async def _generate_llm_response(self, input_data: str, input_type: str, complexity: int) -> str:
         """Generate response using LLM provider."""
-        llm = self._llm_logger
-        reasoning = self._reasoning_logger
+        decision = self._decision_logger
         
         if not self._llm_provider:
-            llm.warning("⚠️ [LLM层] 没有配置 LLM provider，回退到知识库")
-            llm.info(f"   → 下一步将调用: [推理层] _generate_intelligent_response()")
+            decision.warning("⚠️ [决策层] 没有配置 LLM provider，回退到知识库")
+            decision.info(f"   → 下一步将调用: [决策层] _generate_intelligent_response()")
             return self._generate_intelligent_response(input_data, input_type, complexity)
         
         depth_prompt = {
@@ -150,15 +147,15 @@ class AdvancedReasoningModule(BaseAgentModule):
         
         provider_name = self._llm_provider.__class__.__name__
         try:
-            reasoning.info(f"{provider_name} 正在调用大模型... (prompt长度: {len(prompt)} 字符)")
-            reasoning.info(f"   → 下一步: _generate_llm_response()")
+            decision.info(f"{provider_name} 正在调用大模型... (prompt长度: {len(prompt)} 字符)")
+            decision.info(f"   → 下一步: _generate_llm_response()")
             response = await self._llm_provider.generate(prompt)
-            reasoning.info(f"{provider_name} 大模型调用成功 (响应长度: {len(response)} 字符)")
-            reasoning.info(f"   → 返回结果到 [推理层]")
+            decision.info(f"{provider_name} 大模型调用成功 (响应长度: {len(response)} 字符)")
+            decision.info(f"   → 返回结果到 [决策层]")
             return response.strip()
         except Exception as e:
-            reasoning.error(f"{provider_name} 大模型调用失败: {str(e)}，回退到知识库")
-            reasoning.info(f"   → 下一步: _generate_intelligent_response()")
+            decision.error(f"{provider_name} 大模型调用失败: {str(e)}，回退到知识库")
+            decision.info(f"   → 下一步: _generate_intelligent_response()")
             return self._generate_intelligent_response(input_data, input_type, complexity)
     
     def _load_knowledge_base(self) -> Dict[str, Any]:
@@ -203,20 +200,16 @@ class AdvancedReasoningModule(BaseAgentModule):
         """Enhanced input classification."""
         input_lower = input_data.lower()
         
-        # Programming/Code related
         if any(keyword in input_lower for keyword in ['python', 'code', 'function', 'algorithm', 'optimize', 'debug', 'error', 'implement', 'fibonacci', 'binary search', 'sort', 'recursion']):
             return 'programming'
         
-        # Machine Learning/AI related
         elif any(keyword in input_lower for keyword in ['machine learning', 'neural network', 'artificial intelligence', 'deep learning']) or \
              any(keyword == word for keyword in ['ai', 'model'] for word in input_lower.split()):
             return 'machine_learning'
         
-        # System Design/API related
         elif any(keyword in input_lower for keyword in ['api', 'rest', 'graphql', 'architecture', 'design', 'system']):
             return 'system_design'
         
-        # General conceptual questions
         elif any(keyword in input_lower for keyword in ['what is', 'explain', 'how does', 'why', 'difference between']):
             return 'conceptual'
             
@@ -248,22 +241,18 @@ class AdvancedReasoningModule(BaseAgentModule):
         """Generate response based on knowledge base."""
         input_lower = input_data.lower()
         
-        # Friendly greeting response
         if any(greeting in input_lower for greeting in ['hello', 'hi', '你好', '嗨']):
             return "你好！我是一个智能问答助手。有什么我可以帮你的吗？我可以解答编程问题、解释技术概念、提供代码示例等等。"
         
-        # Check for specific programming patterns in knowledge base
         if input_type == 'programming' and self.knowledge_base:
             patterns = self.knowledge_base.get('programming', {}).get('common_patterns', {})
             for pattern_name, pattern_code in patterns.items():
                 if pattern_name.lower() in input_lower:
                     return self._generate_pattern_response(pattern_name, pattern_code, complexity)
             
-            # Check for optimization queries
             if any(keyword in input_lower for keyword in ['optimize', 'optimization', 'performance', 'faster']):
                 return self._generate_optimization_response(complexity)
         
-        # Response templates based on type
         responses = {
             'programming': f"""关于编程问题，我可以帮助你：
 
@@ -431,11 +420,9 @@ def greet():
     
     def _calculate_confidence(self, input_data: str, response_content: str) -> float:
         """Calculate confidence score."""
-        # Higher confidence when LLM is used
         if self._llm_provider:
             return 0.95
         
-        # Simple heuristic based on input clarity
         clarity_indicators = [
             '?' in input_data,
             len(input_data.split()) > 10,

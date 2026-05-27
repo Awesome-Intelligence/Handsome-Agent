@@ -127,7 +127,7 @@ class Session:
         self.last_save_time = 0.0
         self.store = FileSessionStore(self.config.history_path)
         self.logger = logging.getLogger(f"Session.{session_id}")
-        self._storage_logger = get_layer_logger("storage", "SessionManager")
+        self._execution_logger = get_layer_logger("execution", "SessionManager")
         
         if self.config.enable_persistence:
             self._load_session()
@@ -137,12 +137,10 @@ class Session:
         data = self.store.load(self.session_id)
         if data:
             try:
-                # Load messages
                 self.messages = [
                     Message(**msg) for msg in data.get('messages', [])
                 ]
                 
-                # Load context
                 self.context = data.get('context', {})
                 
                 self.logger.info(f"Loaded session with {len(self.messages)} messages")
@@ -196,15 +194,15 @@ class Session:
         
         self.messages.append(message)
         
-        storage = self._storage_logger
-        storage.info(f"💾 [存储层] 添加消息:")
-        storage.info(f"  ├─ 角色: {role}")
-        storage.info(f"  ├─ 内容: {content[:50]}...")
-        storage.info(f"  └─ 消息数: {len(self.messages)}")
+        execution = self._execution_logger
+        execution.info(f"⚡ [执行层] 添加消息:")
+        execution.info(f"  ├─ 角色: {role}")
+        execution.info(f"  ├─ 内容: {content[:50]}...")
+        execution.info(f"  └─ 消息数: {len(self.messages)}")
         
         if len(self.messages) > self.config.max_history_length:
             self.messages = self.messages[-self.config.max_history_length:]
-            storage.info(f"✂️ [存储层] 历史记录已修剪，当前保留 {self.config.max_history_length} 条消息")
+            execution.info(f"✂️ [执行层] 历史记录已修剪，当前保留 {self.config.max_history_length} 条消息")
         
         if time.time() - self.last_save_time > self.config.auto_save_interval:
             self._save_session()
@@ -266,7 +264,6 @@ class Session:
                 'content': msg.content
             }
             
-            # Handle tool calls and results
             if msg.role == 'assistant' and msg.tool_call_id:
                 formatted_msg['tool_call_id'] = msg.tool_call_id
             
@@ -355,11 +352,9 @@ class SessionManager:
         Returns:
             Session instance or None if not found
         """
-        # Check in-memory first
         if session_id in self.sessions:
             return self.sessions[session_id]
         
-        # Try to load from storage
         data = self.store.load(session_id)
         if data:
             session = self.create_session(session_id)
@@ -382,7 +377,6 @@ class SessionManager:
     
     def list_sessions(self) -> List[str]:
         """List all available session IDs."""
-        # Combine in-memory and stored sessions
         in_memory = set(self.sessions.keys())
         stored = set(self.store.list_sessions())
         return list(in_memory.union(stored))
@@ -406,5 +400,4 @@ class SessionManager:
             self.logger.info(f"Cleaned up inactive session: {session_id}")
 
 
-# Global session manager instance
 session_manager = SessionManager()
