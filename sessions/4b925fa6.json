@@ -1,0 +1,14 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, world!",
+      "timestamp": 1779955988.4926085,
+      "metadata": {},
+      "tool_call_id": null,
+      "tool_result": null
+    }
+  ],
+  "context": {},
+  "updated_at": 1779955988.4926276
+}

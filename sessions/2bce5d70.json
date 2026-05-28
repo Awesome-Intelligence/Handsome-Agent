@@ -1,0 +1,14 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is machine learning?",
+      "timestamp": 1779953402.296718,
+      "metadata": {},
+      "tool_call_id": null,
+      "tool_result": null
+    }
+  ],
+  "context": {},
+  "updated_at": 1779953402.2967298
+}

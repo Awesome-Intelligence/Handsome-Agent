@@ -22,6 +22,8 @@ class IntentType(Enum):
     """Supported intent types."""
     CONVERSATION = "conversation"
     QUESTION = "question"
+    WEATHER = "weather"
+    TIME_QUERY = "time_query"
     CODING = "coding"
     FILE_OPERATION = "file_operation"
     WEB_SEARCH = "web_search"
@@ -87,6 +89,12 @@ class TaskRouter:
         self.logger = logging.getLogger(self.__class__.__name__)
         self._control_logger = get_layer_logger("control", "TaskRouter")
         self._intent_logger = get_layer_logger("control", "IntentClassifier")
+        self._enable_detailed_logs = True  # Default value, will be set by agent
+    
+    def set_detailed_logs(self, enabled: bool):
+        """Set whether to print detailed logs."""
+        self._enable_detailed_logs = enabled
+        self.intent_classifier.enable_detailed_logs = enabled
     
     def register_route(self, config: RouteConfig):
         """Register a route configuration."""
@@ -103,7 +111,8 @@ class TaskRouter:
         
         if matches:
             best_match = matches[0]
-            self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
+            if self._enable_detailed_logs:
+                self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
             return best_match
         return None
     
@@ -116,7 +125,8 @@ class TaskRouter:
         
         if matches:
             best_match = matches[0]
-            self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
+            if self._enable_detailed_logs:
+                self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
             return best_match
         return None
     
@@ -169,6 +179,14 @@ class IntentClassifier:
             'what', 'who', 'when', 'where', 'why', 'how', 'explain',
             'difference', 'compare', 'define', 'meaning', 'is there', 'tell me'
         ],
+        'weather': [
+            '天气', 'weather', '温度', 'temperature', '下雨', 'rain', '晴天', 'sunny',
+            '多云', 'cloudy', '风', 'wind', '气候', 'climate', ' forecast', '预报'
+        ],
+        'time_query': [
+            '时间', '现在几点', '几点了', '什么时间', '几点', 'date', '日期', '今天几号',
+            '星期几', 'month', 'year', '年', '月', '日', '几点钟'
+        ],
         'coding': [
             'code', 'python', 'function', 'program', 'debug', 'error', 'bug',
             'implement', 'write', 'fix', 'compile', 'syntax', 'class', 'method',
@@ -176,7 +194,10 @@ class IntentClassifier:
         ],
         'file_operation': [
             'file', 'read', 'write', 'save', 'delete', 'create file', 'open file',
-            'list files', 'directory', 'folder', 'path', 'list'
+            'list files', 'directory', 'folder', 'path', 'list',
+            '桌面', 'documents', 'downloads', '图片', '音乐', '视频', '文档', '下载',
+            '查看', '看看', '浏览', '显示', '有哪些', '哪些', '内容', '目录',
+            '打开文件夹', 'open folder'
         ],
         'web_search': [
             'search', 'google', 'bing', 'web', 'internet', 'online', 'find',
@@ -204,6 +225,8 @@ class IntentClassifier:
     Available intents:
     - conversation: Greetings, farewells, casual chat
     - question: Asking questions, seeking explanations
+    - weather: Weather queries, temperature, forecasts
+    - time_query: Time, date, current moment inquiries
     - coding: Programming, debugging, code-related tasks
     - file_operation: Reading, writing, managing files
     - web_search: Searching the internet, looking up information
@@ -213,18 +236,38 @@ class IntentClassifier:
     - configuration: Setting up, configuring, preferences
     """
     
-    def __init__(self, llm_provider=None):
+    def __init__(self, llm_provider=None, mode: str = "llm", threshold: float = 0.3, language: str = "zh", enable_detailed_logs: bool = True):
         self.logger = logging.getLogger(self.__class__.__name__)
         self._ctrl_logger = get_layer_logger("control", "IntentClassifier")
         self.llm_provider = llm_provider
+        self.mode = mode  # keyword, llm, hybrid (default: llm for smart intent classification)
+        self.threshold = threshold  # Confidence threshold for hybrid mode
+        self.language = language  # zh, en, ja, ko
+        self.enable_detailed_logs = enable_detailed_logs  # Control detailed logging
     
     def set_llm_provider(self, provider):
         """Set the LLM provider for assisted classification."""
         self.llm_provider = provider
     
+    def set_mode(self, mode: str):
+        """Set intent classification mode."""
+        if mode in ["keyword", "llm", "hybrid"]:
+            self.mode = mode
+        else:
+            self.logger.warning(f"Invalid intent mode: {mode}, defaulting to hybrid")
+            self.mode = "hybrid"
+    
+    def set_language(self, language: str):
+        """Set the language for intent classification."""
+        if language in ["zh", "en", "ja", "ko"]:
+            self.language = language
+        else:
+            self.logger.warning(f"Unsupported language: {language}, defaulting to zh")
+            self.language = "zh"
+    
     def classify(self, input_text: str) -> str:
         """
-        Classify user intent using keyword matching + LLM assistance.
+        Classify user intent based on the configured mode.
         
         Args:
             input_text: User input text
@@ -232,39 +275,91 @@ class IntentClassifier:
         Returns:
             Intent type string
         """
-        # Step 1: Keyword-based classification (fast path)
+        if self.mode == "keyword":
+            return self._classify_keyword_only(input_text)
+        elif self.mode == "llm":
+            return self._classify_llm_only(input_text)
+        else:  # hybrid mode
+            return self._classify_hybrid(input_text)
+    
+    def _classify_keyword_only(self, input_text: str) -> str:
+        """Keyword-only intent classification."""
         keyword_intent, confidence = self._keyword_classify(input_text)
-        
-        if confidence >= 0.3:
+        if self.enable_detailed_logs:
             self._ctrl_logger.info(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
-            return keyword_intent
-        
-        # Step 2: LLM-assisted classification (if available)
+        return keyword_intent
+    
+    def _classify_llm_only(self, input_text: str) -> str:
+        """LLM-only intent classification."""
         if self.llm_provider:
             llm_intent = self._llm_classify(input_text)
             if llm_intent:
-                self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
+                if self.enable_detailed_logs:
+                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
+                return llm_intent
+        if self.enable_detailed_logs:
+            self._ctrl_logger.warning("LLM not available, falling back to keyword classification")
+        return self._classify_keyword_only(input_text)
+    
+    def _classify_hybrid(self, input_text: str) -> str:
+        """Hybrid intent classification (keyword + LLM fallback)."""
+        keyword_intent, confidence = self._keyword_classify(input_text)
+        
+        if confidence >= self.threshold:
+            if self.enable_detailed_logs:
+                self._ctrl_logger.info(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
+            return keyword_intent
+        
+        if self.llm_provider:
+            llm_intent = self._llm_classify(input_text)
+            if llm_intent:
+                if self.enable_detailed_logs:
+                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
                 return llm_intent
         
-        # Step 3: Fallback to best keyword match
-        self._ctrl_logger.info(f"关键词分类 (低置信度): {keyword_intent}")
+        if self.enable_detailed_logs:
+            self._ctrl_logger.info(f"关键词分类 (低置信度): {keyword_intent}")
         return keyword_intent
     
     async def classify_async(self, input_text: str) -> str:
         """Async version of classify with LLM assistance."""
+        if self.mode == "keyword":
+            return self._classify_keyword_only(input_text)
+        elif self.mode == "llm":
+            return await self._classify_llm_only_async(input_text)
+        else:  # hybrid mode
+            return await self._classify_hybrid_async(input_text)
+    
+    async def _classify_llm_only_async(self, input_text: str) -> str:
+        """Async LLM-only intent classification."""
+        if self.llm_provider:
+            llm_intent = await self._llm_classify_async(input_text)
+            if llm_intent:
+                if self.enable_detailed_logs:
+                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
+                return llm_intent
+        if self.enable_detailed_logs:
+            self._ctrl_logger.warning("LLM not available, falling back to keyword classification")
+        return self._classify_keyword_only(input_text)
+    
+    async def _classify_hybrid_async(self, input_text: str) -> str:
+        """Async hybrid intent classification."""
         keyword_intent, confidence = self._keyword_classify(input_text)
         
-        if confidence >= 0.3:
-            self._ctrl_logger.info(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
+        if confidence >= self.threshold:
+            if self.enable_detailed_logs:
+                self._ctrl_logger.info(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
             return keyword_intent
         
         if self.llm_provider:
             llm_intent = await self._llm_classify_async(input_text)
             if llm_intent:
-                self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
+                if self.enable_detailed_logs:
+                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
                 return llm_intent
         
-        self._ctrl_logger.info(f"关键词分类 (低置信度): {keyword_intent}")
+        if self.enable_detailed_logs:
+            self._ctrl_logger.info(f"关键词分类 (低置信度): {keyword_intent}")
         return keyword_intent
     
     def _keyword_classify(self, input_text: str) -> Tuple[str, float]:

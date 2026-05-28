@@ -54,6 +54,12 @@ from .session import (
 
 from .i18n import I18n, i18n, get_i18n
 
+from .memory_provider import MemoryProvider
+from .memory_manager import MemoryManager
+from .builtin_memory import BuiltinMemoryProvider, builtin_memory_provider
+from .trajectory_recorder import TrajectoryRecorder, trajectory_recorder
+from .self_improvement import SelfImprovementEngine, self_improvement_engine
+
 from .layer_logger import (
     LayerLogger,
     get_layer_logger,
@@ -119,6 +125,18 @@ __all__ = [
     'I18n',
     'i18n',
     'get_i18n',
+    
+    # Memory
+    'MemoryProvider',
+    'MemoryManager',
+    'BuiltinMemoryProvider',
+    'builtin_memory_provider',
+    
+    # Trajectory & Self-Improvement
+    'TrajectoryRecorder',
+    'trajectory_recorder',
+    'SelfImprovementEngine',
+    'self_improvement_engine',
     
     # Layer Logger
     'LayerLogger',

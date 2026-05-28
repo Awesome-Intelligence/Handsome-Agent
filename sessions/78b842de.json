@@ -1,0 +1,14 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "How do I optimize Python code?",
+      "timestamp": 1779954747.8838441,
+      "metadata": {},
+      "tool_call_id": null,
+      "tool_result": null
+    }
+  ],
+  "context": {},
+  "updated_at": 1779954747.883858
+}

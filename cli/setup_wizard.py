@@ -97,7 +97,7 @@ def get_all_providers():
 
 def setup_llm_provider() -> dict | None:
     """Setup LLM provider configuration."""
-    ui.print_step(1, 2, "大模型配置")
+    ui.print_step(2, 3, "大模型配置")
     
     providers = get_all_providers()
     ui.print_provider_list(providers)
@@ -181,9 +181,9 @@ def setup_llm_provider() -> dict | None:
     return config
 
 
-def setup_preferences() -> dict | None:
-    """Setup basic preferences."""
-    ui.print_step(2, 2, "偏好设置")
+def setup_language() -> str | None:
+    """Setup language preference (first step)."""
+    ui.print_step(1, 3, "语言设置")
     
     language_options = [
         ("zh", "中文 (Chinese) - 默认"),
@@ -191,10 +191,17 @@ def setup_preferences() -> dict | None:
         ("ko", "한국어 (韩语)"),
         ("ja", "日本語 (日语)")
     ]
-    choice = ask_choice("请选择日志显示语言:", language_options, default=0)
+    choice = ask_choice("请选择显示语言:", language_options, default=0)
     if choice is None:
         return None
-    language = language_options[choice][0]
+    
+    ui.print_end_step()
+    return language_options[choice][0]
+
+
+def setup_preferences() -> dict | None:
+    """Setup basic preferences."""
+    ui.print_step(3, 3, "偏好设置")
     
     depth_options = [
         ("brief", "简洁 - 只返回要点"),
@@ -212,7 +219,6 @@ def setup_preferences() -> dict | None:
         "response_format": "markdown",
         "enable_caching": True,
         "max_response_length": 4000,
-        "language": language
     }
 
 
@@ -235,9 +241,13 @@ def confirm_and_save(config: dict) -> bool:
         if llm.get("model"):
             ui.print_config_item("模型", llm['model'])
     
+    language_display = {
+        "zh": "中文", "en": "English", "ko": "한국어", "ja": "日本語"
+    }.get(config.get('language', 'zh'), config.get('language', 'zh'))
+    ui.print_config_item("显示语言", language_display)
+    
     prefs = config.get("preferences", {})
     ui.print_config_item("详细程度", prefs.get('explanation_depth', 'detailed'))
-    ui.print_config_item("显示语言", prefs.get('language', 'zh'))
     
     ui.print_divider()
     
@@ -280,12 +290,21 @@ def run_setup_wizard():
     
     config = {}
     
+    # Step 1: Language setup (first)
+    language = setup_language()
+    if language is None:
+        ui.print_info("设置已取消")
+        return
+    config["language"] = language
+    
+    # Step 2: LLM provider setup
     llm_config = setup_llm_provider()
     if llm_config is None:
         ui.print_info("设置已取消")
         return
     config["llm"] = llm_config
     
+    # Step 3: Preferences setup
     preferences = setup_preferences()
     if preferences is None:
         ui.print_info("设置已取消")

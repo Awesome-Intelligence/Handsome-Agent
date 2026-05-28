@@ -35,6 +35,7 @@ class SessionConfig:
     auto_save_interval: int = 300  # seconds
     enable_persistence: bool = True
     history_path: str = "./sessions/"
+    enable_detailed_logs: bool = True  # Enable detailed logs in session operations
 
 
 class BaseSessionStore(ABC):
@@ -128,6 +129,7 @@ class Session:
         self.store = FileSessionStore(self.config.history_path)
         self.logger = logging.getLogger(f"Session.{session_id}")
         self._execution_logger = get_layer_logger("execution", "SessionManager")
+        self._enable_detailed_logs = self.config.enable_detailed_logs
         
         if self.config.enable_persistence:
             self._load_session()
@@ -194,15 +196,17 @@ class Session:
         
         self.messages.append(message)
         
-        execution = self._execution_logger
-        execution.info(f"⚡ [执行层] 添加消息:")
-        execution.info(f"  ├─ 角色: {role}")
-        execution.info(f"  ├─ 内容: {content[:50]}...")
-        execution.info(f"  └─ 消息数: {len(self.messages)}")
+        if self._enable_detailed_logs:
+            execution = self._execution_logger
+            execution.info(f"⚡ [执行层] 添加消息:")
+            execution.info(f"  ├─ 角色: {role}")
+            execution.info(f"  ├─ 内容: {content[:50]}...")
+            execution.info(f"  └─ 消息数: {len(self.messages)}")
         
         if len(self.messages) > self.config.max_history_length:
             self.messages = self.messages[-self.config.max_history_length:]
-            execution.info(f"✂️ [执行层] 历史记录已修剪，当前保留 {self.config.max_history_length} 条消息")
+            if self._enable_detailed_logs:
+                execution.info(f"✂️ [执行层] 历史记录已修剪，当前保留 {self.config.max_history_length} 条消息")
         
         if time.time() - self.last_save_time > self.config.auto_save_interval:
             self._save_session()
@@ -314,7 +318,7 @@ class SessionManager:
         self.store = FileSessionStore(self.config.history_path)
         self.logger = logging.getLogger(self.__class__.__name__)
     
-    def create_session(self, session_id: Optional[str] = None) -> Session:
+    def create_session(self, session_id: Optional[str] = None, enable_detailed_logs: Optional[bool] = None) -> Session:
         """
         Create a new session.
         
@@ -331,7 +335,18 @@ class SessionManager:
             self.logger.warning(f"Session {session_id} already exists, returning existing")
             return self.sessions[session_id]
         
-        session = Session(session_id, self.config)
+        if enable_detailed_logs is not None:
+            session_config = SessionConfig(
+                max_history_length=self.config.max_history_length,
+                auto_save_interval=self.config.auto_save_interval,
+                enable_persistence=self.config.enable_persistence,
+                history_path=self.config.history_path,
+                enable_detailed_logs=enable_detailed_logs
+            )
+        else:
+            session_config = self.config
+        
+        session = Session(session_id, session_config)
         self.sessions[session_id] = session
         self.logger.info(f"Created new session: {session_id}")
         

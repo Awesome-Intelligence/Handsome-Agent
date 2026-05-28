@@ -1,74 +1,137 @@
-"""Web 工具定义"""
+"""Web 工具定义 - 搜索和内容提取"""
 from tools.schema_registry import UnifiedToolSchema, ToolSource
 
 
 WEB_TOOLS = [
     UnifiedToolSchema(
         name="web_search",
-        description="搜索网页",
+        description="搜索网页获取信息，支持 Google、Bing 等搜索引擎",
         source=ToolSource.HERMES,
-        source_name="search_web",
+        source_name="web_search",
         parameters={
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "搜索关键词"
+                    "description": "搜索查询关键词"
                 },
-                "max_results": {
+                "num_results": {
                     "type": "integer",
-                    "default": 5
+                    "description": "返回结果数量",
+                    "default": 10
+                },
+                "engine": {
+                    "type": "string",
+                    "description": "搜索引擎: google, bing, duckduckgo",
+                    "default": "google"
                 }
             },
             "required": ["query"]
         },
+        returns={
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "url": {"type": "string"},
+                            "snippet": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            {
+                "description": "搜索 Python 教程",
+                "params": {"query": "Python 教程", "num_results": 5}
+            }
+        ],
         safety_level="low",
         category="web",
     ),
     UnifiedToolSchema(
-        name="web_fetch",
-        description="获取网页内容",
+        name="web_extract",
+        description="提取网页内容，支持多 URL 批量提取",
         source=ToolSource.HERMES,
-        source_name="fetch_page",
+        source_name="web_extract",
         parameters={
             "type": "object",
             "properties": {
-                "url": {
+                "urls": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "要提取的 URL 列表"
+                },
+                "prompt": {
                     "type": "string",
-                    "description": "网页 URL"
+                    "description": "从页面中提取什么信息"
                 },
                 "max_length": {
                     "type": "integer",
-                    "description": "最大获取长度",
-                    "default": 5000
+                    "description": "每个页面最大提取字符数",
+                    "default": 10000
                 }
             },
-            "required": ["url"]
+            "required": ["urls"]
         },
-        safety_level="medium",
+        returns={
+            "type": "object",
+            "properties": {
+                "extracted": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "url": {"type": "string"},
+                            "content": {"type": "string"},
+                            "success": {"type": "boolean"}
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            {
+                "description": "提取网页主要内容",
+                "params": {"urls": ["https://example.com"]}
+            }
+        ],
+        safety_level="low",
         category="web",
     ),
     UnifiedToolSchema(
         name="http_request",
-        description="发送 HTTP 请求",
+        description="发送 HTTP 请求（GET/POST/PUT/DELETE）",
         source=ToolSource.HERMES,
-        source_name="http_call",
+        source_name="http_request",
         parameters={
             "type": "object",
             "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "请求 URL"
+                },
                 "method": {
                     "type": "string",
-                    "enum": ["GET", "POST", "PUT", "DELETE"],
+                    "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+                    "description": "HTTP 方法",
                     "default": "GET"
                 },
-                "url": {
-                    "type": "string"
-                },
                 "headers": {
-                    "type": "object"
+                    "type": "object",
+                    "description": "请求头"
                 },
-                "body": {
-                    "type": "object"
+                "data": {
+                    "type": "object",
+                    "description": "请求体数据"
+                },
+                "json": {
+                    "type": "object",
+                    "description": "JSON 请求体"
                 }
             },
             "required": ["url"]

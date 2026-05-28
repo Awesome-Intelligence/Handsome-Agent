@@ -306,17 +306,42 @@ class GoogleProvider(BaseLLMProvider):
 class MiniMaxProvider(BaseLLMProvider):
     """Provider for MiniMax APIs."""
     
-    async def generate(self, prompt: str) -> str:
-        """Generate response using MiniMax API."""
+    async def generate(self, prompt: str, messages: Optional[List[Dict]] = None, **kwargs) -> str:
+        """Generate response using MiniMax API.
+        
+        Args:
+            prompt: User prompt
+            messages: Conversation history for context
+            
+        Returns:
+            Response content string
+        """
         import urllib.request
         import json
+        
+        # Build messages array with history + current prompt
+        api_messages = []
+        
+        # Add conversation history if provided
+        if messages:
+            for msg in messages:
+                if isinstance(msg, dict):
+                    role = msg.get('role', 'user')
+                    content = msg.get('content', '')
+                else:
+                    role = getattr(msg, 'role', 'user') if hasattr(msg, 'role') else 'user'
+                    content = getattr(msg, 'content', '') if hasattr(msg, 'content') else str(msg)
+                api_messages.append({"role": role, "content": content})
+        
+        # Add current prompt
+        api_messages.append({"role": "user", "content": prompt})
         
         # MiniMax API endpoint
         url = "https://api.minimaxi.com/v1/text/chatcompletion_v2"
         
         payload = {
             "model": self.config.model or "MiniMax-M2.5",
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": api_messages,
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens
         }

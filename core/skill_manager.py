@@ -6,14 +6,50 @@ Skill Manager Module - Inspired by Hermes Agent's skill system.
 This module provides a unified framework for managing and executing skills.
 Skills are self-contained units of functionality that can be dynamically loaded
 and executed by the agent.
+
+Supports multiple import methods:
+- Decorator-based registration (@skill decorator)
+- File/directory import (like OpenClaw)
+- Module-based import (like Hermes)
+- JSON/YAML configuration import
+- Standard skill directory structure (industry standard - Hermes style)
+
+Supports Hermes-style progressive skill discovery:
+- Context-aware matching
+- History-based recommendations
+- Automatic parameter inference
+- Multi-turn skill invocation
+- Tag-based skill discovery
+- Related skills recommendation
+
+Standard Skill Directory Structure (Hermes Style):
+skills/
+  category/
+    skill_name/
+      SKILL.md          # Skill metadata documentation (YAML frontmatter + markdown)
+      scripts/          # Helper scripts
+      assets/           # Resource files (images, templates, etc.)
+      references/       # Reference documentation
 """
 
 import inspect
 import asyncio
+import os
+import sys
+import importlib
+import json
+import re
 from typing import Dict, List, Optional, Any, Callable, Union, Type
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import logging
+from collections import defaultdict
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 from .layer_logger import get_layer_logger
 
@@ -26,11 +62,12 @@ class SkillParameter:
     description: str
     required: bool = True
     default: Any = None
+    prompt: str = ""
 
 
 @dataclass
 class SkillMetadata:
-    """Metadata for a skill."""
+    """Metadata for a skill - compatible with Hermes SKILL.md format."""
     id: str
     name: str
     description: str
@@ -40,6 +77,15 @@ class SkillMetadata:
     requires_permission: bool = False
     aliases: List[str] = field(default_factory=list)
     examples: List[str] = field(default_factory=list)
+    source: str = "system"
+    usage_count: int = 0
+    last_used: Optional[str] = None
+    version: str = "1.0.0"
+    author: str = ""
+    license: str = "MIT"
+    platforms: List[str] = field(default_factory=lambda: ["linux", "macos", "windows"])
+    tags: List[str] = field(default_factory=list)
+    related_skills: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -50,6 +96,18 @@ class SkillResult:
     error: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class SkillRecommendation:
+    """推荐的技能及其匹配信息"""
+    skill_id: str
+    name: str
+    description: str
+    confidence: float
+    matched_by: str
+    required_params: Dict[str, str]
+    suggested_params: Dict[str, Any]
 
 
 class BaseSkill(ABC):
@@ -72,23 +130,44 @@ class BaseSkill(ABC):
             if param.required and param.name not in kwargs:
                 return False
         return True
+    
+    def get_missing_parameters(self, **kwargs) -> List[str]:
+        """获取缺失的必需参数"""
+        metadata = self.get_metadata()
+        missing = []
+        for param in metadata.parameters:
+            if param.required and param.name not in kwargs:
+                missing.append(param.name)
+        return missing
 
 
 class SkillManager:
     """
     Manages the registration, discovery, and execution of skills.
     
-    Attributes:
-        skills: Dictionary of registered skills
-        categories: Dictionary mapping categories to skill lists
+    Supports Hermes-style progressive skill discovery:
+    - Context-aware matching
+    - History-based recommendations
+    - Automatic parameter inference
+    - Multi-turn skill invocation
+    - Tag-based discovery
+    - Related skills recommendation
     """
     
     def __init__(self):
         self.skills: Dict[str, BaseSkill] = {}
         self.categories: Dict[str, List[str]] = {}
+        self.tags: Dict[str, List[str]] = {}  # tag -> skill_ids
+        self.skill_paths: Dict[str, str] = {}  # skill_id -> directory path
         self.logger = logging.getLogger(self.__class__.__name__)
         self._decision_logger = get_layer_logger("decision", "SkillManager")
         self._execution_logger = get_layer_logger("execution", "SkillManager")
+        
+        # 渐进式发现相关
+        self._skill_usage_history: List[Dict[str, Any]] = []
+        self._context_keywords: Dict[str, int] = defaultdict(int)
+        self._intent_history: List[str] = []
+        self._skill_co_occurrence: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
     
     def register_skill(self, skill: BaseSkill):
         """Register a skill instance."""
@@ -104,6 +183,12 @@ class SkillManager:
         if metadata.id not in self.categories[metadata.category]:
             self.categories[metadata.category].append(metadata.id)
         
+        for tag in metadata.tags:
+            if tag not in self.tags:
+                self.tags[tag] = []
+            if metadata.id not in self.tags[tag]:
+                self.tags[tag].append(metadata.id)
+        
         self.logger.info(f"Registered skill: {metadata.id} ({metadata.name})")
     
     def unregister_skill(self, skill_id: str):
@@ -114,6 +199,10 @@ class SkillManager:
             if metadata.category in self.categories:
                 if skill_id in self.categories[metadata.category]:
                     self.categories[metadata.category].remove(skill_id)
+            
+            for tag in metadata.tags:
+                if tag in self.tags and skill_id in self.tags[tag]:
+                    self.tags[tag].remove(skill_id)
             
             for alias in metadata.aliases:
                 if alias in self.skills:
@@ -138,51 +227,274 @@ class SkillManager:
         """Get all categories."""
         return list(self.categories.keys())
     
-    async def discover_skills(self, intent: str, query: str = "") -> List[SkillMetadata]:
-        """Discover relevant skills based on intent and query."""
-        relevant_skills = []
+    def get_skills_by_tag(self, tag: str) -> List[SkillMetadata]:
+        """Get skills by tag."""
+        skill_ids = self.tags.get(tag, [])
+        return [self.skills[sid].get_metadata() for sid in skill_ids if sid in self.skills]
+    
+    def get_related_skills(self, skill_id: str) -> List[SkillMetadata]:
+        """Get related skills for a given skill."""
+        skill = self.get_skill(skill_id)
+        if not skill:
+            return []
+        
+        metadata = skill.get_metadata()
+        related = []
+        for related_id in metadata.related_skills:
+            related_skill = self.get_skill(related_id)
+            if related_skill:
+                related.append(related_skill.get_metadata())
+        return related
+    
+    # ============ 渐进式技能发现 (Hermes Style) ============
+    
+    def _update_context(self, query: str, intent: str = ""):
+        """更新上下文信息"""
+        self._intent_history.append(intent)
+        if len(self._intent_history) > 20:
+            self._intent_history = self._intent_history[-20:]
+        
+        keywords = query.lower().split()
+        for keyword in keywords:
+            if len(keyword) >= 2:
+                self._context_keywords[keyword] += 1
+    
+    def _calculate_context_similarity(self, skill: BaseSkill, query: str) -> float:
+        """计算技能与当前上下文的相似度（Hermes 风格）"""
+        metadata = skill.get_metadata()
+        score = 0.0
+        query_lower = query.lower()
+        
+        # 描述匹配
+        if query_lower in metadata.description.lower():
+            score += 0.2
+        
+        # 名称匹配
+        if query_lower in metadata.name.lower():
+            score += 0.15
+        
+        # 示例匹配
+        for example in metadata.examples:
+            if example.lower() in query_lower:
+                score += 0.2
+                break
+        
+        # 别名匹配
+        for alias in metadata.aliases:
+            if alias.lower() in query_lower:
+                score += 0.2
+                break
+        
+        # 标签匹配
+        for tag in metadata.tags:
+            if tag.lower() in query_lower:
+                score += 0.1
+                break
+        
+        # 历史上下文匹配（关键词频率）
+        for keyword, freq in self._context_keywords.items():
+            if keyword in metadata.description.lower() or keyword in metadata.name.lower():
+                score += 0.05 * min(freq / 5, 1)
+        
+        # 意图历史匹配
+        for past_intent in self._intent_history[-5:]:
+            if past_intent and (past_intent.lower() in metadata.description.lower() or 
+                               past_intent.lower() in metadata.name.lower()):
+                score += 0.05
+                break
+        
+        return min(score, 1.0)
+    
+    async def discover_skills(self, intent: str, query: str = "", 
+                             context: Optional[List[Dict[str, Any]]] = None,
+                             tags: Optional[List[str]] = None) -> List[SkillRecommendation]:
+        """
+        渐进式发现相关技能（Hermes 风格）
+        
+        Args:
+            intent: 用户意图
+            query: 用户查询
+            context: 对话历史上下文
+            tags: 标签过滤
+        
+        Returns:
+            按置信度排序的技能推荐列表
+        """
+        self._update_context(query, intent)
+        
+        recommendations = []
         query_lower = query.lower()
         
         decision = self._decision_logger
-        decision.info(f"⚙️ [决策层] 开始技能发现:")
+        decision.info(f"🧠 [决策层] 渐进式技能发现:")
         decision.info(f"  ├─ 意图: {intent}")
         decision.info(f"  ├─ 查询: {query[:50]}...")
         decision.info(f"  └─ 总技能数: {len(self.skills)}")
         
+        processed_skills = set()
+        
         for skill_id, skill in self.skills.items():
             metadata = skill.get_metadata()
             
-            if any(s.id == metadata.id for s in relevant_skills):
+            if metadata.id in processed_skills:
+                continue
+            processed_skills.add(metadata.id)
+            
+            # 标签过滤
+            if tags:
+                skill_tags = set(metadata.tags)
+                if not skill_tags.intersection(tags):
+                    continue
+            
+            confidence = self._calculate_context_similarity(skill, query)
+            
+            if confidence < 0.05:
                 continue
             
-            is_relevant = False
-            match_reason = ""
+            # 确定匹配方式
+            matched_by = "context"
+            if intent in metadata.description.lower():
+                matched_by = "intent"
+            elif any(alias.lower() in query_lower for alias in metadata.aliases):
+                matched_by = "alias"
+            elif any(example.lower() in query_lower for example in metadata.examples):
+                matched_by = "example"
+            elif any(tag.lower() in query_lower for tag in metadata.tags):
+                matched_by = "tag"
             
-            description_lower = metadata.description.lower()
-            if intent in description_lower or intent in query_lower:
-                is_relevant = True
-                match_reason = "意图匹配"
+            missing_params = skill.get_missing_parameters()
+            required_params = {}
+            for param_name in missing_params:
+                param = next((p for p in metadata.parameters if p.name == param_name), None)
+                if param:
+                    required_params[param_name] = param.prompt or param.description
             
-            for alias in metadata.aliases:
-                alias_lower = alias.lower()
-                if alias_lower in query_lower or alias_lower == intent:
-                    is_relevant = True
-                    match_reason = f"别名 '{alias}' 匹配"
-                    break
+            suggested_params = self._infer_parameters(skill, query, context)
             
-            for example in metadata.examples:
-                if example.lower() in query_lower:
-                    is_relevant = True
-                    match_reason = f"示例 '{example}' 匹配"
-                    break
-            
-            if is_relevant:
-                decision.info(f"  ✓ 发现技能: {metadata.id} - {match_reason}")
-                relevant_skills.append(metadata)
+            recommendations.append(SkillRecommendation(
+                skill_id=metadata.id,
+                name=metadata.name,
+                description=metadata.description,
+                confidence=confidence,
+                matched_by=matched_by,
+                required_params=required_params,
+                suggested_params=suggested_params
+            ))
         
-        decision.info(f"  └─ 发现 {len(relevant_skills)} 个相关技能")
+        recommendations.sort(key=lambda x: x.confidence, reverse=True)
         
-        return relevant_skills
+        decision.info(f"  └─ 发现 {len(recommendations)} 个相关技能")
+        
+        return recommendations
+    
+    def _infer_parameters(self, skill: BaseSkill, query: str, 
+                          context: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
+        """从查询和上下文中推断参数值（Hermes 风格）"""
+        metadata = skill.get_metadata()
+        inferred = {}
+        
+        for param in metadata.parameters:
+            if param.name.lower() in query.lower():
+                words = query.lower().split()
+                try:
+                    idx = words.index(param.name.lower())
+                    if idx + 1 < len(words):
+                        inferred[param.name] = words[idx + 1]
+                except ValueError:
+                    pass
+            
+            if context and param.name not in inferred:
+                for msg in reversed(context[-5:]):
+                    if param.name.lower() in msg.get('content', '').lower():
+                        words = msg['content'].lower().split()
+                        try:
+                            idx = words.index(param.name.lower())
+                            if idx + 1 < len(words):
+                                inferred[param.name] = words[idx + 1]
+                                break
+                        except ValueError:
+                            pass
+        
+        return inferred
+    
+    async def recommend_and_execute(self, intent: str, query: str, 
+                                   context: Optional[List[Dict[str, Any]]] = None,
+                                   auto_confirm: bool = False) -> SkillResult:
+        """渐进式技能推荐与执行（Hermes 风格）"""
+        recommendations = await self.discover_skills(intent, query, context)
+        
+        if not recommendations:
+            return SkillResult(
+                success=False,
+                output="",
+                error="未找到匹配的技能"
+            )
+        
+        best_match = recommendations[0]
+        
+        if best_match.confidence < 0.25:
+            return SkillResult(
+                success=False,
+                output=f"不确定你想要做什么。你是想{best_match.description}吗？",
+                error="低置信度匹配"
+            )
+        
+        decision = self._decision_logger
+        decision.info(f"🧠 [决策层] 选择技能: {best_match.name} (置信度: {best_match.confidence:.2f})")
+        
+        skill = self.get_skill(best_match.skill_id)
+        if not skill:
+            return SkillResult(
+                success=False,
+                output="",
+                error=f"技能不存在: {best_match.skill_id}"
+            )
+        
+        params = best_match.suggested_params.copy()
+        
+        if best_match.required_params:
+            decision.info(f"  └─ 需要额外参数: {list(best_match.required_params.keys())}")
+            
+            if not auto_confirm:
+                param_hints = "\n".join([
+                    f"- {name}: {desc}" 
+                    for name, desc in best_match.required_params.items()
+                ])
+                return SkillResult(
+                    success=False,
+                    output=f"需要一些信息来执行此操作:\n{param_hints}",
+                    error="缺少参数",
+                    metadata={
+                        'skill_id': best_match.skill_id,
+                        'missing_params': best_match.required_params
+                    }
+                )
+        
+        return await self.execute_skill(best_match.skill_id, **params)
+    
+    def record_usage(self, skill_id: str, success: bool):
+        """记录技能使用情况（用于渐进式学习）"""
+        skill = self.get_skill(skill_id)
+        if skill:
+            metadata = skill.get_metadata()
+            metadata.usage_count += 1
+            metadata.last_used = str(asyncio.get_event_loop().time())
+            
+            self._skill_usage_history.append({
+                'skill_id': skill_id,
+                'success': success,
+                'timestamp': metadata.last_used
+            })
+            
+            if len(self._skill_usage_history) > 100:
+                self._skill_usage_history = self._skill_usage_history[-100:]
+    
+    def record_co_occurrence(self, skill_id1: str, skill_id2: str):
+        """记录技能共现关系"""
+        self._skill_co_occurrence[skill_id1][skill_id2] += 1
+        self._skill_co_occurrence[skill_id2][skill_id1] += 1
+    
+    # ============ 技能执行方法 ============
     
     async def execute_skill(self, skill_id: str, **kwargs) -> SkillResult:
         """Execute a skill by ID."""
@@ -222,6 +534,8 @@ class SkillManager:
         try:
             result = await skill.execute(**kwargs)
             
+            self.record_usage(skill_id, result.success)
+            
             if result.success:
                 execution.info(f"{skill_class}.execute() 执行成功 (输出长度: {len(result.output) if result.output else 0} 字符)")
                 decision.info(f"{skill_class}.execute() 执行成功")
@@ -232,6 +546,7 @@ class SkillManager:
             return result
             
         except Exception as e:
+            self.record_usage(skill_id, False)
             execution.error(f"{skill_class}.execute() 执行异常: {str(e)}", exc_info=True)
             decision.error(f"{skill_class}.execute() 执行异常: {str(e)}")
             return SkillResult(
@@ -239,6 +554,493 @@ class SkillManager:
                 output="",
                 error=f"Error executing skill: {str(e)}"
             )
+    
+    # ============ 技能导入功能 ============
+    
+    def import_skill_from_directory_structure(self, skills_dir: str = "skills") -> int:
+        """
+        从标准技能目录结构导入技能（Hermes 风格）
+        
+        目录结构:
+        skills/
+          category/
+            skill_name/
+              SKILL.md          # 技能元数据文档（YAML frontmatter + markdown）
+              scripts/          # 辅助脚本
+              assets/           # 资源文件
+              references/       # 参考文档
+        
+        Args:
+            skills_dir: 技能目录路径，默认为 'skills'
+        
+        Returns:
+            成功导入的技能数量
+        """
+        if not os.path.isdir(skills_dir):
+            self.logger.error(f"技能目录不存在: {skills_dir}")
+            return 0
+        
+        imported_count = 0
+        
+        for category_dir in os.listdir(skills_dir):
+            category_path = os.path.join(skills_dir, category_dir)
+            
+            if not os.path.isdir(category_path):
+                continue
+            
+            for skill_dir in os.listdir(category_path):
+                skill_path = os.path.join(category_path, skill_dir)
+                
+                if not os.path.isdir(skill_path):
+                    continue
+                
+                # 优先从 skill.py 文件导入（Python 实现）
+                skill_py = os.path.join(skill_path, "skill.py")
+                if os.path.isfile(skill_py):
+                    try:
+                        dir_name = os.path.dirname(skill_py)
+                        file_name = os.path.basename(skill_py)
+                        module_name = file_name[:-3]
+                        
+                        if dir_name not in sys.path:
+                            sys.path.insert(0, dir_name)
+                        
+                        module = importlib.import_module(module_name)
+                        
+                        for name in dir(module):
+                            obj = getattr(module, name)
+                            if isinstance(obj, BaseSkill):
+                                obj.get_metadata().source = "user"
+                                obj.get_metadata().category = category_dir
+                                self.register_skill(obj)
+                                self.skill_paths[obj.get_metadata().id] = skill_path
+                                imported_count += 1
+                                self.logger.info(f"从 skill.py 导入技能: {obj.get_metadata().id}")
+                        
+                        if dir_name in sys.path:
+                            sys.path.remove(dir_name)
+                        
+                        continue
+                    except Exception as e:
+                        self.logger.error(f"从 skill.py 导入技能失败 {skill_dir}: {str(e)}")
+                
+                # 否则从 SKILL.md 文件创建（Hermes 风格）
+                skill_md = os.path.join(skill_path, "SKILL.md")
+                if not os.path.isfile(skill_md):
+                    skill_md = os.path.join(skill_path, "skill.md")
+                
+                if not os.path.isfile(skill_md):
+                    self.logger.warning(f"跳过非标准技能目录（缺少 SKILL.md 和 skill.py）: {skill_dir}")
+                    continue
+                
+                try:
+                    skill = self._create_skill_from_hermes_md(skill_md)
+                    if skill:
+                        skill.get_metadata().source = "user"
+                        skill.get_metadata().category = category_dir
+                        self.register_skill(skill)
+                        self.skill_paths[skill.get_metadata().id] = skill_path
+                        imported_count += 1
+                        self.logger.info(f"从 Hermes 风格目录导入技能: {skill.get_metadata().id}")
+                
+                except Exception as e:
+                    self.logger.error(f"从目录导入技能失败 {skill_dir}: {str(e)}")
+        
+        self.logger.info(f"从标准目录结构成功导入 {imported_count} 个技能")
+        return imported_count
+    
+    def _create_skill_from_hermes_md(self, md_path: str) -> Optional[BaseSkill]:
+        """
+        从 Hermes 风格的 SKILL.md 文件创建技能
+        
+        Hermes SKILL.md 格式:
+        ---
+        name: skill_name
+        description: "Skill description"
+        version: 1.0.0
+        author: Hermes Agent
+        license: MIT
+        platforms: [linux, macos, windows]
+        metadata:
+          hermes:
+            tags: [tag1, tag2]
+            related_skills: [skill1, skill2]
+        ---
+        # Skill Documentation
+        ...
+        """
+        try:
+            with open(md_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 解析 YAML frontmatter
+            match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+            if not match:
+                self.logger.warning(f"SKILL.md 缺少 YAML frontmatter: {md_path}")
+                return None
+            
+            yaml_content = match.group(1)
+            if YAML_AVAILABLE:
+                frontmatter = yaml.safe_load(yaml_content)
+            else:
+                frontmatter = self._parse_yaml_fallback(yaml_content)
+            
+            skill_id = frontmatter.get('name', os.path.basename(os.path.dirname(md_path)))
+            name = frontmatter.get('name', skill_id)
+            description = frontmatter.get('description', '')
+            version = frontmatter.get('version', '1.0.0')
+            author = frontmatter.get('author', '')
+            license = frontmatter.get('license', 'MIT')
+            platforms = frontmatter.get('platforms', ['linux', 'macos', 'windows'])
+            
+            # 解析 metadata.hermes
+            metadata = frontmatter.get('metadata', {}).get('hermes', {})
+            tags = metadata.get('tags', [])
+            related_skills = metadata.get('related_skills', [])
+            
+            # 从文档中提取示例
+            examples = []
+            example_section = re.search(r'##\s*(Examples|示例|使用示例)\s*\n((?:- .+\n?)+)', content)
+            if example_section:
+                examples = [line.strip('- ').strip('"').strip("'") 
+                           for line in example_section.group(2).strip().split('\n') if line.strip()]
+            
+            # 创建技能类
+            class HermesSkill(BaseSkill):
+                _skill_id = skill_id
+                _name = name
+                _description = description
+                _version = version
+                _author = author
+                _license = license
+                _platforms = platforms
+                _tags = tags
+                _related_skills = related_skills
+                _examples = examples
+                _md_path = md_path
+                
+                def get_metadata(self) -> SkillMetadata:
+                    return SkillMetadata(
+                        id=self._skill_id,
+                        name=self._name,
+                        description=self._description,
+                        category="general",
+                        version=self._version,
+                        author=self._author,
+                        license=self._license,
+                        platforms=self._platforms,
+                        tags=self._tags,
+                        related_skills=self._related_skills,
+                        examples=self._examples
+                    )
+                
+                async def execute(self, **kwargs) -> SkillResult:
+                    # Hermes 风格技能的执行逻辑
+                    # 可以调用 scripts 目录中的脚本
+                    script_path = os.path.join(os.path.dirname(self._md_path), "scripts")
+                    if os.path.isdir(script_path):
+                        for script in os.listdir(script_path):
+                            if script.endswith('.py'):
+                                try:
+                                    script_full_path = os.path.join(script_path, script)
+                                    result = await self._run_script(script_full_path, kwargs)
+                                    return result
+                                except Exception as e:
+                                    pass
+                    
+                    return SkillResult(
+                        success=True,
+                        output=f"技能 {self._name} 执行成功。详细用法请查看文档。"
+                    )
+                
+                async def _run_script(self, script_path: str, kwargs: dict) -> SkillResult:
+                    """运行技能脚本"""
+                    import subprocess
+                    cmd = ["python", script_path]
+                    for key, value in kwargs.items():
+                        cmd.append(f"--{key}")
+                        cmd.append(str(value))
+                    
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    return SkillResult(
+                        success=result.returncode == 0,
+                        output=result.stdout,
+                        error=result.stderr if result.returncode != 0 else None
+                    )
+            
+            return HermesSkill()
+            
+        except Exception as e:
+            self.logger.error(f"解析 SKILL.md 失败 {md_path}: {str(e)}")
+            return None
+    
+    def _parse_yaml_fallback(self, yaml_content: str) -> dict:
+        """简单的 YAML 解析回退（当 PyYAML 不可用时）"""
+        result = {}
+        lines = yaml_content.split('\n')
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line or line.startswith('#'):
+                i += 1
+                continue
+            
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # 处理列表
+                if value.startswith('['):
+                    # 单行列表
+                    if value.endswith(']'):
+                        items = value[1:-1].split(',')
+                        result[key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
+                    else:
+                        # 多行列表
+                        items = []
+                        i += 1
+                        while i < len(lines):
+                            list_line = lines[i].strip()
+                            if list_line.endswith(']'):
+                                if '-' in list_line:
+                                    items.append(list_line.replace('-', '').replace(']', '').strip())
+                                break
+                            if '-' in list_line:
+                                items.append(list_line.replace('-', '').strip())
+                            i += 1
+                        result[key] = items
+                else:
+                    # 简单值
+                    result[key] = value.strip('"').strip("'")
+            
+            i += 1
+        
+        return result
+    
+    def import_skill_from_file(self, file_path: str) -> bool:
+        """从 Python 文件导入技能"""
+        if not os.path.isfile(file_path):
+            self.logger.error(f"技能文件不存在: {file_path}")
+            return False
+        
+        try:
+            dir_name = os.path.dirname(file_path)
+            file_name = os.path.basename(file_path)
+            module_name = file_name[:-3]
+            
+            if dir_name not in sys.path:
+                sys.path.insert(0, dir_name)
+            
+            module = importlib.import_module(module_name)
+            
+            for name in dir(module):
+                obj = getattr(module, name)
+                if isinstance(obj, BaseSkill):
+                    obj.get_metadata().source = "user"
+                    self.register_skill(obj)
+                    self.logger.info(f"从文件导入技能: {obj.get_metadata().id}")
+            
+            if dir_name in sys.path:
+                sys.path.remove(dir_name)
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"从文件导入技能失败: {str(e)}")
+            return False
+    
+    def import_skills_from_directory(self, directory: str, recursive: bool = True) -> int:
+        """从目录批量导入技能"""
+        if not os.path.isdir(directory):
+            self.logger.error(f"技能目录不存在: {directory}")
+            return 0
+        
+        imported_count = 0
+        
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.py') and not file.startswith('_'):
+                    file_path = os.path.join(root, file)
+                    if self.import_skill_from_file(file_path):
+                        imported_count += 1
+            
+            if not recursive:
+                break
+        
+        self.logger.info(f"从目录成功导入 {imported_count} 个技能")
+        return imported_count
+    
+    def import_skill_from_module(self, module_path: str) -> bool:
+        """从 Python 模块导入技能"""
+        try:
+            module = importlib.import_module(module_path)
+            
+            for name in dir(module):
+                obj = getattr(module, name)
+                if isinstance(obj, BaseSkill):
+                    obj.get_metadata().source = "external"
+                    self.register_skill(obj)
+                    self.logger.info(f"从模块导入技能: {obj.get_metadata().id}")
+            
+            return True
+        except ImportError as e:
+            self.logger.error(f"导入模块失败: {str(e)}")
+            return False
+    
+    def import_skills_from_json(self, json_path: str) -> int:
+        """从 JSON 配置文件导入技能"""
+        if not os.path.isfile(json_path):
+            self.logger.error(f"JSON 文件不存在: {json_path}")
+            return 0
+        
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                skills_data = json.load(f)
+            
+            imported_count = 0
+            for skill_data in skills_data:
+                skill = self._create_skill_from_config(skill_data)
+                if skill:
+                    skill.get_metadata().source = "user"
+                    self.register_skill(skill)
+                    imported_count += 1
+            
+            self.logger.info(f"从 JSON 导入 {imported_count} 个技能")
+            return imported_count
+        except Exception as e:
+            self.logger.error(f"从 JSON 导入技能失败: {str(e)}")
+            return 0
+    
+    def import_skills_from_yaml(self, yaml_path: str) -> int:
+        """从 YAML 配置文件导入技能"""
+        if not YAML_AVAILABLE:
+            self.logger.error("PyYAML 未安装，请先安装: pip install pyyaml")
+            return 0
+        
+        if not os.path.isfile(yaml_path):
+            self.logger.error(f"YAML 文件不存在: {yaml_path}")
+            return 0
+        
+        try:
+            with open(yaml_path, 'r', encoding='utf-8') as f:
+                skills_data = yaml.safe_load(f)
+            
+            imported_count = 0
+            for skill_data in skills_data:
+                skill = self._create_skill_from_config(skill_data)
+                if skill:
+                    skill.get_metadata().source = "user"
+                    self.register_skill(skill)
+                    imported_count += 1
+            
+            self.logger.info(f"从 YAML 导入 {imported_count} 个技能")
+            return imported_count
+        except Exception as e:
+            self.logger.error(f"从 YAML 导入技能失败: {str(e)}")
+            return 0
+    
+    def _create_skill_from_config(self, config: dict) -> Optional[BaseSkill]:
+        """从配置字典创建技能实例"""
+        try:
+            skill_id = config.get('id')
+            name = config.get('name', skill_id)
+            description = config.get('description', '')
+            category = config.get('category', 'general')
+            aliases = config.get('aliases', [])
+            examples = config.get('examples', [])
+            requires_llm = config.get('requires_llm', False)
+            requires_permission = config.get('requires_permission', False)
+            version = config.get('version', '1.0.0')
+            tags = config.get('tags', [])
+            related_skills = config.get('related_skills', [])
+            
+            class ConfigSkill(BaseSkill):
+                _config_id = skill_id
+                _config_name = name
+                _config_desc = description
+                _config_category = category
+                _config_aliases = aliases
+                _config_examples = examples
+                _config_requires_llm = requires_llm
+                _config_requires_permission = requires_permission
+                _config_version = version
+                _config_tags = tags
+                _config_related = related_skills
+                _config_params = config.get('parameters', [])
+                
+                def get_metadata(self) -> SkillMetadata:
+                    parameters = []
+                    for p in self._config_params:
+                        param_type = str
+                        if p.get('type') == 'int':
+                            param_type = int
+                        elif p.get('type') == 'float':
+                            param_type = float
+                        elif p.get('type') == 'bool':
+                            param_type = bool
+                        
+                        parameters.append(SkillParameter(
+                            name=p['name'],
+                            type=param_type,
+                            description=p.get('description', ''),
+                            required=p.get('required', True),
+                            default=p.get('default'),
+                            prompt=p.get('prompt', '')
+                        ))
+                    
+                    return SkillMetadata(
+                        id=self._config_id,
+                        name=self._config_name,
+                        description=self._config_desc,
+                        category=self._config_category,
+                        parameters=parameters,
+                        requires_llm=self._config_requires_llm,
+                        requires_permission=self._config_requires_permission,
+                        aliases=self._config_aliases,
+                        examples=self._config_examples,
+                        version=self._config_version,
+                        tags=self._config_tags,
+                        related_skills=self._config_related
+                    )
+                
+                async def execute(self, **kwargs) -> SkillResult:
+                    action = config.get('action', '')
+                    if action:
+                        try:
+                            if action.startswith('command:'):
+                                import subprocess
+                                cmd = action[8:].format(**kwargs)
+                                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                                return SkillResult(
+                                    success=result.returncode == 0,
+                                    output=result.stdout,
+                                    error=result.stderr if result.returncode != 0 else None
+                                )
+                            elif action.startswith('python:'):
+                                code = action[7:].format(**kwargs)
+                                exec_globals = {}
+                                exec(code, exec_globals)
+                                return SkillResult(
+                                    success=True,
+                                    output=str(exec_globals.get('result', ''))
+                                )
+                        except Exception as e:
+                            return SkillResult(
+                                success=False,
+                                output="",
+                                error=str(e)
+                            )
+                    
+                    return SkillResult(
+                        success=True,
+                        output=f"技能 {self._config_name} 执行成功"
+                    )
+            
+            return ConfigSkill()
+        except Exception as e:
+            self.logger.error(f"从配置创建技能失败: {str(e)}")
+            return None
 
 
 skill_manager = SkillManager()
@@ -246,15 +1048,9 @@ skill_manager = SkillManager()
 
 def skill(id: str, name: str, description: str, category: str = 'general',
           requires_llm: bool = False, requires_permission: bool = False,
-          aliases: List[str] = None, examples: List[str] = None):
-    """
-    Decorator to register a class as a skill.
-    
-    Usage:
-        @skill('file_reader', 'File Reader', 'Read file contents', category='files')
-        class FileReaderSkill(BaseSkill):
-            ...
-    """
+          aliases: List[str] = None, examples: List[str] = None,
+          version: str = "1.0.0", tags: List[str] = None, related_skills: List[str] = None):
+    """Decorator to register a class as a skill."""
     def decorator(cls: Type[BaseSkill]):
         instance = cls()
         instance._skill_id = id
@@ -265,6 +1061,9 @@ def skill(id: str, name: str, description: str, category: str = 'general',
         instance._skill_requires_permission = requires_permission
         instance._skill_aliases = aliases or []
         instance._skill_examples = examples or []
+        instance._skill_version = version
+        instance._skill_tags = tags or []
+        instance._skill_related = related_skills or []
         
         sig = inspect.signature(instance.execute)
         parameters = []
@@ -294,11 +1093,8 @@ def skill(id: str, name: str, description: str, category: str = 'general',
     name='Greeting',
     description='Handle greetings and introductions',
     category='conversation',
-    examples=[
-        'Hello',
-        'Hi there',
-        '你好'
-    ]
+    examples=['Hello', 'Hi there', '你好'],
+    tags=['conversation', 'hello', 'greeting']
 )
 class GreetingSkill(BaseSkill):
     """Skill for handling greetings."""
@@ -313,7 +1109,10 @@ class GreetingSkill(BaseSkill):
             requires_llm=self._skill_requires_llm,
             requires_permission=self._skill_requires_permission,
             aliases=self._skill_aliases,
-            examples=self._skill_examples
+            examples=self._skill_examples,
+            version=self._skill_version,
+            tags=self._skill_tags,
+            source="system"
         )
     
     async def execute(self, message: str = "") -> SkillResult:
@@ -337,11 +1136,8 @@ class GreetingSkill(BaseSkill):
     name='Farewell',
     description='Handle farewells and goodbyes',
     category='conversation',
-    examples=[
-        'Goodbye',
-        'See you later',
-        '再见'
-    ]
+    examples=['Goodbye', 'See you later', '再见'],
+    tags=['conversation', 'goodbye', 'farewell']
 )
 class FarewellSkill(BaseSkill):
     """Skill for handling farewells."""
@@ -356,7 +1152,10 @@ class FarewellSkill(BaseSkill):
             requires_llm=self._skill_requires_llm,
             requires_permission=self._skill_requires_permission,
             aliases=self._skill_aliases,
-            examples=self._skill_examples
+            examples=self._skill_examples,
+            version=self._skill_version,
+            tags=self._skill_tags,
+            source="system"
         )
     
     async def execute(self) -> SkillResult:
@@ -371,11 +1170,8 @@ class FarewellSkill(BaseSkill):
     name='Help',
     description='Show available commands and skills',
     category='system',
-    examples=[
-        'Help',
-        'What can you do?',
-        'Show commands'
-    ]
+    examples=['Help', 'What can you do?', 'Show commands'],
+    tags=['help', 'system', 'commands']
 )
 class HelpSkill(BaseSkill):
     """Skill for showing help information."""
@@ -390,7 +1186,10 @@ class HelpSkill(BaseSkill):
             requires_llm=self._skill_requires_llm,
             requires_permission=self._skill_requires_permission,
             aliases=self._skill_aliases,
-            examples=self._skill_examples
+            examples=self._skill_examples,
+            version=self._skill_version,
+            tags=self._skill_tags,
+            source="system"
         )
     
     async def execute(self) -> SkillResult:
@@ -402,10 +1201,18 @@ class HelpSkill(BaseSkill):
             if skills:
                 output += f"**{category.capitalize()}:**\n"
                 for skill_meta in skills:
-                    output += f"- {skill_meta.name}: {skill_meta.description}\n"
+                    source_tag = ""
+                    if skill_meta.source == "user":
+                        source_tag = " 📥"
+                    elif skill_meta.source == "external":
+                        source_tag = " 🌐"
+                    usage_tag = f" (使用 {skill_meta.usage_count} 次)" if skill_meta.usage_count > 0 else ""
+                    version_tag = f" v{skill_meta.version}" if skill_meta.version else ""
+                    tag_str = f" [{', '.join(skill_meta.tags[:3])}]" if skill_meta.tags else ""
+                    output += f"- {skill_meta.name}{source_tag}{version_tag}{usage_tag}{tag_str}: {skill_meta.description}\n"
                 output += "\n"
         
-        output += "你可以直接向我提问，或者使用工具来完成文件操作、终端命令等任务。"
+        output += "你可以直接向我提问，我会自动发现并调用合适的技能。"
         
         return SkillResult(
             success=True,
@@ -429,21 +1236,23 @@ class ToolWrapperSkill(BaseSkill):
         if self._tool_name == "terminal":
             aliases = ["terminal", "run_terminal", "execute_terminal"]
         
+        params = []
+        for p in self._parameters:
+            params.append(SkillParameter(
+                name=p["name"],
+                type=str,
+                description=p.get("description", ""),
+                required=p.get("required", False)
+            ))
+        
         return SkillMetadata(
             id=f"tool_{self._tool_name}",
             name=f"Tool: {self._tool_name}",
             description=self._description,
             category=self._category,
-            parameters=[
-                SkillParameter(
-                    name=p["name"],
-                    type=str,
-                    description=p.get("description", ""),
-                    required=p.get("required", False)
-                )
-                for p in self._parameters
-            ],
-            aliases=aliases
+            parameters=params,
+            aliases=aliases,
+            source="system"
         )
     
     async def execute(self, **kwargs) -> SkillResult:
@@ -495,4 +1304,10 @@ def register_tools_as_skills():
         pass
 
 
+def load_skills_from_directory_structure():
+    """自动从标准技能目录结构加载技能"""
+    skill_manager.import_skill_from_directory_structure()
+
+
 register_tools_as_skills()
+load_skills_from_directory_structure()

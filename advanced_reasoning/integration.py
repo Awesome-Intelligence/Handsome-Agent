@@ -43,6 +43,8 @@ def enhance_agent_with_advanced_reasoning(agent_config: Optional[AgentConfig] = 
         advanced_module.set_llm_provider(llm_provider)
         # Also store LLM provider on agent for router context
         agent.llm_provider = llm_provider
+        # Update IntentClassifier with LLM provider for intent classification
+        agent._intent_classifier.set_llm_provider(llm_provider)
     
     # Replace the explanation module with advanced reasoning module
     agent.explanation_module = advanced_module

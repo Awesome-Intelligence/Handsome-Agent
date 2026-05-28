@@ -444,6 +444,39 @@ def print_user_input(prompt: str = None):
     print(f"{Theme.ACCENT}❯{Colors.RESET} ", end="")
 
 
+def print_provider_list(providers: List[Dict[str, Any]]):
+    """Print the list of available LLM providers."""
+    print(f"{Theme.BORDER}│{Colors.RESET}")
+    print(f"{Theme.BORDER}│{Colors.RESET} {Theme.PRIMARY_BOLD}可用的大模型提供商:{Colors.RESET}")
+    print(f"{Theme.BORDER}│{Colors.RESET}")
+    
+    for i, provider in enumerate(providers, 1):
+        provider_name = provider.get("name", "Unknown")
+        provider_description = provider.get("description", "")
+        provider_models = provider.get("models", [])
+        default_model = provider.get("default_model", "")
+        
+        print(f"{Theme.BORDER}│{Colors.RESET}")
+        print(f"{Theme.BORDER}│{Colors.RESET} {Theme.SUCCESS}{i}. {provider_name}{Colors.RESET}")
+        if provider_description:
+            print(f"{Theme.BORDER}│{Colors.RESET}   {Theme.SECONDARY}{provider_description}{Colors.RESET}")
+        if provider_models:
+            print(f"{Theme.BORDER}│{Colors.RESET}   {Theme.SECONDARY_DIM}支持模型: {', '.join(provider_models[:3])}{'...' if len(provider_models) > 3 else ''}{Colors.RESET}")
+        if default_model:
+            print(f"{Theme.BORDER}│{Colors.RESET}   {Theme.SECONDARY_DIM}默认模型: {default_model}{Colors.RESET}")
+    
+    print(f"{Theme.BORDER}│{Colors.RESET}")
+
+
+def print_setup_complete():
+    """Print setup completion message."""
+    print()
+    print_divider("─")
+    print(f"{Theme.SUCCESS}✓ 配置已保存!{Colors.RESET}")
+    print_divider("─")
+    print()
+
+
 def print_banner():
     """Print welcome banner inspired by Hermes Agent."""
     if not supports_color():

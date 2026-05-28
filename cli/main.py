@@ -267,6 +267,34 @@ def main():
         default=None,
         help="Language for log messages (zh/en/ko/ja). Default: use saved config"
     )
+    parser.add_argument(
+        "--log-level",
+        choices=["debug", "info", "warning", "error"],
+        default=None,
+        help="Logging level (debug/info/warning/error). Default: use saved config or 'info'"
+    )
+    parser.add_argument(
+        "--detailed-logs",
+        action="store_true",
+        default=None,
+        help="Enable detailed processing logs (default: True)"
+    )
+    parser.add_argument(
+        "--no-detailed-logs",
+        action="store_true",
+        help="Disable detailed processing logs"
+    )
+    parser.add_argument(
+        "--summary-logs",
+        action="store_true",
+        default=None,
+        help="Enable summary logs (default: True)"
+    )
+    parser.add_argument(
+        "--no-summary-logs",
+        action="store_true",
+        help="Disable summary logs (not recommended)"
+    )
     
     # Add LLM arguments if available
     if LLM_AVAILABLE:
@@ -344,20 +372,44 @@ def main():
     
     # Use saved preferences as defaults
     saved_prefs = saved_config.get("preferences", {})
-    if args.explanation_depth == "detailed" and saved_prefs.get("explanation_depth"):
+    if saved_prefs.get("explanation_depth"):
         args.explanation_depth = saved_prefs["explanation_depth"]
-    if args.format == "markdown" and saved_prefs.get("response_format"):
+    if saved_prefs.get("response_format"):
         args.format = saved_prefs["response_format"]
-    if args.enable_caching is True and saved_prefs.get("enable_caching") is not None:
+    if saved_prefs.get("enable_caching") is not None:
         args.enable_caching = saved_prefs["enable_caching"]
     
-    language = saved_prefs.get("language", "zh")
+    # Load language from config (top-level, set by setup wizard)
+    language = saved_config.get("language", saved_prefs.get("language", "zh"))
     if args.language:
         language = args.language
     
     # Get display options
     verbose = saved_display.get("verbose", False)
     show_reasoning = saved_display.get("show_reasoning", False)
+    
+    # Handle log configuration
+    log_level = saved_prefs.get("log_level", "info")
+    if args.log_level:
+        log_level = args.log_level
+    
+    # Map explanation_depth to log settings
+    explanation_depth = saved_prefs.get("explanation_depth", "moderate")
+    if explanation_depth == "brief":
+        enable_detailed_logs = False
+    else:
+        enable_detailed_logs = True
+    
+    if args.detailed_logs is not None:
+        enable_detailed_logs = args.detailed_logs
+    if args.no_detailed_logs:
+        enable_detailed_logs = False
+    
+    enable_summary_logs = saved_prefs.get("enable_summary_logs", True)
+    if args.summary_logs is not None:
+        enable_summary_logs = args.summary_logs
+    if args.no_summary_logs:
+        enable_summary_logs = False
     
     # Create agent configuration
     config = AgentConfig(
@@ -367,7 +419,10 @@ def main():
         max_response_length=args.max_length,
         enable_caching=args.enable_caching,
         timeout_seconds=args.timeout_seconds,
-        language=language
+        language=language,
+        log_level=log_level,
+        enable_detailed_logs=enable_detailed_logs,
+        enable_summary_logs=enable_summary_logs
     )
     
     # Create agent with appropriate reasoning module

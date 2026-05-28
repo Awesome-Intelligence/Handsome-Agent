@@ -79,6 +79,24 @@ class TestCustomAgent(unittest.TestCase):
         self.assertLessEqual(simple_complexity, 3)
         self.assertGreaterEqual(complex_complexity, 0)
         self.assertLessEqual(complex_complexity, 3)
+    
+    def test_detailed_logs_config_default(self):
+        """Test default enable_detailed_logs configuration."""
+        config = AgentConfig()
+        self.assertTrue(config.enable_detailed_logs)  # Default is True
+        
+        config_explicit = AgentConfig(enable_detailed_logs=False)
+        self.assertFalse(config_explicit.enable_detailed_logs)
+    
+    def test_summary_logs_always_enabled(self):
+        """Test that summary logs are always enabled by default."""
+        config = AgentConfig()
+        self.assertTrue(config.enable_summary_logs)
+    
+    def test_detailed_logs_can_be_disabled(self):
+        """Test that detailed logs can be explicitly disabled."""
+        config = AgentConfig(enable_detailed_logs=False)
+        self.assertFalse(config.enable_detailed_logs)
 
 
 def run_async_test():
