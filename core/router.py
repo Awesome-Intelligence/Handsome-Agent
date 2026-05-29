@@ -15,8 +15,6 @@ from typing import Dict, List, Optional, Any, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .layer_logger import get_layer_logger
-
 
 class IntentType(Enum):
     """Supported intent types."""
@@ -87,14 +85,7 @@ class TaskRouter:
         self.routes: List[RouteConfig] = []
         self.intent_classifier = IntentClassifier()
         self.logger = logging.getLogger(self.__class__.__name__)
-        self._control_logger = get_layer_logger("control", "TaskRouter")
-        self._intent_logger = get_layer_logger("control", "IntentClassifier")
-        self._enable_detailed_logs = True  # Default value, will be set by agent
-    
-    def set_detailed_logs(self, enabled: bool):
-        """Set whether to print detailed logs."""
-        self._enable_detailed_logs = enabled
-        self.intent_classifier.enable_detailed_logs = enabled
+        self.logger.propagate = False
     
     def register_route(self, config: RouteConfig):
         """Register a route configuration."""
@@ -111,8 +102,7 @@ class TaskRouter:
         
         if matches:
             best_match = matches[0]
-            if self._enable_detailed_logs:
-                self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
+            self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
             return best_match
         return None
     
@@ -125,8 +115,7 @@ class TaskRouter:
         
         if matches:
             best_match = matches[0]
-            if self._enable_detailed_logs:
-                self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
+            self.logger.info(f"Routing to {best_match.route_id} with confidence {best_match.confidence:.2f}")
             return best_match
         return None
     
@@ -168,9 +157,11 @@ class IntentClassifier:
     1. Try keyword matching first (fast)
     2. If uncertain, try LLM classification (if available)
     3. Fall back to default intent
+    
+    Supports loading keywords from YAML config file.
     """
     
-    INTENT_KEYWORDS = {
+    DEFAULT_INTENT_KEYWORDS = {
         'conversation': [
             'hello', 'hi', '你好', '嗨', 'how are you', 'good morning',
             'thanks', 'thank you', 'bye', 'goodbye', 'see you', 'morning', 'evening'
@@ -221,7 +212,7 @@ class IntentClassifier:
         ]
     }
     
-    INTENT_DESCRIPTIONS = """
+    INTENTS_LIST = """
     Available intents:
     - conversation: Greetings, farewells, casual chat
     - question: Asking questions, seeking explanations
@@ -236,14 +227,25 @@ class IntentClassifier:
     - configuration: Setting up, configuring, preferences
     """
     
-    def __init__(self, llm_provider=None, mode: str = "llm", threshold: float = 0.3, language: str = "zh", enable_detailed_logs: bool = True):
+    def __init__(self, llm_provider=None, mode: str = None, threshold: float = 0.3, language: str = "zh", enable_detailed_logs: bool = None, config_path: str = "config/intents.yaml"):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self._ctrl_logger = get_layer_logger("control", "IntentClassifier")
+        self.logger.propagate = False
+        self.logger.setLevel(logging.root.level)
+        
+        self._constructor_mode = mode
+        self._constructor_detailed_logs = enable_detailed_logs
+        
+        self.mode = mode if mode is not None else "llm"
+        self.threshold = threshold
+        self.language = language
+        self.enable_detailed_logs = enable_detailed_logs if enable_detailed_logs is not None else True
         self.llm_provider = llm_provider
-        self.mode = mode  # keyword, llm, hybrid (default: llm for smart intent classification)
-        self.threshold = threshold  # Confidence threshold for hybrid mode
-        self.language = language  # zh, en, ja, ko
-        self.enable_detailed_logs = enable_detailed_logs  # Control detailed logging
+        
+        self.INTENT_KEYWORDS = self.DEFAULT_INTENT_KEYWORDS
+        self.INTENT_DESCRIPTIONS = self.INTENTS_LIST
+        self.llm_prompt_template = None
+        
+        self._load_config(config_path)
     
     def set_llm_provider(self, provider):
         """Set the LLM provider for assisted classification."""
@@ -265,6 +267,68 @@ class IntentClassifier:
             self.logger.warning(f"Unsupported language: {language}, defaulting to zh")
             self.language = "zh"
     
+    def _load_config(self, config_path: str):
+        """从 YAML 配置文件加载意图关键词和配置"""
+        try:
+            import yaml
+            import os
+            
+            if not os.path.exists(config_path):
+                self.logger.warning(f"配置文件不存在: {config_path}，使用默认关键词")
+                self.INTENT_KEYWORDS = self.DEFAULT_INTENT_KEYWORDS
+                self.INTENT_DESCRIPTIONS = self.INTENTS_LIST
+                return
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            if 'intents' in config:
+                self.INTENT_KEYWORDS = {}
+                self._intent_priorities = {}
+                for intent_name, intent_config in config['intents'].items():
+                    if isinstance(intent_config, dict) and 'keywords' in intent_config:
+                        self.INTENT_KEYWORDS[intent_name] = intent_config['keywords']
+                        self._intent_priorities[intent_name] = intent_config.get('priority', float('inf'))
+                    elif isinstance(intent_config, list):
+                        self.INTENT_KEYWORDS[intent_name] = intent_config
+                        self._intent_priorities[intent_name] = float('inf')
+                
+                self.logger.info(f"从配置文件加载了 {len(self.INTENT_KEYWORDS)} 个意图的关键词")
+            else:
+                self.INTENT_KEYWORDS = self.DEFAULT_INTENT_KEYWORDS
+                self._intent_priorities = {intent: i+1 for i, intent in enumerate(self.DEFAULT_INTENT_KEYWORDS.keys())}
+            
+            if 'intent_classification' in config:
+                ic_config = config['intent_classification']
+                
+                if 'mode' in ic_config and self._constructor_mode is None:
+                    self.mode = ic_config['mode']
+                    self.logger.info(f"意图识别模式: {self.mode}")
+                
+                if 'confidence_threshold' in ic_config:
+                    self.threshold = ic_config['confidence_threshold']
+                    self.logger.info(f"置信度阈值: {self.threshold}")
+                
+                if 'enable_detailed_logs' in ic_config and self._constructor_detailed_logs is None:
+                    self.enable_detailed_logs = ic_config['enable_detailed_logs']
+                
+                if 'default_language' in ic_config:
+                    self.language = ic_config['default_language']
+                
+                if 'llm_prompt_template' in ic_config:
+                    self.llm_prompt_template = ic_config['llm_prompt_template']
+            
+            self.logger.info(f"成功加载意图识别配置: {config_path}")
+            
+        except ImportError:
+            self.logger.warning("PyYAML 未安装，使用默认关键词")
+            self.INTENT_KEYWORDS = self.DEFAULT_INTENT_KEYWORDS
+            self.INTENT_DESCRIPTIONS = self.INTENTS_LIST
+        except Exception as e:
+            self.logger.error(f"加载意图配置失败: {e}，使用默认配置")
+            self.INTENT_KEYWORDS = self.DEFAULT_INTENT_KEYWORDS
+            self.INTENT_DESCRIPTIONS = self.INTENTS_LIST
+    
     def classify(self, input_text: str) -> str:
         """
         Classify user intent based on the configured mode.
@@ -279,46 +343,49 @@ class IntentClassifier:
             return self._classify_keyword_only(input_text)
         elif self.mode == "llm":
             return self._classify_llm_only(input_text)
-        else:  # hybrid mode
+        else:
             return self._classify_hybrid(input_text)
     
     def _classify_keyword_only(self, input_text: str) -> str:
         """Keyword-only intent classification."""
         keyword_intent, confidence = self._keyword_classify(input_text)
-        if self.enable_detailed_logs:
-            self._ctrl_logger.info(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
+        self.logger.debug(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
         return keyword_intent
     
     def _classify_llm_only(self, input_text: str) -> str:
-        """LLM-only intent classification."""
+        """LLM-only intent classification (with keyword fallback)."""
         if self.llm_provider:
-            llm_intent = self._llm_classify(input_text)
-            if llm_intent:
-                if self.enable_detailed_logs:
-                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
-                return llm_intent
-        if self.enable_detailed_logs:
-            self._ctrl_logger.warning("LLM not available, falling back to keyword classification")
+            try:
+                llm_intent = self._llm_classify(input_text)
+                if llm_intent:
+                    self.logger.info(f"🤖 LLM 分类成功: {llm_intent}")
+                    return llm_intent
+                else:
+                    self.logger.warning("⚠️ LLM 返回无效结果，fallback 到关键词分类")
+            except Exception as e:
+                self.logger.warning(f"⚠️ LLM 调用失败: {e}，fallback 到关键词分类")
+        
+        self.logger.info("📝 使用关键词分类（LLM 不可用）")
         return self._classify_keyword_only(input_text)
     
     def _classify_hybrid(self, input_text: str) -> str:
-        """Hybrid intent classification (keyword + LLM fallback)."""
+        """Hybrid intent classification (keyword first, then LLM)."""
         keyword_intent, confidence = self._keyword_classify(input_text)
         
         if confidence >= self.threshold:
-            if self.enable_detailed_logs:
-                self._ctrl_logger.info(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
+            self.logger.info(f"📝 关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
             return keyword_intent
         
         if self.llm_provider:
-            llm_intent = self._llm_classify(input_text)
-            if llm_intent:
-                if self.enable_detailed_logs:
-                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
-                return llm_intent
+            try:
+                llm_intent = self._llm_classify(input_text)
+                if llm_intent:
+                    self.logger.info(f"🤖 LLM 分类: {llm_intent}")
+                    return llm_intent
+            except Exception as e:
+                self.logger.warning(f"⚠️ LLM 调用失败: {e}")
         
-        if self.enable_detailed_logs:
-            self._ctrl_logger.info(f"关键词分类 (低置信度): {keyword_intent}")
+        self.logger.info(f"📝 关键词分类 (低置信度): {keyword_intent} (置信度: {confidence:.2f})")
         return keyword_intent
     
     async def classify_async(self, input_text: str) -> str:
@@ -327,39 +394,43 @@ class IntentClassifier:
             return self._classify_keyword_only(input_text)
         elif self.mode == "llm":
             return await self._classify_llm_only_async(input_text)
-        else:  # hybrid mode
+        else:
             return await self._classify_hybrid_async(input_text)
     
     async def _classify_llm_only_async(self, input_text: str) -> str:
-        """Async LLM-only intent classification."""
+        """Async LLM-only intent classification (with keyword fallback)."""
         if self.llm_provider:
-            llm_intent = await self._llm_classify_async(input_text)
-            if llm_intent:
-                if self.enable_detailed_logs:
-                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
-                return llm_intent
-        if self.enable_detailed_logs:
-            self._ctrl_logger.warning("LLM not available, falling back to keyword classification")
+            try:
+                llm_intent = await self._llm_classify_async(input_text)
+                if llm_intent:
+                    self.logger.info(f"🤖 LLM 分类成功: {llm_intent}")
+                    return llm_intent
+                else:
+                    self.logger.warning("⚠️ LLM 返回无效结果，fallback 到关键词分类")
+            except Exception as e:
+                self.logger.warning(f"⚠️ LLM 调用失败: {e}，fallback 到关键词分类")
+        
+        self.logger.info("📝 使用关键词分类（LLM 不可用）")
         return self._classify_keyword_only(input_text)
     
     async def _classify_hybrid_async(self, input_text: str) -> str:
-        """Async hybrid intent classification."""
+        """Async hybrid intent classification (keyword first, then LLM)."""
         keyword_intent, confidence = self._keyword_classify(input_text)
         
         if confidence >= self.threshold:
-            if self.enable_detailed_logs:
-                self._ctrl_logger.info(f"关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
+            self.logger.info(f"📝 关键词分类: {keyword_intent} (置信度: {confidence:.2f})")
             return keyword_intent
         
         if self.llm_provider:
-            llm_intent = await self._llm_classify_async(input_text)
-            if llm_intent:
-                if self.enable_detailed_logs:
-                    self._ctrl_logger.info(f"LLM 分类: {llm_intent}")
-                return llm_intent
+            try:
+                llm_intent = await self._llm_classify_async(input_text)
+                if llm_intent:
+                    self.logger.info(f"🤖 LLM 分类: {llm_intent}")
+                    return llm_intent
+            except Exception as e:
+                self.logger.warning(f"⚠️ LLM 调用失败: {e}")
         
-        if self.enable_detailed_logs:
-            self._ctrl_logger.info(f"关键词分类 (低置信度): {keyword_intent}")
+        self.logger.info(f"📝 关键词分类 (低置信度): {keyword_intent} (置信度: {confidence:.2f})")
         return keyword_intent
     
     def _keyword_classify(self, input_text: str) -> Tuple[str, float]:
@@ -368,16 +439,38 @@ class IntentClassifier:
         scores = {}
         
         for intent, keywords in self.INTENT_KEYWORDS.items():
-            # Count keyword matches
-            matches = sum(1 for kw in keywords if kw in input_lower)
-            # Weighted by number of keywords
-            score = matches / max(len(keywords), 1)
+            total_weight = 0.0
+            matched_count = 0
+            for kw in keywords:
+                if kw in input_lower:
+                    weight = 1.0 + len(kw) / 10.0
+                    total_weight += weight
+                    matched_count += 1
+            
+            if matched_count > 0:
+                input_length = len(input_lower)
+                score = total_weight / max(input_length, len(max(keywords, key=len)))
+                score = min(max(score, 0.0), 1.0)
+                score = min(score * (1 + matched_count * 0.05), 1.0)
+            else:
+                score = 0.0
+            
             scores[intent] = score
         
         if not scores or max(scores.values()) == 0:
             return 'conversation', 0.0
         
-        best_intent = max(scores, key=scores.get)
+        max_score = max(scores.values())
+        
+        best_intent = None
+        best_priority = float('inf')
+        for intent, score in scores.items():
+            if score == max_score:
+                priority = self._intent_priorities.get(intent, float('inf'))
+                if priority < best_priority:
+                    best_priority = priority
+                    best_intent = intent
+        
         confidence = scores[best_intent]
         
         return best_intent, confidence
@@ -387,7 +480,13 @@ class IntentClassifier:
         if not self.llm_provider:
             return None
         
-        prompt = f"""Classify the following user input into one of these intents:
+        if self.llm_prompt_template:
+            prompt = self.llm_prompt_template.format(
+                intents_list=self.INTENT_DESCRIPTIONS,
+                user_input=input_text
+            )
+        else:
+            prompt = f"""Classify the following user input into one of these intents:
 {self.INTENT_DESCRIPTIONS}
 
 User input: "{input_text}"
@@ -400,7 +499,6 @@ If unsure, respond with "conversation"."""
             response = await self.llm_provider.generate(prompt)
             response = response.strip().lower()
             
-            # Validate response
             valid_intents = list(self.INTENT_KEYWORDS.keys())
             for intent in valid_intents:
                 if intent in response:

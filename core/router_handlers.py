@@ -21,7 +21,7 @@ import json
 import os
 
 from .router import router, route_handler, RouteMatch
-from .layer_logger import get_layer_logger
+from .logging_manager import get_decision_logger, get_execution_logger, get_llm_logger, get_tool_logger
 from .environment import env_detector
 
 
@@ -34,7 +34,7 @@ from .environment import env_detector
     priority=2
 )
 async def time_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "TimeQuery")
+    decision = get_decision_logger("TimeQuery")
     
     execution_flow = []
     should_log = _should_log(context)
@@ -71,7 +71,7 @@ async def time_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     priority=2
 )
 async def weather_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "WeatherQuery")
+    decision = get_decision_logger("WeatherQuery")
     
     execution_flow = []
     should_log = _should_log(context)
@@ -126,7 +126,9 @@ async def weather_query_handler(input_text: str, context: Dict[str, Any]) -> Tup
     priority=1
 )
 async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "ConversationHandler")
+    decision = get_decision_logger("ConversationHandler")
+    llm_logger = get_llm_logger("LLMProvider")
+    tool_logger = get_tool_logger("ConversationTools")
     
     execution_flow = []
     should_log = _should_log(context)
@@ -135,6 +137,14 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
     
     time_keywords = ['时间', '现在几点', '几点了', '什么时间', '几点', '几点钟', 'date', '日期', '今天几号', '星期几']
     weather_keywords = ['天气', '温度', '下雨', '晴天', '多云', 'weather']
+    
+    # 问候语直接返回，不需要调用 LLM
+    greeting_keywords = ['hello', 'hi', '你好', '嗨', 'good morning', 'good afternoon', '早上好', '下午好']
+    if any(kw in input_lower for kw in greeting_keywords):
+        if should_log:
+            decision.info(f"检测到问候语，直接返回")
+        execution_flow.append("🧠 [决策层] 检测到问候语，直接返回")
+        return "你好！我是你的智能助手。有什么我可以帮助你的吗？", execution_flow
     
     if any(kw in input_lower for kw in time_keywords):
         return await time_query_handler(input_text, context)
@@ -230,10 +240,9 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
     if llm_provider:
         try:
             provider_name = llm_provider.__class__.__name__
-            if should_log:
-                decision.info(f"{provider_name} 准备调用大模型...")
-                decision.info(f"   → 下一步将调用: {provider_name}.generate()")
-            execution_flow.append(f"🧠 [决策层] {provider_name} 准备调用")
+            llm_logger.info(f"🤖 [LLM层] {provider_name} 准备调用...")
+            llm_logger.debug(f"🤖 [LLM层] 输入: {input_text[:50]}...")
+            decision.info(f"ConversationHandler 准备调用 LLM")
             
             # Convert session history to messages format for LLM
             messages = None
@@ -254,17 +263,32 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
             else:
                 response = await llm_provider.generate(input_text)
             
-            if should_log:
-                decision.info(f"{provider_name} 大模型返回成功 (响应长度: {len(response)} 字符)")
-                decision.info(f"ConversationHandler 收到 LLM 返回")
-            execution_flow.append(f"🧠 [决策层] {provider_name} 大模型返回成功")
+            llm_logger.summary(f"🤖 [LLM层] {provider_name} 返回成功 (响应长度: {len(response)} 字符)")
+            decision.info(f"ConversationHandler 收到 LLM 返回")
             
             return response, execution_flow
         except Exception as e:
-            if should_log:
-                decision.error(f"{provider_name} 大模型调用失败: {str(e)}")
-            execution_flow.append(f"❌ [决策层] 大模型调用失败: {str(e)}")
-            return f"抱歉，服务暂时不可用。", execution_flow
+            error_msg = str(e)
+            error_type = type(e).__name__
+            
+            llm_logger.error(f"🤖 [LLM层] {provider_name} 调用失败: {error_type} - {error_msg}")
+            decision.error(f"ConversationHandler LLM 调用失败: {error_type}")
+            
+            # 提供更详细的错误信息给用户
+            if "API" in error_msg or "api" in error_msg.lower():
+                detail = "可能是 API 配置问题，请检查 API Key 和网络连接。"
+            elif "timeout" in error_msg.lower() or "超时" in error_msg:
+                detail = "请求超时，请检查网络连接后重试。"
+            elif "auth" in error_msg.lower() or "认证" in error_msg or "401" in error_msg:
+                detail = "认证失败，请检查 API Key 是否正确。"
+            elif "rate" in error_msg.lower() or "限流" in error_msg:
+                detail = "请求过于频繁，请稍后再试。"
+            else:
+                detail = f"错误信息: {error_msg[:100]}"
+            
+            user_message = f"❌ 大模型调用失败\n\n{detail}\n\n如果问题持续存在，请检查：\n• API Key 是否有效\n• 网络连接是否正常\n• API 服务是否可用"
+            
+            return user_message, execution_flow
     
     if should_log:
         decision.info(f"TemplateEngine 使用模板响应")
@@ -290,14 +314,14 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
     priority=3
 )
 async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "CodingAssistant")
+    decision = get_decision_logger("CodingAssistant")
+    llm_logger = get_llm_logger("LLMProvider")
+    tool_logger = get_tool_logger("CodeTools")
     
-    execution_flow = []
     should_log = _should_log(context)
     
-    if should_log:
-        decision.info(f"CodingAssistant 收到编程请求: {input_text[:30]}...")
-        decision.info(f"   → 下一步将调用: LLMProvider.generate()")
+    decision.info(f"CodingAssistant 收到编程请求: {input_text[:30]}...")
+    tool_logger.debug(f"🛠️ [工具层] CodingAssistant 准备生成代码")
     execution_flow.append("🧠 [决策层] CodingAssistant 收到请求")
     
     llm_provider = context.get('llm_provider') if context else None
@@ -305,27 +329,28 @@ async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> 
     if llm_provider:
         try:
             provider_name = llm_provider.__class__.__name__
-            if should_log:
-                decision.info(f"{provider_name} 准备生成代码...")
-                decision.info(f"   → 下一步将调用: {provider_name}.generate()")
-            execution_flow.append(f"🧠 [决策层] {provider_name} 准备调用")
+            llm_logger.info(f"🤖 [LLM层] {provider_name} 准备生成代码...")
+            llm_logger.debug(f"🤖 [LLM层] 代码请求: {input_text[:50]}...")
             
             prompt = f"请用代码解决以下问题，代码要完整可运行：\n{input_text}"
             response = await llm_provider.generate(prompt)
             
-            if should_log:
-                decision.info(f"{provider_name} 代码生成成功 (响应长度: {len(response)} 字符)")
-            execution_flow.append(f"🧠 [决策层] {provider_name} 代码生成成功")
+            llm_logger.summary(f"🤖 [LLM层] {provider_name} 代码生成成功 (长度: {len(response)} 字符)")
+            tool_logger.debug(f"🛠️ [工具层] 代码生成完成")
             
             return response, execution_flow
         except Exception as e:
-            if should_log:
-                decision.error(f"{provider_name} 代码生成失败: {str(e)}")
-            execution_flow.append(f"❌ [决策层] 代码生成失败: {str(e)}")
-            return f"抱歉，代码生成遇到问题：{str(e)}", execution_flow
+            error_msg = str(e)
+            error_type = type(e).__name__
+            
+            llm_logger.error(f"🤖 [LLM层] {provider_name} 代码生成失败: {error_type} - {error_msg}")
+            decision.error(f"CodingAssistant 代码生成失败: {error_type}")
+            
+            user_message = f"❌ 代码生成失败\n\n错误类型: {error_type}\n错误信息: {error_msg[:100]}\n\n请检查：\n• 网络连接是否正常\n• API 服务是否可用"
+            
+            return user_message, execution_flow
     
-    if should_log:
-        decision.info(f"CodeAnalyzer 使用模板响应")
+    tool_logger.info(f"🛠️ [工具层] CodeAnalyzer 使用模板响应")
     execution_flow.append("🧠 [决策层] CodeAnalyzer 使用模板")
     return "请配置 LLM provider 以启用代码助手功能。", execution_flow
 
@@ -339,79 +364,44 @@ async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> 
     priority=4
 )
 async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "FileOperations")
-    execution = get_layer_logger("execution", "FileManager")
+    decision = get_decision_logger("FileOperations")
+    execution = get_execution_logger("FileManager")
+    tool_logger = get_tool_logger("FileTools")
     
     execution_flow = []
     should_log = _should_log(context)
     
-    if should_log:
-        decision.info(f"FileOperations 收到文件操作请求: {input_text[:30]}...")
-        decision.info(f"   → 下一步将调用: SkillManager")
+    decision.info(f"FileOperations 收到文件操作请求: {input_text[:30]}...")
+    tool_logger.debug(f"🛠️ [工具层] FileOperations 准备执行文件操作")
     execution_flow.append("🧠 [决策层] FileOperations 收到请求")
     
     input_lower = input_text.lower()
-    if should_log:
-        execution.info(f"FileManager 准备执行文件操作...")
+    tool_logger.debug(f"🛠️ [工具层] FileManager 准备执行文件操作...")
     execution_flow.append("⚡ [执行层] FileManager 准备执行")
     
-    if any(kw in input_lower for kw in ['read', '查看', '打开', '看']):
-        if should_log:
-            execution.info(f"FileManager 识别为读取文件操作")
-        import re
-        match = re.search(r'[\'"](.+?)[\'"]|read\s+(\S+)', input_text)
-        if match:
-            file_path = match.group(1) or match.group(2)
-            if should_log:
-                execution.info(f"FileManager 读取文件: {file_path}")
-            execution_flow.append(f"⚡ [执行层] FileManager 读取 {file_path}")
-            
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read(2000)
-                    return f"📄 文件内容 ({file_path}):\n\n{content}", execution_flow
-            except Exception as e:
-                return f"无法读取文件 {file_path}: {str(e)}", execution_flow
-        return "请指定要读取的文件路径，例如：读取文件 /path/to/file.py", execution_flow
+    # 先检查是否是特殊文件夹操作（桌面、文档、下载等）
+    folder_name_mapping = {
+        '桌面': 'desktop',
+        'desktop': 'desktop',
+        'documents': 'documents',
+        '文档': 'documents',
+        'downloads': 'downloads',
+        '下载': 'downloads',
+        'pictures': 'pictures',
+        '图片': 'pictures',
+        'photos': 'pictures',
+        'photo': 'pictures',
+        'music': 'music',
+        '音乐': 'music',
+        'videos': 'videos',
+        '视频': 'videos',
+        'movies': 'videos',
+        'home': 'home',
+    }
     
-    elif any(kw in input_lower for kw in ['write', '创建', '新建', '写入']):
-        if should_log:
-            execution.info(f"FileManager 识别为写入文件操作")
-        return "[文件写入] 请使用更具体的文件操作技能来写入文件。", execution_flow
-    
-    elif any(kw in input_lower for kw in ['list', '列出', 'ls', 'dir', '有哪些', '什么', '查看', '浏览']):
-            if should_log:
-                execution.info(f"FileManager 识别为列出文件操作")
-            
-            # 使用环境检测器获取跨平台的特殊文件夹路径
-            folder_name_mapping = {
-                '桌面': 'desktop',
-                'desktop': 'desktop',
-                'documents': 'documents',
-                '文档': 'documents',
-                'downloads': 'downloads',
-                '下载': 'downloads',
-                'pictures': 'pictures',
-                '图片': 'pictures',
-                'photos': 'pictures',
-                'photo': 'pictures',
-                'music': 'music',
-                '音乐': 'music',
-                'videos': 'videos',
-                '视频': 'videos',
-                'movies': 'videos',
-                'home': 'home',
-            }
-            
-            target_path = None
-            matched_folder_name = None
-            
-            for name, folder_key in folder_name_mapping.items():
-                if name in input_lower:
-                    target_path = env_detector.get_folder_path(folder_key)
-                    matched_folder_name = name
-                    break
-            
+    for name, folder_key in folder_name_mapping.items():
+        if name in input_lower:
+            target_path = env_detector.get_folder_path(folder_key)
             if target_path:
                 if should_log:
                     execution.info(f"FileManager 列出目录: {target_path}")
@@ -420,14 +410,59 @@ async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> T
                 try:
                     files = os.listdir(target_path)
                     if files:
-                        file_list = "\n".join([f"  • {f}" for f in files[:20]])
-                        return f"📁 {matched_folder_name} 目录内容:\n\n{file_list}\n\n共 {len(files)} 个文件", execution_flow
+                        file_list = "\n".join([f"  • {f}" for f in files[:50]])
+                        return f"📁 {name} 目录内容:\n\n{file_list}\n\n共 {len(files)} 个文件/文件夹", execution_flow
                     else:
-                        return f"📁 {matched_folder_name} 目录为空", execution_flow
+                        return f"📁 {name} 目录为空", execution_flow
                 except Exception as e:
-                    return f"无法访问 {matched_folder_name} 目录: {str(e)}", execution_flow
-            else:
-                return "[文件列表] 请指定要查看的目录，例如：查看桌面文件", execution_flow
+                    return f"无法访问 {name} 目录: {str(e)}", execution_flow
+    
+    # 检查是否是读取文件操作
+    if any(kw in input_lower for kw in ['read', '读取', '打开文件', 'cat ', 'type ']):
+        if should_log:
+            execution.info(f"FileManager 识别为读取文件操作")
+        import re
+        match = re.search(r'[\'"](.+?)[\'"]|read\s+(\S+)|读取\s+(\S+)|打开\s+(\S+)', input_text)
+        if match:
+            file_path = match.group(1) or match.group(2) or match.group(3) or match.group(4)
+            if file_path:
+                if should_log:
+                    execution.info(f"FileManager 读取文件: {file_path}")
+                execution_flow.append(f"⚡ [执行层] FileManager 读取 {file_path}")
+                
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read(3000)
+                        return f"📄 文件内容 ({file_path}):\n\n{content}", execution_flow
+                except Exception as e:
+                    return f"无法读取文件 {file_path}: {str(e)}", execution_flow
+        return "请指定要读取的文件路径，例如：读取文件 /path/to/file.py", execution_flow
+    
+    # 检查是否是写入文件操作
+    elif any(kw in input_lower for kw in ['write', '创建', '新建', '写入', '创建文件']):
+        if should_log:
+            execution.info(f"FileManager 识别为写入文件操作")
+        return "[文件写入] 请使用更具体的文件操作技能来写入文件。", execution_flow
+    
+    # 检查是否是列出文件操作
+    elif any(kw in input_lower for kw in ['list', '列出', 'ls', 'dir', '有哪些', '什么', '查看', '浏览', '显示']):
+            if should_log:
+                execution.info(f"FileManager 识别为列出文件操作")
+            
+            import re
+            path_match = re.search(r'目录\s+(\S+)|folder\s+(\S+)|路径\s+(\S+)', input_text)
+            if path_match:
+                target_path = path_match.group(1) or path_match.group(2) or path_match.group(3)
+                if target_path:
+                    try:
+                        files = os.listdir(target_path)
+                        if files:
+                            file_list = "\n".join([f"  • {f}" for f in files[:50]])
+                            return f"📁 目录内容 ({target_path}):\n\n{file_list}\n\n共 {len(files)} 个文件/文件夹", execution_flow
+                        else:
+                            return f"📁 目录为空", execution_flow
+                    except Exception as e:
+                        return f"无法访问目录 {target_path}: {str(e)}", execution_flow
     
     # 默认情况：无法识别操作类型
     if should_log:
@@ -444,15 +479,15 @@ async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> T
     priority=3
 )
 async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "WebSearch")
-    execution = get_layer_logger("execution", "WebTools")
+    decision = get_decision_logger("WebSearch")
+    llm_logger = get_llm_logger("LLMProvider")
+    tool_logger = get_tool_logger("WebTools")
     
     execution_flow = []
     should_log = _should_log(context)
     
-    if should_log:
-        decision.info(f"WebSearch 收到搜索请求: {input_text[:30]}...")
-        decision.info(f"   → 下一步将调用: WebTools 或 LLM")
+    decision.info(f"WebSearch 收到搜索请求: {input_text[:30]}...")
+    tool_logger.debug(f"🛠️ [工具层] WebSearch 准备执行搜索操作")
     execution_flow.append("🧠 [决策层] WebSearch 收到请求")
     
     skill_manager = context.get('skill_manager') if context else None
@@ -461,8 +496,7 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     if llm_provider:
         try:
             provider_name = llm_provider.__class__.__name__
-            if should_log:
-                decision.info(f"{provider_name} 准备进行意图理解和参数提取...")
+            llm_logger.info(f"🤖 [LLM层] {provider_name} 准备进行意图理解和参数提取...")
             execution_flow.append(f"🧠 [决策层] {provider_name} 准备调用")
             
             prompt = f"""分析以下用户输入，理解用户的真实意图并提取参数。
@@ -500,8 +534,7 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
             
             try:
                 intent_data = json.loads(llm_response.strip())
-                if should_log:
-                    decision.info(f"LLM 分析结果解析成功: {intent_data}")
+                llm_logger.debug(f"🤖 [LLM层] LLM 分析结果解析成功: {intent_data}")
                 
                 intent = intent_data.get('intent', 'web_search')
                 browser_name = intent_data.get('browser_name')
@@ -509,13 +542,11 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
                 search_query = intent_data.get('search_query')
                 open_url = intent_data.get('open_url')
                 
-                if should_log:
-                    decision.info(f"WebSearch LLM 分析: intent={intent}, browser={browser_name}, engine={search_engine}, query={search_query}")
+                llm_logger.info(f"🤖 [LLM层] WebSearch LLM 分析: intent={intent}, browser={browser_name}, engine={search_engine}, query={search_query}")
+                execution_flow.append(f"🧠 [决策层] {provider_name} 意图分析完成")
                 
                 if intent == 'browser_search' and skill_manager:
-                    if should_log:
-                        execution.info(f"WebTools 执行浏览器搜索任务")
-                    execution_flow.append("⚡ [执行层] WebTools 准备执行")
+                    tool_logger.info(f"🛠️ [工具层] WebTools 执行浏览器搜索任务")
                     
                     if open_url:
                         url = open_url
@@ -555,17 +586,14 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
                         return result.output, execution_flow
                 
             except (json.JSONDecodeError, KeyError) as e:
-                if should_log:
-                    decision.warning(f"LLM 返回格式错误: {e}，尝试 fallback 到规则匹配")
+                llm_logger.warning(f"🤖 [LLM层] LLM 返回格式错误: {e}，尝试 fallback 到规则匹配")
                 execution_flow.append(f"⚠️ [决策层] JSON 解析失败，fallback")
                 
         except Exception as e:
-            if should_log:
-                decision.error(f"{provider_name} LLM 调用失败: {str(e)}")
-            execution_flow.append(f"❌ [决策层] LLM 调用失败: {str(e)}")
+            llm_logger.error(f"🤖 [LLM层] {provider_name} LLM 调用失败: {str(e)}")
+            decision.error(f"WebSearch LLM 调用失败: {str(e)}")
     
-    if should_log:
-        decision.info(f"SearchEngine 使用规则匹配")
+    tool_logger.info(f"🛠️ [工具层] SearchEngine 使用规则匹配")
     execution_flow.append("🧠 [决策层] SearchEngine 使用规则匹配")
     
     import re
@@ -649,8 +677,8 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     priority=4
 )
 async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "TerminalCommand")
-    execution = get_layer_logger("execution", "TerminalTools")
+    decision = get_decision_logger("TerminalCommand")
+    execution = get_execution_logger("TerminalTools")
     
     execution_flow = []
     should_log = _should_log(context)
@@ -793,7 +821,7 @@ async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> 
     priority=2
 )
 async def general_question_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
-    decision = get_layer_logger("decision", "GeneralQuestion")
+    decision = get_decision_logger("GeneralQuestion")
     
     execution_flow = []
     should_log = _should_log(context)
@@ -821,10 +849,16 @@ async def general_question_handler(input_text: str, context: Dict[str, Any]) -> 
             
             return response, execution_flow
         except Exception as e:
+            error_msg = str(e)
+            error_type = type(e).__name__
+            
             if should_log:
-                decision.error(f"{provider_name} 回答失败: {str(e)}")
-            execution_flow.append(f"❌ [决策层] 回答失败: {str(e)}")
-            return f"抱歉，回答遇到问题：{str(e)}", execution_flow
+                decision.error(f"{provider_name} 回答失败: {error_type} - {error_msg}")
+            execution_flow.append(f"❌ [决策层] {provider_name} 回答失败: {error_type}")
+            
+            user_message = f"❌ 回答失败\n\n错误类型: {error_type}\n错误信息: {error_msg[:100]}\n\n请检查：\n• 网络连接是否正常\n• API 服务是否可用"
+            
+            return user_message, execution_flow
     
     if should_log:
         decision.info(f"KnowledgeBase 使用内置知识库")

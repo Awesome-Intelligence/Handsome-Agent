@@ -14,28 +14,29 @@ from typing import Optional, List, Dict, Any
 
 
 class Colors:
-    """Unified color scheme based on Geek Green theme."""
-
+    """Unified color scheme - 使用兼容的颜色格式."""
+    
     RESET = "\033[0m"
-
-    GREEN = "\033[38;2;34;197;94m"
-    GREEN_BRIGHT = "\033[38;2;48;211;99m"
-    GREEN_DIM = "\033[38;2;22;130;62m"
-
-    GRAY = "\033[90m"
-    GRAY_BRIGHT = "\033[38;2;229;231;235m"
-    GRAY_DIM = "\033[38;2;71;85;105m"
-
-    RED = "\033[38;2;239;68;68m"
-    RED_BRIGHT = "\033[38;2;248;113;113m"
-    YELLOW = "\033[38;2;234;179;8m"
-    YELLOW_BRIGHT = "\033[38;2;250;204;21m"
-    BLUE = "\033[38;2;59;130;246m"
-    CYAN = "\033[38;2;6;182;212m"
-
-    BG_GREEN = "\033[48;2;34;197;94m"
-    BG_GRAY = "\033[48;2;15;23;42m"
-
+    
+    # 牛油果绿主题色（RGB: 139, 154, 70 / #8B9A46）
+    GREEN = "\033[38;2;139;154;70m"           # 牛油果绿
+    GREEN_BRIGHT = "\033[38;2;160;180;90m"    # 亮牛油果绿
+    GREEN_DIM = "\033[38;2;100;120;50m"       # 暗牛油果绿
+    
+    GRAY = "\033[90m"            # 亮灰色
+    GRAY_BRIGHT = "\033[97m"     # 白色
+    GRAY_DIM = "\033[90m"        # 暗灰色
+    
+    RED = "\033[31m"            # 红色
+    RED_BRIGHT = "\033[91m"     # 亮红色
+    YELLOW = "\033[33m"         # 黄色
+    YELLOW_BRIGHT = "\033[93m"   # 亮黄色
+    BLUE = "\033[34m"           # 蓝色
+    CYAN = "\033[36m"           # 青色
+    
+    BG_GREEN = "\033[48;2;139;154;70m"       # 牛油果绿背景
+    BG_GRAY = "\033[47m"        # 灰色背景
+    
     BOLD = "\033[1m"
     DIM = "\033[2m"
     ITALIC = "\033[3m"
@@ -262,8 +263,80 @@ def strip_ansi(text: str) -> str:
 
 
 def supports_color() -> bool:
-    """Check if terminal supports colors."""
-    return sys.stdout.isatty()
+    """Check if terminal supports colors.
+    
+    优先尝试启用 ANSI 支持，然后再检测。
+    """
+    # Windows 环境尝试启用 ANSI 支持
+    if sys.platform == "win32":
+        enable_ansi_support()
+        
+        # 检查环境变量
+        if os.environ.get("WT_SESSION"):  # Windows Terminal
+            return True
+        if os.environ.get("TERM"):
+            return True
+        
+        # 检查控制台模式
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            GetConsoleMode = kernel32.GetConsoleMode
+            GetStdHandle = kernel32.GetStdHandle
+            STD_OUTPUT_HANDLE = -11
+            console = GetStdHandle(STD_OUTPUT_HANDLE)
+            mode = ctypes.c_ulong()
+            if GetConsoleMode(console, ctypes.byref(mode)):
+                # 检查是否启用了 ANSI 或虚拟终端模式
+                ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+                if mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING:
+                    return True
+        except:
+            pass
+        
+        return False
+    
+    # Unix/Linux/macOS 环境
+    if not sys.stdout.isatty():
+        return False
+    
+    term = os.environ.get("TERM", "")
+    if term in ("", "dumb"):
+        return False
+    
+    # 大多数现代终端都支持 ANSI 颜色
+    return True
+
+
+def enable_ansi_support():
+    """在 Windows 上启用 ANSI 颜色支持."""
+    if sys.platform != "win32":
+        return
+    
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        
+        # 获取标准输出句柄
+        STD_OUTPUT_HANDLE = -11
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        
+        # 获取当前模式
+        mode = ctypes.c_ulong()
+        kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+        
+        # 启用 ANSI 转义序列支持（Windows 10 1607+）
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        
+        # 同时启用输出模式
+        STD_ERROR_HANDLE = -12
+        err_handle = kernel32.GetStdHandle(STD_ERROR_HANDLE)
+        kernel32.GetConsoleMode(err_handle, ctypes.byref(mode))
+        kernel32.SetConsoleMode(err_handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        
+    except Exception:
+        pass  # 忽略错误，继续运行
 
 
 def print_top_border(width: int = 0):
@@ -503,7 +576,10 @@ def print_banner():
 
     print(f"{Theme.BORDER}│{Colors.RESET}{' ' * (max_width - 2)}{Theme.BORDER}│{Colors.RESET}")
 
-    subtitle = "Where code meets intelligence"
+    # 获取国际化副标题
+    from core.i18n import get_i18n
+    i18n = get_i18n()
+    subtitle = i18n.t("subtitle")
     sub_len = len(subtitle)
     sub_padding = (max_width - 2 - sub_len) // 2
     print(f"{Theme.BORDER}│{Colors.RESET}{' ' * sub_padding}{Theme.SECONDARY_DIM}{subtitle}{Colors.RESET}{' ' * (max_width - 2 - sub_padding - sub_len)}{Theme.BORDER}│{Colors.RESET}")
@@ -511,5 +587,5 @@ def print_banner():
     print(f"{Theme.BORDER}│{Colors.RESET}{' ' * (max_width - 2)}{Theme.BORDER}│{Colors.RESET}")
     print(f"{Theme.BORDER}╰{'─' * (max_width - 2)}╯{Colors.RESET}")
     print()
-    print(f"  {Theme.PRIMARY_BOLD}🚀 Handsome Agent v1.0.0{Colors.RESET}")
+    print(f"  {Theme.PRIMARY_BOLD}🚀 Handsome Agent V 0.0.1{Colors.RESET}")
     print()

@@ -33,7 +33,14 @@ from .router import router, RouteMatch, IntentClassifier
 from .skill_manager import skill_manager, SkillResult, BaseSkill
 from .session import session_manager, Session, Message
 from .i18n import I18n
-from .layer_logger import get_layer_logger
+from .logging_manager import (
+    get_access_logger,
+    get_decision_logger,
+    get_execution_logger,
+    get_llm_logger,
+    get_tool_logger,
+    set_log_level
+)
 
 
 class AgentConfig(BaseModel):
@@ -50,17 +57,16 @@ class AgentConfig(BaseModel):
     enable_skills: bool = True
     enable_session: bool = True
     
-    # Intent recognition configuration
     intent_mode: str = "llm"  # Options: "keyword", "llm", "hybrid"
     intent_llm_threshold: float = 0.3  # Confidence threshold for keyword fallback
     
-    # Language configuration
-    supported_languages: List[str] = ["zh", "en", "ja", "ko"]  # Supported languages: Chinese, English, Japanese, Korean
+    supported_languages: List[str] = ["zh", "en", "ja", "ko"]
     
-    # Log configuration
     log_level: str = "info"              # Logging level: debug, info, warning, error
     enable_detailed_logs: bool = True    # Enable detailed processing logs
     enable_summary_logs: bool = True     # Enable summary logs (always recommended)
+    
+    explanation_depth: str = "detailed"  # Explanation detail level: brief, moderate, detailed
     
     class Config:
         extra = "allow"
@@ -82,6 +88,7 @@ class BaseAgentModule(ABC):
     def __init__(self, config: AgentConfig):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.propagate = False
     
     @abstractmethod
     async def process(self, input_data: Any, session: Optional[Session] = None) -> AgentResponse:
@@ -89,38 +96,55 @@ class BaseAgentModule(ABC):
 
 
 class ExplanationModule(BaseAgentModule):
-    __slots__ = ()
+    __slots__ = ('_logger',)
+    
+    def __init__(self, config=None):
+        super().__init__(config)
+        from .logging_manager import get_postprocess_logger
+        self._logger = get_postprocess_logger("ExplanationModule")
     
     async def process(self, input_data: str, session: Optional[Session] = None) -> AgentResponse:
         start_time = time.time()
+        
+        self._logger.debug(f"📝 [/后处理层] - [PostProcessor] ExplanationModule 开始处理请求: {input_data[:50]}...")
+        
         input_type = self._classify_input(input_data)
         complexity_level = self._assess_complexity(input_data)
+        
+        self._logger.debug(f"📝 [/后处理层] - [PostProcessor] 分类输入类型: {input_type}, 复杂度: {complexity_level}")
         
         reasoning_steps = []
         explanation_content = ""
         
         reasoning_steps.append("Understanding user request and context")
+        self._logger.debug(f"📝 [/后处理层] - [PostProcessor] 理解用户请求和上下文")
         explanation_content += self._generate_acknowledgment(input_data)
         
         if complexity_level >= 2:
             reasoning_steps.append("Providing contextual background information")
+            self._logger.debug(f"📝 [/后处理层] - [PostProcessor] 生成上下文信息")
             explanation_content += "\n\n## Context and Background\n"
             explanation_content += self._generate_context(input_data, input_type)
         
         reasoning_steps.append("Developing comprehensive solution or explanation")
+        self._logger.debug(f"📝 [/后处理层] - [PostProcessor] 生成详细解释")
         explanation_content += "\n\n## Detailed Explanation\n"
         explanation_content += self._generate_detailed_explanation(input_data, input_type)
         
         if complexity_level >= 1:
             reasoning_steps.append("Providing practical examples and illustrations")
+            self._logger.debug(f"📝 [/后处理层] - [PostProcessor] 生成实践示例")
             explanation_content += "\n\n## Practical Examples\n"
             explanation_content += self._generate_examples(input_data, input_type)
         
         reasoning_steps.append("Summarizing key takeaways")
+        self._logger.debug(f"📝 [/后处理层] - [PostProcessor] 生成总结")
         explanation_content += "\n\n## Key Takeaways\n"
         explanation_content += self._generate_summary(input_data)
         
         execution_time = time.time() - start_time
+        
+        self._logger.summary(f"📝 [/后处理层] - [PostProcessor] ExplanationModule 处理完成，耗时 {execution_time:.2f}s")
         
         return AgentResponse(
             content=explanation_content,
@@ -188,34 +212,37 @@ class ExplanationModule(BaseAgentModule):
 
 
 class CustomAgent:
-    __slots__ = ('config', 'explanation_module', 'logger', '_cache', '_config_hash',
-                 '_session', '_intent_classifier', 'llm_provider', '_i18n',
-                 '_access_logger', '_decision_logger', '_execution_logger',
-                 '_intent_logger', '_memory_logger', '_routing_logger', '_tool_logger', '_post_logger')
+    __slots__ = ('config', 'explanation_module', '_access_logger', '_cache_logger', '_memory_logger',
+                 '_intent_logger', '_router_logger', '_tool_select_logger', '_session_logger', 
+                 '_postprocess_logger', '_cache', '_config_hash', '_session', '_intent_classifier', 
+                 'llm_provider', '_i18n')
     
     def __init__(self, config: Optional[AgentConfig] = None, session_id: Optional[str] = None):
         self.config = config or AgentConfig()
         self.explanation_module = ExplanationModule(self.config)
-        # Initialize IntentClassifier with config settings
         self._intent_classifier = IntentClassifier(
             mode=self.config.intent_mode,
             threshold=self.config.intent_llm_threshold,
-            language=self.config.language,
-            enable_detailed_logs=self.config.enable_detailed_logs
+            language=self.config.language
         )
         self._i18n = I18n(self.config.language)
         self.setup_logging()
-        self.logger = logging.getLogger(self.__class__.__name__)
         
-        self._access_logger = get_layer_logger("access", "CLI")
-        self._decision_logger = get_layer_logger("decision", "CustomAgent")
-        self._execution_logger = get_layer_logger("execution", "SessionManager")
+        from .logging_manager import (
+            get_access_logger, get_decision_logger, get_execution_logger, 
+            get_memory_logger, get_postprocess_logger
+        )
         
-        self._intent_logger = get_layer_logger("decision", "IntentClassifier", "intent")
-        self._memory_logger = get_layer_logger("decision", "MemoryCache", "memory")
-        self._routing_logger = get_layer_logger("decision", "TaskRouter", "routing")
-        self._tool_logger = get_layer_logger("decision", "SkillManager", "tool_select")
-        self._post_logger = get_layer_logger("decision", "ResponsePost", "post_process")
+        self._access_logger = get_access_logger("InputHandler")
+        self._cache_logger = get_execution_logger("MemoryCache")
+        self._memory_logger = get_memory_logger("MemoryRetrieval")
+        self._intent_logger = get_decision_logger("IntentClassifier")
+        self._router_logger = get_decision_logger("TaskRouter")
+        self._tool_select_logger = get_decision_logger("ToolSelector")
+        self._session_logger = get_execution_logger("SessionManager")
+        self._postprocess_logger = get_postprocess_logger("PostProcessor")
+        
+        skill_manager.set_explanation_depth(self.config.explanation_depth)
         
         if self.config.enable_caching:
             self._cache = LRUCache(maxsize=100)
@@ -225,6 +252,7 @@ class CustomAgent:
             self._config_hash = None
         
         if self.config.enable_session:
+            session_manager._enable_detailed_logs = self.config.enable_detailed_logs
             self._session = session_manager.create_session(
                 session_id,
                 enable_detailed_logs=self.config.enable_detailed_logs
@@ -233,10 +261,7 @@ class CustomAgent:
             self._session = None
         
         self.llm_provider = None
-        
         self._intent_classifier.set_llm_provider(self.llm_provider)
-        
-        router.set_detailed_logs(self.config.enable_detailed_logs)
     
     def set_llm_provider(self, provider):
         """Set the LLM provider for both generation and intent classification."""
@@ -244,93 +269,59 @@ class CustomAgent:
         self._intent_classifier.set_llm_provider(provider)
     
     def setup_logging(self):
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+        set_log_level(self.config.explanation_depth)
     
     async def respond(self, user_input: str) -> AgentResponse:
         execution_flow = []
         t = self._i18n.t
         
-        access = self._access_logger
-        intent = self._intent_logger
-        memory = self._memory_logger
-        routing = self._routing_logger
-        tool = self._tool_logger
-        post = self._post_logger
-        execution = self._execution_logger
-        
-        # 详细日志（可配置）
-        if self.config.enable_detailed_logs:
-            access.info(f"{t('flow_header')}")
-            access.info(f"respond() 接收用户输入: {user_input[:80]}{'...' if len(user_input) > 80 else ''}")
-            access.info(f"   → 下一步: 进行输入验证")
-            execution_flow.append("🚪 [接入层] 接收用户输入 → [决策层-意图识别层] 进行验证")
-        
-        if self.config.enable_detailed_logs:
-            self.logger.info(f"Using explanation_module: {type(self.explanation_module)}")
+        if self.config.explanation_depth == 'detailed':
+            self._access_logger.debug(f"🚪 [/接入层] - [InputHandler] 接收用户输入: {user_input[:80]}{'...' if len(user_input) > 80 else ''}")
+        execution_flow.append("🚪 [接入层] 接收用户输入 → [决策层-意图识别层] 进行验证")
         
         if not isinstance(user_input, str):
             raise InputValidationError("Input must be a string")
         if not user_input.strip():
             raise InputValidationError("Input cannot be empty")
-        if self.config.enable_detailed_logs:
-            intent.info(t('validation_pass'))
-            intent.info(f"   → 下一步将调用: [执行层] 保存消息到会话")
+        
+        self._intent_logger.summary(f"🎯 [/意图识别层] - [IntentClassifier] 输入格式验证通过")
         execution_flow.append("🧠 [决策层-意图识别层] 输入格式验证通过 → [执行层] 保存消息")
         
         if self._session:
-            if self.config.enable_detailed_logs:
-                memory.info(f"{t('session_add')} (session_id: {self._session.session_id})")
+            self._session_logger.info(f"⚡ [执行层] 添加用户消息到会话 (session_id: {self._session.session_id})")
             self._session.add_message('user', user_input)
-            if self.config.enable_detailed_logs:
-                memory.info(f"   → 下一步将调用: [决策层-记忆检索层] 检查缓存")
-                execution.info(f"消息已添加到会话 [{self._session.session_id}] → 检查缓存")
             execution_flow.append(f"⚡ [执行层] 消息已添加到会话 [{self._session.session_id}] → [决策层-记忆检索层] 检查缓存")
         
         if self._cache is not None:
             cache_key = create_cache_key(user_input, self._config_hash)
             cached_response = self._cache.get(cache_key)
             if cached_response is not None:
-                if self.config.enable_detailed_logs:
-                    memory.info(t('cache_hit'))
-                    memory.info(f"   → 流程结束，直接返回缓存响应")
+                self._memory_logger.info(f"💾 [/记忆检索层] - [MemoryRetrieval] 缓存命中，跳过处理")
                 execution_flow.append("🧠 [决策层-记忆检索层] 缓存命中 → 直接返回")
-                # 汇总日志（始终打印）
-                if self.config.enable_summary_logs:
-                    memory.info(f"{t('flow_header')}")
                 cached_response.execution_time = 0.0
                 return cached_response
-            if self.config.enable_detailed_logs:
-                memory.info(t('cache_miss'))
-                memory.info(f"   → 下一步将调用: [决策层-路由层] 开始处理请求")
+            self._memory_logger.info(f"💾 [/记忆检索层] - [MemoryRetrieval] 缓存未命中，执行正常流程")
             execution_flow.append("🧠 [决策层-记忆检索层] 缓存未命中 → [决策层-路由层] 开始处理")
         
-        if self.config.enable_detailed_logs:
-            routing.info(t('processing_start'))
-            routing.info(f"   → 下一步将调用: [决策层-路由层] 进入任务路由模块")
+        self._router_logger.summary(f"🔀 [/路由层] - [TaskRouter] 开始处理请求")
         execution_flow.append("🧠 [决策层-路由层] 开始处理请求 → [决策层-路由层] 任务路由")
         start_time = time.time()
         
         try:
             if self.config.enable_routing:
-                if self.config.enable_detailed_logs:
-                    routing.info(f"TaskRouter 启用路由功能")
-                    routing.info(f"   → 下一步将调用: IntentClassifier 进行意图分类")
+                if self.config.explanation_depth == 'detailed':
+                    self._router_logger.debug(f"🔀 [/路由层] - [TaskRouter] TaskRouter 启用路由功能")
                 execution_flow.append("🧠 [决策层-路由层] TaskRouter 启用路由功能 → IntentClassifier")
                 
                 route_context = {
                     'llm_provider': getattr(self, 'llm_provider', None),
                     'skill_manager': skill_manager,
                     'session_history': self._session.get_history() if self._session else [],
-                    'enable_detailed_logs': self.config.enable_detailed_logs
+                    'enable_detailed_logs': self.config.explanation_depth == 'detailed'
                 }
                 route_match = await router.route_async(user_input)
                 if route_match:
-                    if self.config.enable_detailed_logs:
-                        routing.info(f"TaskRouter 找到匹配的路由: {route_match.route_id} (置信度: {route_match.confidence:.2f})")
-                        routing.info(f"   → 下一步: [决策层-路由层] {route_match.route_id}.handler()")
+                    self._router_logger.summary(f"🔀 [/路由层] - [TaskRouter] 识别意图：{route_match.route_id} (置信度: {route_match.confidence:.2f})")
                     execution_flow.append(f"   ├─ TaskRouter 匹配路由: {route_match.route_id}")
                     execution_flow.append(f"   └─ TaskRouter 置信度: {route_match.confidence:.2f}")
                     execution_flow.append(f"🧠 [决策层-路由层] TaskRouter → [决策层-路由层] {route_match.route_id}")
@@ -339,14 +330,10 @@ class CustomAgent:
                     execution_flow.extend(handler_flow)
                     
                     if route_response:
-                        if self.config.enable_detailed_logs:
-                            routing.info(f"TaskRouter 路由匹配成功")
-                            routing.info(f"   → 流程结束，返回响应")
+                        self._router_logger.summary(f"🔀 [/路由层] - [TaskRouter] 路由匹配成功 → 返回响应")
                         execution_flow.append("🧠 [决策层-路由层] 返回响应 → 完成")
                         
                         if self._session:
-                            if self.config.enable_detailed_logs:
-                                execution.info("保存助手响应到会话")
                             self._session.add_message('assistant', route_response)
                             self._session._save_session()
                         
@@ -358,42 +345,30 @@ class CustomAgent:
                             execution_time=execution_time
                         )
                 else:
-                    if self.config.enable_detailed_logs:
-                        routing.info(f"TaskRouter 未匹配任何路由")
-                        routing.info(f"   → 下一步将调用: SkillManager 进行技能发现")
+                    if self.config.explanation_depth == 'detailed':
+                        self._router_logger.debug(f"🔀 [/路由层] - [TaskRouter] TaskRouter 未匹配任何路由")
                 execution_flow.append("🧠 [决策层-路由层] TaskRouter 未匹配路由 → SkillManager")
             
             if self.config.enable_skills:
-                if self.config.enable_detailed_logs:
-                    tool.info(f"SkillManager 启用技能执行")
-                    tool.info(f"   → 下一步将调用: IntentClassifier 进行意图分类")
+                if self.config.explanation_depth == 'detailed':
+                    self._tool_select_logger.debug(f"🔧 [/工具选择层] - [ToolSelector] SkillManager 启用技能执行")
                 execution_flow.append("🧠 [决策层-工具选择层] SkillManager 启用技能执行")
                 
                 intent_result = await self._intent_classifier.classify_async(user_input)
-                if self.config.enable_detailed_logs:
-                    intent.info(f"IntentClassifier 分类结果: {intent_result}")
-                    intent.info(f"   → 下一步将调用: SkillManager.discover_skills()")
+                self._intent_logger.summary(f"🎯 [/意图识别层] - [IntentClassifier] IntentClassifier 分类结果: {intent_result}")
                 execution_flow.append(f"   ├─ [决策层-意图识别层] IntentClassifier 意图: {intent_result}")
                 
                 relevant_skills = await skill_manager.discover_skills(intent_result, user_input)
-                if self.config.enable_detailed_logs:
-                    execution.info(f"SkillManager 发现 {len(relevant_skills)} 个相关技能")
-                    tool.info(f"   → 下一步将调用: Skill.execute() 执行技能")
+                self._tool_select_logger.info(f"🔧 [/工具选择层] - [ToolSelector] SkillManager 发现 {len(relevant_skills)} 个相关技能")
                 execution_flow.append(f"   └─ [执行层] SkillManager 发现 {len(relevant_skills)} 个技能")
                 
                 for skill_meta in relevant_skills:
-                    if self.config.enable_detailed_logs:
-                        execution.info(f"Skill.execute() 执行技能: {skill_meta.id} ({skill_meta.name})")
-                        tool.info(f"   → 调用: {skill_meta.id}.execute()")
+                    self._tool_select_logger.summary(f"🔧 [/工具选择层] - [ToolSelector] 调用技能: {skill_meta.name}")
                     execution_flow.append(f"   → [执行层] Skill.execute({skill_meta.id})")
                     
                     skill_result = await skill_manager.execute_skill(skill_meta.id)
                     if skill_result and skill_result.success:
-                        if self.config.enable_detailed_logs:
-                            execution.info(f"Skill.execute() 执行成功")
-                            post.info(f"   → 流程结束，返回技能执行结果")
-                            post.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
-                            post.info(f"{t('flow_header')}")
+                        self._postprocess_logger.summary(f"📝 [/后处理层] - [PostProcessor] 响应生成成功")
                         execution_flow.append("   ⚡ [执行层] Skill.execute() 成功 → 完成")
                         
                         if self._session:
@@ -408,54 +383,37 @@ class CustomAgent:
                             execution_time=execution_time
                         )
                     else:
-                        if self.config.enable_detailed_logs:
-                            tool.warning(f"{t('skill_fail')}: {skill_result.error if skill_result else 'Unknown'}")
-                            tool.info(f"   → 尝试下一个技能")
-                if self.config.enable_detailed_logs:
-                    tool.info(f"❌ [决策层-工具选择层] 所有技能执行失败")
-                    tool.info(f"   → 下一步将调用: [决策层-后处理层] 解释模块")
+                        self._tool_select_logger.warning(f"🔧 [/工具选择层] - [ToolSelector] 技能执行失败: {skill_result.error if skill_result else 'Unknown'}")
+                self._tool_select_logger.warning(f"🔧 [/工具选择层] - [ToolSelector] 所有技能执行失败")
                 execution_flow.append("❌ [决策层-工具选择层] 技能执行均失败 → [决策层-后处理层] 解释模块")
             
-            if self.config.enable_detailed_logs:
-                post.info(t('explanation_module'))
-                post.info(f"   → 下一步将调用: [决策层-后处理层] AdvancedReasoningModule.process()")
+            self._postprocess_logger.summary(f"📝 [/后处理层] - [PostProcessor] 回退到解释模块生成响应")
             execution_flow.append("🧠 [决策层-后处理层] 回退到解释模块 → [决策层-后处理层] AdvancedReasoningModule")
             response = await self._generate_response(user_input)
             
-            if self.config.enable_detailed_logs:
-                post.info(f"{t('response_complete')} (长度: {len(response.content)} 字符)")
-                post.info(f"   → 下一步将调用: [执行层] 保存响应到会话")
+            self._postprocess_logger.summary(f"📝 [/后处理层] - [PostProcessor] 响应生成完成 (长度: {len(response.content)} 字符)")
             execution_flow.append("   ✅ [决策层-后处理层] 响应生成完成 → [执行层] 保存")
             
             execution_time = time.time() - start_time
             response.execution_time = execution_time
             
             if self._session:
-                if self.config.enable_detailed_logs:
-                    execution.info(t('session_add_assistant'))
-                    memory.info(f"   → 下一步将调用: [决策层-记忆检索层] 缓存响应")
                 self._session.add_message('assistant', response.content)
-                if self.config.enable_detailed_logs:
-                    execution.info("保存助手响应 → 缓存")
             execution_flow.append("⚡ [执行层] 保存助手响应 → [决策层-记忆检索层] 缓存")
             
             if self._cache is not None:
-                if self.config.enable_detailed_logs:
-                    memory.info(t('cache_store'))
-                    memory.info("响应已缓存")
+                self._memory_logger.info(f"💾 [/记忆检索层] - [MemoryRetrieval] 存储响应到缓存")
                 cache_key = create_cache_key(user_input, self._config_hash)
                 self._cache.put(cache_key, response)
                 execution_flow.append("🧠 [决策层-记忆检索层] 响应已缓存")
             
-            post.info(f"🧠 [完成] 响应生成完成，耗时 {execution_time:.2f} 秒")
+            self._postprocess_logger.summary(f"📝 [/后处理层] - [PostProcessor] 响应生成完成，耗时 {execution_time:.2f} 秒")
             execution_flow.append(f"🚪 [完成] 总耗时 {execution_time:.2f}s → 完成")
-            post.info(f"🔔 执行流程汇总:\n  " + "\n  ".join(execution_flow))
-            post.info(f"{t('flow_header')}")
             return response
             
         except asyncio.TimeoutError:
             timeout_error = TimeoutError(self.config.timeout_seconds)
-            post.error(f"Timeout error: {timeout_error}")
+            self._postprocess_logger.error(f"📝 [/后处理层] - [PostProcessor] Timeout error: {timeout_error}")
             return AgentResponse(
                 content=f"I apologize, but your request took too long to process (timeout after {self.config.timeout_seconds} seconds). Please try a simpler query.",
                 confidence_score=0.0,
@@ -464,7 +422,7 @@ class CustomAgent:
             )
             
         except InputValidationError as e:
-            intent.error(f"Input validation error: {e}")
+            self._intent_logger.error(f"🎯 [/意图识别层] - [IntentClassifier] Input validation error: {e}")
             return AgentResponse(
                 content=f"I apologize, but there was an issue with your input: {str(e)}",
                 confidence_score=0.0,
@@ -477,7 +435,7 @@ class CustomAgent:
                 f"Failed to generate response for input: {user_input[:100]}...",
                 original_exception=e
             )
-            post.error(f"Response generation error: {response_error}", exc_info=True)
+            self._postprocess_logger.error(f"📝 [/后处理层] - [PostProcessor] Response generation error: {response_error}", exc_info=True)
             return AgentResponse(
                 content=f"I apologize, but I encountered an unexpected error while processing your request. Please try again or rephrase your question.",
                 confidence_score=0.0,
@@ -486,28 +444,26 @@ class CustomAgent:
             )
     
     async def _handle_route(self, route_match: RouteMatch, user_input: str, context: Dict[str, Any] = None) -> tuple:
-        decision = self._decision_logger
         try:
-            if self.config.enable_detailed_logs:
-                decision.info(f"Handling route: {route_match.route_id} with handler: {route_match.handler}")
+            if self.config.explanation_depth == 'detailed':
+                self._router_logger.debug(f"🔀 [/路由层] - [TaskRouter] Handling route: {route_match.route_id}")
             ctx = context or {}
             result = await route_match.handler(user_input, ctx)
             if result:
                 if isinstance(result, tuple):
                     response, handler_flow = result
-                    if self.config.enable_detailed_logs:
-                        decision.info(f"Route handler returned: {response[:50] if response else 'None'}...")
+                    if self.config.explanation_depth == 'detailed':
+                        self._router_logger.debug(f"🔀 [/路由层] - [TaskRouter] Route handler returned: {response[:50] if response else 'None'}...")
                     return response, handler_flow
                 else:
-                    if self.config.enable_detailed_logs:
-                        decision.info(f"Route handler returned: {result[:50] if result else 'None'}...")
+                    if self.config.explanation_depth == 'detailed':
+                        self._router_logger.debug(f"🔀 [/路由层] - [TaskRouter] Route handler returned: {result[:50] if result else 'None'}...")
                     return result, []
-            if self.config.enable_detailed_logs:
-                decision.info(f"Route handler returned: None")
+            if self.config.explanation_depth == 'detailed':
+                self._router_logger.debug(f"🔀 [/路由层] - [TaskRouter] Route handler returned: None")
             return None, []
         except Exception as e:
-            if self.config.enable_detailed_logs:
-                decision.error(f"Error handling route {route_match.route_id}: {e}")
+            self._router_logger.error(f"🔀 [/路由层] - [TaskRouter] Error handling route {route_match.route_id}: {e}")
             return None, []
     
     async def _generate_response(self, user_input: str) -> AgentResponse:

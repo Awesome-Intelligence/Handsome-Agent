@@ -14,8 +14,6 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import logging
 
-from .layer_logger import get_layer_logger
-
 
 @dataclass
 class Message:
@@ -32,10 +30,10 @@ class Message:
 class SessionConfig:
     """Configuration for session behavior."""
     max_history_length: int = 50
-    auto_save_interval: int = 300  # seconds
+    auto_save_interval: int = 300
     enable_persistence: bool = True
     history_path: str = "./sessions/"
-    enable_detailed_logs: bool = True  # Enable detailed logs in session operations
+    enable_detailed_logs: bool = True
 
 
 class BaseSessionStore(ABC):
@@ -128,7 +126,7 @@ class Session:
         self.last_save_time = 0.0
         self.store = FileSessionStore(self.config.history_path)
         self.logger = logging.getLogger(f"Session.{session_id}")
-        self._execution_logger = get_layer_logger("execution", "SessionManager")
+        self.logger.propagate = False
         self._enable_detailed_logs = self.config.enable_detailed_logs
         
         if self.config.enable_persistence:
@@ -196,17 +194,11 @@ class Session:
         
         self.messages.append(message)
         
-        if self._enable_detailed_logs:
-            execution = self._execution_logger
-            execution.info(f"⚡ [执行层] 添加消息:")
-            execution.info(f"  ├─ 角色: {role}")
-            execution.info(f"  ├─ 内容: {content[:50]}...")
-            execution.info(f"  └─ 消息数: {len(self.messages)}")
+        self.logger.debug(f"⚡ [执行层] 添加消息: 角色={role}, 内容={content[:50]}..., 消息数={len(self.messages)}")
         
         if len(self.messages) > self.config.max_history_length:
             self.messages = self.messages[-self.config.max_history_length:]
-            if self._enable_detailed_logs:
-                execution.info(f"✂️ [执行层] 历史记录已修剪，当前保留 {self.config.max_history_length} 条消息")
+            self.logger.debug(f"✂️ [执行层] 历史记录已修剪，当前保留 {self.config.max_history_length} 条消息")
         
         if time.time() - self.last_save_time > self.config.auto_save_interval:
             self._save_session()
@@ -317,6 +309,8 @@ class SessionManager:
         self.sessions: Dict[str, Session] = {}
         self.store = FileSessionStore(self.config.history_path)
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.propagate = False
+        self._enable_detailed_logs = self.config.enable_detailed_logs
     
     def create_session(self, session_id: Optional[str] = None, enable_detailed_logs: Optional[bool] = None) -> Session:
         """
@@ -412,7 +406,8 @@ class SessionManager:
         
         for session_id in to_remove:
             self.delete_session(session_id)
-            self.logger.info(f"Cleaned up inactive session: {session_id}")
+            if self._enable_detailed_logs:
+                self.logger.info(f"Cleaned up inactive session: {session_id}")
 
 
 session_manager = SessionManager()

@@ -70,10 +70,27 @@ from .layer_logger import (
     tools_logger,
     storage_logger,
     LAYER_EMOJI,
-    LAYER_NAMES
+    LAYER_NAMES,
+    configure_logging as configure_layer_logging
 )
 
-__version__ = "1.0.0"
+from .logging_manager import (
+    LogManager,
+    LogConfig,
+    get_logger,
+    get_access_logger,
+    get_decision_logger,
+    get_execution_logger,
+    get_llm_logger,
+    get_tool_logger,
+    configure_logging,
+    set_log_level,
+    get_log_level,
+    setup_logging_from_config,
+    LOG_LAYERS
+)
+
+__version__ = "0.0.1"
 __author__ = "Handsome Agent Team"
 
 __all__ = [
@@ -138,7 +155,7 @@ __all__ = [
     'SelfImprovementEngine',
     'self_improvement_engine',
     
-    # Layer Logger
+    # Layer Logger (Legacy)
     'LayerLogger',
     'get_layer_logger',
     'user_logger',
@@ -148,5 +165,21 @@ __all__ = [
     'tools_logger',
     'storage_logger',
     'LAYER_EMOJI',
-    'LAYER_NAMES'
+    'LAYER_NAMES',
+    'configure_layer_logging',
+    
+    # Logging Manager (New)
+    'LogManager',
+    'LogConfig',
+    'get_logger',
+    'get_access_logger',
+    'get_decision_logger',
+    'get_execution_logger',
+    'get_llm_logger',
+    'get_tool_logger',
+    'configure_logging',
+    'set_log_level',
+    'get_log_level',
+    'setup_logging_from_config',
+    'LOG_LAYERS'
 ]

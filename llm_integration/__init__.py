@@ -3,24 +3,29 @@
 """
 Multi-Provider LLM Integration Module
 
-Provides unified interface for integrating with 25+ LLM providers.
+Provides unified interface for integrating with 50+ LLM providers.
 Supports OpenAI-compatible APIs and custom provider implementations.
 
 Supported Providers (API endpoints verified based on Hermes and official docs):
-- OpenAI: GPT-4o, GPT-4 Turbo, GPT-3.5
-- Anthropic: Claude 3.5 Sonnet, Opus, Haiku
-- Google: Gemini 1.5 Pro, Flash, 2.0
-- DeepSeek: DeepSeek V3, Chat, Coder
-- MiniMax: MiniMax-Text-01, Abab series
-- Moonshot Kimi: moonshot-v1-8k/32k/128k
-- SiliconFlow: Qwen, DeepSeek, Llama series
-- StepFun: step-1, step-2, step-3 series
-- Zhipu AI: GLM-4, GLM-4V
-- DashScope: Qwen series
-- And more via OpenAI-compatible API
+- OpenAI: GPT-4o, GPT-4 Turbo, GPT-3.5, GPT-5.x series
+- Anthropic: Claude 3.5 Sonnet, Opus 4.x, Haiku 4.x
+- Google: Gemini 3.x Pro/Flash/Lite, Gemini 1.5 Pro/Flash
+- DeepSeek: DeepSeek V4 Pro/Flash, V3.2, R1
+- MiniMax: MiniMax-M2.7, M2.5, M2.1
+- Moonshot Kimi: kimi-k2.6, kimi-k2.5, kimi-k2-thinking
+- Zhipu AI: GLM-5.1, GLM-5, GLM-4.7, GLM-4V
+- Qwen: Qwen3.6 Plus, Qwen3.5 Plus, Qwen3-Coder
+- Xiaomi MiMo: mimo-v2.5-pro, mimo-v2.5, mimo-v2-flash
+- Tencent: hy3-preview
+- NVIDIA: Nemotron 3 Super, Llama 3.3 Nemotron
+- StepFun: step-3.5-flash
+- Arcee: Trinity models
+- Grok: grok-4.3, grok-4.20-reasoning
+- OpenRouter: 100+ aggregated models
+- And many more via OpenAI-compatible API
 
 Author: Handsome Agent Team
-Version: 1.0.0
+Version: 1.1.0
 """
 
 import os
@@ -117,6 +122,19 @@ class ModelInfo:
     supports_functions: bool = True
     input_cost_per_1m: float = 0.0
     output_cost_per_1m: float = 0.0
+    recommended: bool = False
+    free: bool = False
+
+
+@dataclass
+class ProviderEntry:
+    """Provider definition for model picker."""
+    slug: str
+    label: str
+    description: str
+    base_url: str
+    api_key_env_vars: List[str] = field(default_factory=list)
+    default_model: str = ""
 
 
 @dataclass
@@ -131,6 +149,7 @@ class LLMConfig:
     timeout: float = 60.0
     enable_fallback: bool = True
     extra_headers: Dict[str, str] = field(default_factory=dict)
+    enable_detailed_logs: bool = True
 
     def is_enabled(self) -> bool:
         """Check if LLM is configured and enabled."""
@@ -148,17 +167,532 @@ class LLMProviderProtocol(Protocol):
         ...
 
 
+# =============================================================================
+# Canonical Provider List - Single Source of Truth
+# =============================================================================
+
+PROVIDERS: List[ProviderEntry] = [
+    # AI Aggregators
+    ProviderEntry(
+        "openrouter", "OpenRouter", 
+        "OpenRouter (100+ models, pay-per-use)",
+        "https://openrouter.ai/api/v1",
+        ["OPENAI_API_KEY", "OPENROUTER_API_KEY"],
+        "anthropic/claude-opus-4.7"
+    ),
+    ProviderEntry(
+        "novita", "NovitaAI",
+        "NovitaAI (AI-native cloud: Model API, Agent Sandbox, GPU Cloud)",
+        "https://api.novita.ai/v3",
+        ["NOVITA_API_KEY"],
+        "moonshotai/kimi-k2.5"
+    ),
+    ProviderEntry(
+        "huggingface", "Hugging Face",
+        "Hugging Face Inference Providers (20+ open models)",
+        "https://api-inference.huggingface.co/models",
+        ["HUGGING_FACE_API_KEY"],
+        "moonshotai/Kimi-K2.5"
+    ),
+    ProviderEntry(
+        "nvidia", "NVIDIA NIM",
+        "NVIDIA NIM (Nemotron models — build.nvidia.com or local NIM)",
+        "https://integrate.api.nvidia.com/v1",
+        ["NVIDIA_API_KEY"],
+        "nvidia/nemotron-3-super-120b-a12b"
+    ),
+    ProviderEntry(
+        "opencode-zen", "OpenCode Zen",
+        "OpenCode Zen (35+ curated models, pay-as-you-go)",
+        "https://api.opencode.com/v1",
+        ["OPENCODE_API_KEY"],
+        "kimi-k2.5"
+    ),
+    ProviderEntry(
+        "kilocode", "Kilo Code",
+        "Kilo Code (Kilo Gateway API)",
+        "https://api.kilocode.com/v1",
+        ["KILO_API_KEY"],
+        "anthropic/claude-opus-4.6"
+    ),
+    ProviderEntry(
+        "gmi", "GMI Cloud",
+        "GMI Cloud (multi-model direct API)",
+        "https://api.gmi-serving.com/v1",
+        ["GMI_API_KEY"],
+        "zai-org/GLM-5.1-FP8"
+    ),
+    
+    # Major Providers
+    ProviderEntry(
+        "openai", "OpenAI",
+        "OpenAI (GPT-4o, GPT-5.x series)",
+        "https://api.openai.com/v1",
+        ["OPENAI_API_KEY"],
+        "gpt-5.4"
+    ),
+    ProviderEntry(
+        "anthropic", "Anthropic",
+        "Anthropic (Claude models — API key or Claude Code)",
+        "https://api.anthropic.com/v1",
+        ["ANTHROPIC_API_KEY", "ANTHROPIC_TOKEN"],
+        "claude-opus-4-7"
+    ),
+    ProviderEntry(
+        "gemini", "Google AI Studio",
+        "Google AI Studio (Gemini models — native Gemini API)",
+        "https://generativelanguage.googleapis.com/v1",
+        ["GOOGLE_API_KEY"],
+        "gemini-3.1-pro-preview"
+    ),
+    ProviderEntry(
+        "xai", "xAI Grok",
+        "xAI (Grok models — direct API)",
+        "https://api.x.ai/v1",
+        ["XAI_API_KEY"],
+        "grok-4.3"
+    ),
+    
+    # Chinese Providers
+    ProviderEntry(
+        "minimax", "MiniMax",
+        "MiniMax (global direct API)",
+        "https://api.minimax.chat/v1",
+        ["MINIMAX_API_KEY"],
+        "MiniMax-M2.7"
+    ),
+    ProviderEntry(
+        "moonshot", "Moonshot Kimi",
+        "Kimi / Moonshot (api.moonshot.cn)",
+        "https://api.moonshot.cn/v1",
+        ["MOONSHOT_API_KEY"],
+        "kimi-k2.6"
+    ),
+    ProviderEntry(
+        "deepseek", "DeepSeek",
+        "DeepSeek (DeepSeek-V4, R1, coder — direct API)",
+        "https://api.deepseek.com/v1",
+        ["DEEPSEEK_API_KEY"],
+        "deepseek-v4-pro"
+    ),
+    ProviderEntry(
+        "zhipu", "Zhipu AI / GLM",
+        "Zhipu AI (GLM-5.x, GLM-4.x series)",
+        "https://open.bigmodel.cn/api/paas/v4",
+        ["ZHIPU_API_KEY", "GLM_API_KEY", "ZAI_API_KEY"],
+        "glm-5.1"
+    ),
+    ProviderEntry(
+        "dashscope", "Qwen Cloud",
+        "Qwen Cloud / DashScope (Qwen + multi-provider)",
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        ["DASHSCOPE_API_KEY", "ALIYUN_API_KEY"],
+        "qwen3.6-plus"
+    ),
+    ProviderEntry(
+        "xiaomi", "Xiaomi MiMo",
+        "Xiaomi MiMo (MiMo-V2.5 and V2 models)",
+        "https://api.mimo.xiaomi.com/v1",
+        ["XIAOMI_API_KEY"],
+        "mimo-v2.5-pro"
+    ),
+    ProviderEntry(
+        "tencent", "Tencent TokenHub",
+        "Tencent TokenHub (Hy3 Preview)",
+        "https://tokenhub.tencentmaas.com/api/text/v1",
+        ["TENCENT_API_KEY"],
+        "hy3-preview"
+    ),
+    ProviderEntry(
+        "stepfun", "StepFun Step Plan",
+        "StepFun Step Plan (agent/coding models)",
+        "https://api.stepfun.ai/step_plan/v1",
+        ["STEPFUN_API_KEY"],
+        "step-3.5-flash"
+    ),
+    
+    # Specialized Providers
+    ProviderEntry(
+        "arcee", "Arcee AI",
+        "Arcee AI (Trinity models)",
+        "https://api.arcee.ai/api/v1",
+        ["ARCEE_API_KEY"],
+        "trinity-large-thinking"
+    ),
+    ProviderEntry(
+        "ollama-cloud", "Ollama Cloud",
+        "Ollama Cloud (cloud-hosted open models)",
+        "https://ollama.com/v1",
+        ["OLLAMA_API_KEY"],
+        ""
+    ),
+    
+    # Enterprise Providers
+    ProviderEntry(
+        "azure", "Azure OpenAI",
+        "Azure OpenAI Service",
+        "",  # User provides custom URL
+        ["AZURE_OPENAI_API_KEY"],
+        "gpt-4o"
+    ),
+    ProviderEntry(
+        "bedrock", "AWS Bedrock",
+        "AWS Bedrock (Claude, Nova, Llama, DeepSeek)",
+        "https://bedrock-runtime.us-east-1.amazonaws.com",
+        [],  # Uses AWS SDK credentials
+        "us.anthropic.claude-sonnet-4-6"
+    ),
+    
+    # Local Development
+    ProviderEntry(
+        "lmstudio", "LM Studio",
+        "LM Studio (local desktop app with built-in model server)",
+        "http://127.0.0.1:1234/v1",
+        ["LM_API_KEY"],
+        ""
+    ),
+    ProviderEntry(
+        "ollama", "Ollama Local",
+        "Ollama (local open models)",
+        "http://localhost:11434/v1",
+        [],
+        ""
+    ),
+]
+
+# Provider aliases for user-friendly input
+PROVIDER_ALIASES: Dict[str, str] = {
+    # OpenRouter
+    "openrouter": "openrouter",
+    
+    # OpenAI
+    "openai": "openai",
+    "gpt": "openai",
+    "chatgpt": "openai",
+    
+    # Anthropic
+    "anthropic": "anthropic",
+    "claude": "anthropic",
+    "claude-code": "anthropic",
+    
+    # Google
+    "gemini": "gemini",
+    "google": "gemini",
+    "google-ai": "gemini",
+    
+    # xAI
+    "xai": "xai",
+    "grok": "xai",
+    "x-ai": "xai",
+    
+    # MiniMax
+    "minimax": "minimax",
+    "minimax-cn": "minimax",
+    "minimax-global": "minimax",
+    
+    # Moonshot
+    "moonshot": "moonshot",
+    "kimi": "moonshot",
+    "kimi-coding": "moonshot",
+    
+    # DeepSeek
+    "deepseek": "deepseek",
+    "deep-seek": "deepseek",
+    
+    # Zhipu/GLM
+    "zhipu": "zhipu",
+    "glm": "zhipu",
+    "zai": "zhipu",
+    "z-ai": "zhipu",
+    
+    # Qwen/DashScope
+    "qwen": "dashscope",
+    "dashscope": "dashscope",
+    "alibaba": "dashscope",
+    "aliyun": "dashscope",
+    
+    # Xiaomi
+    "xiaomi": "xiaomi",
+    "mimo": "xiaomi",
+    
+    # Tencent
+    "tencent": "tencent",
+    "tokenhub": "tencent",
+    
+    # StepFun
+    "stepfun": "stepfun",
+    "step": "stepfun",
+    
+    # NVIDIA
+    "nvidia": "nvidia",
+    "nim": "nvidia",
+    "nemotron": "nvidia",
+    
+    # Hugging Face
+    "huggingface": "huggingface",
+    "hf": "huggingface",
+    
+    # Novita
+    "novita": "novita",
+    "novitaai": "novita",
+    
+    # Arcee
+    "arcee": "arcee",
+    "arcee-ai": "arcee",
+    
+    # GMI
+    "gmi": "gmi",
+    "gmi-cloud": "gmi",
+    
+    # OpenCode
+    "opencode": "opencode-zen",
+    "zen": "opencode-zen",
+    "opencode-go": "opencode-zen",
+    
+    # KiloCode
+    "kilocode": "kilocode",
+    "kilo": "kilocode",
+    
+    # Ollama
+    "ollama": "ollama",
+    "ollama-cloud": "ollama-cloud",
+    
+    # LM Studio
+    "lmstudio": "lmstudio",
+    
+    # Azure
+    "azure": "azure",
+    "azure-openai": "azure",
+    
+    # Bedrock
+    "bedrock": "bedrock",
+    "aws": "bedrock",
+    "aws-bedrock": "bedrock",
+}
+
+
+# =============================================================================
+# Model Catalog - Updated with latest models from Hermes
+# =============================================================================
+
+MODEL_CATALOG: Dict[str, List[ModelInfo]] = {
+    # OpenAI
+    "openai": [
+        ModelInfo("gpt-5.4", "GPT-5.4", "Latest GPT-5 model", 128000, True, 15.0, 45.0, True),
+        ModelInfo("gpt-5.4-mini", "GPT-5.4 Mini", "Efficient GPT-5 variant", 128000, True, 1.5, 4.5),
+        ModelInfo("gpt-5-mini", "GPT-5 Mini", "Compact GPT-5 model", 128000, True, 1.0, 3.0),
+        ModelInfo("gpt-5.3-codex", "GPT-5.3 Codex", "Code-focused model", 128000, True, 30.0, 90.0),
+        ModelInfo("gpt-4o", "GPT-4o", "GPT-4 Omni", 128000, True, 5.0, 15.0),
+        ModelInfo("gpt-4o-mini", "GPT-4o Mini", "Efficient GPT-4o", 128000, True, 0.15, 0.6),
+    ],
+    
+    # Anthropic
+    "anthropic": [
+        ModelInfo("claude-opus-4-7", "Claude Opus 4.7", "Latest flagship model", 200000, True, 15.0, 75.0, True),
+        ModelInfo("claude-opus-4-6", "Claude Opus 4.6", "Previous flagship", 200000, True, 15.0, 75.0),
+        ModelInfo("claude-sonnet-4-6", "Claude Sonnet 4.6", "Balanced performance", 200000, True, 3.0, 15.0),
+        ModelInfo("claude-haiku-4-5", "Claude Haiku 4.5", "Fast and efficient", 200000, True, 0.25, 1.25),
+    ],
+    
+    # Google Gemini
+    "gemini": [
+        ModelInfo("gemini-3.1-pro-preview", "Gemini 3.1 Pro", "Latest Pro model", 1048576, True, 7.0, 21.0, True),
+        ModelInfo("gemini-3-pro-preview", "Gemini 3 Pro", "Gemini 3 flagship", 1048576, True, 12.5, 37.5),
+        ModelInfo("gemini-3-flash-preview", "Gemini 3 Flash", "Fast and capable", 1048576, True, 0.15, 0.6),
+        ModelInfo("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash Lite", "Most efficient", 1048576, True, 0.075, 0.3),
+        ModelInfo("gemini-1.5-pro", "Gemini 1.5 Pro", "Pro model", 1048576, True, 3.5, 10.5),
+        ModelInfo("gemini-1.5-flash", "Gemini 1.5 Flash", "Flash model", 1048576, True, 0.125, 0.5),
+    ],
+    
+    # xAI Grok
+    "xai": [
+        ModelInfo("grok-4.3", "Grok 4.3", "Latest Grok model", 131072, True, 3.0, 9.0, True),
+        ModelInfo("grok-4.20-0309-reasoning", "Grok 4.20 Reasoning", "Advanced reasoning", 131072, True, 5.0, 15.0),
+        ModelInfo("grok-4.20-0309-non-reasoning", "Grok 4.20 Non-Reasoning", "Standard model", 131072, True, 2.0, 6.0),
+    ],
+    
+    # MiniMax
+    "minimax": [
+        ModelInfo("MiniMax-M2.7", "MiniMax M2.7", "Latest MiniMax model", 128000, True, 2.0, 6.0, True),
+        ModelInfo("MiniMax-M2.5", "MiniMax M2.5", "Previous model", 128000, True, 1.5, 4.5),
+        ModelInfo("MiniMax-M2.1", "MiniMax M2.1", "Legacy model", 65536, True, 1.0, 3.0),
+    ],
+    
+    # Moonshot Kimi
+    "moonshot": [
+        ModelInfo("kimi-k2.6", "Kimi K2.6", "Latest Kimi model", 200000, True, 2.0, 6.0, True),
+        ModelInfo("kimi-k2.5", "Kimi K2.5", "Previous model", 200000, True, 1.8, 5.4),
+        ModelInfo("kimi-k2-thinking", "Kimi K2 Thinking", "Reasoning-focused", 200000, True, 3.0, 9.0),
+        ModelInfo("kimi-k2-turbo-preview", "Kimi K2 Turbo", "Fast variant", 200000, True, 2.5, 7.5),
+    ],
+    
+    # DeepSeek
+    "deepseek": [
+        ModelInfo("deepseek-v4-pro", "DeepSeek V4 Pro", "Latest flagship", 128000, True, 2.0, 6.0, True),
+        ModelInfo("deepseek-v4-flash", "DeepSeek V4 Flash", "Fast and efficient", 128000, True, 0.5, 1.5),
+        ModelInfo("deepseek-chat", "DeepSeek Chat", "Standard model", 65536, True, 0.8, 2.4),
+        ModelInfo("deepseek-reasoner", "DeepSeek Reasoner", "Reasoning model", 128000, True, 3.0, 9.0),
+        ModelInfo("deepseek-v3.2", "DeepSeek V3.2", "Legacy model", 81920, True, 1.5, 4.5),
+    ],
+    
+    # Zhipu GLM
+    "zhipu": [
+        ModelInfo("glm-5.1", "GLM-5.1", "Latest GLM model", 128000, True, 2.0, 6.0, True),
+        ModelInfo("glm-5", "GLM-5", "Previous model", 128000, True, 1.8, 5.4),
+        ModelInfo("glm-5v-turbo", "GLM-5V Turbo", "Vision model", 128000, True, 2.5, 7.5),
+        ModelInfo("glm-4.7", "GLM-4.7", "Legacy model", 65536, True, 1.5, 4.5),
+        ModelInfo("glm-4.5", "GLM-4.5", "Legacy model", 65536, True, 1.2, 3.6),
+        ModelInfo("glm-4v", "GLM-4V", "Vision model", 65536, True, 1.8, 5.4),
+    ],
+    
+    # Qwen (DashScope)
+    "dashscope": [
+        ModelInfo("qwen3.6-plus", "Qwen 3.6 Plus", "Latest Qwen model", 200000, True, 1.5, 4.5, True),
+        ModelInfo("qwen3.5-plus", "Qwen 3.5 Plus", "Previous model", 128000, True, 1.2, 3.6),
+        ModelInfo("qwen3-coder-plus", "Qwen 3 Coder Plus", "Code model", 128000, True, 2.0, 6.0),
+        ModelInfo("qwen3-coder-next", "Qwen 3 Coder Next", "Advanced code", 128000, True, 2.5, 7.5),
+        ModelInfo("qwen2.5-max", "Qwen 2.5 Max", "Legacy model", 128000, True, 1.0, 3.0),
+    ],
+    
+    # Xiaomi MiMo
+    "xiaomi": [
+        ModelInfo("mimo-v2.5-pro", "MiMo V2.5 Pro", "Latest pro model", 128000, True, 1.5, 4.5, True),
+        ModelInfo("mimo-v2.5", "MiMo V2.5", "Standard model", 128000, True, 1.0, 3.0),
+        ModelInfo("mimo-v2-pro", "MiMo V2 Pro", "Legacy pro", 65536, True, 0.8, 2.4),
+        ModelInfo("mimo-v2-flash", "MiMo V2 Flash", "Fast model", 65536, True, 0.3, 0.9),
+    ],
+    
+    # Tencent
+    "tencent": [
+        ModelInfo("hy3-preview", "Hy3 Preview", "Tencent's LLM", 128000, True, 1.0, 3.0, True),
+    ],
+    
+    # StepFun
+    "stepfun": [
+        ModelInfo("step-3.5-flash", "Step 3.5 Flash", "Latest model", 128000, True, 0.5, 1.5, True),
+        ModelInfo("step-3.5-flash-2603", "Step 3.5 Flash 2603", "Previous version", 128000, True, 0.5, 1.5),
+    ],
+    
+    # NVIDIA
+    "nvidia": [
+        ModelInfo("nvidia/nemotron-3-super-120b-a12b", "Nemotron 3 Super", "Flagship model", 128000, True, 3.0, 9.0, True),
+        ModelInfo("nvidia/nemotron-3-nano-30b-a3b", "Nemotron 3 Nano", "Compact model", 81920, True, 1.0, 3.0),
+        ModelInfo("nvidia/llama-3.3-nemotron-super-49b-v1.5", "Llama 3.3 Nemotron", "Llama-based", 81920, True, 2.0, 6.0),
+        ModelInfo("qwen/qwen3.5-397b-a17b", "Qwen 3.5 397B", "Large Qwen", 200000, True, 5.0, 15.0),
+        ModelInfo("deepseek-ai/deepseek-v3.2", "DeepSeek V3.2", "DeepSeek on NIM", 81920, True, 2.0, 6.0),
+    ],
+    
+    # Arcee
+    "arcee": [
+        ModelInfo("trinity-large-thinking", "Trinity Large Thinking", "Reasoning model", 128000, True, 2.0, 6.0, True),
+        ModelInfo("trinity-large-preview", "Trinity Large", "Standard model", 128000, True, 1.5, 4.5),
+        ModelInfo("trinity-mini", "Trinity Mini", "Compact model", 65536, True, 0.5, 1.5),
+    ],
+    
+    # OpenRouter (aggregated)
+    "openrouter": [
+        ModelInfo("anthropic/claude-opus-4.7", "Claude Opus 4.7", "Anthropic flagship", 200000, True, 18.0, 90.0, True),
+        ModelInfo("anthropic/claude-sonnet-4.6", "Claude Sonnet 4.6", "Balanced", 200000, True, 3.6, 18.0),
+        ModelInfo("moonshotai/kimi-k2.6", "Kimi K2.6", "Recommended", 200000, True, 2.4, 7.2),
+        ModelInfo("qwen/qwen3.6-plus", "Qwen 3.6 Plus", "Open-source", 200000, True, 1.8, 5.4),
+        ModelInfo("openai/gpt-5.5", "GPT-5.5", "Latest GPT", 128000, True, 18.0, 54.0),
+        ModelInfo("google/gemini-3-pro-preview", "Gemini 3 Pro", "Google flagship", 1048576, True, 15.0, 45.0),
+        ModelInfo("x-ai/grok-4.3", "Grok 4.3", "xAI model", 131072, True, 3.6, 10.8),
+        ModelInfo("deepseek/deepseek-v4-pro", "DeepSeek V4 Pro", "DeepSeek flagship", 128000, True, 2.4, 7.2),
+        ModelInfo("z-ai/glm-5.1", "GLM-5.1", "Zhipu model", 128000, True, 2.4, 7.2),
+        # Free tier models
+        ModelInfo("openrouter/elephant-alpha", "Elephant Alpha", "Free model", 65536, True, 0.0, 0.0, False, True),
+        ModelInfo("openrouter/owl-alpha", "Owl Alpha", "Free model", 65536, True, 0.0, 0.0, False, True),
+    ],
+    
+    # Novita
+    "novita": [
+        ModelInfo("moonshotai/kimi-k2.5", "Kimi K2.5", "Moonshot on Novita", 200000, True, 2.0, 6.0, True),
+        ModelInfo("minimax/minimax-m2.7", "MiniMax M2.7", "MiniMax on Novita", 128000, True, 1.8, 5.4),
+        ModelInfo("zai-org/glm-5", "GLM-5", "Zhipu on Novita", 128000, True, 1.8, 5.4),
+        ModelInfo("deepseek/deepseek-v3-0324", "DeepSeek V3", "DeepSeek on Novita", 81920, True, 1.5, 4.5),
+    ],
+    
+    # Hugging Face
+    "huggingface": [
+        ModelInfo("moonshotai/Kimi-K2.5", "Kimi K2.5", "Moonshot on HF", 200000, True, 2.0, 6.0, True),
+        ModelInfo("Qwen/Qwen3.5-397B-A17B", "Qwen 3.5 397B", "Large Qwen", 200000, True, 4.0, 12.0),
+        ModelInfo("deepseek-ai/DeepSeek-V3.2", "DeepSeek V3.2", "DeepSeek on HF", 81920, True, 1.5, 4.5),
+        ModelInfo("MiniMaxAI/MiniMax-M2.5", "MiniMax M2.5", "MiniMax on HF", 128000, True, 1.5, 4.5),
+        ModelInfo("zai-org/GLM-5", "GLM-5", "Zhipu on HF", 128000, True, 1.5, 4.5),
+    ],
+    
+    # GMI Cloud
+    "gmi": [
+        ModelInfo("zai-org/GLM-5.1-FP8", "GLM-5.1 FP8", "FP8 optimized", 128000, True, 1.5, 4.5, True),
+        ModelInfo("deepseek-ai/DeepSeek-V3.2", "DeepSeek V3.2", "DeepSeek on GMI", 81920, True, 1.5, 4.5),
+        ModelInfo("moonshotai/Kimi-K2.5", "Kimi K2.5", "Kimi on GMI", 200000, True, 1.8, 5.4),
+        ModelInfo("google/gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash Lite", "Efficient", 1048576, True, 0.1, 0.4),
+    ],
+    
+    # OpenCode Zen
+    "opencode-zen": [
+        ModelInfo("kimi-k2.5", "Kimi K2.5", "Main model", 200000, True, 2.0, 6.0, True),
+        ModelInfo("gpt-5.4-pro", "GPT-5.4 Pro", "OpenAI on Zen", 128000, True, 18.0, 54.0),
+        ModelInfo("gpt-5.4", "GPT-5.4", "GPT-5.4 on Zen", 128000, True, 15.0, 45.0),
+        ModelInfo("claude-opus-4-6", "Claude Opus 4.6", "Anthropic on Zen", 200000, True, 18.0, 90.0),
+        ModelInfo("claude-sonnet-4-6", "Claude Sonnet 4.6", "Sonnet on Zen", 200000, True, 3.6, 18.0),
+        ModelInfo("gemini-3.1-pro", "Gemini 3.1 Pro", "Google on Zen", 1048576, True, 8.4, 25.2),
+        ModelInfo("minimax-m2.7", "MiniMax M2.7", "MiniMax on Zen", 128000, True, 1.8, 5.4),
+        ModelInfo("glm-5", "GLM-5", "Zhipu on Zen", 128000, True, 1.8, 5.4),
+    ],
+    
+    # KiloCode
+    "kilocode": [
+        ModelInfo("anthropic/claude-opus-4.6", "Claude Opus 4.6", "Anthropic", 200000, True, 18.0, 90.0, True),
+        ModelInfo("anthropic/claude-sonnet-4.6", "Claude Sonnet 4.6", "Sonnet", 200000, True, 3.6, 18.0),
+        ModelInfo("openai/gpt-5.4", "GPT-5.4", "OpenAI", 128000, True, 15.0, 45.0),
+        ModelInfo("google/gemini-3-pro-preview", "Gemini 3 Pro", "Google", 1048576, True, 15.0, 45.0),
+    ],
+    
+    # AWS Bedrock
+    "bedrock": [
+        ModelInfo("us.anthropic.claude-sonnet-4-6", "Claude Sonnet 4.6", "Anthropic on Bedrock", 200000, True, 3.0, 15.0, True),
+        ModelInfo("us.anthropic.claude-opus-4-6-v1", "Claude Opus 4.6", "Opus on Bedrock", 200000, True, 15.0, 75.0),
+        ModelInfo("us.anthropic.claude-haiku-4-5-20251001-v1:0", "Claude Haiku 4.5", "Haiku on Bedrock", 200000, True, 0.25, 1.25),
+        ModelInfo("us.amazon.nova-pro-v1:0", "Amazon Nova Pro", "Amazon model", 128000, True, 2.0, 6.0),
+        ModelInfo("us.amazon.nova-lite-v1:0", "Amazon Nova Lite", "Lite model", 128000, True, 0.5, 1.5),
+        ModelInfo("deepseek.v3.2", "DeepSeek V3.2", "DeepSeek on Bedrock", 81920, True, 1.5, 4.5),
+    ],
+}
+
+
 class ProviderRegistry:
     """Registry for LLM providers with automatic provider detection."""
     _providers: Dict[str, Dict[str, Any]] = {}
     _initialized = False
     
     @classmethod
+    def get_provider(cls, provider_id: str) -> Optional[ProviderEntry]:
+        """Get provider entry by ID or alias."""
+        normalized = provider_id.lower().strip()
+        # Check aliases first
+        if normalized in PROVIDER_ALIASES:
+            normalized = PROVIDER_ALIASES[normalized]
+        
+        for provider in PROVIDERS:
+            if provider.slug.lower() == normalized:
+                return provider
+        return None
+    
+    @classmethod
     def get_provider_type(cls, provider_id: str) -> LLMProviderType:
         """Determine provider type from ID."""
-        provider_lower = provider_id.lower()
+        provider_lower = provider_id.lower().strip()
         
-        if provider_lower in ['openai', 'groq', 'fireworks', 'together', 'mistral']:
+        if provider_lower in PROVIDER_ALIASES:
+            provider_lower = PROVIDER_ALIASES[provider_lower]
+        
+        if provider_lower in ['openai', 'groq', 'fireworks', 'together', 'mistral',
+                             'deepseek', 'moonshot', 'zhipu', 'dashscope', 'xiaomi',
+                             'tencent', 'stepfun', 'nvidia', 'arcee', 'gmi', 'novita',
+                             'huggingface', 'openrouter', 'opencode-zen', 'kilocode',
+                             'ollama', 'ollama-cloud', 'lmstudio']:
             return LLMProviderType.OPENAI_COMPATIBLE
         elif provider_lower == 'anthropic':
             return LLMProviderType.ANTHROPIC
@@ -168,8 +702,21 @@ class ProviderRegistry:
             return LLMProviderType.COHERE
         elif provider_lower == 'minimax':
             return LLMProviderType.MINIMAX
+        elif provider_lower == 'azure':
+            return LLMProviderType.AZURE
+        elif provider_lower == 'bedrock':
+            return LLMProviderType.AWS
         else:
             return LLMProviderType.OPENAI_COMPATIBLE
+    
+    @classmethod
+    def get_models(cls, provider_id: str) -> List[ModelInfo]:
+        """Get available models for a provider."""
+        normalized = provider_id.lower().strip()
+        if normalized in PROVIDER_ALIASES:
+            normalized = PROVIDER_ALIASES[normalized]
+        
+        return MODEL_CATALOG.get(normalized, [])
 
 
 class BaseLLMProvider:
@@ -180,6 +727,7 @@ class BaseLLMProvider:
         self._client = None
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._llm_logger = get_layer_logger("llm", self.__class__.__name__)
+        self._enable_detailed_logs = config.enable_detailed_logs
         http = self._llm_logger
     
     async def generate(self, prompt: str) -> str:
@@ -210,12 +758,16 @@ class BaseLLMProvider:
         
         provider_class = self.__class__.__name__
         try:
+            # 汇总日志（INFO级别）
             llm.info(f"_make_request() 发送请求到 {self.config.provider} API...")
-            llm.info(f"   → 调用: urllib.request.urlopen()")
+            # 详细日志（DEBUG级别）
+            llm.debug(f"   → 调用: urllib.request.urlopen()")
             llm.debug(f"请求 URL: {url}")
             with urllib.request.urlopen(req, timeout=self.config.timeout, context=context) as response:
+                # 汇总日志（INFO级别）
                 llm.info(f"请求成功 (状态码: {response.status})")
-                llm.info(f"收到响应")
+                # 详细日志（DEBUG级别）
+                llm.debug(f"收到响应")
                 return json.loads(response.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
             error_body = e.read().decode('utf-8') if e.fp else "{}"
@@ -231,8 +783,84 @@ class BaseLLMProvider:
 class OpenAICompatibleProvider(BaseLLMProvider):
     """Provider for OpenAI-compatible APIs."""
     
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, messages: Optional[List] = None) -> str:
         """Generate response using OpenAI-compatible API."""
+        payload = {
+            "model": self.config.model,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens
+        }
+        
+        # Use provided messages or create a single user message
+        if messages:
+            # Convert messages to dict format if they are objects
+            formatted_messages = []
+            for msg in messages:
+                if isinstance(msg, dict):
+                    formatted_messages.append(msg)
+                else:
+                    # Handle Message objects
+                    role = getattr(msg, 'role', 'user')
+                    content = getattr(msg, 'content', '')
+                    formatted_messages.append({"role": role, "content": content})
+            payload["messages"] = formatted_messages
+        else:
+            payload["messages"] = [{"role": "user", "content": prompt}]
+        
+        response = await self._make_request("/chat/completions", payload)
+        
+        # Extract content from response
+        # Handle different response formats:
+        # 1. Standard OpenAI format: message.content
+        # 2. DeepSeek v4 format: message.reasoning_content (content may be empty)
+        message = response["choices"][0]["message"]
+        content = message.get("content", "").strip()
+        
+        # If content is empty but reasoning_content exists (DeepSeek v4), use that
+        if not content and "reasoning_content" in message:
+            content = message["reasoning_content"].strip()
+        
+        return content
+
+
+class AnthropicProvider(BaseLLMProvider):
+    """Provider for Anthropic Claude API."""
+    
+    async def generate(self, prompt: str) -> str:
+        """Generate response using Anthropic API."""
+        payload = {
+            "model": self.config.model,
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        
+        response = await self._make_request("/messages", payload)
+        return response["content"][0]["text"]
+
+
+class GoogleProvider(BaseLLMProvider):
+    """Provider for Google Gemini API."""
+    
+    async def generate(self, prompt: str) -> str:
+        """Generate response using Google Gemini API."""
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": self.config.temperature,
+                "maxOutputTokens": self.config.max_tokens
+            }
+        }
+        
+        response = await self._make_request(f"/models/{self.config.model}:generateContent", payload)
+        return response["candidates"][0]["content"]["parts"][0]["text"]
+
+
+class MiniMaxProvider(BaseLLMProvider):
+    """Provider for MiniMax API."""
+    
+    async def generate(self, prompt: str) -> str:
+        """Generate response using MiniMax API."""
         payload = {
             "model": self.config.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -244,23 +872,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         return response["choices"][0]["message"]["content"]
 
 
-class AnthropicProvider(BaseLLMProvider):
-    """Provider for Anthropic Claude APIs."""
+class CustomProvider(BaseLLMProvider):
+    """Provider for custom OpenAI-compatible endpoints."""
     
     async def generate(self, prompt: str) -> str:
-        """Generate response using Anthropic API."""
-        import urllib.request
-        import json
-        
-        url = "https://api.anthropic.com/v1/messages"
-        
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.config.api_key,
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true"
-        }
-        
+        """Generate response using custom API."""
         payload = {
             "model": self.config.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -268,95 +884,17 @@ class AnthropicProvider(BaseLLMProvider):
             "max_tokens": self.config.max_tokens
         }
         
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(url, data=data, headers=headers, method='POST')
+        response = await self._make_request("/chat/completions", payload)
         
-        with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            return result["content"][0]["text"]
-
-
-class GoogleProvider(BaseLLMProvider):
-    """Provider for Google Gemini APIs."""
-    
-    async def generate(self, prompt: str) -> str:
-        """Generate response using Google Gemini API."""
-        import urllib.request
-        import json
+        # Handle various response formats
+        message = response["choices"][0]["message"]
+        content = message.get("content", "").strip()
         
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.config.model}:generateContent"
-        url += f"?key={self.config.api_key}"
+        # Handle DeepSeek v4 format
+        if not content and "reasoning_content" in message:
+            content = message["reasoning_content"].strip()
         
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": self.config.temperature,
-                "maxOutputTokens": self.config.max_tokens
-            }
-        }
-        
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method='POST')
-        
-        with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            return result["candidates"][0]["content"]["parts"][0]["text"]
-
-
-class MiniMaxProvider(BaseLLMProvider):
-    """Provider for MiniMax APIs."""
-    
-    async def generate(self, prompt: str, messages: Optional[List[Dict]] = None, **kwargs) -> str:
-        """Generate response using MiniMax API.
-        
-        Args:
-            prompt: User prompt
-            messages: Conversation history for context
-            
-        Returns:
-            Response content string
-        """
-        import urllib.request
-        import json
-        
-        # Build messages array with history + current prompt
-        api_messages = []
-        
-        # Add conversation history if provided
-        if messages:
-            for msg in messages:
-                if isinstance(msg, dict):
-                    role = msg.get('role', 'user')
-                    content = msg.get('content', '')
-                else:
-                    role = getattr(msg, 'role', 'user') if hasattr(msg, 'role') else 'user'
-                    content = getattr(msg, 'content', '') if hasattr(msg, 'content') else str(msg)
-                api_messages.append({"role": role, "content": content})
-        
-        # Add current prompt
-        api_messages.append({"role": "user", "content": prompt})
-        
-        # MiniMax API endpoint
-        url = "https://api.minimaxi.com/v1/text/chatcompletion_v2"
-        
-        payload = {
-            "model": self.config.model or "MiniMax-M2.5",
-            "messages": api_messages,
-            "temperature": self.config.temperature,
-            "max_tokens": self.config.max_tokens
-        }
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.config.api_key}"
-        }
-        
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(url, data=data, headers=headers, method='POST')
-        
-        with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            return result["choices"][0]["message"]["content"]
+        return content
 
 
 class LLMAPIError(Exception):
@@ -367,12 +905,15 @@ class LLMAPIError(Exception):
         self.status_code = status_code
 
 
-def get_provider(config: LLMConfig) -> Optional[BaseLLMProvider]:
-    """Get appropriate provider instance based on configuration."""
-    if not config.is_enabled():
-        return None
-    
+def setup_llm_integration(config: LLMConfig) -> BaseLLMProvider:
+    """Setup LLM integration based on provider type."""
     provider_type = ProviderRegistry.get_provider_type(config.provider)
+    
+    # Set default base_url if not provided
+    if not config.base_url:
+        provider_entry = ProviderRegistry.get_provider(config.provider)
+        if provider_entry and provider_entry.base_url:
+            config.base_url = provider_entry.base_url
     
     if provider_type == LLMProviderType.ANTHROPIC:
         return AnthropicProvider(config)
@@ -384,436 +925,35 @@ def get_provider(config: LLMConfig) -> Optional[BaseLLMProvider]:
         return OpenAICompatibleProvider(config)
 
 
-def setup_llm_integration(config: LLMConfig) -> Optional[BaseLLMProvider]:
-    """Set up LLM integration based on configuration."""
-    if not config.is_enabled():
-        return None
-    
-    try:
-        return get_provider(config)
-    except Exception as e:
-        print(f"Warning: Failed to initialize LLM provider: {e}")
-        return None
-
-
-def fetch_models_from_api(provider: str, api_key: str, base_url: str = None) -> List[ModelInfo]:
-    """Fetch available models from provider's API.
-    
-    Args:
-        provider: Provider ID (e.g., 'minimax', 'moonshot')
-        api_key: API key for authentication
-        base_url: Custom base URL if not using default
-        
-    Returns:
-        List of ModelInfo objects from the API
-    """
-    if not api_key:
-        return []
-    
-    provider_info = next((p for p in get_all_providers() if p["id"] == provider), None)
-    if not provider_info:
-        return []
-    
-    url = base_url or provider_info.get("base_url")
-    if not url:
-        return []
-    
-    try:
-        import urllib.request
-        import json
-        import ssl
-        
-        if provider == "minimax":
-            list_url = f"{url}/text/modelslist"
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
-        else:
-            list_url = f"{url}/models"
-            headers = {
-                "Authorization": f"Bearer {api_key}"
-            }
-        
-        req = urllib.request.Request(list_url, headers=headers, method='GET')
-        context = ssl.create_default_context()
-        
-        with urllib.request.urlopen(req, timeout=10, context=context) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            
-            models = []
-            if provider == "minimax" and "data" in result:
-                for m in result.get("data", []):
-                    models.append(ModelInfo(
-                        id=m.get("id", ""),
-                        name=m.get("id", ""),
-                        description=f"API获取的模型",
-                        context_length=m.get("context_length", 32000)
-                    ))
-            elif "data" in result:
-                for m in result.get("data", []):
-                    models.append(ModelInfo(
-                        id=m.get("id", ""),
-                        name=m.get("id", ""),
-                        description=m.get("created", ""),
-                        context_length=m.get("context_window", 32000)
-                    ))
-            
-            return models
-    except Exception as e:
-        print(f"Warning: Failed to fetch models from {provider}: {e}")
-        return []
-
-
-def get_default_config() -> LLMConfig:
-    """Get default LLM configuration from environment variables."""
-    api_key = None
-    provider = "none"
-    base_url = None
-    
-    env_mappings = {
-        "OPENAI_API_KEY": ("openai", "https://api.openai.com/v1"),
-        "ANTHROPIC_API_KEY": ("anthropic", None),
-        "GOOGLE_API_KEY": ("google", "https://generativelanguage.googleapis.com/v1beta"),
-        "DEEPSEEK_API_KEY": ("deepseek", "https://api.deepseek.com/v1"),
-        "MINIMAX_API_KEY": ("minimax", "https://api.minimaxi.com/v1"),
-        "KIMI_API_KEY": ("moonshot", "https://api.moonshot.cn/v1"),
-        "KIMI_CN_API_KEY": ("moonshot", "https://api.moonshot.cn/v1"),
-        "SILICONFLOW_API_KEY": ("siliconflow", "https://api.siliconflow.cn/v1"),
-        "STEP_API_KEY": ("leapai", "https://api.stepfun.com/v1"),
-        "GLM_API_KEY": ("zhipu", "https://open.bigmodel.cn/api/paas/v4"),
-        "DASHSCOPE_API_KEY": ("dashscope", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-        "GROQ_API_KEY": ("groq", "https://api.groq.com/openai/v1"),
-        "TOGETHER_API_KEY": ("together", "https://api.together.xyz/v1"),
-        "FIREWORKS_API_KEY": ("fireworks", "https://api.fireworks.ai/inference/v1"),
-        "COHERE_API_KEY": ("cohere", "https://api.cohere.ai/v1"),
-        "MISTRAL_API_KEY": ("mistral", "https://api.mistral.ai/v1"),
-        "NOVITA_API_KEY": ("novita", "https://api.novita.ai/v3"),
-        "HYPERBOLIC_API_KEY": ("hyperbolic", "https://api.hyperbolic.xyz/v1"),
-    }
-    
-    for env_var, (prov, url) in env_mappings.items():
-        if os.environ.get(env_var):
-            api_key = os.environ[env_var]
-            provider = prov
-            base_url = url
-            break
-    
-    return LLMConfig(provider=provider, api_key=api_key, base_url=base_url)
-
-
-PROVIDER_MODELS = {
-    "openai": [
-        ModelInfo("gpt-4o", "GPT-4o", "最强能力，多模态", 128000, True, 5.0, 15.0),
-        ModelInfo("gpt-4o-mini", "GPT-4o Mini", "轻量快速", 128000, True, 0.15, 0.6),
-        ModelInfo("gpt-4-turbo", "GPT-4 Turbo", "快速强能力", 128000, True, 10.0, 30.0),
-        ModelInfo("gpt-4", "GPT-4", "强推理", 8192, True, 30.0, 60.0),
-        ModelInfo("gpt-3.5-turbo", "GPT-3.5 Turbo", "快速经济", 16385, True, 0.5, 1.5),
-    ],
-    "anthropic": [
-        ModelInfo("claude-3-5-sonnet-latest", "Claude 3.5 Sonnet", "最佳平衡", 200000, True, 3.0, 15.0),
-        ModelInfo("claude-3-opus", "Claude 3 Opus", "最强能力", 200000, True, 15.0, 75.0),
-        ModelInfo("claude-3-sonnet", "Claude 3 Sonnet", "平衡型", 200000, True, 3.0, 15.0),
-        ModelInfo("claude-3-haiku", "Claude 3 Haiku", "快速实惠", 200000, True, 0.25, 1.25),
-    ],
-    "google": [
-        ModelInfo("gemini-2.0-flash", "Gemini 2.0 Flash", "最新快速", 1000000, True, 0.0, 0.0),
-        ModelInfo("gemini-1.5-pro", "Gemini 1.5 Pro", "超长上下文", 1000000, True, 1.25, 5.0),
-        ModelInfo("gemini-1.5-flash", "Gemini 1.5 Flash", "快速", 1000000, True, 0.0, 0.0),
-    ],
-    "deepseek": [
-        ModelInfo("deepseek-v3", "DeepSeek V3", "最新最强", 64000, True, 0.0, 0.0),
-        ModelInfo("deepseek-chat", "DeepSeek Chat", "平衡型", 64000, True, 0.1, 0.3),
-        ModelInfo("deepseek-coder", "DeepSeek Coder", "代码专用", 64000, True, 0.1, 0.3),
-    ],
-    "minimax": [
-        ModelInfo("MiniMax-M2", "MiniMax-M2", "Agent工作流和代码", 128000, True, 0.5, 1.5),
-        ModelInfo("MiniMax-M2.1", "MiniMax-M2.1", "多语言开发和原生应用", 128000, True, 0.5, 1.5),
-        ModelInfo("MiniMax-M2.5", "MiniMax-M2.5", "复杂Agent任务", 200000, True, 0.5, 1.5),
-        ModelInfo("MiniMax-Text-01", "MiniMax-Text-01", "超长上下文开源模型", 1000000, True, 0.2, 1.1),
-    ],
-    "moonshot": [
-        ModelInfo("moonshot-v1-128k", "Kimi 128K", "超长上下文", 128000, True, 0.0, 0.0),
-        ModelInfo("moonshot-v1-32k", "Kimi 32K", "长上下文", 32000, True, 0.0, 0.0),
-        ModelInfo("moonshot-v1-8k", "Kimi 8K", "标准上下文", 8000, True, 0.0, 0.0),
-    ],
-    "siliconflow": [
-        ModelInfo("deepseek-ai/DeepSeek-V3", "DeepSeek V3", "高性价比", 64000, True, 0.0, 0.0),
-        ModelInfo("Qwen/Qwen2.5-72B-Instruct", "Qwen2.5 72B", "大参数开源", 32768, True, 0.0, 0.0),
-        ModelInfo("deepseek-ai/DeepSeek-V2.5", "DeepSeek V2.5", "高性价比", 32768, True, 0.0, 0.0),
-    ],
-    "novita": [
-        ModelInfo("meta-llama/Llama-3.3-70B-Instruct", "Llama 3.3 70B", "最强开源", 128000, True, 0.0, 0.0),
-        ModelInfo("deepseek-ai/DeepSeek-V2.5", "DeepSeek V2.5", "高性价比", 128000, True, 0.0, 0.0),
-    ],
-    "hyperbolic": [
-        ModelInfo("meta-llama/Llama-3.3-70B-Instruct", "Llama 3.3 70B", "最强开源", 128000, True, 0.0, 0.0),
-        ModelInfo("mistralai/Mistral-7B-Instruct-v0.3", "Mistral 7B", "轻量开源", 32768, True, 0.0, 0.0),
-    ],
-    "leapai": [
-        ModelInfo("step-3", "Step-3", "最新强能力", 32000, True, 0.0, 0.0),
-        ModelInfo("step-2-16k", "Step-2 16K", "强能力", 16000, True, 0.0, 0.0),
-        ModelInfo("step-1.5v-8k", "Step-1.5V 8K", "多模态", 8000, True, 0.0, 0.0),
-        ModelInfo("step-1v-8k", "Step-1V 8K", "标准", 8000, True, 0.0, 0.0),
-    ],
-    "yi": [
-        ModelInfo("yi-large", "Yi Large", "最强能力", 16000, True, 0.0, 0.0),
-        ModelInfo("yi-medium", "Yi Medium", "平衡型", 32000, True, 0.0, 0.0),
-    ],
-    "mistral": [
-        ModelInfo("mistral-large", "Mistral Large", "最强能力", 128000, True, 2.0, 6.0),
-        ModelInfo("mistral-small", "Mistral Small", "快速经济", 32000, True, 0.1, 0.3),
-    ],
-    "cohere": [
-        ModelInfo("command-r-plus", "Command R+", "最强能力", 128000, True, 3.0, 15.0),
-        ModelInfo("command-r", "Command R", "平衡型", 128000, True, 0.5, 1.5),
-    ],
-    "groq": [
-        ModelInfo("llama-3.1-70b-versatile", "Llama 3.1 70B", "免费高速", 8192, True, 0.0, 0.0),
-        ModelInfo("llama-3.1-8b-instant", "Llama 3.1 8B", "免费轻量", 8192, True, 0.0, 0.0),
-        ModelInfo("mixtral-8x7b-32768", "Mixtral 8x7B", "免费MoE", 32768, True, 0.0, 0.0),
-    ],
-    "fireworks": [
-        ModelInfo("fireworks-llama-v3-70b-instruct", "Llama 3 70B", "高质量", 8192, True, 0.0, 0.0),
-        ModelInfo("fireworks-llama-v3-8b-instruct", "Llama 3 8B", "快速", 8192, True, 0.0, 0.0),
-    ],
-    "together": [
-        ModelInfo("meta-llama/Llama-3-70b-chat-hf", "Llama 3 70B", "高质量开源", 8192, True, 0.0, 0.0),
-        ModelInfo("deepseek-ai/DeepSeek-V2.5", "DeepSeek V2.5", "高性价比", 32768, True, 0.0, 0.0),
-    ],
-    "zhipu": [
-        ModelInfo("glm-4", "GLM-4", "最强能力", 128000, True, 1.0, 1.0),
-        ModelInfo("glm-4-flash", "GLM-4 Flash", "快速", 128000, True, 0.0, 0.0),
-        ModelInfo("glm-3-turbo", "GLM-3 Turbo", "经济实惠", 128000, True, 0.0, 0.0),
-    ],
-    "dashscope": [
-        ModelInfo("qwen-max", "Qwen Max", "最强能力", 128000, True, 20.0, 60.0),
-        ModelInfo("qwen-plus", "Qwen Plus", "平衡型", 128000, True, 2.0, 8.0),
-        ModelInfo("qwen-turbo", "Qwen Turbo", "快速经济", 128000, True, 0.5, 1.5),
-    ],
-    "perplexity": [
-        ModelInfo("sonar", "Sonar", "搜索增强", 128000, True, 0.0, 0.0),
-        ModelInfo("sonar-pro", "Sonar Pro", "搜索增强专业版", 128000, True, 0.0, 0.0),
-    ],
-}
-
-
-def get_provider_models(provider: str) -> List[ModelInfo]:
-    """Get available models for a provider."""
-    return PROVIDER_MODELS.get(provider, [])
-
-
 def get_all_providers() -> List[Dict[str, Any]]:
-    """Get all supported providers with their metadata (verified API endpoints based on Hermes and official docs)."""
+    """Get all available providers with their information."""
     return [
         {
-            "id": "openai",
-            "name": "OpenAI",
-            "description": "GPT-4o, GPT-4 Turbo, GPT-3.5",
-            "website": "https://platform.openai.com",
-            "api_key_url": "https://platform.openai.com/api-keys",
-            "requires_api_key": True,
-            "default_model": "gpt-4o",
-            "base_url": "https://api.openai.com/v1",
-        },
+            "id": p.slug,
+            "name": p.label,
+            "description": p.description,
+            "base_url": p.base_url,
+            "default_model": p.default_model,
+            "env_vars": p.api_key_env_vars
+        }
+        for p in PROVIDERS
+    ]
+
+
+def get_provider_models(provider_id: str) -> List[Dict[str, Any]]:
+    """Get available models for a provider."""
+    models = ProviderRegistry.get_models(provider_id)
+    return [
         {
-            "id": "anthropic",
-            "name": "Anthropic Claude",
-            "description": "Claude 3.5 Sonnet, Opus, Haiku",
-            "website": "https://anthropic.com",
-            "api_key_url": "https://console.anthropic.com/",
-            "requires_api_key": True,
-            "default_model": "claude-3-5-sonnet-latest",
-            "base_url": None,
-        },
-        {
-            "id": "google",
-            "name": "Google Gemini",
-            "description": "Gemini 2.0, 1.5 Pro, Flash",
-            "website": "https://ai.google.dev",
-            "api_key_url": "https://makersuite.google.com/app/apikey",
-            "requires_api_key": True,
-            "default_model": "gemini-2.0-flash",
-            "base_url": "https://generativelanguage.googleapis.com/v1beta",
-        },
-        {
-            "id": "deepseek",
-            "name": "DeepSeek",
-            "description": "DeepSeek V3, Chat, Coder (性价比之王)",
-            "website": "https://platform.deepseek.com",
-            "api_key_url": "https://platform.deepseek.com/api_keys",
-            "requires_api_key": True,
-            "default_model": "deepseek-v3",
-            "base_url": "https://api.deepseek.com/v1",
-        },
-        {
-            "id": "minimax",
-            "name": "MiniMax 大模型",
-            "description": "MiniMax-Text-01, Abab (国产高性能)",
-            "website": "https://www.minimax.io",
-            "api_key_url": "https://platform.minimaxi.com/apiKeys",
-            "requires_api_key": True,
-            "default_model": "MiniMax-Text-01",
-            "base_url": "https://api.minimaxi.com/anthropic",
-        },
-        {
-            "id": "moonshot",
-            "name": "Moonshot Kimi",
-            "description": "Kimi Chat (超长上下文128K/256K)",
-            "website": "https://platform.moonshot.cn",
-            "api_key_url": "https://platform.moonshot.cn/console/api-keys",
-            "requires_api_key": True,
-            "default_model": "moonshot-v1-128k",
-            "base_url": "https://api.moonshot.cn/v1",
-        },
-        {
-            "id": "siliconflow",
-            "name": "SiliconFlow (SiliconCloud)",
-            "description": "聚合多种开源模型 (DeepSeek, Qwen, Llama)",
-            "website": "https://www.siliconflow.cn",
-            "api_key_url": "https://www.siliconflow.cn/api-keys",
-            "requires_api_key": True,
-            "default_model": "deepseek-ai/DeepSeek-V3",
-            "base_url": "https://api.siliconflow.cn/v1",
-        },
-        {
-            "id": "novita",
-            "name": "Novita AI",
-            "description": "Llama, Qwen, DeepSeek 等开源模型",
-            "website": "https://novita.ai",
-            "api_key_url": "https://console.novita.ai/api-keys",
-            "requires_api_key": True,
-            "default_model": "meta-llama/Llama-3.3-70B-Instruct",
-            "base_url": "https://api.novita.ai/v3",
-        },
-        {
-            "id": "hyperbolic",
-            "name": "Hyperbolic",
-            "description": "高性价比开源模型 (Llama, Mistral)",
-            "website": "https://app.hyperbolic.xyz",
-            "api_key_url": "https://app.hyperbolic.xyz/settings/api-keys",
-            "requires_api_key": True,
-            "default_model": "meta-llama/Llama-3.3-70B-Instruct",
-            "base_url": "https://api.hyperbolic.xyz/v1",
-        },
-        {
-            "id": "leapai",
-            "name": "阶跃星辰 StepFun",
-            "description": "Step-1/2/3 系列 (国产)",
-            "website": "https://platform.stepfun.com",
-            "api_key_url": "https://platform.stepfun.com/interface-key",
-            "requires_api_key": True,
-            "default_model": "step-3",
-            "base_url": "https://api.stepfun.com/v1",
-        },
-        {
-            "id": "yi",
-            "name": "零一万物 Yi",
-            "description": "Yi Large, Medium (国产)",
-            "website": "https://www.lingyiwanwu.cn",
-            "api_key_url": "https://platform.lingyiwanwu.com",
-            "requires_api_key": True,
-            "default_model": "yi-large",
-            "base_url": "https://api.lingyiwanwu.com/v1",
-        },
-        {
-            "id": "mistral",
-            "name": "Mistral AI",
-            "description": "Mistral Large, Small (欧洲之光)",
-            "website": "https://mistral.ai",
-            "api_key_url": "https://console.mistral.ai/api-keys/",
-            "requires_api_key": True,
-            "default_model": "mistral-large",
-            "base_url": "https://api.mistral.ai/v1",
-        },
-        {
-            "id": "cohere",
-            "name": "Cohere",
-            "description": "Command R+, Command R (长上下文)",
-            "website": "https://cohere.com",
-            "api_key_url": "https://dashboard.cohere.com/api-keys",
-            "requires_api_key": True,
-            "default_model": "command-r-plus",
-            "base_url": "https://api.cohere.ai/v1",
-        },
-        {
-            "id": "groq",
-            "name": "Groq",
-            "description": "Llama 3.1, Mixtral (免费高速)",
-            "website": "https://console.groq.com",
-            "api_key_url": "https://console.groq.com/keys",
-            "requires_api_key": True,
-            "default_model": "llama-3.1-70b-versatile",
-            "base_url": "https://api.groq.com/openai/v1",
-        },
-        {
-            "id": "fireworks",
-            "name": "Fireworks AI",
-            "description": "Llama 3, Mixtral (高质量)",
-            "website": "https://fireworks.ai",
-            "api_key_url": "https://fireworks.ai/settings/api-keys",
-            "requires_api_key": True,
-            "default_model": "fireworks-llama-v3-70b-instruct",
-            "base_url": "https://api.fireworks.ai/inference/v1",
-        },
-        {
-            "id": "together",
-            "name": "Together AI",
-            "description": "开源模型集合 (Llama, DeepSeek)",
-            "website": "https://together.ai",
-            "api_key_url": "https://api.together.xyz/settings/api-keys",
-            "requires_api_key": True,
-            "default_model": "meta-llama/Llama-3-70b-chat-hf",
-            "base_url": "https://api.together.xyz/v1",
-        },
-        {
-            "id": "zhipu",
-            "name": "智谱AI (GLM)",
-            "description": "GLM-4, GLM-4V (国产中文优化)",
-            "website": "https://www.zhipuai.cn",
-            "api_key_url": "https://open.bigmodel.cn/",
-            "requires_api_key": True,
-            "default_model": "glm-4",
-            "base_url": "https://open.bigmodel.cn/api/paas/v4",
-        },
-        {
-            "id": "dashscope",
-            "name": "阿里百炼 DashScope",
-            "description": "通义千问全系列 (国产中文优化)",
-            "website": "https://bailian.console.aliyun.com",
-            "api_key_url": "https://dashscope.console.aliyun.com/api-key",
-            "requires_api_key": True,
-            "default_model": "qwen-turbo",
-            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        },
-        {
-            "id": "perplexity",
-            "name": "Perplexity",
-            "description": "Sonar (搜索增强)",
-            "website": "https://perplexity.ai",
-            "api_key_url": "https://www.perplexity.ai/settings/api",
-            "requires_api_key": True,
-            "default_model": "sonar",
-            "base_url": "https://api.perplexity.ai",
-        },
-        {
-            "id": "azure",
-            "name": "Azure OpenAI",
-            "description": "企业级 GPT-4 (Azure云)",
-            "website": "https://azure.microsoft.com/services/cognitive-services/openai/",
-            "api_key_url": "https://portal.azure.com",
-            "requires_api_key": True,
-            "default_model": "gpt-4",
-            "base_url": None,
-        },
-        {
-            "id": "custom",
-            "name": "自定义 (Custom)",
-            "description": "OpenAI兼容API (Ollama, vLLM等本地模型)",
-            "website": "https://platform.openai.com",
-            "api_key_url": None,
-            "requires_api_key": False,
-            "default_model": "gpt-3.5-turbo",
-            "base_url": "http://localhost:11434/v1",
-        },
+            "id": m.id,
+            "name": m.name,
+            "description": m.description,
+            "context_length": m.context_length,
+            "supports_functions": m.supports_functions,
+            "input_cost_per_1m": m.input_cost_per_1m,
+            "output_cost_per_1m": m.output_cost_per_1m,
+            "recommended": m.recommended,
+            "free": m.free
+        }
+        for m in models
     ]

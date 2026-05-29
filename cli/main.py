@@ -10,6 +10,75 @@ import argparse
 import sys
 import os
 import json
+import logging
+
+# 首先解析命令行参数，以便在导入其他模块之前配置日志
+parser = argparse.ArgumentParser(prog='Handsome Agent')
+parser.add_argument(
+    "--explanation-depth",
+    choices=["brief", "moderate", "detailed"],
+    default="detailed",
+    help="Level of detail in explanations"
+)
+# 只解析已知参数，避免影响后续的参数解析
+args, _ = parser.parse_known_args()
+
+# 检查日志是否已经被配置
+# 如果 root logger 已经有 handler（且不是 NullHandler），说明已经配置过了
+_logging_already_configured = False
+if len(logging.root.handlers) > 0:
+    # 检查是否已经有有效的 console handler
+    for handler in logging.root.handlers:
+        if not isinstance(handler, logging.NullHandler):
+            _logging_already_configured = True
+            break
+
+if not _logging_already_configured:
+    # 日志尚未被配置，需要设置
+    
+    # 在导入任何其他模块之前，立即禁用所有日志输出
+    # 移除所有 handler
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    
+    # 添加 NullHandler 来吸收所有日志（在 brief 模式下保持）
+    logging.root.addHandler(logging.NullHandler())
+    
+    # 设置 root logger 级别为 CRITICAL + 1（最高级别，不输出任何日志）
+    logging.root.setLevel(logging.CRITICAL + 1)
+    
+    # 现在导入核心模块（此时日志被禁用，不会输出任何日志）
+    from core.logging_manager import configure_logging
+    
+    # 根据配置重新启用日志
+    if args.explanation_depth != "brief":
+        LOG_LEVEL_MAP = {
+            "moderate": logging.INFO,
+            "detailed": logging.DEBUG,
+        }
+        level = LOG_LEVEL_MAP.get(args.explanation_depth, logging.DEBUG)
+        
+        # 移除 NullHandler
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+        
+        # 添加控制台 handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(level)
+        console_handler.setFormatter(logging.Formatter(
+            fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        ))
+        logging.root.addHandler(console_handler)
+        
+        # 设置 root logger 级别
+        logging.root.setLevel(level)
+    
+    # 在 brief 模式下，保持日志禁用状态
+else:
+    # 日志已经被配置（例如从 main.py 调用），保持现有配置
+    pass
+
 from core import CustomAgent, AgentConfig
 from core.exceptions import AgentError, InputValidationError, ResponseGenerationError
 from advanced_reasoning.integration import enhance_agent_with_advanced_reasoning
@@ -312,11 +381,10 @@ def main():
         list_sessions()
         return
     elif args.command == 'version':
-        print("Handsome Agent v1.0.0")
+        print("Handsome Agent V 0.0.1")
         print("Inspired by Hermes Agent")
         return
     elif args.command == 'chat':
-        # Continue to interactive mode
         pass
     
     # Handle setup mode
@@ -335,43 +403,9 @@ def main():
         run_setup_if_needed()
         saved_config = load_saved_config()
     
-    # Handle LLM configuration from saved config or args
-    llm_provider = None
-    model_name = "Knowledge Base"
     saved_display = saved_config.get("display", {})
-    saved_llm_params = saved_config.get("llm_params", {})
-    
-    if LLM_AVAILABLE:
-        # Check saved config first
-        saved_llm = saved_config.get("llm", {})
-        if saved_llm.get("provider") and saved_llm.get("provider") != "none":
-            try:
-                llm_config = LLMConfig(
-                    provider=saved_llm.get("provider"),
-                    api_key=saved_llm.get("api_key"),
-                    model=saved_llm.get("model"),
-                    base_url=saved_llm.get("base_url"),
-                    temperature=saved_llm_params.get("temperature", 0.7),
-                    max_tokens=saved_llm_params.get("max_tokens", 4096),
-                    timeout=saved_llm_params.get("timeout", 60.0),
-                    enable_fallback=saved_llm_params.get("enable_fallback", True)
-                )
-                llm_provider = setup_llm_integration(llm_config)
-                model_name = saved_llm.get("model", "LLM")
-            except Exception as e:
-                print(f"Warning: Failed to load saved LLM config: {e}")
-        
-        # Override with command line args if provided
-        if hasattr(args, 'llm_provider') and args.llm_provider:
-            from cli.llm_cli import setup_environment_variables, create_llm_config_from_args
-            setup_environment_variables(args)
-            llm_config = create_llm_config_from_args(args)
-            if llm_config:
-                llm_provider = setup_llm_integration(llm_config)
-                model_name = args.llm_model if hasattr(args, 'llm_model') else "LLM"
-    
-    # Use saved preferences as defaults
     saved_prefs = saved_config.get("preferences", {})
+    
     if saved_prefs.get("explanation_depth"):
         args.explanation_depth = saved_prefs["explanation_depth"]
     if saved_prefs.get("response_format"):
@@ -384,6 +418,9 @@ def main():
     if args.language:
         language = args.language
     
+    # Load intent mode from config
+    intent_mode = saved_config.get("intent_mode", "llm")
+    
     # Get display options
     verbose = saved_display.get("verbose", False)
     show_reasoning = saved_display.get("show_reasoning", False)
@@ -395,21 +432,64 @@ def main():
     
     # Map explanation_depth to log settings
     explanation_depth = saved_prefs.get("explanation_depth", "moderate")
+    
     if explanation_depth == "brief":
         enable_detailed_logs = False
+        enable_summary_logs = False
+    elif explanation_depth == "moderate":
+        enable_detailed_logs = False
+        enable_summary_logs = True
     else:
         enable_detailed_logs = True
+        enable_summary_logs = True
     
+    # Command line overrides
     if args.detailed_logs is not None:
         enable_detailed_logs = args.detailed_logs
     if args.no_detailed_logs:
         enable_detailed_logs = False
-    
-    enable_summary_logs = saved_prefs.get("enable_summary_logs", True)
     if args.summary_logs is not None:
         enable_summary_logs = args.summary_logs
     if args.no_summary_logs:
         enable_summary_logs = False
+    
+    # Handle LLM configuration from saved config or args
+    llm_provider = None
+    model_name = "Knowledge Base"
+    saved_llm_params = saved_config.get("llm_params", {})
+    
+    if LLM_AVAILABLE:
+        saved_llm = saved_config.get("llm", {})
+        if saved_llm.get("provider") and saved_llm.get("provider") != "none":
+            try:
+                llm_config = LLMConfig(
+                    provider=saved_llm.get("provider"),
+                    api_key=saved_llm.get("api_key"),
+                    model=saved_llm.get("model"),
+                    base_url=saved_llm.get("base_url"),
+                    temperature=saved_llm_params.get("temperature", 0.7),
+                    max_tokens=saved_llm_params.get("max_tokens", 4096),
+                    timeout=saved_llm_params.get("timeout", 60.0),
+                    enable_fallback=saved_llm_params.get("enable_fallback", True),
+                    enable_detailed_logs=enable_detailed_logs
+                )
+                llm_provider = setup_llm_integration(llm_config)
+                model_name = saved_llm.get("model", "LLM")
+            except Exception as e:
+                print(f"Warning: Failed to load saved LLM config: {e}")
+        
+        if hasattr(args, 'llm_provider') and args.llm_provider:
+            from cli.llm_cli import setup_environment_variables, create_llm_config_from_args
+            setup_environment_variables(args)
+            llm_config = create_llm_config_from_args(args)
+            if llm_config:
+                llm_provider = setup_llm_integration(llm_config)
+                model_name = args.llm_model if hasattr(args, 'llm_model') else "LLM"
+    
+    # 在创建 agent 之前，先配置日志级别（如果尚未配置）
+    if not _logging_already_configured:
+        from core.logging_manager import set_log_level
+        set_log_level(explanation_depth)
     
     # Create agent configuration
     config = AgentConfig(
@@ -422,12 +502,15 @@ def main():
         language=language,
         log_level=log_level,
         enable_detailed_logs=enable_detailed_logs,
-        enable_summary_logs=enable_summary_logs
+        enable_summary_logs=enable_summary_logs,
+        intent_mode=intent_mode
     )
     
     # Create agent with appropriate reasoning module
     if llm_provider is not None:
-        print(f"Debug: LLM provider loaded: {type(llm_provider)}")
+        from core.logging_manager import get_logger
+        logger = get_logger("CLI")
+        logger.debug(f"LLM provider loaded: {type(llm_provider)}")
         agent = enhance_agent_with_advanced_reasoning(config, llm_provider)
     elif args.advanced_reasoning:
         agent = enhance_agent_with_advanced_reasoning(config)

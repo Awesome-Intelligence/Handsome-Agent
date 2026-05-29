@@ -51,7 +51,7 @@ try:
 except ImportError:
     YAML_AVAILABLE = False
 
-from .layer_logger import get_layer_logger
+from .logging_manager import get_decision_logger, get_execution_logger
 
 
 @dataclass
@@ -154,20 +154,25 @@ class SkillManager:
     - Related skills recommendation
     """
     
-    def __init__(self):
+    def __init__(self, explanation_depth: str = "detailed"):
         self.skills: Dict[str, BaseSkill] = {}
         self.categories: Dict[str, List[str]] = {}
         self.tags: Dict[str, List[str]] = {}  # tag -> skill_ids
         self.skill_paths: Dict[str, str] = {}  # skill_id -> directory path
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self._decision_logger = get_layer_logger("decision", "SkillManager")
-        self._execution_logger = get_layer_logger("execution", "SkillManager")
+        self._explanation_depth = explanation_depth
+        self._decision_logger = get_decision_logger("SkillManager")
+        self._execution_logger = get_execution_logger("SkillManager")
+        self._detailed_logger = get_execution_logger("SkillManager")
         
         # 渐进式发现相关
         self._skill_usage_history: List[Dict[str, Any]] = []
         self._context_keywords: Dict[str, int] = defaultdict(int)
         self._intent_history: List[str] = []
         self._skill_co_occurrence: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    
+    def set_explanation_depth(self, depth: str) -> None:
+        """设置日志详细程度"""
+        self._explanation_depth = depth
     
     def register_skill(self, skill: BaseSkill):
         """Register a skill instance."""
@@ -189,7 +194,7 @@ class SkillManager:
             if metadata.id not in self.tags[tag]:
                 self.tags[tag].append(metadata.id)
         
-        self.logger.info(f"Registered skill: {metadata.id} ({metadata.name})")
+        self._decision_logger.info(f"Registered skill: {metadata.id} ({metadata.name})")
     
     def unregister_skill(self, skill_id: str):
         """Unregister a skill."""
@@ -209,7 +214,7 @@ class SkillManager:
                     del self.skills[alias]
             
             del self.skills[skill_id]
-            self.logger.info(f"Unregistered skill: {skill_id}")
+            self._decision_logger.info(f"Unregistered skill: {skill_id}")
     
     def get_skill(self, skill_id: str) -> Optional[BaseSkill]:
         """Get a skill by ID."""
@@ -326,10 +331,11 @@ class SkillManager:
         query_lower = query.lower()
         
         decision = self._decision_logger
-        decision.info(f"🧠 [决策层] 渐进式技能发现:")
-        decision.info(f"  ├─ 意图: {intent}")
-        decision.info(f"  ├─ 查询: {query[:50]}...")
-        decision.info(f"  └─ 总技能数: {len(self.skills)}")
+        if self._explanation_depth == 'detailed':
+            decision.info(f"🧠 [决策层] 渐进式技能发现:")
+            decision.info(f"  ├─ 意图: {intent}")
+            decision.info(f"  ├─ 查询: {query[:50]}...")
+            decision.info(f"  └─ 总技能数: {len(self.skills)}")
         
         processed_skills = set()
         
@@ -340,7 +346,6 @@ class SkillManager:
                 continue
             processed_skills.add(metadata.id)
             
-            # 标签过滤
             if tags:
                 skill_tags = set(metadata.tags)
                 if not skill_tags.intersection(tags):
@@ -351,7 +356,6 @@ class SkillManager:
             if confidence < 0.05:
                 continue
             
-            # 确定匹配方式
             matched_by = "context"
             if intent in metadata.description.lower():
                 matched_by = "intent"
@@ -383,7 +387,10 @@ class SkillManager:
         
         recommendations.sort(key=lambda x: x.confidence, reverse=True)
         
-        decision.info(f"  └─ 发现 {len(recommendations)} 个相关技能")
+        if self._explanation_depth == 'detailed':
+            decision.info(f"  └─ 发现 {len(recommendations)} 个相关技能")
+        else:
+            decision.summary(f"🧠 [决策层] 发现 {len(recommendations)} 个相关技能")
         
         return recommendations
     
@@ -440,7 +447,7 @@ class SkillManager:
             )
         
         decision = self._decision_logger
-        decision.info(f"🧠 [决策层] 选择技能: {best_match.name} (置信度: {best_match.confidence:.2f})")
+        decision.summary(f"🧠 [决策层] 选择技能: {best_match.name} (置信度: {best_match.confidence:.2f})")
         
         skill = self.get_skill(best_match.skill_id)
         if not skill:
@@ -453,7 +460,8 @@ class SkillManager:
         params = best_match.suggested_params.copy()
         
         if best_match.required_params:
-            decision.info(f"  └─ 需要额外参数: {list(best_match.required_params.keys())}")
+            if self._explanation_depth == 'detailed':
+                decision.info(f"  └─ 需要额外参数: {list(best_match.required_params.keys())}")
             
             if not auto_confirm:
                 param_hints = "\n".join([
@@ -501,14 +509,13 @@ class SkillManager:
         decision = self._decision_logger
         execution = self._execution_logger
         
-        execution.info(f"execute_skill() 尝试执行技能: {skill_id}")
-        decision.info(f"execute_skill() 尝试执行技能: {skill_id}")
+        if self._explanation_depth == 'detailed':
+            execution.debug(f"execute_skill() 尝试执行技能: {skill_id}")
         
         skill = self.get_skill(skill_id)
         
         if not skill:
             execution.warning(f"技能未找到: {skill_id}")
-            decision.warning(f"技能未找到: {skill_id}")
             return SkillResult(
                 success=False,
                 output="",
@@ -521,15 +528,15 @@ class SkillManager:
         if not skill.validate_parameters(**kwargs):
             required_params = [p.name for p in metadata.parameters if p.required]
             execution.warning(f"{skill_class}.validate_parameters() 失败，缺少必需参数: {', '.join(required_params)}")
-            decision.warning(f"{skill_class}.validate_parameters() 失败")
             return SkillResult(
                 success=False,
                 output="",
                 error=f"Missing required parameters: {', '.join(required_params)}"
             )
         
-        execution.info(f"{skill_class}.validate_parameters() 验证通过")
-        execution.info(f"{skill_class}.execute() 开始执行...")
+        if self._explanation_depth == 'detailed':
+            execution.debug(f"{skill_class}.validate_parameters() 验证通过")
+            execution.debug(f"{skill_class}.execute() 开始执行...")
         
         try:
             result = await skill.execute(**kwargs)
@@ -537,17 +544,16 @@ class SkillManager:
             self.record_usage(skill_id, result.success)
             
             if result.success:
-                execution.info(f"{skill_class}.execute() 执行成功 (输出长度: {len(result.output) if result.output else 0} 字符)")
-                decision.info(f"{skill_class}.execute() 执行成功")
+                if self._explanation_depth == 'detailed':
+                    execution.debug(f"{skill_class}.execute() 执行成功")
+                decision.summary(f"✅ 技能 {skill_class} 执行成功")
             else:
-                execution.warning(f"{skill_class}.execute() 执行失败: {result.error}")
                 decision.warning(f"{skill_class}.execute() 执行失败: {result.error}")
             
             return result
             
         except Exception as e:
             self.record_usage(skill_id, False)
-            execution.error(f"{skill_class}.execute() 执行异常: {str(e)}", exc_info=True)
             decision.error(f"{skill_class}.execute() 执行异常: {str(e)}")
             return SkillResult(
                 success=False,
@@ -577,7 +583,7 @@ class SkillManager:
             成功导入的技能数量
         """
         if not os.path.isdir(skills_dir):
-            self.logger.error(f"技能目录不存在: {skills_dir}")
+            self._decision_logger.error(f"技能目录不存在: {skills_dir}")
             return 0
         
         imported_count = 0
@@ -615,14 +621,14 @@ class SkillManager:
                                 self.register_skill(obj)
                                 self.skill_paths[obj.get_metadata().id] = skill_path
                                 imported_count += 1
-                                self.logger.info(f"从 skill.py 导入技能: {obj.get_metadata().id}")
+                                self._decision_logger.info(f"从 skill.py 导入技能: {obj.get_metadata().id}")
                         
                         if dir_name in sys.path:
                             sys.path.remove(dir_name)
                         
                         continue
                     except Exception as e:
-                        self.logger.error(f"从 skill.py 导入技能失败 {skill_dir}: {str(e)}")
+                        self._decision_logger.error(f"从 skill.py 导入技能失败 {skill_dir}: {str(e)}")
                 
                 # 否则从 SKILL.md 文件创建（Hermes 风格）
                 skill_md = os.path.join(skill_path, "SKILL.md")
@@ -630,7 +636,7 @@ class SkillManager:
                     skill_md = os.path.join(skill_path, "skill.md")
                 
                 if not os.path.isfile(skill_md):
-                    self.logger.warning(f"跳过非标准技能目录（缺少 SKILL.md 和 skill.py）: {skill_dir}")
+                    self._decision_logger.warning(f"跳过非标准技能目录（缺少 SKILL.md 和 skill.py）: {skill_dir}")
                     continue
                 
                 try:
@@ -641,12 +647,12 @@ class SkillManager:
                         self.register_skill(skill)
                         self.skill_paths[skill.get_metadata().id] = skill_path
                         imported_count += 1
-                        self.logger.info(f"从 Hermes 风格目录导入技能: {skill.get_metadata().id}")
+                        self._decision_logger.info(f"从 Hermes 风格目录导入技能: {skill.get_metadata().id}")
                 
                 except Exception as e:
-                    self.logger.error(f"从目录导入技能失败 {skill_dir}: {str(e)}")
+                    self._decision_logger.error(f"从目录导入技能失败 {skill_dir}: {str(e)}")
         
-        self.logger.info(f"从标准目录结构成功导入 {imported_count} 个技能")
+        self._decision_logger.info(f"从标准目录结构成功导入 {imported_count} 个技能")
         return imported_count
     
     def _create_skill_from_hermes_md(self, md_path: str) -> Optional[BaseSkill]:
@@ -676,7 +682,7 @@ class SkillManager:
             # 解析 YAML frontmatter
             match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
             if not match:
-                self.logger.warning(f"SKILL.md 缺少 YAML frontmatter: {md_path}")
+                self._decision_logger.warning(f"SKILL.md 缺少 YAML frontmatter: {md_path}")
                 return None
             
             yaml_content = match.group(1)
@@ -771,7 +777,7 @@ class SkillManager:
             return HermesSkill()
             
         except Exception as e:
-            self.logger.error(f"解析 SKILL.md 失败 {md_path}: {str(e)}")
+            self._decision_logger.error(f"解析 SKILL.md 失败 {md_path}: {str(e)}")
             return None
     
     def _parse_yaml_fallback(self, yaml_content: str) -> dict:
@@ -822,7 +828,7 @@ class SkillManager:
     def import_skill_from_file(self, file_path: str) -> bool:
         """从 Python 文件导入技能"""
         if not os.path.isfile(file_path):
-            self.logger.error(f"技能文件不存在: {file_path}")
+            self._decision_logger.error(f"技能文件不存在: {file_path}")
             return False
         
         try:
@@ -840,20 +846,20 @@ class SkillManager:
                 if isinstance(obj, BaseSkill):
                     obj.get_metadata().source = "user"
                     self.register_skill(obj)
-                    self.logger.info(f"从文件导入技能: {obj.get_metadata().id}")
+                    self._decision_logger.info(f"从文件导入技能: {obj.get_metadata().id}")
             
             if dir_name in sys.path:
                 sys.path.remove(dir_name)
             
             return True
         except Exception as e:
-            self.logger.error(f"从文件导入技能失败: {str(e)}")
+            self._decision_logger.error(f"从文件导入技能失败: {str(e)}")
             return False
     
     def import_skills_from_directory(self, directory: str, recursive: bool = True) -> int:
         """从目录批量导入技能"""
         if not os.path.isdir(directory):
-            self.logger.error(f"技能目录不存在: {directory}")
+            self._decision_logger.error(f"技能目录不存在: {directory}")
             return 0
         
         imported_count = 0
@@ -868,7 +874,7 @@ class SkillManager:
             if not recursive:
                 break
         
-        self.logger.info(f"从目录成功导入 {imported_count} 个技能")
+        self._decision_logger.info(f"从目录成功导入 {imported_count} 个技能")
         return imported_count
     
     def import_skill_from_module(self, module_path: str) -> bool:
@@ -881,17 +887,17 @@ class SkillManager:
                 if isinstance(obj, BaseSkill):
                     obj.get_metadata().source = "external"
                     self.register_skill(obj)
-                    self.logger.info(f"从模块导入技能: {obj.get_metadata().id}")
+                    self._decision_logger.info(f"从模块导入技能: {obj.get_metadata().id}")
             
             return True
         except ImportError as e:
-            self.logger.error(f"导入模块失败: {str(e)}")
+            self._decision_logger.error(f"导入模块失败: {str(e)}")
             return False
     
     def import_skills_from_json(self, json_path: str) -> int:
         """从 JSON 配置文件导入技能"""
         if not os.path.isfile(json_path):
-            self.logger.error(f"JSON 文件不存在: {json_path}")
+            self._decision_logger.error(f"JSON 文件不存在: {json_path}")
             return 0
         
         try:
@@ -906,20 +912,20 @@ class SkillManager:
                     self.register_skill(skill)
                     imported_count += 1
             
-            self.logger.info(f"从 JSON 导入 {imported_count} 个技能")
+            self._decision_logger.info(f"从 JSON 导入 {imported_count} 个技能")
             return imported_count
         except Exception as e:
-            self.logger.error(f"从 JSON 导入技能失败: {str(e)}")
+            self._decision_logger.error(f"从 JSON 导入技能失败: {str(e)}")
             return 0
     
     def import_skills_from_yaml(self, yaml_path: str) -> int:
         """从 YAML 配置文件导入技能"""
         if not YAML_AVAILABLE:
-            self.logger.error("PyYAML 未安装，请先安装: pip install pyyaml")
+            self._decision_logger.error("PyYAML 未安装，请先安装: pip install pyyaml")
             return 0
         
         if not os.path.isfile(yaml_path):
-            self.logger.error(f"YAML 文件不存在: {yaml_path}")
+            self._decision_logger.error(f"YAML 文件不存在: {yaml_path}")
             return 0
         
         try:
@@ -934,10 +940,10 @@ class SkillManager:
                     self.register_skill(skill)
                     imported_count += 1
             
-            self.logger.info(f"从 YAML 导入 {imported_count} 个技能")
+            self._decision_logger.info(f"从 YAML 导入 {imported_count} 个技能")
             return imported_count
         except Exception as e:
-            self.logger.error(f"从 YAML 导入技能失败: {str(e)}")
+            self._decision_logger.error(f"从 YAML 导入技能失败: {str(e)}")
             return 0
     
     def _create_skill_from_config(self, config: dict) -> Optional[BaseSkill]:
@@ -1039,7 +1045,7 @@ class SkillManager:
             
             return ConfigSkill()
         except Exception as e:
-            self.logger.error(f"从配置创建技能失败: {str(e)}")
+            self._decision_logger.error(f"从配置创建技能失败: {str(e)}")
             return None
 
 

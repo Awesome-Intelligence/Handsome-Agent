@@ -114,7 +114,7 @@ def run_batch(args):
 
 def show_version():
     """Show version information."""
-    print("Handsome Agent v1.0.0")
+    print("Handsome Agent V 0.0.1")
     print("Inspired by Hermes Agent")
 
 
