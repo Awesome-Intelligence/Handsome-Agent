@@ -12,6 +12,10 @@ psutil>=5.9.0
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 
+# Terminal UI - inquirer (跨平台，推荐)
+inquirer>=3.0.0
+# inquirer3>=3.0.0  # 备选（如果inquirer不工作）
+
 # Database
 # sqlite3 (built-in)
 
