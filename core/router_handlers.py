@@ -19,6 +19,8 @@ def _should_log(context: Dict[str, Any]) -> bool:
 
 import json
 import os
+import subprocess
+import asyncio
 
 from .router import router, route_handler, RouteMatch
 from .logging_manager import get_decision_logger, get_execution_logger, get_llm_logger, get_tool_logger
@@ -241,14 +243,33 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
         try:
             provider_name = llm_provider.__class__.__name__
             llm_logger.info(f"🤖 [LLM层] {provider_name} 准备调用...")
-            llm_logger.debug(f"🤖 [LLM层] 输入: {input_text[:50]}...")
+            
+            # 构建完整的输入日志
+            if session_history:
+                input_summary = f"[对话历史 {len(session_history)} 条] {input_text[:30]}..."
+                llm_logger.debug(f"🤖 [LLM层] ┌─ 输入 (共 {len(session_history) + 1} 条消息):")
+                for i, msg in enumerate(session_history):
+                    if isinstance(msg, dict):
+                        role = msg.get('role', 'unknown')
+                        content = msg.get('content', '')[:50]
+                    else:
+                        role = getattr(msg, 'role', 'unknown')
+                        content = getattr(msg, 'content', '')[:50]
+                    ellipsis = "..." if len(getattr(msg, 'content', str(msg))) > 50 else ""
+                    llm_logger.debug(f"🤖 [LLM层] │  [{i}][{role}]: {content}{ellipsis}")
+                llm_logger.debug(f"🤖 [LLM层] │  [user]: {input_text[:50]}...")
+                llm_logger.debug(f"🤖 [LLM层] └─ 当前输入: {input_text[:50]}...")
+            else:
+                input_summary = input_text[:50]
+                llm_logger.debug(f"🤖 [LLM层] ┌─ 输入: {input_text}")
+            
             llm.info(f"🤖 [LLM层] ConversationHandler 准备调用 LLM")
             
             # Convert session history to messages format for LLM
-            messages = None
+            messages_for_llm = None
             if session_history:
                 from brain.llm.base import Message as LLMMessage
-                messages = []
+                messages_for_llm = []
                 for msg in session_history:
                     if isinstance(msg, dict):
                         role = msg.get('role', 'user')
@@ -256,14 +277,17 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
                     else:
                         role = getattr(msg, 'role', 'user')
                         content = getattr(msg, 'content', '')
-                    messages.append(LLMMessage(role=role, content=content))
+                    messages_for_llm.append(LLMMessage(role=role, content=content))
             
-            if messages:
-                response = await llm_provider.generate(input_text, messages=messages)
+            if messages_for_llm:
+                response = await llm_provider.generate(input_text, messages=messages_for_llm)
             else:
                 response = await llm_provider.generate(input_text)
             
-            llm_logger.summary(f"🤖 [LLM层] {provider_name} 返回成功 (响应长度: {len(response)} 字符)")
+            # 详细输出日志
+            llm_logger.debug(f"🤖 [LLM层] ├─ 响应长度: {len(response)} 字符")
+            llm_logger.summary(f"🤖 [LLM层] {provider_name} 返回成功")
+            llm_logger.debug(f"🤖 [LLM层] └─ 输出: {response[:200]}{'...' if len(response) > 200 else ''}")
             llm.info(f"🤖 [LLM层] ConversationHandler 收到 LLM 返回")
             
             return response, execution_flow
@@ -319,6 +343,7 @@ async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> 
     tool_logger = get_tool_logger("CodeTools")
     
     should_log = _should_log(context)
+    execution_flow = []
     
     llm.info(f"🤖 [LLM层] CodingAssistant 收到编程请求: {input_text[:30]}...")
     tool_logger.debug(f"🛠️ [工具层] CodingAssistant 准备生成代码")
@@ -330,12 +355,17 @@ async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> 
         try:
             provider_name = llm_provider.__class__.__name__
             llm_logger.info(f"🤖 [LLM层] {provider_name} 准备生成代码...")
-            llm_logger.debug(f"🤖 [LLM层] 代码请求: {input_text[:50]}...")
             
             prompt = f"请用代码解决以下问题，代码要完整可运行：\n{input_text}"
+            llm_logger.debug(f"🤖 [LLM层] ┌─ 代码请求:")
+            llm_logger.debug(f"🤖 [LLM层] │  Prompt: {prompt[:100]}...")
+            llm_logger.debug(f"🤖 [LLM层] └─ 原始输入: {input_text[:50]}...")
+            
             response = await llm_provider.generate(prompt)
             
-            llm_logger.summary(f"🤖 [LLM层] {provider_name} 代码生成成功 (长度: {len(response)} 字符)")
+            llm_logger.summary(f"🤖 [LLM层] {provider_name} 代码生成成功")
+            llm_logger.debug(f"🤖 [LLM层] ├─ 代码长度: {len(response)} 字符")
+            llm_logger.debug(f"🤖 [LLM层] └─ 生成代码:\n{response[:300]}{'...' if len(response) > 300 else ''}")
             tool_logger.debug(f"🛠️ [工具层] 代码生成完成")
             
             return response, execution_flow
@@ -689,12 +719,12 @@ async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> 
     execution_flow.append("🧠 [决策层] TerminalCommand 收到请求")
     
     command_mapping = {
-        'chrome': 'start chrome',
-        'browser': 'start chrome',
-        '打开浏览器': 'start chrome',
-        '打开chrome': 'start chrome',
-        'edge': 'start msedge',
-        '打开edge': 'start msedge',
+        'chrome': 'start "" "https://www.google.com"',
+        'browser': 'start "" "https://www.google.com"',
+        '打开浏览器': 'start "" "https://www.google.com"',
+        '打开chrome': 'start "" "https://www.google.com"',
+        'edge': 'start microsoft-edge:',
+        '打开edge': 'start microsoft-edge:',
         'firefox': 'start firefox',
         'safari': 'start safari',
         'notepad': 'start notepad',
@@ -790,26 +820,46 @@ async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> 
             if should_log:
                 tool.warning(f"🛠️ [工具层] TerminalCommand open_browser 异常: {str(e)}，尝试 fallback")
     
-    if skill_manager:
-        try:
+    # 直接使用 subprocess 执行命令（参考 Hermes Agent）
+    try:
+        if should_log:
+            execution.info(f"🛠️ [工具层] TerminalCommand 直接执行命令: {command}")
+        
+        # 使用 cmd /c 执行 Windows 命令
+        process = await asyncio.create_subprocess_shell(
+            f'cmd /c {command}',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(),
+            timeout=30
+        )
+        
+        output = stdout.decode('utf-8', errors='replace').strip()
+        error = stderr.decode('utf-8', errors='replace').strip()
+        
+        if process.returncode == 0:
             if should_log:
-                execution.info(f"TerminalTools 尝试执行 tool_terminal 技能")
-            execution_flow.append("⚡ [执行层] TerminalTools 准备执行")
-            result = await skill_manager.execute_skill('tool_terminal', command=command)
-            if result and result.success:
-                if should_log:
-                    execution.info(f"TerminalTools 执行成功")
-                execution_flow.append("⚡ [执行层] TerminalTools 执行成功")
-                return result.output, execution_flow
-        except Exception as e:
+                execution.summary(f"🛠️ [工具层] TerminalCommand 执行成功")
+            result_msg = f"✅ 命令执行成功"
+            if output:
+                result_msg += f"\n{output}"
+            return result_msg, execution_flow
+        else:
             if should_log:
-                tool.error(f"🛠️ [工具层] TerminalCommand 执行失败: {str(e)}")
-            return f"命令执行失败：{str(e)}", execution_flow
-    
-    if should_log:
-        tool.info(f"🛠️ [工具层] TerminalCommand 使用模板响应")
-    execution_flow.append("🧠 [决策层] CommandAnalyzer 使用模板")
-    return f"[终端命令] 将执行: {command}", execution_flow
+                execution.error(f"🛠️ [工具层] TerminalCommand 执行失败: {error or '未知错误'}")
+            return f"❌ 命令执行失败: {error or '未知错误'}", execution_flow
+            
+    except asyncio.TimeoutError:
+        if should_log:
+            execution.error(f"🛠️ [工具层] TerminalCommand 执行超时")
+        return "❌ 命令执行超时（超过30秒）", execution_flow
+    except Exception as e:
+        if should_log:
+            execution.error(f"🛠️ [工具层] TerminalCommand 执行异常: {str(e)}")
+        return f"❌ 命令执行异常: {str(e)}", execution_flow
 
 
 @route_handler(
@@ -838,13 +888,19 @@ async def general_question_handler(input_text: str, context: Dict[str, Any]) -> 
             provider_name = llm_provider.__class__.__name__
             if should_log:
                 llm.info(f"🤖 [LLM层] {provider_name} 准备回答问题...")
-                llm.info(f"🤖 [LLM层] {provider_name} 下一步调用: {provider_name}.generate()")
             execution_flow.append(f"🧠 [决策层] {provider_name} 准备调用")
+            
+            llm_logger = get_llm_logger("LLMProvider")
+            llm_logger.debug(f"🤖 [LLM层] ┌─ 问题:")
+            llm_logger.debug(f"🤖 [LLM层] │  {input_text}")
+            llm_logger.debug(f"🤖 [LLM层] └─ 正在等待 LLM 响应...")
             
             response = await llm_provider.generate(input_text)
             
             if should_log:
-                llm.info(f"🤖 [LLM层] {provider_name} 回答成功 (响应长度: {len(response)} 字符)")
+                llm.summary(f"🤖 [LLM层] {provider_name} 回答成功")
+            llm_logger.debug(f"🤖 [LLM层] ├─ 回答长度: {len(response)} 字符")
+            llm_logger.debug(f"🤖 [LLM层] └─ 回答内容:\n{response[:300]}{'...' if len(response) > 300 else ''}")
             execution_flow.append(f"🧠 [决策层] {provider_name} 回答成功")
             
             return response, execution_flow

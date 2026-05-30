@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any
 from core import BaseAgentModule, AgentResponse, AgentConfig
 from core.exceptions import ResponseGenerationError
 from core.cache import LRUCache, create_cache_key, hash_config
-from core.logging_manager import get_decision_logger
+from core.logging_manager import get_decision_logger, get_llm_logger
 import time
 
 
@@ -22,7 +22,7 @@ class AdvancedReasoningModule(BaseAgentModule):
     Advanced reasoning module that provides AI-like responses.
     Supports both internal knowledge base and external LLM integration.
     """
-    __slots__ = ('knowledge_base', '_cache', '_config_hash', '_llm_provider', '_decision_logger')
+    __slots__ = ('knowledge_base', '_cache', '_config_hash', '_llm_provider', '_decision_logger', '_llm_logger')
     
     def __init__(self, config: AgentConfig):
         super().__init__(config)
@@ -37,6 +37,7 @@ class AdvancedReasoningModule(BaseAgentModule):
         
         self._llm_provider = None
         self._decision_logger = get_decision_logger("AdvancedReasoningModule")
+        self._llm_logger = get_llm_logger("AdvancedReasoningModule")
     
     def set_llm_provider(self, llm_provider):
         """Set LLM provider for AI-powered responses."""
@@ -147,11 +148,20 @@ class AdvancedReasoningModule(BaseAgentModule):
         
         provider_name = self._llm_provider.__class__.__name__
         try:
-            decision.info(f"{provider_name} 正在调用大模型... (prompt长度: {len(prompt)} 字符)")
-            decision.info(f"   → 下一步: _generate_llm_response()")
+            self._llm_logger.debug(f"🤖 [LLM层] ┌─ LLM 调用请求:")
+            self._llm_logger.debug(f"🤖 [LLM层] │  Prompt ({len(prompt)} 字符):")
+            for i, line in enumerate(prompt.split('\n')):
+                if line.strip():
+                    self._llm_logger.debug(f"🤖 [LLM层] │    {line}")
+            self._llm_logger.debug(f"🤖 [LLM层] └─ 正在等待响应...")
+            
             response = await self._llm_provider.generate(prompt)
+            
+            self._llm_logger.summary(f"🤖 [LLM层] {provider_name} 返回成功")
+            self._llm_logger.debug(f"🤖 [LLM层] ├─ 响应长度: {len(response)} 字符")
+            self._llm_logger.debug(f"🤖 [LLM层] └─ 响应内容:\n{response[:500]}{'...' if len(response) > 500 else ''}")
+            
             decision.info(f"{provider_name} 大模型调用成功 (响应长度: {len(response)} 字符)")
-            decision.info(f"   → 返回结果到 [决策层]")
             return response.strip()
         except Exception as e:
             decision.error(f"{provider_name} 大模型调用失败: {str(e)}，回退到知识库")

@@ -763,12 +763,43 @@ class BaseLLMProvider:
             # 详细日志（DEBUG级别）
             llm.debug(f"   → 调用: urllib.request.urlopen()")
             llm.debug(f"请求 URL: {url}")
+            llm.debug(f"🤖 [LLM层] ┌─ LLM 请求:")
+            llm.debug(f"🤖 [LLM层] │  Model: {payload.get('model', 'N/A')}")
+            llm.debug(f"🤖 [LLM层] │  Temperature: {payload.get('temperature', 'N/A')}")
+            if 'messages' in payload:
+                llm.debug(f"🤖 [LLM层] │  Messages ({len(payload['messages'])}):")
+                for i, msg in enumerate(payload['messages']):
+                    role = msg.get('role', 'unknown')
+                    content = msg.get('content', '')[:100]
+                    ellipsis = "..." if len(msg.get('content', '')) > 100 else ""
+                    llm.debug(f"🤖 [LLM层] │    [{i}][{role}]: {content}{ellipsis}")
+            elif 'prompt' in payload:
+                prompt_text = payload['prompt'][:200]
+                llm.debug(f"🤖 [LLM层] │  Prompt: {prompt_text}...")
+            
             with urllib.request.urlopen(req, timeout=self.config.timeout, context=context) as response:
                 # 汇总日志（INFO级别）
                 llm.info(f"请求成功 (状态码: {response.status})")
                 # 详细日志（DEBUG级别）
                 llm.debug(f"收到响应")
-                return json.loads(response.read().decode('utf-8'))
+                result = json.loads(response.read().decode('utf-8'))
+                
+                # 打印响应内容
+                llm.debug(f"🤖 [LLM层] ├─ 响应状态: {response.status}")
+                if 'choices' in result:
+                    choice = result['choices'][0]
+                    content = choice.get('message', {}).get('content', '')
+                    if content:
+                        llm.debug(f"🤖 [LLM层] ├─ 内容摘要: {content[:200]}...")
+                    llm.debug(f"🤖 [LLM层] └─ 完整响应已接收")
+                elif 'content' in result:
+                    content = result.get('content', [])
+                    if isinstance(content, list) and len(content) > 0:
+                        text = content[0].get('text', '')
+                        llm.debug(f"🤖 [LLM层] ├─ 内容摘要: {text[:200]}...")
+                    llm.debug(f"🤖 [LLM层] └─ 完整响应已接收")
+                
+                return result
         except urllib.error.HTTPError as e:
             error_body = e.read().decode('utf-8') if e.fp else "{}"
             llm.error(f"HTTP 请求失败: {e.code} - {error_body}")
