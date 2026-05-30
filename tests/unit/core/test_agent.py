@@ -27,7 +27,7 @@ class TestCustomAgent(unittest.TestCase):
         """Test that agent initializes correctly."""
         self.assertIsNotNone(self.agent.config)
         self.assertIsNotNone(self.agent.explanation_module)
-        self.assertIsNotNone(self.agent.logger)
+        self.assertIsNotNone(self.agent._access_logger)
     
     def test_config_creation(self):
         """Test AgentConfig creation."""

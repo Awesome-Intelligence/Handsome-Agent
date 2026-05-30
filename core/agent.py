@@ -275,8 +275,7 @@ class CustomAgent:
         execution_flow = []
         t = self._i18n.t
         
-        if self.config.explanation_depth == 'detailed':
-            self._access_logger.debug(f"🚪 [/接入层] - [InputHandler] 接收用户输入: {user_input[:80]}{'...' if len(user_input) > 80 else ''}")
+        self._access_logger.info(f"🚪 [/接入层] - [InputHandler] 接收用户输入: {user_input[:80]}{'...' if len(user_input) > 80 else ''}")
         execution_flow.append("🚪 [接入层] 接收用户输入 → [决策层-意图识别层] 进行验证")
         
         if not isinstance(user_input, str):

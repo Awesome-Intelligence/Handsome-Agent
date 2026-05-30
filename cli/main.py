@@ -50,29 +50,12 @@ if not _logging_already_configured:
     # 现在导入核心模块（此时日志被禁用，不会输出任何日志）
     from core.logging_manager import configure_logging
     
-    # 根据配置重新启用日志
+    # 根据配置启用日志
     if args.explanation_depth != "brief":
-        LOG_LEVEL_MAP = {
-            "moderate": logging.INFO,
-            "detailed": logging.DEBUG,
-        }
-        level = LOG_LEVEL_MAP.get(args.explanation_depth, logging.DEBUG)
-        
-        # 移除 NullHandler
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-        
-        # 添加控制台 handler
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(level)
-        console_handler.setFormatter(logging.Formatter(
-            fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        ))
-        logging.root.addHandler(console_handler)
-        
-        # 设置 root logger 级别
-        logging.root.setLevel(level)
+        configure_logging({
+            "log_level": args.explanation_depth,
+            "console_enabled": True,
+        })
     
     # 在 brief 模式下，保持日志禁用状态
 else:

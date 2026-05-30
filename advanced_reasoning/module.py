@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any
 from core import BaseAgentModule, AgentResponse, AgentConfig
 from core.exceptions import ResponseGenerationError
 from core.cache import LRUCache, create_cache_key, hash_config
-from core.layer_logger import get_layer_logger
+from core.logging_manager import get_decision_logger
 import time
 
 
@@ -36,7 +36,7 @@ class AdvancedReasoningModule(BaseAgentModule):
             self._config_hash = None
         
         self._llm_provider = None
-        self._decision_logger = get_layer_logger("decision", "AdvancedReasoningModule")
+        self._decision_logger = get_decision_logger("AdvancedReasoningModule")
     
     def set_llm_provider(self, llm_provider):
         """Set LLM provider for AI-powered responses."""

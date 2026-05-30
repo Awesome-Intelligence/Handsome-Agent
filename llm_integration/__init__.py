@@ -42,7 +42,7 @@ try:
 except ImportError:
     HTTPX_AVAILABLE = False
 
-from core.layer_logger import get_layer_logger
+from core.logging_manager import get_llm_logger
 
 
 class AsyncHTTPClient:
@@ -726,7 +726,7 @@ class BaseLLMProvider:
         self.config = config
         self._client = None
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._llm_logger = get_layer_logger("llm", self.__class__.__name__)
+        self._llm_logger = get_llm_logger(self.__class__.__name__)
         self._enable_detailed_logs = config.enable_detailed_logs
         http = self._llm_logger
     
