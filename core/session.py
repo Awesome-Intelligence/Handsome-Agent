@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import logging
+from shared.config import get_sessions_dir, ensure_workspace_dirs
 
 
 @dataclass
@@ -32,7 +33,7 @@ class SessionConfig:
     max_history_length: int = 50
     auto_save_interval: int = 300
     enable_persistence: bool = True
-    history_path: str = "./sessions/"
+    history_path: str = field(default_factory=lambda: str(get_sessions_dir()))
     enable_detailed_logs: bool = True
 
 
@@ -119,6 +120,7 @@ class Session:
     """
     
     def __init__(self, session_id: str, config: Optional[SessionConfig] = None):
+        ensure_workspace_dirs()
         self.session_id = session_id
         self.config = config or SessionConfig()
         self.messages: List[Message] = []
@@ -305,6 +307,7 @@ class SessionManager:
     """
     
     def __init__(self, config: Optional[SessionConfig] = None):
+        ensure_workspace_dirs()
         self.config = config or SessionConfig()
         self.sessions: Dict[str, Session] = {}
         self.store = FileSessionStore(self.config.history_path)

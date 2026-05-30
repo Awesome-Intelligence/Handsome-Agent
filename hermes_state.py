@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 import logging
+from shared.config import HANDSOME_HOME, ensure_workspace_dirs
 
 
 @dataclass
@@ -51,10 +52,11 @@ class HermesState:
     - Metadata storage
     """
     
-    def __init__(self, db_path: str = "./hermes_state.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        ensure_workspace_dirs()
+        self.db_path = db_path or str(HANDSOME_HOME / "hermes_state.db")
         self._ensure_directory()
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(self.db_path)
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self._init_schema()
         self.logger = logging.getLogger(self.__class__.__name__)
