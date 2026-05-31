@@ -103,7 +103,11 @@ handsome-agent/
 │   ├── skills/             # 🔧 工具选择层
 │   │   ├── matcher.py      # 技能匹配
 │   │   ├── loader.py       # 技能加载
-│   │   └── registry.py     # 📋 技能注册表
+│   │   ├── registry.py     # 📋 技能注册表
+│   │   ├── telemetry.py    # 📊 技能使用追踪 🆕
+│   │   ├── lifecycle.py     # 🔄 技能生命周期管理 🆕
+│   │   ├── merger.py       # 🔀 技能合并器 🆕
+│   │   └── evolution_manager.py  # 🚀 自我进化管理器 🆕
 │   └── advanced_reasoning/  # 📚 KnowledgeBase 高级推理
 │       ├── module.py       # 📚 AdvancedReasoningModule
 │       ├── integration.py  # 推理集成
@@ -111,6 +115,7 @@ handsome-agent/
 │
 ├── brain_curator/            # 🧠 决策层 - 🔬 Curator (异步后处理)
 │   ├── curator.py           # 🔬 Curator 主逻辑
+│   ├── enhanced_curator.py  # 🚀 增强版 Curator 🆕
 │   ├── evaluator.py        # 🔬 轨迹评估器
 │   ├── synthesizer.py      # 🛠️ 技能合成器
 │   └── writer.py           # ✍️ 技能写入器
@@ -186,37 +191,71 @@ handsome-agent/
 
 ### 5. 🔄 自我进化系统（越用越好用）
 
+#### 核心组件
+
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| **SkillTelemetry** | `brain/skills/telemetry.py` | 记录技能使用/查看/修改事件 |
+| **SkillLifecycleManager** | `brain/skills/lifecycle.py` | 管理技能状态 (active/stale/archived) |
+| **EnhancedCurator** | `brain_curator/enhanced_curator.py` | 后台定期运行,空闲触发审查 |
+| **SkillMerger** | `brain/skills/merger.py` | 识别相似技能,创建伞形技能 |
+| **SelfEvolutionManager** | `brain/skills/evolution_manager.py` | 统一管理所有组件 |
+
+#### 自我进化流程
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                 Hermes 自我进化循环                                │
-├─────────────────────────────────────────────────────────────────┤
-│  用户输入 → 执行任务 → 📝 记录轨迹 (TrajectoryRecorder)       │
-│       ↓         ↓           ↓                                   │
-│  ┌─────────────────────────────────────────┐                   │
-│  │  📝 TrajectoryRecorder                   │                   │
-│  │  记录每个 Thought/Action/Observation     │                   │
-│  │  持久化到 .trajectories/ 目录           │                   │
-│  └─────────────────────────────────────────┘                   │
-│                        ↓                                        │
-│  ┌─────────────────────────────────────────┐                   │
-│  │  🔬 Curator (后处理)                      │                   │
-│  │                                         │                   │
-│  │  1. 🔬 轨迹评估器 (TrajectoryEvaluator) │                   │
-│  │     → 分析成功/失败原因                  │                   │
-│  │                                         │                   │
-│  │  2. 🛠️ 技能合成器 (SkillSynthesizer)   │                   │
-│  │     → 从成功案例提取可复用技能           │                   │
-│  │                                         │                   │
-│  │  3. ✍️ 技能写入器 (SkillWriter)           │                   │
-│  │     → 写入 ~/.skills/ 供下次使用         │                   │
-│  └─────────────────────────────────────────┘                   │
-│                        ↓                                        │
-│  ┌─────────────────────────────────────────┐                   │
-│  │  📋 技能注册表更新                        │                   │
-│  │  下次遇到类似问题 → 直接调用技能         │                   │
-│  └─────────────────────────────────────────┘                   │
-│  循环往复 → 系统越来越智能                                       │
-└─────────────────────────────────────────────────────────────────┘
+用户对话
+    ↓
+AgentLoop 执行工具调用
+    ↓
+记录使用 → SkillTelemetry (use_count++, view_count++)
+    ↓
+每 10 轮 → EnhancedCurator.run_review()
+    ↓
+SkillLifecycleManager.apply_automatic_transitions()
+    ├─ active → stale (30天未使用)
+    ├─ stale → archived (90天未使用)
+    └─ stale → active (重新使用)
+    ↓
+Curator 评估轨迹
+    ↓
+SkillMerger 合并相似技能 → 伞形技能
+    ↓
+新技能写入 ~/.skills/
+    ↓
+AgentLoop 加载新技能
+    ↓
+越聊越好用 ✨
+```
+
+#### 技能状态机
+
+```
+   ┌─────────┐
+   │ active  │ ←─────────────┐
+   └────┬────┘              │
+        │ (30天未使用)      │ (重新使用)
+        ▼                  │
+   ┌─────────┐              │
+   │  stale  │──────────────┘
+   └────┬────┘
+        │ (90天未使用)
+        ▼
+   ┌───────────┐
+   │ archived  │
+   └───────────┘
+```
+
+#### Curator 状态持久化
+
+```json
+{
+  "last_run_at": "2026-05-31T10:00:00Z",
+  "last_run_duration_seconds": 5.2,
+  "last_run_summary": "3 marked stale; 5 total skills",
+  "paused": false,
+  "run_count": 10
+}
 ```
 
 ### 6. 📡 API 端点
@@ -257,7 +296,12 @@ pytest tests/unit/ -v
 ### 测试结果
 
 ```
-tests/unit/brain_curator/ - 19 个测试全部通过 ✅
+tests/unit/brain_curator/ - 17 个测试全部通过 ✅
+tests/unit/brain/test_skill_telemetry.py - 17 个测试全部通过 ✅
+tests/unit/brain/test_skill_lifecycle.py - 11 个测试全部通过 ✅
+tests/unit/brain/test_skill_merger.py - 11 个测试全部通过 ✅
+tests/unit/brain/test_self_evolution_integration.py - 9 个测试全部通过 ✅
+总计: 65 个测试全部通过 ✅
 ```
 
 ***
@@ -268,6 +312,9 @@ tests/unit/brain_curator/ - 19 个测试全部通过 ✅
 - [任务清单](TODO.md)
 - [工具系统](tools/README.md)
 - [LLM 集成](llm_integration/README.md)
+- [Agent 模块](brain/agent/README.md) 🆕
+- [技能系统](brain/skills/README.md) 🆕
+- [Curator 模块](brain_curator/README.md) 🆕
 
 ***
 
@@ -279,6 +326,7 @@ pytest tests/unit/ -v
 
 # 运行自我进化测试
 pytest tests/unit/brain_curator/ -v
+pytest tests/unit/brain/test_skill_*.py -v
 
 # 查看测试覆盖
 pytest tests/unit/ --cov=brain --cov-report=html

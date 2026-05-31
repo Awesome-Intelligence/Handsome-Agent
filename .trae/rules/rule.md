@@ -202,6 +202,20 @@ HandsomeAgentError (基类)
 - 新增功能 → 必须同步更新 README
 - API 变更 → 必须同步更新文档
 - Bug 修复 → 可选（重要 Bug 必须记录）
+
+**README 更新约束** ⚠️ **重要**
+
+每次代码修改后，必须同步更新相关 README：
+1. **新增模块/组件** → 必须创建对应目录的 `README.md`
+2. **修改核心逻辑** → 必须更新 `README.md` 中的架构图和流程说明
+3. **添加新文件** → 必须更新父级 `README.md` 的目录结构
+4. **添加测试** → 必须更新 `README.md` 中的测试结果
+
+**必须更新的 README**：
+- `brain/skills/` 变更 → 更新 `brain/skills/README.md` 和 `README.md`
+- `brain_curator/` 变更 → 更新 `brain_curator/README.md` 和 `README.md`
+- `brain/agent/` 变更 → 更新 `brain/agent/README.md` 和 `README.md`
+- 根目录变更 → 更新根 `README.md` 和 `TODO.md`
  
 ### 持续集成（CI）规范
 
@@ -292,8 +306,10 @@ fix(llm): 修复 OpenAI provider 超时处理
 - [ ] 单元测试覆盖
 - [ ] 跨平台兼容
 - [ ] 使用成熟开源库（而非自研）
+- [ ] **README 已更新**（新增/修改功能必须更新文档）
+- [ ] **TODO.md 已更新**（已完成的功能移到"已完成"区域）
 
 ---
 
 > 本规范基于 PEP 8、Google Python Style Guide 和行业最佳实践制定。
-> 最后更新：2026-05-30
+> 最后更新：2026-05-31 - 新增 README 更新约束
