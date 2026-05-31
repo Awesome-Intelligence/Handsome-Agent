@@ -70,26 +70,27 @@ class TestAgentLoop:
 
 
 class TestIntentClassifier:
-    """意图分类器测试"""
-    
+    """意图分类器测试 - DEPRECATED"""
+
     def test_import_intent_classifier(self):
-        """测试导入意图分类器"""
-        try:
-            from brain.intent_classifier import IntentClassifier
-            assert IntentClassifier is not None
-        except ImportError:
-            # 可能没有独立的意图分类器模块
-            pass
-    
+        """测试导入意图分类器 - DEPRECATED"""
+        import warnings
+        warnings.warn(
+            "IntentClassifier is deprecated. Please use the new LLM-driven architecture.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # 不再测试 IntentClassifier
+
     def test_intent_mode_detection(self):
-        """测试意图模式检测"""
-        from shared.config import get_settings
-        
-        settings = get_settings()
-        
-        # 检查是否有 intent_mode 配置
-        # 这取决于用户的配置
-        assert settings is not None
+        """测试意图模式检测 - DEPRECATED"""
+        import warnings
+        warnings.warn(
+            "Intent classification is deprecated.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # 不再测试意图检测
 
 
 class TestAgentState:

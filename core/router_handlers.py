@@ -32,7 +32,6 @@ from .environment import env_detector
     'Time Query Handler',
     'Handles time and date queries',
     keywords=['时间', '现在几点', '几点了', '什么时间', '几点', 'date', '日期', '今天几号', '星期几'],
-    intent_types=['operation'],
     priority=2
 )
 async def time_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -69,7 +68,6 @@ async def time_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     'Weather Query Handler',
     'Handles weather and temperature queries',
     keywords=['天气', '温度', '下雨', '晴天', '多云', 'weather', 'sunny', 'rain'],
-    intent_types=['operation'],
     priority=2
 )
 async def weather_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -124,7 +122,6 @@ async def weather_query_handler(input_text: str, context: Dict[str, Any]) -> Tup
     'Conversation Handler',
     'Handles general conversation and greetings',
     keywords=['hello', 'hi', '你好', 'bye', 'thanks', 'thank you', '上一句', '刚才', '之前', '历史', 'history'],
-    intent_types=['conversation'],
     priority=1
 )
 async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -334,7 +331,6 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
     'Coding Assistant Handler',
     'Handles coding-related queries and code generation',
     keywords=['python', 'code', 'function', 'program', 'debug', 'syntax', 'class', 'def ', 'import', '写代码', '帮我写', '编程'],
-    intent_types=['coding'],
     priority=3
 )
 async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -390,7 +386,6 @@ async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> 
     'File Operations Handler',
     'Handles file reading, writing, and management',
     keywords=['file', 'read', 'write', 'save', 'delete', 'create file', 'open file', 'list', '目录', '文件'],
-    intent_types=['operation'],
     priority=4
 )
 async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -505,7 +500,6 @@ async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> T
     'Web Search Handler',
     'Handles web search and information lookup',
     keywords=['search', 'google', 'web', 'find', '查一下', '搜索', '帮我找', '搜一下', '帮我搜索'],
-    intent_types=['operation'],
     priority=3
 )
 async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -703,7 +697,6 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     'Terminal Command Handler',
     'Handles terminal and command execution, app launching',
     keywords=['run', 'execute', 'terminal', 'command', 'bash', 'npm', 'pip', 'git', '运行', '执行', '打开', 'open', '启动', 'launch', 'browser', 'chrome', '浏览器'],
-    intent_types=['operation'],
     priority=4
 )
 async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -867,7 +860,6 @@ async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> 
     'General Question Handler',
     'Handles general knowledge questions',
     keywords=['what', 'who', 'how', 'why', 'explain', 'tell me', '什么是', '如何', '为什么'],
-    intent_types=['conversation'],
     priority=2
 )
 async def general_question_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -947,7 +939,6 @@ async def general_question_handler(input_text: str, context: Dict[str, Any]) -> 
               '新建任务', '创建任务', '任务列表', '待办事项', '添加待办', 'complete', 
               'finish', 'done', 'cancel', '删除任务', '列出任务', '有哪些任务', 
               '还有几个', '待办列表', '任务管理'],
-    intent_types=['conversation'],
     priority=2
 )
 async def task_management_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:

@@ -83,33 +83,13 @@ def test_todo_adapter_tools():
 
 
 def test_intent_classification():
-    """意图分类测试"""
+    """意图分类测试 - DEPRECATED"""
     print("=" * 60)
-    print("测试 3: 意图分类")
+    print("测试 3: 意图分类 - DEPRECATED")
     print("=" * 60)
-
-    from core.router import IntentClassifier
-
-    classifier = IntentClassifier(mode='keyword')
-
-    test_cases = [
-        ("创建任务：写代码、测试", "task_management"),
-        ("添加一个新任务", "task_management"),
-        ("列出所有任务", "task_management"),
-        ("完成 #1", "task_management"),
-        ("待办列表", "task_management"),
-    ]
-
-    passed = 0
-    for text, expected in test_cases:
-        intent = classifier.classify(text)
-        status = "✓" if intent == expected else "✗"
-        print(f"  {status} \"{text[:25]}...\" → {intent} (期望: {expected})")
-        if intent == expected:
-            passed += 1
-
-    print(f"\n  通过率: {passed}/{len(test_cases)}")
-    print("✅ 测试 3 通过: 意图分类正常\n")
+    print("注意: IntentClassifier 已废弃，请使用新的 LLM 驱动架构")
+    print("参加: core/llm_tool_selector.py")
+    print("=" * 60)
 
 
 def test_task_parsing():

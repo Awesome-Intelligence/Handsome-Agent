@@ -108,20 +108,13 @@ async def test_handler():
 
 
 def test_intent_keywords():
-    """测试意图关键词"""
+    """测试意图关键词 - DEPRECATED"""
     print("\n" + "=" * 60)
-    print("测试 Intent Classification 关键词")
+    print("测试 Intent Classification 关键词 - DEPRECATED")
     print("=" * 60)
-
-    from core.router import IntentClassifier
-
-    classifier = IntentClassifier(mode='keyword')
-
-    print("task_management 关键词:")
-    keywords = classifier.INTENT_KEYWORDS.get('task_management', [])
-    print(f"   共 {len(keywords)} 个: {keywords[:10]}...")
-
-    print("\n✅ Intent Keywords 测试通过!")
+    print("注意: IntentClassifier 已废弃，请使用新的 LLM 驱动架构")
+    print("参见: core/llm_tool_selector.py")
+    print("=" * 60)
 
 
 async def main():

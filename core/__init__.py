@@ -27,7 +27,6 @@ from .cache import LRUCache, create_cache_key, hash_config
 
 from .router import (
     TaskRouter,
-    IntentClassifier,
     RouteConfig,
     RouteMatch,
     router,
@@ -187,9 +186,8 @@ __all__ = [
     'create_cache_key',
     'hash_config',
     
-    # Router
+    # Router (DEPRECATED - Use LLM-driven architecture instead)
     'TaskRouter',
-    'IntentClassifier',
     'RouteConfig',
     'RouteMatch',
     'router',

@@ -236,7 +236,7 @@ def configure_logging(depth: str = "detailed") -> None:
         restricted_loggers = [
             "Session",
             "SessionManager",
-            "IntentClassifier",
+            "LLMToolSelector",
         ]
         for logger_name in restricted_loggers:
             restricted_logger = logging.getLogger(logger_name)

@@ -3,51 +3,28 @@
 """
 Unit tests for IntentClassifier log control.
 
-These tests verify that IntentClassifier respects enable_detailed_logs setting.
+DEPRECATED: This module has been removed.
+IntentClassifier is no longer part of the architecture.
+Please use the new LLM-driven architecture instead.
+See: core/llm_tool_selector.py and docs/MIGRATION_GUIDE.md
 """
 
 import unittest
-from core.router import IntentClassifier
+import warnings
 
 
 class TestIntentClassifierLogging(unittest.TestCase):
-    """Test cases for IntentClassifier log control."""
-    
-    def test_intent_classifier_accepts_enable_detailed_logs(self):
-        """Test that IntentClassifier constructor accepts enable_detailed_logs parameter."""
-        # With detailed logs enabled
-        classifier_with_logs = IntentClassifier(enable_detailed_logs=True)
-        self.assertTrue(classifier_with_logs.enable_detailed_logs)
-        
-        # With detailed logs disabled
-        classifier_without_logs = IntentClassifier(enable_detailed_logs=False)
-        self.assertFalse(classifier_without_logs.enable_detailed_logs)
-    
-    def test_intent_classifier_default_enable_detailed_logs(self):
-        """Test that IntentClassifier has default enable_detailed_logs=True."""
-        classifier = IntentClassifier()
-        self.assertTrue(classifier.enable_detailed_logs)
-    
-    def test_intent_classifier_logs_when_enabled(self):
-        """Test that IntentClassifier logs when enable_detailed_logs is True."""
-        classifier = IntentClassifier(enable_detailed_logs=True)
-        
-        # This should not raise an exception and should log
-        result = classifier.classify("我的桌面有什么")
-        
-        # Result should still be returned
-        self.assertIsInstance(result, str)
-        self.assertIn(result, ["operation", "conversation", "coding"])
-    
-    def test_intent_classifier_classify_when_disabled(self):
-        """Test that IntentClassifier still works when enable_detailed_logs is False."""
-        classifier = IntentClassifier(enable_detailed_logs=False)
-        
-        # This should work without logging
-        result = classifier.classify("我的桌面有什么")
-        
-        # Result should still be returned
-        self.assertIsInstance(result, str)
+    """Test cases for IntentClassifier log control - DEPRECATED."""
+
+    def test_intent_classifier_deprecated(self):
+        """Test that IntentClassifier raises DeprecationWarning."""
+        with self.assertWarns(DeprecationWarning):
+            from core.router import IntentClassifier
+            # This should raise DeprecationWarning
+            try:
+                classifier = IntentClassifier()
+            except Exception:
+                pass  # Expected to fail with deprecation warning
 
 
 class TestSessionLogging(unittest.TestCase):
