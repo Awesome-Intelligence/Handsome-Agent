@@ -136,27 +136,71 @@ Respond with ONLY the JSON object, no other text."""
         """
         user_lower = user_input.lower()
 
-        # 简单关键词映射
-        tool_keywords = {
-            'web_search': ['搜索', '搜一下', 'search', 'google', '百度', '查一下'],
-            'terminal': ['终端', '命令', 'terminal', '执行', 'run', '打开', 'open', '启动'],
-            'file_read': ['读取', '查看', 'cat', 'read'],
-            'file_write': ['写入', '写', '保存', 'create file'],
-            'weather': ['天气', 'weather', '温度'],
-            'calculator': ['计算', '算一下', 'calculate', '计算器']
+        # 关键词到工具的映射
+        keyword_tool_mapping = {
+            # 计算器相关
+            '计算': 'open_calculator',
+            '算一下': 'open_calculator',
+            'calculator': 'open_calculator',
+            '打开计算器': 'open_calculator',
+            # 记事本相关
+            '记事本': 'open_notepad',
+            '打开记事本': 'open_notepad',
+            # CMD相关
+            'cmd': 'open_cmd',
+            '命令提示符': 'open_cmd',
+            '终端': 'open_cmd',
+            '打开终端': 'open_cmd',
+            # 文件夹相关
+            '文件夹': 'open_folder',
+            '打开文件夹': 'open_folder',
+            '打开目录': 'open_folder',
+            # 浏览器相关
+            '浏览器': 'launch_app',
+            '打开浏览器': 'launch_app',
+            # 打开/启动相关
+            '打开': 'launch_app',
+            '启动': 'launch_app',
+            'open': 'launch_app',
+            'launch': 'launch_app',
         }
 
-        for tool_name, keywords in tool_keywords.items():
-            if tool_name in self.tools:
-                for keyword in keywords:
-                    if keyword in user_lower:
+        # 搜索匹配的关键词
+        for keyword, tool_name in keyword_tool_mapping.items():
+            if keyword in user_lower:
+                if tool_name in self.tools:
+                    # 为 open_folder 特殊处理参数
+                    if tool_name == 'open_folder':
+                        # 尝试从用户输入中提取路径
+                        path = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('文件夹', '').replace('目录', '').strip()
                         return ToolSelectionResult(
                             selected_tool=tool_name,
                             action="use_tool",
                             reasoning=f"Keyword '{keyword}' matched {tool_name}",
-                            parameters={'query': user_input},
-                            confidence=0.6
+                            parameters={'path': path if path else None},
+                            confidence=0.8
                         )
+                    else:
+                        return ToolSelectionResult(
+                            selected_tool=tool_name,
+                            action="use_tool",
+                            reasoning=f"Keyword '{keyword}' matched {tool_name}",
+                            parameters={'app_name': keyword.replace('打开', '').replace('启动', '')},
+                            confidence=0.7
+                        )
+
+        # 如果没有关键词匹配，但用户明确说要打开应用，尝试使用 launch_app
+        if any(word in user_lower for word in ['打开', '启动', 'open', 'launch', 'start']):
+            if 'launch_app' in self.tools:
+                # 提取应用名称
+                app_name = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('启动', '').strip()
+                return ToolSelectionResult(
+                    selected_tool='launch_app',
+                    action="use_tool",
+                    reasoning=f"Detected open/launch intent, using launch_app",
+                    parameters={'app_name': app_name},
+                    confidence=0.6
+                )
 
         # 默认直接回复
         return ToolSelectionResult(
@@ -217,8 +261,12 @@ Respond with ONLY the JSON object, no other text."""
             # 解析响应
             try:
                 result = json.loads(response.strip())
+                
+                # 兼容两种格式："selected_tool" 或 "tool"
+                selected_tool = result.get('selected_tool') or result.get('tool')
+                
                 return ToolSelectionResult(
-                    selected_tool=result.get('selected_tool'),
+                    selected_tool=selected_tool,
                     action=result.get('action', 'direct_response'),
                     reasoning=result.get('reasoning', ''),
                     parameters=result.get('parameters', {}),

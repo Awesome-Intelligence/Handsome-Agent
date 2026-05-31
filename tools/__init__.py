@@ -8,9 +8,21 @@ Hermes 风格工具系统，包含：
 - 浏览器工具 (Browser Tools)
 - 多媒体工具 (Multimedia Tools)
 - 任务工具 (Task Tools)
+- 工具注册表 (Tool Registry)
+
+新增工具（参考 Hermes）：
+- 记忆工具 (Memory Tool)
+- 技能管理工具 (Skill Manager Tool)
+- 审批工具 (Approval Tool)
+- 代理工具 (Delegate Tool)
+- 视觉工具 (Vision Tool)
+- MCP 工具 (MCP Tool)
+- 看板工具 (Kanban Tool)
+- 定时任务工具 (Cronjob Tool)
 """
 
 from .schema_registry import SchemaRegistry, UnifiedToolSchema, ToolSource
+from .registry import ToolRegistry, ToolEntry, registry, discover_builtin_tools
 from .definitions.file_tools import FILE_TOOLS
 from .definitions.shell_tools import SHELL_TOOLS
 from .definitions.web_tools import WEB_TOOLS
@@ -23,28 +35,28 @@ from .definitions.task_tools import TASK_TOOLS
 def get_all_tools():
     """获取所有工具定义"""
     all_tools = {}
-    
+
     for tool in FILE_TOOLS:
         all_tools[tool.name] = tool.model_dump()
-    
+
     for tool in SHELL_TOOLS:
         all_tools[tool.name] = tool.model_dump()
-    
+
     for tool in WEB_TOOLS:
         all_tools[tool.name] = tool.model_dump()
-    
+
     for tool in CODE_TOOLS:
         all_tools[tool.name] = tool.model_dump()
-    
+
     for tool in BROWSER_TOOLS:
         all_tools[tool.name] = tool.model_dump()
-    
+
     for tool in MULTIMEDIA_TOOLS:
         all_tools[tool.name] = tool.model_dump()
-    
+
     for tool in TASK_TOOLS:
         all_tools[tool.name] = tool.model_dump()
-    
+
     return all_tools
 
 
@@ -58,16 +70,22 @@ def get_tools_by_category(category: str):
     """根据分类获取工具"""
     all_tools = get_all_tools()
     return {
-        name: tool 
-        for name, tool in all_tools.items() 
+        name: tool
+        for name, tool in all_tools.items()
         if tool.get('category') == category
     }
 
 
 __all__ = [
+    # 注册表
     "SchemaRegistry",
     "UnifiedToolSchema",
     "ToolSource",
+    "ToolRegistry",
+    "ToolEntry",
+    "registry",
+    "discover_builtin_tools",
+    # 工具定义
     "FILE_TOOLS",
     "SHELL_TOOLS",
     "WEB_TOOLS",
@@ -75,6 +93,7 @@ __all__ = [
     "BROWSER_TOOLS",
     "MULTIMEDIA_TOOLS",
     "TASK_TOOLS",
+    # 工具获取函数
     "get_all_tools",
     "get_tool_by_name",
     "get_tools_by_category",

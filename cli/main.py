@@ -3,6 +3,8 @@
 """
 Main entry point for the Handsome Agent
 Provides Text User Interface for testing and interaction
+
+Updated to use the new LLM-driven ModernAgent!
 """
 
 import asyncio
@@ -62,9 +64,11 @@ else:
     # 日志已经被配置（例如从 main.py 调用），保持现有配置
     pass
 
-from core import CustomAgent, AgentConfig
+# 导入新的 ModernAgent！
+from core.modern_agent import ModernAgent, ModernAgentResponse
+
+# 保持原有的异常导入（虽然可能不再需要，但保持兼容性）
 from core.exceptions import AgentError, InputValidationError, ResponseGenerationError
-from advanced_reasoning.integration import enhance_agent_with_advanced_reasoning
 
 CONFIG_FILE = os.path.expanduser("~/.custom_agent_config.json")
 
@@ -104,11 +108,11 @@ def run_setup_if_needed():
         print()
 
 
-async def interactive_mode(agent: CustomAgent, model_name: str = "Knowledge Base"):
+async def interactive_mode(agent: ModernAgent, model_name: str = "Modern Agent"):
     """Run the agent in interactive mode.
     
     Args:
-        agent: The CustomAgent instance to use for processing user input.
+        agent: The ModernAgent instance to use for processing user input.
         model_name: Name of the model to display in status bar.
     """
     from cli import ui
@@ -117,7 +121,7 @@ async def interactive_mode(agent: CustomAgent, model_name: str = "Knowledge Base
     
     # Initialize status bar
     ui.status_bar.update_model(model_name)
-    ui.status_bar.set_tools(["file", "terminal", "web"])
+    ui.status_bar.set_tools(["file", "terminal", "web", "app-launcher"])
     ui.print_status_bar()
     
     print()
@@ -142,13 +146,17 @@ async def interactive_mode(agent: CustomAgent, model_name: str = "Knowledge Base
             spinner.start()
             
             try:
-                response = await agent.respond(user_input)
+                response = await agent.chat(user_input)
                 
                 # Update status bar with token info
                 ui.status_bar.add_tokens(len(response.content.split()))
                 
                 # Clear spinner line
                 print("\r" + " " * 50 + "\r", end="", flush=True)
+                
+                # If a tool was used, show that info
+                if response.tool_used:
+                    ui.print_info(f"🔧 Used tool: {response.tool_used}")
                 
                 ui.print_agent_response(response.content, response.confidence_score)
                 
@@ -164,28 +172,17 @@ async def interactive_mode(agent: CustomAgent, model_name: str = "Knowledge Base
         except EOFError:
             ui.print_success("再见!")
             break
-        except InputValidationError as e:
-            ui.print_error(f"输入错误: {e}")
-        except ResponseGenerationError as e:
-            ui.print_error(f"响应生成错误: {e}")
-        except AgentError as e:
-            ui.print_error(f"Agent错误: {e}")
         except Exception as e:
-            ui.print_error(f"未知错误: {e}")
+            ui.print_error(f"错误: {e}")
 
 
-async def single_query_mode(agent: CustomAgent, query: str, model_name: str = "Knowledge Base"):
+async def single_query_mode(agent: ModernAgent, query: str, model_name: str = "Modern Agent"):
     """Run the agent with a single query.
     
     Args:
-        agent: The CustomAgent instance to use.
+        agent: The ModernAgent instance to use.
         query: The user's query string.
         model_name: Name of the model to display in status bar.
-        
-    Raises:
-        InputValidationError: If the query is invalid.
-        ResponseGenerationError: If response generation fails.
-        AgentError: For other agent-related errors.
     """
     from cli import ui
     
@@ -203,23 +200,21 @@ async def single_query_mode(agent: CustomAgent, query: str, model_name: str = "K
         spinner.start()
         
         try:
-            response = await agent.respond(query)
+            response = await agent.chat(query)
             
             # Clear spinner line
             print("\r" + " " * 50 + "\r", end="", flush=True)
+            
+            # If a tool was used, show that info
+            if response.tool_used:
+                ui.print_info(f"🔧 Used tool: {response.tool_used}")
             
             ui.print_agent_response(response.content, response.confidence_score)
         finally:
             pass
         
-    except InputValidationError as e:
-        ui.print_error(f"输入错误: {e}")
-    except ResponseGenerationError as e:
-        ui.print_error(f"响应生成错误: {e}")
-    except AgentError as e:
-        ui.print_error(f"Agent错误: {e}")
     except Exception as e:
-        ui.print_error(f"未知错误: {e}")
+        ui.print_error(f"错误: {e}")
 
 
 def list_sessions():
@@ -297,23 +292,6 @@ def main():
         help="Maximum response length"
     )
     parser.add_argument(
-        "--advanced-reasoning",
-        action="store_true",
-        help="Enable advanced AI reasoning capabilities"
-    )
-    parser.add_argument(
-        "--enable-caching",
-        type=bool,
-        default=True,
-        help="Enable LRU response caching for performance"
-    )
-    parser.add_argument(
-        "--timeout-seconds",
-        type=float,
-        default=30.0,
-        help="Maximum time allowed for response generation (0 = disabled)"
-    )
-    parser.add_argument(
         "--language", "-L",
         choices=["zh", "en", "ko", "ja"],
         default=None,
@@ -366,6 +344,7 @@ def main():
     elif args.command == 'version':
         print("Handsome Agent V 0.0.1")
         print("Inspired by Hermes Agent")
+        print("Updated to use Modern Agent (LLM-driven decision engine)!")
         return
     elif args.command == 'chat':
         pass
@@ -393,16 +372,11 @@ def main():
         args.explanation_depth = saved_prefs["explanation_depth"]
     if saved_prefs.get("response_format"):
         args.format = saved_prefs["response_format"]
-    if saved_prefs.get("enable_caching") is not None:
-        args.enable_caching = saved_prefs["enable_caching"]
     
     # Load language from config (top-level, set by setup wizard)
     language = saved_config.get("language", saved_prefs.get("language", "zh"))
     if args.language:
         language = args.language
-    
-    # Load intent mode from config
-    intent_mode = saved_config.get("intent_mode", "llm")
     
     # Get display options
     verbose = saved_display.get("verbose", False)
@@ -438,7 +412,7 @@ def main():
     
     # Handle LLM configuration from saved config or args
     llm_provider = None
-    model_name = "Knowledge Base"
+    model_name = "Modern Agent"
     saved_llm_params = saved_config.get("llm_params", {})
     
     if LLM_AVAILABLE:
@@ -457,7 +431,7 @@ def main():
                     enable_detailed_logs=enable_detailed_logs
                 )
                 llm_provider = setup_llm_integration(llm_config)
-                model_name = saved_llm.get("model", "LLM")
+                model_name = saved_llm.get("model", "Modern Agent")
             except Exception as e:
                 print(f"Warning: Failed to load saved LLM config: {e}")
         
@@ -467,38 +441,19 @@ def main():
             llm_config = create_llm_config_from_args(args)
             if llm_config:
                 llm_provider = setup_llm_integration(llm_config)
-                model_name = args.llm_model if hasattr(args, 'llm_model') else "LLM"
+                model_name = args.llm_model if hasattr(args, 'llm_model') else "Modern Agent"
     
     # 在创建 agent 之前，先配置日志级别（如果尚未配置）
     if not _logging_already_configured:
         from core.logging_manager import set_log_level
         set_log_level(explanation_depth)
     
-    # Create agent configuration
-    config = AgentConfig(
-        name="CustomAgent",
-        explanation_depth=args.explanation_depth,
-        response_format=args.format,
-        max_response_length=args.max_length,
-        enable_caching=args.enable_caching,
-        timeout_seconds=args.timeout_seconds,
-        language=language,
-        log_level=log_level,
-        enable_detailed_logs=enable_detailed_logs,
-        enable_summary_logs=enable_summary_logs,
-        intent_mode=intent_mode
-    )
+    # Create NEW ModernAgent!
+    print()
+    print("✨ Using NEW LLM-driven Modern Agent!")
+    print()
     
-    # Create agent with appropriate reasoning module
-    if llm_provider is not None:
-        from core.logging_manager import get_logger
-        logger = get_logger("CLI")
-        logger.debug(f"LLM provider loaded: {type(llm_provider)}")
-        agent = enhance_agent_with_advanced_reasoning(config, llm_provider)
-    elif args.advanced_reasoning:
-        agent = enhance_agent_with_advanced_reasoning(config)
-    else:
-        agent = CustomAgent(config)
+    agent = ModernAgent(llm_provider=llm_provider, enable_session=True)
     
     if args.interactive:
         asyncio.run(interactive_mode(agent, model_name))

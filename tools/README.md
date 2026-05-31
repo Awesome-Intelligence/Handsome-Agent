@@ -2,30 +2,26 @@
 
 ## 📋 概述
 
-工具系统模块提供各种实用工具，支持文件操作、终端命令、网络搜索、代码执行等功能，使 Agent 能够与外部环境交互。
+工具系统模块提供各种实用工具，支持文件操作、终端命令、网络搜索、代码执行、记忆管理等功能，使 Agent 能够与外部环境交互。
 
-**在 Harness 架构中的位置**: Tool Abstraction Layer（工具抽象层），为 LLM Intent Recognition 提供执行能力。
+**在架构中的位置**: Tool Abstraction Layer（工具抽象层），为 LLM Intent Recognition 提供执行能力。
 
-## 🏛️ Harness 架构 - Tool Layer
+## 🏛️ Hermes 风格架构 - Tool Layer
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│          Harness Architecture - Tool Layer                   │
+│          Hermes-style Architecture - Tool Layer            │
 ├─────────────────────────────────────────────────────────────┤
 │  1. Intent Recognition (LLM-powered)                      │
 │     llm_intent_service.py                                  │
 ├─────────────────────────────────────────────────────────────┤
-│  2. 🛠️ Tool Abstraction Layer ← YOU ARE HERE             │
+│  2. 🛠️ Tool Abstraction Layer ← YOU ARE HERE              │
 │     ToolRegistry │ SkillManager │ Tools                   │
 ├─────────────────────────────────────────────────────────────┤
-│  3. LLM Provider Layer                                  │
-│     Adapter Pattern │ 25+ Providers                      │
+│  3. LLM Provider Layer                                     │
+│     Adapter Pattern │ 25+ Providers                        │
 └─────────────────────────────────────────────────────────────┘
 ```
-
-**核心原则**: Tool Layer 作为 Harness 架构的执行层，只负责执行由 LLM Intent Recognition 识别的任务，**不包含任何业务逻辑**。
-
-**注意**: 这些工具已整合到 [agent/tool_backends.py](../agent/tool_backends.md) 的 ToolBackend 架构中，可以通过 ToolDispatcher 进行统一调用。
 
 ## 🏗️ 架构设计
 
@@ -33,138 +29,221 @@
 
 ```
 tools/
-├── __init__.py
-├── file_tools.py       # 文件操作工具 → FileBackend
-├── terminal_tools.py    # 终端命令工具 → TerminalBackend
-├── web_tools.py         # 网络搜索工具 → WebBackend
-├── code_tools.py       # 代码执行工具 → CodeBackend
-└── system_tools.py     # 系统工具
-```
-
-### ToolBackend 架构
-
-```
-ToolDispatcher (agent/ai_agent.py)
-    │
-    ├── TerminalBackend (6 种 shell)
-    │   └── TerminalTools, SystemTools
-    ├── FileBackend
-    │   └── FileTools
-    ├── WebBackend
-    │   └── WebTools
-    └── CodeBackend
-        └── CodeTools
+├── __init__.py              # 包入口，导出所有工具
+├── registry.py              # 工具注册表（参考 Hermes）
+├── schema_registry.py       # Schema 注册表
+├── file_tools.py           # 文件操作工具
+├── terminal_tools.py       # 终端命令工具
+├── web_tools.py           # 网络搜索工具
+├── code_tools.py          # 代码执行工具
+├── memory_tool.py         # 记忆工具 ✨ 新增
+├── skill_manager_tool.py  # 技能管理工具 ✨ 新增
+├── approval_tool.py       # 审批工具 ✨ 新增
+├── delegate_tool.py       # 代理工具 ✨ 新增
+├── vision_tool.py         # 视觉工具 ✨ 新增
+├── mcp_tool.py            # MCP 工具 ✨ 新增
+├── kanban_tool.py         # 看板工具 ✨ 新增
+├── cronjob_tool.py       # 定时任务工具 ✨ 新增
+├── tool_calling.py        # 工具调用
+├── definitions/           # 工具定义
+│   ├── __init__.py
+│   ├── file_tools.py
+│   ├── shell_tools.py
+│   ├── web_tools.py
+│   ├── code_tools.py
+│   ├── browser_tools.py
+│   ├── multimedia_tools.py
+│   └── task_tools.py
+└── adapters/              # 工具适配器
+    ├── __init__.py
+    ├── hermes_adapter.py
+    └── openclaw_adapter.py
 ```
 
 ## 🧩 工具列表
 
-### 1. FileTools
+### 核心工具（已实现）
 
-**职责**: 文件和目录操作。
+| 类别 | 工具 | 功能 | 状态 |
+|------|------|------|------|
+| **文件操作** | FileTools | 读写文件、目录操作 | ✅ |
+| **终端命令** | TerminalTools | 执行系统命令 | ✅ |
+| **网络工具** | WebTools | 搜索、抓取网页 | ✅ |
+| **代码工具** | CodeTools | 代码分析、格式化 | ✅ |
+| **浏览器** | BrowserTools | 浏览器自动化 | ✅ |
+| **多媒体** | MultimediaTools | 图像生成、TTS | ✅ |
+| **任务工具** | TaskTools | Todo 列表管理 | ✅ |
 
-**支持的操作**:
-| 工具名 | 功能 | 参数 |
-|--------|------|------|
-| `read_file` | 读取文件内容 | `file_path` |
-| `write_file` | 写入文件内容 | `file_path`, `content`, `append` |
-| `list_directory` | 列出目录内容 | `path`, `recursive` |
-| `create_directory` | 创建目录 | `path` |
-| `delete_file` | 删除文件 | `file_path` |
-| `rename_file` | 重命名文件 | `old_path`, `new_path` |
+### 新增工具（参考 Hermes）
 
-**处理流程**:
+| 类别 | 工具 | 功能 | 状态 |
+|------|------|------|------|
+| **记忆工具** | MemoryTool | 记忆存储和检索 | 📝 框架已创建 |
+| **技能管理** | SkillManagerTool | 技能注册和执行 | 📝 框架已创建 |
+| **审批工具** | ApprovalTool | 操作审批 | 📝 框架已创建 |
+| **代理工具** | DelegateTool | 子任务代理 | 📝 框架已创建 |
+| **视觉工具** | VisionTool | 图像分析和 OCR | 📝 框架已创建 |
+| **MCP 工具** | MCPTool | MCP 协议集成 | 📝 框架已创建 |
+| **看板工具** | KanbanTool | 看板任务管理 | 📝 框架已创建 |
+| **定时任务** | CronjobTool | 定时任务调度 | 📝 框架已创建 |
 
+## 🏛️ ToolRegistry 架构
+
+参考 Hermes Agent 的 registry.py 实现：
+
+```python
+from tools.registry import registry, ToolEntry, discover_builtin_tools
+
+# 获取所有已注册工具
+tools = registry.get_all_tools()
+
+# 获取工具定义（用于 LLM）
+definitions = registry.get_definitions()
+
+# 执行工具
+result = await registry.execute("tool_name", parameters)
+
+# 获取统计信息
+stats = registry.get_stats()
+print(stats)
+# {
+#     "total_tools": 15,
+#     "available_tools": 15,
+#     "toolsets": ["file", "terminal", "web", ...],
+#     "by_toolset": {...}
+# }
 ```
-调用请求 → 参数验证 → 执行操作 → 返回结果
-               │          │
-               ▼          ▼
-         路径检查       异常处理
+
+### ToolEntry 结构
+
+```python
+@dataclass
+class ToolEntry:
+    name: str                    # 工具名称
+    toolset: str               # 工具集分类
+    schema: Dict[str, Any]      # 工具参数模式
+    handler: Callable           # 处理函数
+    check_fn: Optional[Callable]  # 可用性检查函数
+    requires_env: List[str]     # 环境变量要求
+    is_async: bool             # 是否异步
+    description: str            # 工具描述
+    emoji: str                 # 表情图标
+    max_result_size_chars: int  # 最大结果大小
 ```
 
-### 2. TerminalTools
+### 工具注册
 
-**职责**: 终端命令执行。
+```python
+# 在工具模块中注册
+from tools.registry import registry
 
-**支持的操作**:
-| 工具名 | 功能 | 参数 |
-|--------|------|------|
-| `run_command` | 执行终端命令 | `command`, `cwd`, `timeout` |
-| `run_python` | 执行 Python 代码 | `code`, `timeout` |
+def check_terminal_requirements():
+    """检查终端工具是否可用"""
+    import shutil
+    return shutil.which("bash") is not None
 
-**处理流程**:
+def terminal_handler(command: str, timeout: int = 30) -> str:
+    """执行终端命令"""
+    import subprocess
+    result = subprocess.run(command, shell=True, capture_output=True, timeout=timeout)
+    return result.stdout.decode()
 
+registry.register(
+    name="terminal",
+    toolset="shell",
+    schema={
+        "command": {"type": "string", "description": "要执行的命令"},
+        "timeout": {"type": "integer", "description": "超时时间（秒）"}
+    },
+    handler=terminal_handler,
+    check_fn=check_terminal_requirements,
+    is_async=False,
+    description="Execute terminal commands",
+    emoji="🖥️"
+)
 ```
-命令请求 → 安全检查 → 执行命令 → 返回输出
-               │          │
-               ▼          ▼
-         命令白名单     超时控制
-```
-
-### 3. WebTools
-
-**职责**: 网络搜索和网页抓取。
-
-**支持的操作**:
-| 工具名 | 功能 | 参数 |
-|--------|------|------|
-| `web_search` | 网络搜索 | `query`, `num_results` |
-| `fetch_url` | 获取网页内容 | `url` |
-
-### 4. CodeTools
-
-**职责**: 代码分析和执行。
-
-**支持的操作**:
-| 工具名 | 功能 | 参数 |
-|--------|------|------|
-| `analyze_code` | 代码静态分析 | `code`, `language` |
-| `format_code` | 代码格式化 | `code`, `language` |
-
-### 5. SystemTools
-
-**职责**: 系统信息获取。
-
-**支持的操作**:
-| 工具名 | 功能 | 参数 |
-|--------|------|------|
-| `get_system_info` | 获取系统信息 | 无 |
-| `get_current_time` | 获取当前时间 | 无 |
 
 ## 🔄 工具调用流程
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                    工具调用请求                                    │
-└───────────────────────────────┬──────────────────────────────────┘
+│                    工具调用请求                                     │
+└───────────────────────────────┬────────────────────────────────────┘
                                 │
                                 ▼
 ┌────────────────────────────────────────────────────────────────────┐
-│  ToolRegistry (model_tools.py)                                    │
+│  ToolRegistry (registry.py)                                        │
 │  • 查找工具                                                        │
 │  • 验证参数                                                        │
-│  • 检查权限                                                        │
-└───────────────────────────────┬──────────────────────────────────┘
+│  • 检查可用性（带缓存）                                            │
+└───────────────────────────────┬────────────────────────────────────┘
                                 │
                                 ▼
 ┌────────────────────────────────────────────────────────────────────┐
-│  ToolDispatcher (model_tools.py)                                  │
-│  • 调度工具执行                                                    │
-│  • 处理异步调用                                                    │
-│  • 收集结果                                                        │
-└───────────────────────────────┬──────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  具体工具执行 (tools/*.py)                                         │
+│  具体工具执行                                                      │
 │  • FileTools / TerminalTools / WebTools / CodeTools               │
-│  • 执行实际操作                                                    │
+│  • MemoryTool / SkillManagerTool / ApprovalTool                  │
+│  • VisionTool / MCPTool / KanbanTool / CronjobTool               │
+│  • 执行实际操作                                                     │
 │  • 返回结果                                                        │
-└───────────────────────────────┬──────────────────────────────────┘
+└───────────────────────────────┬────────────────────────────────────┘
                                 │
                                 ▼
 ┌────────────────────────────────────────────────────────────────────┐
-│                    返回工具执行结果                                │
+│                    返回工具执行结果                                 │
 └────────────────────────────────────────────────────────────────────┘
+```
+
+## 🎯 使用示例
+
+### 基础使用
+
+```python
+from tools import get_all_tools, get_tool_by_name
+
+# 获取所有工具
+all_tools = get_all_tools()
+print(f"可用工具数量: {len(all_tools)}")
+
+# 获取单个工具
+tool = get_tool_by_name("read_file")
+print(f"工具定义: {tool}")
+```
+
+### 使用注册表
+
+```python
+from tools.registry import registry
+
+# 获取工具定义（用于 LLM）
+definitions = registry.get_definitions()
+print(f"LLM 可用的工具定义: {definitions}")
+
+# 执行工具
+result = await registry.execute("read_file", {"file_path": "/tmp/test.txt"})
+```
+
+### 注册新工具
+
+```python
+from tools.registry import registry
+
+def my_tool_handler(param1: str, param2: int) -> str:
+    """自定义工具处理器"""
+    return f"{param1} {param2}"
+
+registry.register(
+    name="my_tool",
+    toolset="custom",
+    schema={
+        "param1": {"type": "string", "description": "参数1"},
+        "param2": {"type": "integer", "description": "参数2"}
+    },
+    handler=my_tool_handler,
+    is_async=False,
+    description="这是一个自定义工具",
+    emoji="🔧"
+)
 ```
 
 ## 📊 工具分类
@@ -173,172 +252,40 @@ ToolDispatcher (agent/ai_agent.py)
 |------|------|------|
 | 文件操作 | FileTools | 读写文件、目录操作 |
 | 终端命令 | TerminalTools | 执行系统命令 |
-| 网络 | WebTools | 搜索、抓取网页 |
-| 代码 | CodeTools | 代码分析、格式化 |
-| 系统 | SystemTools | 系统信息获取 |
-
-## 🎯 使用示例
-
-```python
-from tools.file_tools import FileTools
-from tools.terminal_tools import TerminalTools
-
-# 文件操作
-file_tools = FileTools()
-content = file_tools.read_file("config.json")
-file_tools.write_file("output.txt", "Hello World")
-
-# 终端命令
-terminal_tools = TerminalTools()
-result = terminal_tools.run_command("ls -la", cwd="/home")
-```
+| 网络工具 | WebTools | 搜索、抓取网页 |
+| 代码工具 | CodeTools | 代码分析、格式化 |
+| 浏览器 | BrowserTools | 浏览器自动化 |
+| 多媒体 | MultimediaTools | 图像生成、TTS |
+| 任务工具 | TaskTools | Todo 列表管理 |
+| 记忆管理 | MemoryTool | 记忆存储和检索 |
+| 技能管理 | SkillManagerTool | 技能注册和执行 |
+| 审批控制 | ApprovalTool | 操作审批 |
+| 任务代理 | DelegateTool | 子任务代理 |
+| 视觉处理 | VisionTool | 图像分析和 OCR |
+| MCP 集成 | MCPTool | MCP 协议集成 |
+| 看板管理 | KanbanTool | 看板任务管理 |
+| 定时任务 | CronjobTool | 定时任务调度 |
 
 ## 🔒 安全考虑
 
-- 命令执行有白名单限制
-- 文件操作有路径限制
-- 超时控制防止长时间运行
-- 敏感信息过滤
+- ✅ 命令执行有白名单限制
+- ✅ 文件操作有路径限制
+- ✅ 超时控制防止长时间运行
+- ✅ 敏感信息过滤
+- ✅ check_fn 缓存防止频繁检查
+- ✅ 工具可用性验证
 
 ## 🔓 开源替代方案
 
-### 1. 文件操作
+| 场景 | 推荐库 | GitHub |
+|------|--------|--------|
+| HTTP 客户端 | `httpx` | [encode/httpx](https://github.com/encode/httpx) |
+| 浏览器自动化 | `playwright` | [microsoft/playwright](https://github.com/microsoft/playwright) |
+| 代码检查 | `ruff` | [astral-sh/ruff](https://github.com/astral-sh/ruff) |
+| 系统信息 | `psutil` | [giampaolo/psutil](https://github.com/giampaolo/psutil) |
 
-| 方案 | 描述 | 适用场景 | GitHub |
-|------|------|----------|--------|
-| **Pathlib** | Python 标准库路径操作 | 基础文件操作 | [Python 内置](https://docs.python.org/3/library/pathlib.html) |
-| **shutil** | 高级文件操作 | 复制、移动、压缩 | [Python 内置](https://docs.python.org/3/library/shutil.html) |
-| **watchdog** | 文件系统监控 | 实时监控 | [samuelcolvin/watchdog](https://github.com/samuelcolvin/watchdog) |
-| **pathspec** | 文件模式匹配 | 通配符处理 | [cpburnz/python-pathspec](https://github.com/cpburnz/python-pathspec) |
-| **增删改查** | 目录树操作 | 目录遍历 | [parrt/lolviz](https://github.com/parrt/lolviz) |
+## 📚 参考
 
-### 2. 终端命令执行
-
-| 方案 | 描述 | 适用场景 | GitHub |
-|------|------|----------|--------|
-| **subprocess** | 标准库进程管理 | 基础命令 | [Python 内置](https://docs.python.org/3/library/subprocess.html) |
-| **pexpect** | 交互式进程控制 | 交互式命令 | [pexpect/pexpect](https://github.com/pexpect/pexpect) |
-| **plac** | 命令行参数解析 | 参数解析 | [micheles/plac](https://github.com/micheles/plac) |
-| **typer** | 现代 CLI 框架 | CLI 应用 | [tiangolo/typer](https://github.com/tiangolo/typer) |
-| **Click** | 命令行接口创建 | CLI 构建 | [pallets/click](https://github.com/pallets/click) |
-
-### 3. 网络工具
-
-| 方案 | 描述 | 适用场景 | GitHub |
-|------|------|----------|--------|
-| **httpx** | 异步 HTTP 客户端 | HTTP 请求 | [encode/httpx](https://github.com/encode/httpx) |
-| **aiohttp** | 异步 HTTP 框架 | 异步网络 | [aio-libs/aiohttp](https://github.com/aio-libs/aiohttp) |
-| **requests** | HTTP 请求库 | 同步请求 | [psf/requests](https://github.com/psf/requests) |
-| **playwright** | 浏览器自动化 | 网页抓取 | [microsoft/playwright](https://github.com/microsoft/playwright) |
-| **selenium** | Web 自动化测试 | 浏览器控制 | [SeleniumHQ/selenium](https://github.com/SeleniumHQ/selenium) |
-| **beautifulsoup4** | HTML/XML 解析 | 网页解析 | [crummy/beautifulsoup](https://github.com/crummy/beautifulsoup) |
-| **scrapy** | 爬虫框架 | 大规模爬取 | [scrapy/scrapy](https://github.com/scrapy/scrapy) |
-
-**集成建议**:
-```python
-# 使用 httpx 替代 requests
-import httpx
-
-client = httpx.AsyncClient()
-response = await client.get("https://api.example.com/data")
-data = response.json()
-```
-
-### 4. 代码执行
-
-| 方案 | 描述 | 适用场景 | GitHub |
-|------|------|----------|--------|
-| **codeexec** | 安全代码执行 | 沙箱执行 | [sussman/codeexec](https://github.com/sussman/codeexec) |
-| **pyodide** | Python in Browser | Web 执行 | [pyodide/pyodide](https://github.com/pyodide/pyodide) |
-| **pysandbox** | Python 沙箱 | 安全隔离 | [Nicolas-Schwartz/pysandbox](https://github.com/Nicolas-Schwartz/pysandbox) |
-| **restrictedpython** | 限制性 Python | 语法检查 | [ZPSShaman/restrictedpython](https://github.com/ZPSShaman/restrictedpython) |
-
-### 5. 代码分析
-
-| 方案 | 描述 | 适用场景 | GitHub |
-|------|------|----------|--------|
-| **astroid** | Python AST 分析 | 代码解析 | [pylint/astroid](https://github.com/pylint/astroid) |
-| **ruff** | 超快速 Linter | 代码检查 | [astral-sh/ruff](https://github.com/astral-sh/ruff) |
-| **black** | 代码格式化 | 格式统一 | [psf/black](https://github.com/psf/black) |
-| **mypy** | 静态类型检查 | 类型检查 | [python/mypy](https://github.com/python/mypy) |
-| **pylint** | 代码分析 | 全面检查 | [pylint/pylint](https://github.com/pylint/pylint) |
-| **rope** | Python 重构库 | 代码重构 | [python-rope/rope](https://github.com/python-rope/rope) |
-
-**集成建议**:
-```python
-# 使用 ruff 快速代码检查
-import subprocess
-result = subprocess.run(["ruff", "check", "file.py"], capture_output=True)
-print(result.stdout)
-```
-
-### 6. 搜索功能
-
-| 方案 | 描述 | 适用场景 | GitHub |
-|------|------|----------|--------|
-| **whoosh** | 纯 Python 全文搜索 | 轻量搜索 | [mochicow/whoosh](https://github.com/mochicow/whoosh) |
-| **searchIn** | 全文搜索库 | 本地搜索 | [messari/searchIn](https://github.com/messari/searchIn) |
-| **elasticsearch-py** | ES 客户端 | 分布式搜索 | [elastic/elasticsearch-py](https://github.com/elastic/elasticsearch-py) |
-| **meilisearch** | 超快速搜索 | 即时搜索 | [meilisearch/meilisearch-python](https://github.com/meilisearch/meilisearch-python) |
-
-### 7. 系统工具
-
-| 方案 | 描述 | 适用场景 | GitHub |
-|------|------|----------|--------|
-| **psutil** | 系统信息获取 | 跨平台系统 | [giampaolo/psutil](https://github.com/giampaolo/psutil) |
-| **platformdirs** | 平台目录 | 路径兼容 | [platformdirs/platformdirs](https://github.com/platformdirs/platformdirs) |
-| **dotenv** | 环境变量管理 | 配置管理 | [theskumar/python-dotenv](https://github.com/theskumar/python-dotenv) |
-| **python-dotenv** | .env 文件解析 | 配置加载 | [theskumar/python-dotenv](https://github.com/theskumar/python-dotenv) |
-
-## 🔧 替换指南
-
-### 使用 httpx 替换 requests
-
-```python
-# 当前实现
-import requests
-response = requests.get("https://api.example.com/data")
-
-# httpx 替代 (支持异步)
-import httpx
-async with httpx.AsyncClient() as client:
-    response = await client.get("https://api.example.com/data")
-```
-
-### 使用 ruff 替换 pylint/black
-
-```python
-# 当前实现
-import subprocess
-subprocess.run(["pylint", "file.py"])
-
-# ruff 替代 (快 10-100 倍)
-import subprocess
-subprocess.run(["ruff", "check", "file.py"])
-subprocess.run(["ruff", "format", "file.py"])
-```
-
-### 使用 psutil 获取系统信息
-
-```python
-# 当前实现
-import platform
-sys_info = {
-    "system": platform.system(),
-    "version": platform.version()
-}
-
-# psutil 替代 (更丰富)
-import psutil
-sys_info = {
-    "cpu_percent": psutil.cpu_percent(),
-    "memory_percent": psutil.virtual_memory().percent,
-    "disk_usage": psutil.disk_usage('/').percent
-}
-```
-
-## 📚 进一步阅读
-
+- [Hermes Agent Tools](https://github.com/...)
 - [Awesome Python - 命令行工具](https://github.com/vinta/awesome-python)
 - [Awesome Python - Web Scraping](https://github.com/pirati-cz/awesome-python-tools)
-- [Python 最佳实践](https://docs.python-guide.org)
