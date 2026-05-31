@@ -11,13 +11,16 @@
 2. 工具 Schema 驱动 - 提供完整工具定义，LLM 理解能力
 3. 上下文感知 - 会话历史和记忆提供上下文
 4. 简单降级 - 无 LLM 时使用简单规则
+5. Agent 定义集成 - 从 agent.md、capabilities.md 等文件加载身份和能力边界
 """
 
 import json
 import logging
+import os
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 
 @dataclass
@@ -43,6 +46,81 @@ class ToolSelectionResult:
     error: Optional[str] = None
 
 
+class AgentDefinitionLoader:
+    """
+    Agent 定义加载器
+    
+    从 agent.md、capabilities.md 等文件加载 Agent 的身份、性格和能力边界
+    参考 Hermes 和 OpenClaw 的实现方式
+    """
+    
+    def __init__(self):
+        self.agent_dir = Path(__file__).parent.parent / "agent"
+        self._definitions: Dict[str, str] = {}
+        self._load_definitions()
+    
+    def _load_definitions(self):
+        """加载所有 agent 定义文件"""
+        definition_files = {
+            'identity': 'agent.md',
+            'capabilities': 'capabilities.md',
+            'memory': 'memory.md',
+            'tools': 'tools.md'
+        }
+        
+        for key, filename in definition_files.items():
+            file_path = self.agent_dir / filename
+            try:
+                if file_path.exists():
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        self._definitions[key] = f.read()
+                    logging.getLogger(__name__).info(f"Loaded agent definition: {filename}")
+                else:
+                    logging.getLogger(__name__).warning(f"Agent definition file not found: {filename}")
+            except Exception as e:
+                logging.getLogger(__name__).error(f"Failed to load {filename}: {e}")
+    
+    def get_identity_summary(self) -> str:
+        """获取 Agent 身份摘要（用于系统提示）"""
+        if 'identity' not in self._definitions:
+            return "You are a helpful AI assistant."
+        
+        identity = self._definitions['identity']
+        lines = identity.split('\n')
+        summary_lines = []
+        
+        for line in lines:
+            if line.startswith('#') or line.startswith('>'):
+                continue
+            if '## 🎭 身份定义' in line or '## 🧠 性格设定' in line:
+                summary_lines.append(line)
+            elif line.strip() and not line.startswith('---'):
+                summary_lines.append(line)
+        
+        return '\n'.join(summary_lines[:50])
+    
+    def get_capabilities_summary(self) -> str:
+        """获取能力摘要"""
+        if 'capabilities' not in self._definitions:
+            return ""
+        
+        capabilities = self._definitions['capabilities']
+        lines = capabilities.split('\n')
+        summary_lines = []
+        
+        for line in lines:
+            if '## 🎯 能力概览' in line or '## ✅ 你能做的' in line or '## ❌ 你不能做的' in line:
+                summary_lines.append(line)
+            elif line.strip() and not line.startswith('---') and not line.startswith('#'):
+                summary_lines.append(line)
+        
+        return '\n'.join(summary_lines[:30])
+    
+    def get_all_definitions(self) -> Dict[str, str]:
+        """获取所有定义"""
+        return self._definitions.copy()
+
+
 class LLMToolSelector:
     """
     LLM 直接驱动的工具选择器
@@ -63,6 +141,8 @@ class LLMToolSelector:
         self.tools: Dict[str, ToolDefinition] = {}
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.propagate = False
+        
+        self.agent_loader = AgentDefinitionLoader()
 
     def register_tool(self, tool: ToolDefinition):
         """注册工具"""
@@ -86,19 +166,24 @@ class LLMToolSelector:
         return schema
 
     def _build_system_prompt(self, conversation_history: Optional[List[Dict]] = None) -> str:
-        """构建系统提示词"""
+        """构建系统提示词（包含 Agent 定义）"""
         tools_schema = json.dumps(self.get_tools_schema(), ensure_ascii=False, indent=2)
 
         history_context = ""
         if conversation_history:
-            recent = conversation_history[-6:]  # 最近 6 轮对话
+            recent = conversation_history[-6:]
             history_context = "\n\nRecent conversation:\n"
             for msg in recent:
                 role = msg.get('role', 'unknown')
-                content = msg.get('content', '')[:200]  # 截断
+                content = msg.get('content', '')[:200]
                 history_context += f"- {role}: {content}\n"
 
-        prompt = f"""You are a helpful AI assistant with access to various tools.
+        identity_summary = self.agent_loader.get_identity_summary()
+        capabilities_summary = self.agent_loader.get_capabilities_summary()
+
+        prompt = f"""{identity_summary}
+
+{capabilities_summary}
 
 Available tools:
 {tools_schema}
@@ -106,14 +191,16 @@ Available tools:
 {history_context}
 
 Your task:
-1. Understand the user's request
+1. Understand the user's request based on your identity and capabilities
 2. Decide if you need to use a tool or respond directly
 3. If using a tool, select the most appropriate one and provide parameters
+4. Stay within your capabilities - do not attempt actions you cannot perform
 
 Decision rules:
 - Use a tool ONLY when necessary (e.g., need external data, execute commands, access files)
 - For general knowledge questions, greetings, or conversations, respond directly
 - If unsure about parameters, use reasonable defaults or ask for clarification
+- If the request is outside your capabilities, politely explain and suggest alternatives
 
 Response format (JSON):
 {{
@@ -569,7 +656,7 @@ class LLMDrivenDecisionEngine:
     def get_capabilities(self) -> Dict[str, Any]:
         """获取当前能力"""
         return {
-            'tool_count': len(self.tools),
+            'tool_count': len(self.tool_selector.tools),
             'tools': [
                 {
                     'name': tool.name,

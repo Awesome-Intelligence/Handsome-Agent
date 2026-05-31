@@ -150,11 +150,13 @@ class TestDirectToolRouter:
         router.register_tool(ToolDefinition(
             name='calculator',
             description='Calculate math expressions',
+            parameters={'expression': 'string'},
             examples=['计算', '算一下']
         ))
         router.register_tool(ToolDefinition(
             name='search',
             description='Search for information',
+            parameters={'query': 'string'},
             examples=['搜索', '查找']
         ))
         return router
@@ -198,6 +200,7 @@ class TestToolExecutionEngine:
         engine.register_tool(ToolDefinition(
             name='calculator',
             description='Calculate',
+            parameters={'expression': 'string'},
             handler=calc_handler
         ))
 
@@ -230,7 +233,8 @@ class TestToolExecutionEngine:
         """测试无处理器"""
         engine.register_tool(ToolDefinition(
             name='empty',
-            description='No handler'
+            description='No handler',
+            parameters={}
         ))
 
         result = await engine.execute('empty', {})
