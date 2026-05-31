@@ -228,29 +228,13 @@ class SummaryCompressor(ContextCompressor):
         for msg in messages:
             content = msg.get('content', '').lower()
 
-            # 简单关键词提取
-            keywords = ['python', 'java', '项目', '文件', '代码', 'bug', '错误', '问题']
-            for kw in keywords:
-                if kw in content:
-                    topics.add(kw)
-
-            # 简单偏好提取
-            pref_keywords = ['喜欢', 'prefer', '不喜欢', '不要', 'always', 'never']
-            for pkw in pref_keywords:
-                if pkw in content:
-                    user_prefs.append(content[:100])
+            # DEPRECATED: 关键词提取应该由 LLM 完成，这里仅作为降级使用
+            # 简化：不做关键词提取，让 LLM 在生成摘要时自己识别
+            pass  # 不再使用硬编码关键词
 
         summary_parts = []
 
-        if topics:
-            summary_parts.append(f"## 话题\n- {' '.join(topics)}")
-
-        if key_points:
-            summary_parts.append(f"## 关键信息\n" + "\n".join(f"- {p}" for p in key_points[:3]))
-
-        if user_prefs:
-            summary_parts.append(f"## 用户偏好\n- {'; '.join(user_prefs[:2])}")
-
+        # DEPRECATED: 应该由 LLM 直接生成摘要
         if not summary_parts:
             summary_parts.append(f"## 摘要\n- 共 {len(messages)} 条对话")
 

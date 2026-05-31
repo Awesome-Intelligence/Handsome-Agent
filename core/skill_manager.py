@@ -1122,19 +1122,17 @@ class GreetingSkill(BaseSkill):
         )
     
     async def execute(self, message: str = "") -> SkillResult:
-        greetings = ['hello', 'hi', '你好', '嗨', 'good morning', 'good afternoon']
-        message_lower = message.lower()
+        """
+        Execute greeting skill.
         
-        if any(g in message_lower for g in greetings):
-            return SkillResult(
-                success=True,
-                output="你好！我是你的智能助手。有什么我可以帮助你的吗？"
-            )
-        else:
-            return SkillResult(
-                success=True,
-                output="很高兴与你交谈！"
-            )
+        DEPRECATED: 应该使用 LLM 来判断意图和生成响应
+        """
+        # 简化：直接返回友好响应
+        # 不再使用硬编码关键词判断
+        return SkillResult(
+            success=True,
+            output="你好！我是你的智能助手。有什么我可以帮助你的吗？"
+        )
 
 
 @skill(

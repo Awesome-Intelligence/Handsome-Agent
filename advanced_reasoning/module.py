@@ -207,61 +207,43 @@ class AdvancedReasoningModule(BaseAgentModule):
         }
     
     def _classify_input(self, input_data: str) -> str:
-        """Enhanced input classification."""
-        input_lower = input_data.lower()
+        """Enhanced input classification.
         
-        if any(keyword in input_lower for keyword in ['python', 'code', 'function', 'algorithm', 'optimize', 'debug', 'error', 'implement', 'fibonacci', 'binary search', 'sort', 'recursion']):
-            return 'programming'
+        DEPRECATED: 应该使用 LLM 来判断输入类型，这里仅作为降级使用
+        """
+        # 这个方法应该由 LLM 调用来替代
+        # 这里仅保留作为降级
         
-        elif any(keyword in input_lower for keyword in ['machine learning', 'neural network', 'artificial intelligence', 'deep learning']) or \
-             any(keyword == word for keyword in ['ai', 'model'] for word in input_lower.split()):
-            return 'machine_learning'
-        
-        elif any(keyword in input_lower for keyword in ['api', 'rest', 'graphql', 'architecture', 'design', 'system']):
-            return 'system_design'
-        
-        elif any(keyword in input_lower for keyword in ['what is', 'explain', 'how does', 'why', 'difference between']):
-            return 'conceptual'
-            
-        else:
-            return 'general'
+        # 简化判断：不再使用大量硬编码关键词
+        # 默认返回 general，让 LLM 来判断
+        return 'general'
     
     def _assess_complexity(self, input_data: str) -> int:
-        """Assess complexity level of the input (0-3 scale)."""
-        input_lower = input_data.lower()
-        word_count = len(input_data.split())
-        question_marks = input_data.count('?')
-        technical_terms = len([word for word in input_data.split() 
-                              if any(term in word.lower() for term in 
-                                    ['algorithm', 'framework', 'architecture', 'system', 'optimize', 'performance'])])
+        """Assess complexity level of the input (0-3 scale).
         
-        complexity = 0
-        if word_count > 50:
-            complexity += 1
-        if question_marks > 1:
-            complexity += 1
-        if technical_terms > 2:
-            complexity += 1
-        if any(keyword in input_lower for keyword in ['optimize', 'performance', 'implement', 'detailed']):
-            complexity += 1
-            
-        return min(complexity, 3)
+        DEPRECATED: 应该使用 LLM 来判断复杂度，这里仅作为降级使用
+        """
+        # 这个方法应该由 LLM 调用来替代
+        # 简化判断：只基于字数
+        word_count = len(input_data.split())
+        
+        if word_count > 100:
+            return 3
+        elif word_count > 50:
+            return 2
+        elif word_count > 20:
+            return 1
+        else:
+            return 0
     
     def _generate_intelligent_response(self, input_data: str, input_type: str, complexity: int) -> str:
-        """Generate response based on knowledge base."""
-        input_lower = input_data.lower()
+        """Generate response based on knowledge base.
         
-        if any(greeting in input_lower for greeting in ['hello', 'hi', '你好', '嗨']):
-            return "你好！我是一个智能问答助手。有什么我可以帮你的吗？我可以解答编程问题、解释技术概念、提供代码示例等等。"
-        
-        if input_type == 'programming' and self.knowledge_base:
-            patterns = self.knowledge_base.get('programming', {}).get('common_patterns', {})
-            for pattern_name, pattern_code in patterns.items():
-                if pattern_name.lower() in input_lower:
-                    return self._generate_pattern_response(pattern_name, pattern_code, complexity)
-            
-            if any(keyword in input_lower for keyword in ['optimize', 'optimization', 'performance', 'faster']):
-                return self._generate_optimization_response(complexity)
+        DEPRECATED: 应该使用 LLM 来生成响应，这里仅作为降级使用
+        """
+        # 这个方法应该由 LLM 调用来替代
+        # 直接返回默认响应
+        return "我理解你的问题。请让我使用 LLM 来为你提供更准确的回答。"
         
         responses = {
             'programming': f"""关于编程问题，我可以帮助你：
@@ -429,13 +411,14 @@ def greet():
         return steps[:5]
     
     def _calculate_confidence(self, input_data: str, response_content: str) -> float:
-        """Calculate confidence score."""
+        """
+        Calculate confidence score.
+        
+        DEPRECATED: 置信度应该由 LLM 来评估，这里仅作为降级使用
+        """
         if self._llm_provider:
             return 0.95
         
-        clarity_indicators = [
-            '?' in input_data,
-            len(input_data.split()) > 10,
-            any(word in input_data.lower() for word in ['please', 'help', 'explain'])
-        ]
-        return min(0.7 + sum(clarity_indicators) * 0.1, 1.0)
+        # DEPRECATED: 硬编码的置信度计算
+        # 简化：返回默认置信度
+        return 0.7

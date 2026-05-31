@@ -25,22 +25,23 @@ class OpenHumanAgent:
         return response
     
     def _detect_mood(self, query):
-        query_lower = query.lower()
-        negative_words = ["frustrated", "angry", "stuck", "confused"]
-        curious_words = ["curious", "wondering", "explain"]
+        """
+        Detect user mood from query.
         
-        if any(word in query_lower for word in negative_words):
-            self.user_mood = "frustrated"
-        elif any(word in query_lower for word in curious_words):
-            self.user_mood = "curious"
-        else:
-            self.user_mood = "neutral"
+        DEPRECATED: 应该使用 LLM 来检测用户情绪，这里仅作为降级使用
+        """
+        # 这个方法应该由 LLM 调用来替代
+        # 简化：默认返回中性
+        self.user_mood = "neutral"
     
     def _generate_response(self, query):
-        if self.user_mood == "frustrated":
-            return "I hear you. Let me help you work through this step by step."
-        elif self.user_mood == "curious":
-            return "Great question! Here's a detailed explanation:"
+        """
+        Generate response based on detected mood.
+        
+        DEPRECATED: 应该使用 LLM 来生成响应，这里仅作为降级使用
+        """
+        # 这个方法应该由 LLM 调用来替代
+        # 简化：默认响应
         return "Here's what I found for you:"
     
     def _update_context(self, query, response):

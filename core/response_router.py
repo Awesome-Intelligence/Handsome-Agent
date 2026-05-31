@@ -106,42 +106,25 @@ class ResponseStrategyRouter:
         """
         判断是否为复杂任务
         
-        特征:
-        - 包含多个动作词 (开发/实现/创建 + 设计 + 测试)
-        - 涉及多个领域 (前端 + 后端 + 数据库)
-        - 需要多步骤完成
+        DEPRECATED: 应该使用 LLM 来判断任务复杂度，这里仅作为降级使用
         """
-        # 复杂任务关键词
-        complex_indicators = [
-            # 多步骤动作
-            '开发一个', '实现', '搭建', '构建', '部署',
-            # 多组件描述
-            '前端', '后端', '数据库', 'API', '界面',
-            # 项目类型
-            '项目', '系统', '应用', '平台',
-            # 开发流程
-            '包括', '包含', '以及', '和',
-        ]
+        # 这个方法应该由 LLM 调用来替代
+        # 这里仅保留作为降级，且不应该用于主要判断逻辑
         
-        # 强复杂信号
-        strong_signals = sum(1 for kw in complex_indicators if kw in input_lower)
+        # 简化判断：只检查是否有明显的多步骤特征
+        has_multi_step = '以及' in input_lower or '包括' in input_lower and '和' in input_lower
+        has_project_words = '项目' in input_lower or '系统' in input_lower
         
-        # 检查是否是多步骤请求
-        has_multiple_actions = (
-            ('创建' in input_lower or '开发' in input_lower or '实现' in input_lower) and
-            ('包括' in input_lower or '和' in input_lower or '以及' in input_lower)
-        )
-        
-        return strong_signals >= 2 or has_multiple_actions
+        return has_multi_step and has_project_words
     
     def _is_skill_request(self, input_lower: str, user_input: str) -> bool:
         """
         判断是否为技能执行请求
         
-        特征:
-        - 明确的操作指令
-        - 工具/系统命令
+        DEPRECATED: 应该使用 LLM 来判断意图，这里仅作为降级使用
         """
+        # 这个方法应该由 LLM 调用来替代
+        # 这里仅保留作为降级
         skill_indicators = [
             '运行', '执行', '打开', '启动',
             '创建文件', '读取文件', '删除',
@@ -157,11 +140,10 @@ class ResponseStrategyRouter:
         """
         判断是否需要高级推理
         
-        特征:
-        - 解释性问题
-        - 推理问题
-        - 技术概念
+        DEPRECATED: 应该使用 LLM 来判断意图，这里仅作为降级使用
         """
+        # 这个方法应该由 LLM 调用来替代
+        # 这里仅保留作为降级
         reasoning_indicators = [
             '为什么', '如何', '是什么', '什么意思',
             '解释', '原理', '机制',
@@ -289,20 +271,29 @@ class UnifiedAgentIntegration:
         return result.content, execution_flow, metadata
     
     async def _handle_simple_response(self, user_input: str):
-        """处理简单响应"""
-        input_lower = user_input.lower()
+        """处理简单响应
         
-        # 简单问候
-        greetings = ['你好', 'hello', 'hi', '嗨']
-        if any(g in input_lower for g in greetings):
-            response = "你好！有什么我可以帮助你的吗？"
-        else:
-            response = "我理解你的意思。有什么具体需要帮助的吗？"
+        DEPRECATED: 应该使用 LLM 来判断意图和生成响应
+        """
+        # 直接使用 agent 的 LLM 来响应
+        if self.agent.llm_provider:
+            try:
+                response = await self.agent.llm_provider.generate(user_input)
+                execution_flow = [
+                    f"🎯 [策略路由] 选择简单响应策略",
+                    f"💬 [LLM响应] 生成回复..."
+                ]
+                metadata = {'strategy': 'simple_response', 'method': 'llm'}
+                return response, execution_flow, metadata
+            except Exception:
+                pass
         
+        # 降级：默认响应
+        response = "我理解你的意思。有什么具体需要帮助的吗？"
         execution_flow = [
             f"🎯 [策略路由] 选择简单响应策略",
             f"💬 [简单响应] 生成回复..."
         ]
-        metadata = {'strategy': 'simple_response'}
+        metadata = {'strategy': 'simple_response', 'method': 'fallback'}
         
         return response, execution_flow, metadata

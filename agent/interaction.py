@@ -16,12 +16,14 @@ class InteractionManager:
         return self.interaction_count
     
     def update_profile(self, query):
-        # 简单用户画像
-        keywords = ["frustrated", "curious", "learning", "expert"]
-        for kw in keywords:
-            if kw in query.lower():
-                self.user_profile[kw] = self.user_profile.get(kw, 0) + 1
-        return self.user_profile
+        """
+        Update user profile based on query.
+        
+        DEPRECATED: 应该使用 LLM 来分析用户画像，这里仅作为降级使用
+        """
+        # 这个方法应该由 LLM 调用来替代
+        # 简化：不做任何更新
+        pass
 
 manager = InteractionManager()
 print("✅ Interaction Manager working")

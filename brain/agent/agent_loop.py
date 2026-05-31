@@ -376,25 +376,18 @@ class AgentLoop:
                         is_final=False,
                     )
         
-        if any(kw in input_lower for kw in ['写', '创建', '修改', '删除', 'run', '执行', 'implement']):
-            if any(kw in input_lower for kw in ['python', '代码', 'file', 'code']):
-                return Thought(
-                    reasoning="我将帮你处理这个编程相关的问题",
-                    action=Action(
-                        tool_name="str_replace_editor",
-                        parameters={"content": user_input},
-                    ),
-                    is_final=False,
-                )
-            else:
-                return Thought(
-                    reasoning="我将执行命令",
-                    action=Action(
-                        tool_name="shell_execute",
-                        parameters={"command": user_input},
-                    ),
-                    is_final=False,
-                )
+        # 使用 LLM 判断用户意图（遵循规则）
+        # 这里应该由 LLM 来判断用户想做什么操作
+        # 简化：默认返回通用响应
+        return Thought(
+            reasoning="我将使用 LLM 来理解你的意图并执行相应操作",
+            action=Action(
+                tool_name="general_handler",
+                parameters={"content": user_input},
+            ),
+            is_final=False,
+        )
+        
         elif observation:
             return Thought(
                 reasoning=f"基于执行结果: {observation[:100]}，你的请求已完成。",

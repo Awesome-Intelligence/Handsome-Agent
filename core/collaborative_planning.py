@@ -75,24 +75,12 @@ class CollaborativeTaskPlanner:
         self.logger = create_task_logger("CollaborativePlanner")
         
         self._technical_keywords = {
-            TechnicalDomain.DATABASE: [
-                '数据库', 'db', 'mysql', 'postgresql', 'mongodb', 'redis', 'nosql', 'sql'
-            ],
-            TechnicalDomain.AUTHENTICATION: [
-                '认证', '登录', '注册', 'jwt', 'session', 'oauth', 'token', '权限'
-            ],
-            TechnicalDomain.API_DESIGN: [
-                'api', 'rest', 'graphql', 'endpoint', '接口'
-            ],
-            TechnicalDomain.ARCHITECTURE: [
-                '架构', '微服务', '单体', 'serverless', 'cloud'
-            ],
-            TechnicalDomain.SECURITY: [
-                '安全', '加密', 'https', 'csrf', 'xss', '注入'
-            ],
-            TechnicalDomain.TESTING: [
-                '测试', '单元测试', '集成测试', 'e2e', 'coverage'
-            ],
+            TechnicalDomain.DATABASE: [],
+            TechnicalDomain.AUTHENTICATION: [],
+            TechnicalDomain.API_DESIGN: [],
+            TechnicalDomain.ARCHITECTURE: [],
+            TechnicalDomain.SECURITY: [],
+            TechnicalDomain.TESTING: [],
         }
     
     def _identify_technical_domains(self, task: str) -> List[TechnicalDomain]:
@@ -310,17 +298,9 @@ class SubTaskExecutor:
             'needs_reasoning': False
         }
         
-        # 检测是否需要推理
-        reasoning_indicators = [
-            '为什么', '为什么选择', 'why', '解释',
-            '选型', '技术选型', '数据库选择',
-            '架构选择', '方案选择'
-        ]
-        
-        needs_reasoning = any(
-            indicator in subtask.title.lower() or indicator in subtask.description.lower()
-            for indicator in reasoning_indicators
-        )
+        # DEPRECATED: 检测是否需要推理应该由 LLM 来判断，这里仅作为降级使用
+        # 简化：默认不需要推理
+        needs_reasoning = False
         
         if needs_reasoning and self.advanced_reasoning:
             result['needs_reasoning'] = True

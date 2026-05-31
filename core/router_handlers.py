@@ -31,7 +31,8 @@ from .environment import env_detector
     'time_query',
     'Time Query Handler',
     'Handles time and date queries',
-    keywords=['时间', '现在几点', '几点了', '什么时间', '几点', 'date', '日期', '今天几号', '星期几'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=2
 )
 async def time_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -67,7 +68,8 @@ async def time_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     'weather_query',
     'Weather Query Handler',
     'Handles weather and temperature queries',
-    keywords=['天气', '温度', '下雨', '晴天', '多云', 'weather', 'sunny', 'rain'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=2
 )
 async def weather_query_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -121,7 +123,8 @@ async def weather_query_handler(input_text: str, context: Dict[str, Any]) -> Tup
     'conversation',
     'Conversation Handler',
     'Handles general conversation and greetings',
-    keywords=['hello', 'hi', '你好', 'bye', 'thanks', 'thank you', '上一句', '刚才', '之前', '历史', 'history'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=1
 )
 async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -134,108 +137,102 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
     
     input_lower = input_text.lower()
     
-    time_keywords = ['时间', '现在几点', '几点了', '什么时间', '几点', '几点钟', 'date', '日期', '今天几号', '星期几']
-    weather_keywords = ['天气', '温度', '下雨', '晴天', '多云', 'weather']
+    # 完全使用 LLM 判断意图（遵循规则）
+    llm_provider = context.get('llm_provider') if context else None
+    session_history = context.get('session_history', []) if context else []
     
-    # 问候语直接返回，不需要调用 LLM
-    greeting_keywords = ['hello', 'hi', '你好', '嗨', 'good morning', 'good afternoon', '早上好', '下午好']
-    if any(kw in input_lower for kw in greeting_keywords):
-        if should_log:
-            llm.info(f"🤖 [LLM层] ConversationHandler 检测到问候语")
-        execution_flow.append("🧠 [决策层] 检测到问候语，直接返回")
-        return "你好！我是你的智能助手。有什么我可以帮助你的吗？", execution_flow
-    
-    if any(kw in input_lower for kw in time_keywords):
-        return await time_query_handler(input_text, context)
-    
-    if any(kw in input_lower for kw in weather_keywords):
-        return await weather_query_handler(input_text, context)
+    if llm_provider:
+        try:
+            # LLM 判断用户意图类型
+            intent_prompt = f"""用户输入："{input_text}"
+
+判断用户意图类型：
+1. greeting - 问候语（hello, hi, 你好, 早上好等）
+2. time_query - 查询时间（现在几点、日期等）
+3. weather_query - 查询天气
+4. history_query - 查询对话历史（之前聊了什么、上一句是什么）
+5. conversation - 普通对话
+
+只返回 JSON：{{"type": "greeting|time_query|weather_query|history_query|conversation", "confidence": 0.0-1.0}}
+"""
+            
+            if should_log:
+                llm.info(f"🤖 [LLM层] ConversationHandler 使用 LLM 判断意图...")
+            
+            intent_response = await llm_provider.generate(intent_prompt)
+            
+            import re
+            import json
+            json_match = re.search(r'\{.*?"type".*?\}', intent_response, re.DOTALL)
+            
+            if json_match:
+                intent_data = json.loads(json_match.group(0))
+                intent_type = intent_data.get('type', 'conversation')
+                
+                if should_log:
+                    llm.info(f"🤖 [LLM层] LLM 判断意图: {intent_type} (置信度: {intent_data.get('confidence', 0):.2f})")
+                execution_flow.append(f"🧠 [决策层] LLM 判断: {intent_type}")
+                
+                # 根据 LLM 判断的意图类型处理
+                if intent_type == 'greeting':
+                    greeting_response = await llm_provider.generate(f"用户说：{input_text}。请友好地回复一个简短的问候，不要超过20个字。")
+                    return greeting_response, execution_flow
+                
+                elif intent_type == 'time_query':
+                    return await time_query_handler(input_text, context)
+                
+                elif intent_type == 'weather_query':
+                    return await weather_query_handler(input_text, context)
+                
+                elif intent_type == 'history_query':
+                    if session_history:
+                        # 查找消息历史
+                        user_messages = []
+                        assistant_messages = []
+                        for msg in session_history:
+                            if isinstance(msg, dict):
+                                role = msg.get('role', '')
+                                content = msg.get('content', '')
+                            else:
+                                role = getattr(msg, 'role', '')
+                                content = getattr(msg, 'content', '')
+                            
+                            if role == 'user':
+                                user_messages.append(content)
+                            elif role == 'assistant':
+                                assistant_messages.append(content)
+                        
+                        # 使用 LLM 总结或返回
+                        if '上一句' in input_text or '最后说了' in input_text:
+                            if user_messages:
+                                return f"你上一条消息是：{user_messages[-1]}", execution_flow
+                        
+                        # LLM 总结对话历史
+                        history_text = "以下是对话历史：\n\n"
+                        for i, (user_msg, assistant_msg) in enumerate(zip(user_messages, assistant_messages), 1):
+                            history_text += f"用户：{user_msg}\n"
+                            if assistant_msg:
+                                history_text += f"助手：{assistant_msg}\n"
+                            history_text += "\n"
+                        
+                        prompt = f"{history_text}\n\n请简要总结我们聊了什么，用中文回答。简洁一些。"
+                        response = await llm_provider.generate(prompt)
+                        return f"📝 对话总结：\n\n{response}", execution_flow
+                    else:
+                        return "我们还没有聊过天呢。你想聊些什么？", execution_flow
+                
+                # conversation 类型继续往下走，使用 LLM 对话
+        except Exception as e:
+            if should_log:
+                llm.warning(f"🤖 [LLM层] ConversationHandler LLM 判断失败: {str(e)}")
+            execution_flow.append("🧠 [决策层] LLM 失败，使用基础回复")
+            return "抱歉，我遇到了一些问题。请告诉我你想做什么？", execution_flow
     
     if should_log:
         llm.info(f"🤖 [LLM层] ConversationHandler 收到请求: {input_text[:30]}...")
     execution_flow.append("🧠 [决策层] ConversationHandler 收到请求")
     
-    # 获取会话历史和 LLM provider
-    session_history = context.get('session_history', []) if context else []
-    llm_provider = context.get('llm_provider') if context else None
-    
-    # 检查是否是历史查询请求
-    last_msg_keywords = ['上一句', '刚说的', '最后说了什么']
-    history_keywords = ['聊了些什么', '聊什么', '历史', '刚才聊', '之前聊', '我们聊']
-    
-    is_last_msg_query = any(kw in input_lower for kw in last_msg_keywords)
-    is_history_query = any(kw in input_lower for kw in history_keywords)
-    
-    if is_last_msg_query or is_history_query:
-        if should_log:
-            llm.info(f"🤖 [LLM层] ConversationHandler 检测到历史查询请求")
-        execution_flow.append("🧠 [决策层] 检测到历史查询请求")
-        
-        if session_history:
-            # 查找所有用户消息
-            user_messages = []
-            assistant_messages = []
-            for msg in session_history:
-                if isinstance(msg, dict):
-                    role = msg.get('role', '')
-                    content = msg.get('content', '')
-                else:
-                    role = getattr(msg, 'role', '')
-                    content = getattr(msg, 'content', '')
-                
-                if role == 'user':
-                    user_messages.append(content)
-                elif role == 'assistant':
-                    assistant_messages.append(content)
-            
-            if is_history_query and llm_provider:
-                # 调用 LLM 总结对话历史
-                try:
-                    provider_name = llm_provider.__class__.__name__
-                    if should_log:
-                        llm.info(f"🤖 [LLM层] {provider_name} 准备总结对话历史...")
-                    execution_flow.append(f"🧠 [DR层] {provider_name} 准备总结对话")
-                    
-                    # 构建对话历史摘要
-                    history_text = "以下是我们的对话历史：\n\n"
-                    for i, (user_msg, assistant_msg) in enumerate(zip(user_messages, assistant_messages), 1):
-                        history_text += f"用户：{user_msg}\n"
-                        if assistant_msg:
-                            history_text += f"我：{assistant_msg}\n"
-                        history_text += "\n"
-                    
-                    prompt = f"{history_text}\n\n请简要总结我们刚才聊了什么内容，用中文回答。"
-                    
-                    response = await llm_provider.generate(prompt)
-                    
-                    if should_log:
-                        llm.info(f"🤖 [LLM层] {provider_name} 总结完成")
-                    execution_flow.append(f"🧠 [决策层] {provider_name} 总结完成")
-                    
-                    return f"📝 我们刚才的对话总结：\n\n{response}", execution_flow
-                except Exception as e:
-                    if should_log:
-                        llm.error(f"🤖 [LLM层] 总结对话失败: {str(e)}")
-            
-            elif is_last_msg_query and user_messages:
-                # 返回上一条消息
-                last_user_msg = user_messages[-1] if user_messages else ""
-                response = f"📝 你上一条消息是：\n\n{last_user_msg}"
-                return response, execution_flow
-            elif user_messages:
-                # 没有 LLM 但有历史，返回简要摘要
-                history_text = "📝 我们最近的对话：\n\n"
-                for i, (user_msg, assistant_msg) in enumerate(zip(user_messages[-5:], assistant_messages[-5:]), 1):
-                    history_text += f"• 你：{user_msg[:100]}{'...' if len(user_msg) > 100 else ''}\n"
-                    if assistant_msg:
-                        history_text += f"  我：{assistant_msg[:100]}{'...' if len(assistant_msg) > 100 else ''}\n"
-                    history_text += "\n"
-                return history_text, execution_flow
-            else:
-                return "抱歉，我还没有记录到你之前的消息。", execution_flow
-        else:
-            return "抱歉，我还没有记录到我们之前的对话内容。", execution_flow
-    
+    # 使用 LLM 对话（前面的 LLM 已判断意图）
     if llm_provider:
         try:
             provider_name = llm_provider.__class__.__name__
@@ -315,22 +312,51 @@ async def conversation_handler(input_text: str, context: Dict[str, Any]) -> Tupl
         llm.info(f"🤖 [LLM层] ConversationHandler 使用模板响应")
     execution_flow.append("🧠 [决策层] TemplateEngine 使用模板")
     
-    greetings = ['hello', 'hi', '你好', '嗨', 'how are you', 'good morning']
-    farewells = ['bye', 'goodbye', '再见', 'see you']
+    # 使用 LLM 判断意图并响应（遵循规则）
+    llm_provider = context.get('llm_provider') if context else None
     
-    if any(g in input_lower for g in greetings):
-        return "你好！很高兴见到你！有什么技术问题我可以帮助你解答吗？", execution_flow
-    elif any(f in input_lower for f in farewells):
-        return "再见！祝你有美好的一天！", execution_flow
-    else:
-        return "我明白你说的。我可以帮你处理各种任务，比如：\n- 回答问题\n- 执行终端命令\n- 文件操作\n- 代码相关任务\n\n请问有什么我可以帮助你的吗？", execution_flow
+    if llm_provider:
+        try:
+            # LLM 判断意图类型
+            intent_prompt = f"""用户输入："{input_text}"
+
+判断用户意图：
+1. greeting - 问候语
+2. farewell - 告别语
+3. other - 其他
+
+只返回 JSON：{{"type": "意图类型"}}
+"""
+            
+            intent_response = await llm_provider.generate(intent_prompt)
+            
+            import re
+            import json
+            json_match = re.search(r'\{.*?"type".*?\}', intent_response, re.DOTALL)
+            
+            if json_match:
+                intent_data = json.loads(json_match.group(0))
+                intent_type = intent_data.get('type', 'other')
+                
+                if intent_type == 'greeting':
+                    response = await llm_provider.generate(f"用户说：{input_text}。请友好地回复一个简短的问候。")
+                    return response, execution_flow
+                elif intent_type == 'farewell':
+                    response = await llm_provider.generate(f"用户说：{input_text}。请友好地回复一个简短的告别。")
+                    return response, execution_flow
+        except Exception:
+            pass
+    
+    # 降级：默认响应
+    return "我明白你说的。我可以帮你处理各种任务，比如：\n- 回答问题\n- 执行终端命令\n- 文件操作\n- 代码相关任务\n\n请问有什么我可以帮助你的吗？", execution_flow
 
 
 @route_handler(
     'coding_assistant',
     'Coding Assistant Handler',
     'Handles coding-related queries and code generation',
-    keywords=['python', 'code', 'function', 'program', 'debug', 'syntax', 'class', 'def ', 'import', '写代码', '帮我写', '编程'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=3
 )
 async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -385,7 +411,8 @@ async def coding_assistant_handler(input_text: str, context: Dict[str, Any]) -> 
     'file_operations',
     'File Operations Handler',
     'Handles file reading, writing, and management',
-    keywords=['file', 'read', 'write', 'save', 'delete', 'create file', 'open file', 'list', '目录', '文件'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=4
 )
 async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -401,31 +428,132 @@ async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> T
     execution_flow.append("🧠 [决策层] FileOperations 收到请求")
     
     input_lower = input_text.lower()
-    tool_logger.debug(f"（FileManager） 准备执行文件操作...")
-    execution_flow.append("（FileManager） 准备执行")
+    llm_provider = context.get('llm_provider') if context else None
     
-    # 先检查是否是特殊文件夹操作（桌面、文档、下载等）
-    folder_name_mapping = {
-        '桌面': 'desktop',
-        'desktop': 'desktop',
-        'documents': 'documents',
-        '文档': 'documents',
-        'downloads': 'downloads',
-        '下载': 'downloads',
-        'pictures': 'pictures',
-        '图片': 'pictures',
-        'photos': 'pictures',
-        'photo': 'pictures',
-        'music': 'music',
-        '音乐': 'music',
-        'videos': 'videos',
-        '视频': 'videos',
-        'movies': 'videos',
-        'home': 'home',
+    # 使用 LLM 判断意图（遵循规则）
+    if llm_provider:
+        try:
+            # LLM 判断文件操作类型
+            intent_prompt = f"""用户输入："{input_text}"
+
+判断用户想做什么文件操作：
+1. read_file - 读取文件内容
+2. write_file - 写入/创建文件
+3. list_directory - 列出目录内容
+4. open_folder - 打开文件夹
+5. other - 其他操作
+
+只返回 JSON：{{"type": "操作类型", "target": "目标路径或文件", "confidence": 0.0-1.0}}
+"""
+            
+            if should_log:
+                tool.info(f"（FileManager） 使用 LLM 判断文件操作类型...")
+            
+            intent_response = await llm_provider.generate(intent_prompt)
+            
+            import re
+            import json
+            json_match = re.search(r'\{.*?"type".*?\}', intent_response, re.DOTALL)
+            
+            if json_match:
+                intent_data = json.loads(json_match.group(0))
+                intent_type = intent_data.get('type', 'other')
+                target = intent_data.get('target', '')
+                
+                if should_log:
+                    tool.info(f"（FileManager） LLM 判断: {intent_type} -> {target}")
+                execution_flow.append(f"🧠 [决策层] LLM 判断: {intent_type}")
+                
+                # 根据意图类型处理
+                if intent_type == 'read_file' and target:
+                    return await _read_file_with_llm(target, execution_flow, should_log, execution)
+                
+                elif intent_type == 'list_directory' or intent_type == 'open_folder':
+                    if target:
+                        return await _list_directory_with_llm(target, execution_flow, should_log, execution)
+                    else:
+                        # 尝试列出常见文件夹
+                        return await _list_common_folders(input_text, execution_flow, should_log, execution, tool)
+                
+                elif intent_type == 'write_file':
+                    return "[文件写入] 请使用更具体的文件操作技能来写入文件。", execution_flow
+                
+        except Exception as e:
+            if should_log:
+                tool.warning(f"（FileManager） LLM 判断失败: {str(e)}，使用基础处理")
+            execution_flow.append("🧠 [决策层] LLM 失败")
+    
+    # 基础处理：使用正则提取文件路径（不是硬编码意图，而是提取参数）
+    import re
+    file_patterns = [
+        r'[\'"](.+?)[\'"]',  # 引号内的路径
+        r'(?:file|path|路径)[:\s]+([^\s]+)',  # file: /path
+        r'([A-Za-z]:\\[^\s]+)',  # Windows 绝对路径
+        r'(/[^\s]+\.[a-zA-Z]+)',  # Unix 路径
+    ]
+    
+    file_path = None
+    for pattern in file_patterns:
+        match = re.search(pattern, input_text)
+        if match:
+            file_path = match.group(1)
+            break
+    
+    if file_path:
+        return await _read_file_with_llm(file_path, execution_flow, should_log, execution)
+    
+    # 默认情况
+    if should_log:
+        execution.info(f"FileManager 无法识别具体操作")
+    return f"[文件操作] 无法识别操作类型。请使用：\n- 读取文件 /path/to/file\n- 列出目录 /path/to/dir\n- 查看桌面文件", execution_flow
+
+
+async def _read_file_with_llm(file_path: str, execution_flow: list, should_log: bool, execution) -> Tuple[str, list]:
+    """使用 LLM 辅助读取文件"""
+    try:
+        if should_log:
+            execution.info(f"FileManager 读取文件: {file_path}")
+        execution_flow.append(f"（FileManager） 读取 {file_path}")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read(3000)
+            return f"📄 文件内容 ({file_path}):\n\n{content}", execution_flow
+    except Exception as e:
+        return f"无法读取文件 {file_path}: {str(e)}", execution_flow
+
+
+async def _list_directory_with_llm(target_path: str, execution_flow: list, should_log: bool, execution) -> Tuple[str, list]:
+    """使用 LLM 辅助列出目录"""
+    try:
+        if should_log:
+            execution.info(f"FileManager 列出目录: {target_path}")
+        execution_flow.append(f"（FileManager） 列出 {target_path}")
+        
+        files = os.listdir(target_path)
+        if files:
+            file_list = "\n".join([f"  • {f}" for f in files[:50]])
+            return f"📁 目录内容 ({target_path}):\n\n{file_list}\n\n共 {len(files)} 个文件/文件夹", execution_flow
+        else:
+            return f"📁 目录为空", execution_flow
+    except Exception as e:
+        return f"无法访问目录 {target_path}: {str(e)}", execution_flow
+
+
+async def _list_common_folders(input_text: str, execution_flow: list, should_log: bool, execution, tool) -> Tuple[str, list]:
+    """列出常见文件夹"""
+    folder_keywords = {
+        'desktop': ['desktop', '桌面'],
+        'documents': ['documents', '文档', 'doc'],
+        'downloads': ['downloads', '下载'],
+        'pictures': ['pictures', '图片', 'photos'],
+        'music': ['music', '音乐'],
+        'videos': ['videos', '视频', 'movies'],
     }
     
-    for name, folder_key in folder_name_mapping.items():
-        if name in input_lower:
+    input_lower = input_text.lower()
+    
+    for folder_key, keywords in folder_keywords.items():
+        if any(kw in input_lower for kw in keywords):
             target_path = env_detector.get_folder_path(folder_key)
             if target_path:
                 if should_log:
@@ -436,70 +564,21 @@ async def file_operations_handler(input_text: str, context: Dict[str, Any]) -> T
                     files = os.listdir(target_path)
                     if files:
                         file_list = "\n".join([f"  • {f}" for f in files[:50]])
-                        return f"📁 {name} 目录内容:\n\n{file_list}\n\n共 {len(files)} 个文件/文件夹", execution_flow
+                        return f"📁 {folder_key} 目录内容:\n\n{file_list}\n\n共 {len(files)} 个文件/文件夹", execution_flow
                     else:
-                        return f"📁 {name} 目录为空", execution_flow
+                        return f"📁 {folder_key} 目录为空", execution_flow
                 except Exception as e:
-                    return f"无法访问 {name} 目录: {str(e)}", execution_flow
+                    return f"无法访问 {folder_key} 目录: {str(e)}", execution_flow
     
-    # 检查是否是读取文件操作
-    if any(kw in input_lower for kw in ['read', '读取', '打开文件', 'cat ', 'type ']):
-        if should_log:
-            execution.info(f"FileManager 识别为读取文件操作")
-        import re
-        match = re.search(r'[\'"](.+?)[\'"]|read\s+(\S+)|读取\s+(\S+)|打开\s+(\S+)', input_text)
-        if match:
-            file_path = match.group(1) or match.group(2) or match.group(3) or match.group(4)
-            if file_path:
-                if should_log:
-                    execution.info(f"FileManager 读取文件: {file_path}")
-                execution_flow.append(f"（FileManager） 读取 {file_path}")
-                
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read(3000)
-                        return f"📄 文件内容 ({file_path}):\n\n{content}", execution_flow
-                except Exception as e:
-                    return f"无法读取文件 {file_path}: {str(e)}", execution_flow
-        return "请指定要读取的文件路径，例如：读取文件 /path/to/file.py", execution_flow
-    
-    # 检查是否是写入文件操作
-    elif any(kw in input_lower for kw in ['write', '创建', '新建', '写入', '创建文件']):
-        if should_log:
-            execution.info(f"FileManager 识别为写入文件操作")
-        return "[文件写入] 请使用更具体的文件操作技能来写入文件。", execution_flow
-    
-    # 检查是否是列出文件操作
-    elif any(kw in input_lower for kw in ['list', '列出', 'ls', 'dir', '有哪些', '什么', '查看', '浏览', '显示']):
-            if should_log:
-                execution.info(f"FileManager 识别为列出文件操作")
-            
-            import re
-            path_match = re.search(r'目录\s+(\S+)|folder\s+(\S+)|路径\s+(\S+)', input_text)
-            if path_match:
-                target_path = path_match.group(1) or path_match.group(2) or path_match.group(3)
-                if target_path:
-                    try:
-                        files = os.listdir(target_path)
-                        if files:
-                            file_list = "\n".join([f"  • {f}" for f in files[:50]])
-                            return f"📁 目录内容 ({target_path}):\n\n{file_list}\n\n共 {len(files)} 个文件/文件夹", execution_flow
-                        else:
-                            return f"📁 目录为空", execution_flow
-                    except Exception as e:
-                        return f"无法访问目录 {target_path}: {str(e)}", execution_flow
-    
-    # 默认情况：无法识别操作类型
-    if should_log:
-        execution.info(f"FileManager 无法识别具体操作")
-    return f"[文件操作] 无法识别操作类型。请使用：\n- 读取文件 /path/to/file\n- 写入文件 /path/to/file\n- 列出文件 /path/to/dir\n- 查看桌面文件", execution_flow
+    return "[文件操作] 请指定要查看的目录路径", execution_flow
 
 
 @route_handler(
     'web_search',
     'Web Search Handler',
     'Handles web search and information lookup',
-    keywords=['search', 'google', 'web', 'find', '查一下', '搜索', '帮我找', '搜一下', '帮我搜索'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=3
 )
 async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -629,7 +708,29 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     
     input_lower = input_text.lower()
     
-    use_browser_tool = any(keyword in input_lower for keyword in ['browser', '浏览器', 'chrome', 'edge', 'firefox', '打开浏览器', '打开chrome', '打开edge'])
+    # 使用 LLM 判断是否需要打开浏览器（遵循规则）
+    use_browser_tool = False
+    if llm_provider:
+        try:
+            browser_intent_prompt = f"""用户输入："{input_text}"
+
+判断用户是否想打开浏览器：
+- true - 用户想打开浏览器
+- false - 用户只是想搜索
+
+只返回 JSON：{{"use_browser": true|false}}
+"""
+            
+            browser_response = await llm_provider.generate(browser_intent_prompt)
+            import re
+            import json
+            json_match = re.search(r'\{.*?"use_browser".*?\}', browser_response, re.DOTALL)
+            
+            if json_match:
+                browser_data = json.loads(json_match.group(0))
+                use_browser_tool = browser_data.get('use_browser', False)
+        except Exception:
+            pass
     
     if use_browser_tool and skill_manager:
         try:
@@ -696,7 +797,8 @@ async def web_search_handler(input_text: str, context: Dict[str, Any]) -> Tuple[
     'terminal_command',
     'Terminal Command Handler',
     'Handles terminal and command execution, app launching',
-    keywords=['run', 'execute', 'terminal', 'command', 'bash', 'npm', 'pip', 'git', '运行', '执行', '打开', 'open', '启动', 'launch', 'browser', 'chrome', '浏览器'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=4
 )
 async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -711,107 +813,158 @@ async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> 
         
     execution_flow.append("🧠 [决策层] TerminalCommand 收到请求")
     
-    command_mapping = {
-        'chrome': 'start "" "https://www.google.com"',
-        'browser': 'start "" "https://www.google.com"',
-        '打开浏览器': 'start "" "https://www.google.com"',
-        '打开chrome': 'start "" "https://www.google.com"',
-        'edge': 'start microsoft-edge:',
-        '打开edge': 'start microsoft-edge:',
-        'firefox': 'start firefox',
-        'safari': 'start safari',
-        'notepad': 'start notepad',
-        '记事本': 'start notepad',
-        'calc': 'start calc',
-        '计算器': 'start calc',
-        'explorer': 'start explorer',
-        '资源管理器': 'start explorer',
-    }
+    # 完全使用 LLM 来理解意图（遵循规则：意图理解必须用 LLM）
+    llm_provider = context.get('llm_provider') if context else None
+    command = None
     
-    folder_mapping = {
-        '桌面': 'start explorer shell:desktop',
-        'desktop': 'start explorer shell:desktop',
-        '我的电脑': 'start explorer shell:mycomputer',
-        '此电脑': 'start explorer shell:mycomputer',
-        '文档': 'start explorer shell:personal',
-        'documents': 'start explorer shell:personal',
-        '下载': 'start explorer shell:downloads',
-        'downloads': 'start explorer shell:downloads',
-        '图片': 'start explorer shell:photos',
-        'Pictures': 'start explorer shell:photos',
-        '音乐': 'start explorer shell:music',
-        'music': 'start explorer shell:music',
-        '视频': 'start explorer shell:video',
-        'videos': 'start explorer shell:video',
-    }
-    
-    command = input_text
-    input_lower = input_text.lower()
-    
-    use_browser_tool = any(keyword in input_lower for keyword in ['browser', '浏览器', '打开浏览器', 'chrome', 'edge', 'firefox'])
-    
-    for key, cmd in command_mapping.items():
-        if key in input_lower:
-            command = cmd
-            if should_log:
-                tool.info(f"（TerminalCommand） 识别到命令: {cmd}")
-            break
-    
-    if command == input_text:
-        for key, cmd in folder_mapping.items():
-            if key in input_lower:
-                command = cmd
-                if should_log:
-                    tool.info(f"（TerminalCommand） 识别到文件夹: {cmd}")
-                break
-    
-    skill_manager = context.get('skill_manager') if context else None
-    
-    if skill_manager and use_browser_tool:
+    if llm_provider:
         try:
             if should_log:
-                execution.info(f"TerminalTools 尝试执行 tool_open_browser 技能")
-            execution_flow.append("（TerminalTools） 准备执行")
+                tool.info(f"（TerminalCommand） 使用 LLM 理解用户意图...")
+            execution_flow.append("🧠 [决策层] 调用 LLM 理解意图")
             
-            browser_name = None
-            for browser in ['edge', 'chrome', 'firefox', 'brave', 'opera', 'vivaldi']:
-                if browser in input_lower:
-                    browser_name = browser
-                    break
-            
+            # LLM 判断用户是想执行命令还是查询历史
             import re
-            url = None
-            url_patterns = [
-                r'https?://[^\s]+',
-                r'www\.[^\s]+',
-                r'[a-zA-Z0-9]+\.(com|cn|org|net|io|co)[^\s]*',
-            ]
-            for pattern in url_patterns:
-                match = re.search(pattern, input_text)
-                if match:
-                    url = match.group(0)
-                    if not url.startswith(('http://', 'https://')):
-                        url = 'https://' + url
-                    break
+            import json
             
-            if url:
-                if should_log:
-                    execution.info(f"识别到 URL: {url}")
-                    tool.info(f"（TerminalCommand） 识别到网址: {url}")
+            intent_prompt = f"""你是一个智能助手。用户输入："{input_text}"
+
+请判断用户的意图：
+1. 如果用户想打开应用、执行命令、操作文件 -> type="execute"
+2. 如果用户想查询之前做了什么、问历史 -> type="query"
+
+只返回 JSON：
+{{"type": "execute|query", "reasoning": "判断理由"}}
+"""
             
-            result = await skill_manager.execute_skill('tool_open_browser', browser_name=browser_name, url=url)
-            if result and result.success:
+            intent_response = await llm_provider.generate(intent_prompt)
+            
+            json_match = re.search(r'\{.*?"type".*?\}', intent_response, re.DOTALL)
+            
+            if json_match:
+                intent_data = json.loads(json_match.group(0))
+                intent_type = intent_data.get('type', 'execute')
+                
                 if should_log:
-                    execution.info(f"TerminalTools open_browser 执行成功")
-                execution_flow.append("（TerminalTools） 执行成功")
-                return result.output, execution_flow
-            else:
-                if should_log:
-                    tool.warning(f"（TerminalCommand） open_browser 执行失败，尝试 fallback")
-                execution_flow.append("（WebTools） open_browser 执行失败，fallback")
+                    tool.info(f"（TerminalCommand） LLM 判断意图: {intent_type} - {intent_data.get('reasoning', '')}")
+                execution_flow.append(f"🧠 [决策层] LLM 判断: {intent_type}")
+                
+                # 如果是查询意图，查询会话历史
+                if intent_type == 'query':
+                    session_history = context.get('session_history', [])
+                    if session_history:
+                        if should_log:
+                            tool.info(f"（TerminalCommand） 查询会话历史...")
+                        execution_flow.append("🧠 [决策层] 查询会话历史")
+                        
+                        recent_commands = []
+                        for msg in reversed(session_history[-10:]):
+                            if isinstance(msg, dict) and msg.get('role') == 'assistant':
+                                content = msg.get('content', '')
+                                if '执行成功' in content or '✅' in content or '成功打开' in content:
+                                    recent_commands.append(content)
+                        
+                        if recent_commands:
+                            query_prompt = f"""用户问：{input_text}
+最近的执行记录：
+{chr(10).join(recent_commands[:3])}
+
+请根据执行记录回答用户的问题。如果执行成功，说明执行了什么。简洁回答。"""
+                            
+                            answer = await llm_provider.generate(query_prompt)
+                            if should_log:
+                                tool.info(f"（TerminalCommand） LLM 根据历史回答")
+                            execution_flow.append("🧠 [决策层] 基于历史生成回答")
+                            return answer, execution_flow
+                        
+                        return "我没有找到之前的命令执行记录。你可以让我打开某个应用或执行某个命令。", execution_flow
+            
+            # 如果 LLM 判断是执行意图，继续执行命令解析
+            system_prompt = """你是一个命令解析器。根据用户输入，生成对应的 Windows 命令。
+只返回 JSON，不要其他内容。
+格式：{"action": "launch_app|open_folder|execute_command", "command": "实际命令", "app_name": "应用名（可选）"}
+
+可用的操作：
+- launch_app: 启动应用程序
+- open_folder: 打开文件夹
+- execute_command: 执行命令
+
+常见应用的 Windows 命令：
+- Chrome: start chrome
+- Edge: start microsoft-edge:
+- Firefox: start firefox
+- IE: start iexplore
+- Notepad: start notepad
+- Calculator: start calc
+- Explorer: start explorer
+- 其他：直接用 start 命令
+
+常见文件夹：
+- 桌面: start explorer shell:desktop
+- 文档: start explorer shell:personal
+- 下载: start explorer shell:downloads
+- 此电脑: start explorer shell:mycomputer
+
+示例：
+输入："帮我打开名字叫做ie的浏览器" -> {"action": "launch_app", "command": "start iexplore", "app_name": "IE浏览器"}
+输入："打开计算器" -> {"action": "launch_app", "command": "start calc", "app_name": "计算器"}
+输入："打开桌面" -> {"action": "open_folder", "command": "start explorer shell:desktop", "app_name": "桌面"}
+输入："打开cmd" -> {"action": "execute_command", "command": "start cmd", "app_name": "命令提示符"}
+"""
+            
+            response = await llm_provider.generate(f"{system_prompt}\n\n用户输入：{input_text}")
+            
+            # 提取 JSON
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group(0))
+                command = result.get('command')
+                app_name = result.get('app_name', '')
+                
+                if should_log and command:
+                    tool.info(f"（TerminalCommand） LLM 解析成功: 应用={app_name}, 命令={command}")
+                execution_flow.append(f"🧠 [决策层] LLM 理解: {app_name}")
+                
         except Exception as e:
             if should_log:
-                tool.warning(f"（TerminalCommand） open_browser 异常: {str(e)}，尝试 fallback")
+                tool.warning(f"（TerminalCommand） LLM 解析失败: {str(e)}")
+            execution_flow.append("🧠 [决策层] LLM 失败")
+    
+    # 降级方案：如果 LLM 失败，返回错误而不是硬编码
+    if not command:
+        if llm_provider:
+            # 再次尝试 LLM，简化 prompt
+            try:
+                if should_log:
+                    tool.info(f"（TerminalCommand） 重试 LLM 解析...")
+                
+                retry_prompt = f"""用户输入："{input_text}"
+提取要执行的命令或应用名称，生成 Windows 命令。
+格式：{{"command": "命令", "app": "应用名"}}
+
+常见格式：
+- "打开X" -> start X
+- "运行X" -> start X  
+- 直接是程序名 -> start 程序名
+"""
+                
+                retry_response = await llm_provider.generate(retry_prompt)
+                json_match = re.search(r'\{.*\}', retry_response, re.DOTALL)
+                
+                if json_match:
+                    result = json.loads(json_match.group(0))
+                    command = result.get('command', input_text)
+                    if should_log:
+                        tool.info(f"（TerminalCommand） 重试成功: {command}")
+            except Exception as e2:
+                if should_log:
+                    tool.warning(f"（TerminalCommand） 重试也失败: {str(e2)}")
+        
+        # 如果仍然没有命令，直接用输入作为命令（最后降级）
+        if not command:
+            command = input_text
+    
+    # 注意：不再使用硬编码的字典匹配，完全依赖 LLM 理解意图（遵循规则）
     
     # 直接使用 subprocess 执行命令（参考 Hermes Agent）
     try:
@@ -859,7 +1012,8 @@ async def terminal_command_handler(input_text: str, context: Dict[str, Any]) -> 
     'general_question',
     'General Question Handler',
     'Handles general knowledge questions',
-    keywords=['what', 'who', 'how', 'why', 'explain', 'tell me', '什么是', '如何', '为什么'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=2
 )
 async def general_question_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -935,10 +1089,8 @@ async def general_question_handler(input_text: str, context: Dict[str, Any]) -> 
     'task_management',
     'Task Management Handler',
     'Handles task/todo list operations like create, add, complete, list tasks',
-    keywords=['任务', 'todo', 'task', '待办', '清单', '列表', '添加任务', '完成', '完成任务', 
-              '新建任务', '创建任务', '任务列表', '待办事项', '添加待办', 'complete', 
-              'finish', 'done', 'cancel', '删除任务', '列出任务', '有哪些任务', 
-              '还有几个', '待办列表', '任务管理'],
+    # DEPRECATED: keywords should be determined by LLM, not hardcoded
+    keywords=[],
     priority=2
 )
 async def task_management_handler(input_text: str, context: Dict[str, Any]) -> Tuple[str, List[str]]:
@@ -958,36 +1110,88 @@ async def task_management_handler(input_text: str, context: Dict[str, Any]) -> T
     from .todo_adapter import get_todo_adapter
     
     session_id = context.get('session_id', 'default') if context else 'default'
+    llm_provider = context.get('llm_provider') if context else None
     
     try:
         adapter = get_todo_adapter(session_id)
-        
-        input_lower = input_text.lower()
         
         if should_log:
             execution.info(f"TodoToolkit 开始分析请求: {input_text[:30]}...")
         execution_flow.append("（TodoToolkit） 解析请求")
         
-        if any(kw in input_lower for kw in ['创建任务', '新建任务', '创建待办', 'create task', 'new task', 'todo create']):
-            result = _handle_create_tasks(input_text, adapter, should_log)
-        elif any(kw in input_lower for kw in ['添加任务', '新增任务', 'add task', '添加待办', '添加一个新任务']):
-            result = _handle_add_task(input_text, adapter, should_log)
-        elif any(kw in input_lower for kw in ['完成任务', '完成', 'complete', 'finish', 'done', '完成 #']):
-            result = _handle_complete_task(input_text, adapter, should_log)
-        elif any(kw in input_lower for kw in ['取消', 'cancel', '取消任务', '取消待办']):
-            result = _handle_cancel_task(input_text, adapter, should_log)
-        elif any(kw in input_lower for kw in ['删除任务', 'remove', 'delete', '删除']):
-            result = _handle_remove_task(input_text, adapter, should_log)
-        elif any(kw in input_lower for kw in ['列出任务', '查看任务', '列表', '有哪些任务', '待办列表', 'todo list', 'list task', '显示任务', '列出']):
-            result = _handle_list_tasks(adapter, should_log)
-        elif any(kw in input_lower for kw in ['重置任务', 'reset']):
-            result = _handle_reset_tasks(adapter, should_log)
-        elif any(kw in input_lower for kw in ['清空任务', 'clear']):
-            result = _handle_clear_tasks(adapter, should_log)
-        elif any(kw in input_lower for kw in ['任务', 'todo', 'task', '待办', '清单']):
-            result = _handle_list_tasks(adapter, should_log)
-        else:
-            result = _handle_list_tasks(adapter, should_log)
+        # 使用 LLM 判断任务操作类型（遵循规则）
+        if llm_provider:
+            try:
+                intent_prompt = f"""用户输入："{input_text}"
+
+判断用户想做什么任务操作：
+1. create - 创建新任务列表
+2. add - 添加任务
+3. complete - 完成任务
+4. cancel - 取消任务
+5. delete - 删除任务
+6. list - 列出任务
+7. reset - 重置任务
+8. clear - 清空任务
+9. unknown - 其他操作
+
+只返回 JSON：{{"type": "操作类型", "confidence": 0.0-1.0}}
+"""
+                
+                if should_log:
+                    tool.info(f"（TaskManager） 使用 LLM 判断任务操作...")
+                
+                intent_response = await llm_provider.generate(intent_prompt)
+                
+                import re
+                import json
+                json_match = re.search(r'\{.*?"type".*?\}', intent_response, re.DOTALL)
+                
+                if json_match:
+                    intent_data = json.loads(json_match.group(0))
+                    intent_type = intent_data.get('type', 'list')
+                    
+                    if should_log:
+                        tool.info(f"（TaskManager） LLM 判断: {intent_type}")
+                    execution_flow.append(f"🧠 [决策层] LLM 判断: {intent_type}")
+                    
+                    # 根据 LLM 判断执行对应操作
+                    if intent_type == 'create':
+                        result = _handle_create_tasks(input_text, adapter, should_log)
+                    elif intent_type == 'add':
+                        result = _handle_add_task(input_text, adapter, should_log)
+                    elif intent_type == 'complete':
+                        result = _handle_complete_task(input_text, adapter, should_log)
+                    elif intent_type == 'cancel':
+                        result = _handle_cancel_task(input_text, adapter, should_log)
+                    elif intent_type == 'delete':
+                        result = _handle_remove_task(input_text, adapter, should_log)
+                    elif intent_type == 'list':
+                        result = _handle_list_tasks(adapter, should_log)
+                    elif intent_type == 'reset':
+                        result = _handle_reset_tasks(adapter, should_log)
+                    elif intent_type == 'clear':
+                        result = _handle_clear_tasks(adapter, should_log)
+                    else:
+                        result = _handle_list_tasks(adapter, should_log)
+                    
+                    if should_log:
+                        execution.summary(f"（TaskManager） 执行完成")
+                    
+                    return result, execution_flow
+                    
+            except Exception as e:
+                if should_log:
+                    tool.warning(f"（TaskManager） LLM 判断失败: {str(e)}")
+                execution_flow.append("🧠 [决策层] LLM 失败，使用列表作为默认")
+        
+        # 如果没有 LLM，默认列出任务
+        result = _handle_list_tasks(adapter, should_log)
+        
+        if should_log:
+            execution.summary(f"（TaskManager） 执行完成")
+        
+        return result, execution_flow
         
         if should_log:
             execution.summary(f"（TaskManager） 执行完成")
