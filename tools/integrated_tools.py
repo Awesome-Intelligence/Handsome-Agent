@@ -36,6 +36,7 @@ def register_integrated_tools(engine: LLMDrivenDecisionEngine):
     """
     # 导入我们新创建的工具
     import tools.app_launcher
+    import tools.file_tools_bridge
     import tools.memory_tool
     import tools.skill_manager_tool
     import tools.approval_tool
@@ -94,6 +95,7 @@ def get_all_tools_as_simplified() -> List[Tool]:
     """
     # 导入工具
     import tools.app_launcher
+    import tools.file_tools_bridge
     import tools.memory_tool
     import tools.skill_manager_tool
     import tools.approval_tool
@@ -145,6 +147,7 @@ def initialize_tools():
     # 导入所有工具模块
     try:
         import tools.app_launcher
+        import tools.file_tools_bridge
         import tools.memory_tool
         import tools.skill_manager_tool
         import tools.approval_tool

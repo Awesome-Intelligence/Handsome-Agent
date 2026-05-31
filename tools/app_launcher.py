@@ -6,6 +6,7 @@
 """
 
 import json
+import platform
 import subprocess
 import os
 import logging
@@ -164,6 +165,53 @@ def open_folder(path: Optional[str] = None) -> str:
         }, ensure_ascii=False)
 
 
+def open_file(path: str) -> str:
+    """
+    用系统默认程序打开文件。
+
+    Args:
+        path: 文件路径
+
+    Returns:
+        JSON 格式的结果字符串
+    """
+    try:
+        file_path = Path(path).resolve()
+
+        if not file_path.exists():
+            return json.dumps({
+                "success": False,
+                "error": f"文件不存在: {path}"
+            }, ensure_ascii=False)
+
+        if file_path.is_dir():
+            return json.dumps({
+                "success": False,
+                "error": f"路径是文件夹而非文件: {path}，请使用 open_folder 工具"
+            }, ensure_ascii=False)
+
+        system = platform.system()
+        if system == "Windows":
+            os.startfile(str(file_path))
+        elif system == "Darwin":
+            subprocess.Popen(["open", str(file_path)])
+        else:
+            subprocess.Popen(["xdg-open", str(file_path)])
+
+        return json.dumps({
+            "success": True,
+            "message": f"已用默认程序打开文件: {file_path.name}",
+            "path": str(file_path),
+        }, ensure_ascii=False)
+
+    except Exception as e:
+        logger.error(f"打开文件失败: {e}")
+        return json.dumps({
+            "success": False,
+            "error": f"打开文件失败: {str(e)}"
+        }, ensure_ascii=False)
+
+
 def check_app_launcher_requirements() -> bool:
     """检查应用程序启动工具的需求"""
     return True
@@ -252,6 +300,34 @@ OPEN_FOLDER_SCHEMA = {
 
 
 # 注册工具
+OPEN_FILE_SCHEMA = {
+    "name": "open_file",
+    "description": "用系统默认程序打开文件（如 .md 用记事本/Typora、.pdf 用浏览器、.py 用 IDE 等）。适合用户想'打开某个文件看看'的场景。",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "要打开的文件路径（绝对路径或相对于当前目录的路径）",
+            },
+        },
+        "required": ["path"],
+    },
+}
+
+
+registry.register(
+    name="open_file",
+    toolset="app_launcher",
+    schema=OPEN_FILE_SCHEMA,
+    handler=lambda args, **kw: open_file(
+        path=args.get("path", ""),
+    ),
+    check_fn=check_app_launcher_requirements,
+    emoji="📄",
+)
+
+
 registry.register(
     name="launch_app",
     toolset="app_launcher",

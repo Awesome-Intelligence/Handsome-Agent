@@ -296,7 +296,15 @@ Respond with ONLY the JSON object, no other text."""
             # 浏览器相关
             '浏览器': 'launch_app',
             '打开浏览器': 'launch_app',
-            # 打开/启动相关
+            # 文件操作相关（优先于通用"打开"）
+            '打开文件': 'open_file',
+            '读取文件': 'read_file',
+            '查看文件': 'read_file',
+            '看看文件': 'read_file',
+            '读文件': 'read_file',
+            'open file': 'open_file',
+            'read file': 'read_file',
+            # 打开/启动相关（catch-all，放在最后）
             '打开': 'launch_app',
             '启动': 'launch_app',
             'open': 'launch_app',
@@ -309,8 +317,17 @@ Respond with ONLY the JSON object, no other text."""
                 if tool_name in self.tools:
                     # 为 open_folder 特殊处理参数
                     if tool_name == 'open_folder':
-                        # 尝试从用户输入中提取路径
                         path = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('文件夹', '').replace('目录', '').strip()
+                        return ToolSelectionResult(
+                            selected_tool=tool_name,
+                            action="use_tool",
+                            reasoning=f"Keyword '{keyword}' matched {tool_name}",
+                            parameters={'path': path if path else None},
+                            confidence=0.8
+                        )
+                    # 为 read_file / open_file 特殊处理参数
+                    if tool_name in ('read_file', 'open_file'):
+                        path = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('读取', '').replace('查看', '').replace('看看', '').replace('读', '').replace('文件', '').replace('open', '').replace('read', '').replace('file', '').strip()
                         return ToolSelectionResult(
                             selected_tool=tool_name,
                             action="use_tool",
@@ -329,14 +346,23 @@ Respond with ONLY the JSON object, no other text."""
 
         # 如果没有关键词匹配，但用户明确说要打开应用，尝试使用 launch_app
         if any(word in user_lower for word in ['打开', '启动', 'open', 'launch', 'start']):
+            raw_name = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('启动', '').strip()
+            # 如果提取的名称看起来像文件（有扩展名 或 被引号包裹），用 open_file
+            has_extension = '.' in raw_name.split()[-1] if raw_name else False
+            if has_extension and 'open_file' in self.tools:
+                return ToolSelectionResult(
+                    selected_tool='open_file',
+                    action="use_tool",
+                    reasoning="Detected open intent for file (has extension), using open_file",
+                    parameters={'path': raw_name},
+                    confidence=0.7
+                )
             if 'launch_app' in self.tools:
-                # 提取应用名称
-                app_name = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('启动', '').strip()
                 return ToolSelectionResult(
                     selected_tool='launch_app',
                     action="use_tool",
-                    reasoning=f"Detected open/launch intent, using launch_app",
-                    parameters={'app_name': app_name},
+                    reasoning="Detected open/launch intent, using launch_app",
+                    parameters={'app_name': raw_name},
                     confidence=0.6
                 )
 
