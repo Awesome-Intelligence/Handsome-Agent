@@ -15,6 +15,13 @@
   - [ ] 确保 CI 通过
 
 - [ ] **自我进化完善**（越用越好用）
+  - [x] 技能使用追踪（use/view/patch 事件记录）
+  - [x] 技能生命周期管理（active/stale/archived 状态）
+  - [x] Curator 后台定期运行机制
+  - [x] 空闲触发审查
+  - [x] 相似技能识别和合并
+  - [x] 自我进化管理器统一控制
+  - [x] AgentLoop 自动集成
   - [ ] 真实工具执行集成（目前是模拟）
   - [ ] LLM 辅助轨迹分析
   - [ ] 技能优先级和排序
@@ -147,6 +154,27 @@
   - 技能自动合成
   - 自动学习到 ~/.skills/
   - 用户反馈闭环
+- [x] **增强版 Curator** (brain_curator/enhanced_curator.py)
+  - 后台定期运行机制
+  - 空闲触发审查
+  - CuratorState 持久化
+  - 条件运行检查
+- [x] **技能使用追踪** (brain/skills/telemetry.py)
+  - 记录 use/view/patch 事件
+  - 持久化到 .skill_usage.json
+  - 支持归档和恢复
+- [x] **技能生命周期管理** (brain/skills/lifecycle.py)
+  - 自动状态转换: active → stale → archived
+  - 固定技能防止自动管理
+  - 回调机制
+- [x] **技能合并器** (brain/skills/merger.py)
+  - 前缀聚类识别
+  - 伞形技能自动创建
+  - 相似技能合并
+- [x] **自我进化管理器** (brain/skills/evolution_manager.py)
+  - 统一管理所有组件
+  - 启动/停止控制
+  - 状态查询
 
 ### 共享模块
 - [x] 配置管理 (shared/config.py)
@@ -166,6 +194,11 @@
 - [x] Message 测试
 - [x] Executor 测试
 - [x] Tool Registry 测试
+- [x] 技能使用追踪测试 (17个测试)
+- [x] 技能生命周期管理测试 (11个测试)
+- [x] 技能合并器测试 (11个测试)
+- [x] 增强版 Curator 测试 (17个测试)
+- [x] 自我进化集成测试 (9个测试)
 
 ### 其他
 - [x] OpenAPI 规范 (api/brain_service.yaml)
@@ -235,4 +268,4 @@ docker-compose down
 
 ---
 
-*最后更新: 2024*
+*最后更新: 2026-05-31 - 完成自我进化核心功能（技能追踪、生命周期、Curator增强、技能合并、AgentLoop集成）*

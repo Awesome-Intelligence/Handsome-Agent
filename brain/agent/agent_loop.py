@@ -16,6 +16,7 @@ from ..llm import BaseLLMProvider, LLMResponse
 if TYPE_CHECKING:
     from ..trajectory import TrajectoryRecorder
     from brain_curator import Curator
+    from brain.skills import SelfEvolutionManager
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class AgentConfig:
     enable_skills: bool = True
     enable_curator: bool = True
     enable_trajectory: bool = True
+    enable_self_evolution: bool = True
     system_prompt: str = "你是一个智能助手，能够帮助用户完成各种任务。"
 
 
@@ -51,6 +53,7 @@ class AgentLoop:
     严格参考 Hermes 实现，集成自我进化能力：
     - TrajectoryRecorder: 记录每个 Thought/Action/Observation
     - Curator: 评估轨迹，合成技能，自动学习
+    - SelfEvolutionManager: 统一管理所有自我进化组件
     """
     
     def __init__(
@@ -69,6 +72,9 @@ class AgentLoop:
         self._iteration = 0
         self._conversation_history: List[dict] = []
         self._learned_skills: dict = {}
+        self._self_evolution: Optional["SelfEvolutionManager"] = None
+        self._idle_time: float = 0.0
+        self._turns_since_curator: int = 0
     
     def set_llm_provider(self, provider: BaseLLMProvider) -> None:
         """设置 LLM Provider"""
@@ -81,6 +87,79 @@ class AgentLoop:
     def set_curator(self, curator: "Curator") -> None:
         """设置 Curator"""
         self.curator = curator
+    
+    def set_self_evolution_manager(self, manager: "SelfEvolutionManager") -> None:
+        """设置自我进化管理器"""
+        self._self_evolution = manager
+        self.logger.info("Self-evolution manager configured")
+    
+    async def start_self_evolution(self) -> None:
+        """启动自我进化"""
+        if not self.config.enable_self_evolution:
+            return
+        
+        if self._self_evolution is None:
+            try:
+                from brain.skills import get_self_evolution_manager
+                self._self_evolution = get_self_evolution_manager()
+            except Exception as e:
+                self.logger.warning(f"Failed to get self-evolution manager: {e}")
+                return
+        
+        try:
+            await self._self_evolution.start()
+            self.logger.info("Self-evolution started")
+        except Exception as e:
+            self.logger.error(f"Failed to start self-evolution: {e}")
+    
+    async def stop_self_evolution(self) -> None:
+        """停止自我进化"""
+        if self._self_evolution:
+            try:
+                await self._self_evolution.stop()
+                self.logger.info("Self-evolution stopped")
+            except Exception as e:
+                self.logger.error(f"Failed to stop self-evolution: {e}")
+    
+    def record_skill_usage(self, skill_id: str) -> None:
+        """
+        记录技能使用
+        
+        Args:
+            skill_id: 技能 ID
+        """
+        if self._self_evolution:
+            self._self_evolution.record_skill_use(skill_id)
+    
+    def record_skill_view(self, skill_id: str) -> None:
+        """
+        记录技能查看
+        
+        Args:
+            skill_id: 技能 ID
+        """
+        if self._self_evolution:
+            self._self_evolution.record_skill_view(skill_id)
+    
+    async def trigger_self_evolution_check(self) -> None:
+        """触发自我进化检查"""
+        if not self.config.enable_self_evolution or not self._self_evolution:
+            return
+        
+        try:
+            self._turns_since_curator += 1
+            
+            if self._turns_since_curator >= 10:
+                await self._self_evolution.trigger_review(
+                    idle_for_seconds=self._idle_time,
+                    on_summary=lambda s: self.logger.info(f"Curator: {s}")
+                )
+                self._turns_since_curator = 0
+            
+            if self._turns_since_curator % 5 == 0:
+                await self._self_evolution.trigger_lifecycle_check()
+        except Exception as e:
+            self.logger.error(f"Failed to trigger self-evolution check: {e}")
     
     def load_learned_skills(self) -> None:
         """加载已学习的技能"""
@@ -230,6 +309,10 @@ class AgentLoop:
             # 触发 Curator 进行自我进化
             if self.config.enable_curator and self.curator:
                 asyncio.create_task(self._trigger_curator(trajectory))
+        
+        # 触发自我进化检查
+        if self.config.enable_self_evolution:
+            asyncio.create_task(self.trigger_self_evolution_check())
         
         return result
     
@@ -387,20 +470,7 @@ class AgentLoop:
             ),
             is_final=False,
         )
-        
-        elif observation:
-            return Thought(
-                reasoning=f"基于执行结果: {observation[:100]}，你的请求已完成。",
-                action=None,
-                is_final=True,
-            )
-        else:
-            return Thought(
-                reasoning="你可以问我问题、执行命令或编写代码。请问有什么我可以帮你的吗？",
-                action=None,
-                is_final=True,
-            )
-    
+
     def _get_available_tools(self) -> List[dict]:
         """获取可用工具列表"""
         tools = [
@@ -460,6 +530,9 @@ class AgentLoop:
         """行动阶段 - 执行工具调用"""
         self.logger.info(f"Acting: {action.tool_name}")
         
+        # 记录技能使用
+        self.record_skill_usage(action.tool_name)
+        
         hermes_tools = ["shell_execute", "file_read", "file_write", "web_search"]
         openclaw_tools = [
             "str_replace_editor", "multi_edit", "search_files",
@@ -471,6 +544,8 @@ class AgentLoop:
         elif action.tool_name in openclaw_tools:
             return await self._execute_openclaw_tool(action)
         elif action.tool_name == "learned_skill":
+            skill_name = action.parameters.get("skill_name", "unknown")
+            self.record_skill_usage(skill_name)
             return f"[Using Learned Skill]\n{action.parameters.get('template', '')}"
         else:
             return f"Tool {action.tool_name} executed successfully"

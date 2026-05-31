@@ -78,6 +78,7 @@ class SkillMetadata:
     aliases: List[str] = field(default_factory=list)
     examples: List[str] = field(default_factory=list)
     source: str = "system"
+    agent_created: bool = False
     usage_count: int = 0
     last_used: Optional[str] = None
     version: str = "1.0.0"
@@ -194,6 +195,18 @@ class SkillManager:
             if metadata.id not in self.tags[tag]:
                 self.tags[tag].append(metadata.id)
         
+        try:
+            from brain.skills import get_skill_telemetry
+            telemetry = get_skill_telemetry()
+            if metadata.agent_created:
+                telemetry.create_skill_record(
+                    skill_id=metadata.id,
+                    created_by="agent",
+                    tags=metadata.tags,
+                )
+        except Exception as e:
+            self._decision_logger.warning(f"Failed to create telemetry record: {e}")
+        
         self._decision_logger.info(f"Registered skill: {metadata.id} ({metadata.name})")
     
     def unregister_skill(self, skill_id: str):
@@ -212,6 +225,13 @@ class SkillManager:
             for alias in metadata.aliases:
                 if alias in self.skills:
                     del self.skills[alias]
+            
+            try:
+                from brain.skills import get_skill_telemetry
+                telemetry = get_skill_telemetry()
+                telemetry.delete_skill_record(skill_id)
+            except Exception as e:
+                self._decision_logger.warning(f"Failed to delete telemetry record: {e}")
             
             del self.skills[skill_id]
             self._decision_logger.info(f"Unregistered skill: {skill_id}")
@@ -496,6 +516,13 @@ class SkillManager:
             
             if len(self._skill_usage_history) > 100:
                 self._skill_usage_history = self._skill_usage_history[-100:]
+            
+            try:
+                from brain.skills import get_skill_telemetry
+                telemetry = get_skill_telemetry()
+                telemetry.record_use(skill_id)
+            except Exception as e:
+                self._decision_logger.warning(f"Failed to record skill usage in telemetry: {e}")
     
     def record_co_occurrence(self, skill_id1: str, skill_id2: str):
         """记录技能共现关系"""
