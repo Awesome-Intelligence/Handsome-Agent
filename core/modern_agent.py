@@ -109,12 +109,12 @@ class ModernAgent:
         # 记录输入
         self._access_logger.info(f"User input: {user_input[:50]}...")
         
-        # 准备对话历史
+        # 准备对话历史（在添加新消息之前获取，避免重复）
         history = conversation_history
         if not history and self._session:
             history = self._get_session_messages()
         
-        # 记录到会话
+        # 记录到会话（在获取历史之后添加，避免包含当前消息）
         if self._session:
             self._session.add_message('user', user_input)
         
@@ -135,12 +135,13 @@ class ModernAgent:
             
             self._tool_logger.info(f"Executed tool: {tool_name}")
             
-            # 让 LLM 总结工具结果
+            # 让 LLM 总结工具结果，带对话历史
             if self.llm_provider:
                 final_response = await self._summarize_with_llm(
                     user_input,
                     tool_name,
-                    tool_result
+                    tool_result,
+                    conversation_history=history
                 )
             else:
                 # 没有 LLM，直接返回工具结果
@@ -154,9 +155,9 @@ class ModernAgent:
             )
         
         elif result['type'] == 'direct_response':
-            # 直接使用 LLM 响应
+            # 直接使用 LLM 响应，带对话历史
             if self.llm_provider:
-                final_response = await self.llm_provider.generate(user_input)
+                final_response = await self._generate_direct_response(user_input, conversation_history=history)
             else:
                 final_response = "This is a direct response (no LLM configured)."
             
@@ -171,8 +172,10 @@ class ModernAgent:
             clarification = getattr(selection, 'reasoning', 'Could you provide more details?')
             
             if self.llm_provider:
-                final_response = await self.llm_provider.generate(
-                    f"User asked: {user_input}. You need to ask for clarification. Reason: {clarification}"
+                final_response = await self._generate_clarification_response(
+                    user_input,
+                    clarification,
+                    conversation_history=history
                 )
             else:
                 final_response = clarification
@@ -205,32 +208,136 @@ class ModernAgent:
         self,
         user_input: str,
         tool_name: str,
-        tool_result: Any
+        tool_result: Any,
+        conversation_history: Optional[List[Dict]] = None
     ) -> str:
         """
-        使用 LLM 总结工具执行结果
+        使用 LLM 总结工具执行结果，带对话历史
         
         Args:
             user_input: 用户输入
             tool_name: 工具名称
             tool_result: 工具结果
+            conversation_history: 对话历史
         
         Returns:
             总结后的响应
         """
         try:
             result_str = json.dumps(tool_result, ensure_ascii=False)
-            prompt = f"""User asked: {user_input}
+            
+            # 构建完整的消息列表：历史消息 + 当前用户输入
+            messages = []
+            if conversation_history:
+                messages.extend(conversation_history)
+            
+            # 添加当前用户输入
+            messages.append({"role": "user", "content": user_input})
+            
+            prompt = f"""I executed tool: {tool_name}
+Tool result: {result_str}
+
+Please provide a natural language response to the user based on the tool result."""
+            
+            # 添加总结提示作为最后一条消息
+            messages.append({"role": "user", "content": prompt})
+            
+            # LLM provider 直接返回字符串
+            response = await self.llm_provider.generate(prompt, messages=messages)
+            return response
+        except Exception as e:
+            logger.error(f"Failed to summarize with LLM: {e}")
+            # 回退到简单方法
+            try:
+                prompt = f"""User asked: {user_input}
 
 I executed tool: {tool_name}
 Tool result: {result_str}
 
 Please provide a natural language response to the user based on the tool result."""
+                response = await self.llm_provider.generate(prompt)
+                return response
+            except:
+                return f"Tool {tool_name} executed. Result: {json.dumps(tool_result, ensure_ascii=False)}"
+    
+    async def _generate_direct_response(
+        self,
+        user_input: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> str:
+        """
+        使用对话历史生成直接回复
+        
+        Args:
+            user_input: 用户输入
+            conversation_history: 对话历史
+        
+        Returns:
+            LLM 生成的回复
+        """
+        try:
+            # 构建完整的消息列表：历史消息 + 当前用户输入
+            messages = []
+            if conversation_history:
+                messages.extend(conversation_history)
             
-            return await self.llm_provider.generate(prompt)
+            # 添加当前用户输入作为最后一条消息
+            messages.append({"role": "user", "content": user_input})
+            
+            # LLM provider 直接返回字符串
+            response = await self.llm_provider.generate(user_input, messages=messages)
+            return response
         except Exception as e:
-            logger.error(f"Failed to summarize with LLM: {e}")
-            return f"Tool {tool_name} executed. Result: {json.dumps(tool_result, ensure_ascii=False)}"
+            logger.error(f"Failed to generate with history: {e}")
+            # 回退到简单方法
+            response = await self.llm_provider.generate(user_input)
+            return response
+    
+    async def _generate_clarification_response(
+        self,
+        user_input: str,
+        clarification: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> str:
+        """
+        使用对话历史生成澄清回复
+        
+        Args:
+            user_input: 用户输入
+            clarification: 澄清内容
+            conversation_history: 对话历史
+        
+        Returns:
+            LLM 生成的回复
+        """
+        try:
+            # 构建完整的消息列表：历史消息 + 当前用户输入
+            messages = []
+            if conversation_history:
+                messages.extend(conversation_history)
+            
+            # 添加当前用户输入
+            messages.append({"role": "user", "content": user_input})
+            
+            prompt = f"""User asked: {user_input}
+
+You need to ask for clarification. Reason: {clarification}
+
+Please ask for more details in a natural way."""
+            
+            # 添加澄清提示作为最后一条消息
+            messages.append({"role": "user", "content": prompt})
+            
+            # LLM provider 直接返回字符串
+            response = await self.llm_provider.generate(prompt, messages=messages)
+            return response
+        except Exception as e:
+            logger.error(f"Failed to generate clarification: {e}")
+            # 回退到简单方法
+            response = await self.llm_provider.generate(
+                f"User asked: {user_input}. You need to ask for clarification. Reason: {clarification}"
+            )
+            return response
     
     def _get_session_messages(self) -> List[Dict]:
         """从会话中获取消息列表"""
