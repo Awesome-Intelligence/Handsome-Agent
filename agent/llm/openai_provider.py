@@ -69,6 +69,12 @@ class OpenAIProvider(BaseLLMProvider):
         
         msg_list.append(Message(role="user", content=prompt))
         
+        # Log detailed input (using INFO level for visibility)
+        self.logger.info(f"LLM Input - {len(msg_list)} messages:")
+        for i, msg in enumerate(msg_list):
+            content_preview = msg.content[:300] + "..." if len(msg.content) > 300 else msg.content
+            self.logger.info(f"  [{i}] {msg.role}: {content_preview}")
+        
         # 构建请求
         request_body = {
             "model": self.config.model,
@@ -81,24 +87,37 @@ class OpenAIProvider(BaseLLMProvider):
             "stream": False,
         }
         
+        # Log request body
+        self.logger.info(f"LLM Request: model={request_body['model']}, temperature={request_body['temperature']}, max_tokens={request_body['max_tokens']}")
+        
         try:
             client = await self._get_client()
             response = await client.post("/chat/completions", json=request_body)
             
             if response.status_code != 200:
+                self.logger.error(f"LLM API error - status: {response.status_code}, response: {response.text}")
                 raise Exception(f"OpenAI API error: {response.status_code} - {response.text}")
             
             data = response.json()
             
             latency_ms = (time.time() - start_time) * 1000
             
+            # Log detailed output
+            output_content = data["choices"][0]["message"]["content"]
+            content_preview = output_content[:500] + "..." if len(output_content) > 500 else output_content
             self.logger.info(f"LLM request completed - latency: {latency_ms:.2f}ms, model: {data.get('model', self.config.model)}")
+            self.logger.info(f"LLM Output (preview): {content_preview}")
+            
+            # Log usage stats
+            usage = data.get("usage", {})
+            if usage:
+                self.logger.info(f"LLM Usage: prompt_tokens={usage.get('prompt_tokens', 'N/A')}, completion_tokens={usage.get('completion_tokens', 'N/A')}, total_tokens={usage.get('total_tokens', 'N/A')}")
             
             return LLMResponse(
-                content=data["choices"][0]["message"]["content"],
+                content=output_content,
                 model=data.get("model", self.config.model),
                 finish_reason=data["choices"][0].get("finish_reason", "stop"),
-                usage=data.get("usage", {}),
+                usage=usage,
                 latency_ms=latency_ms,
             )
             
@@ -126,6 +145,12 @@ class OpenAIProvider(BaseLLMProvider):
             msg_list.extend(messages)
         msg_list.append(Message(role="user", content=prompt))
         
+        # Log detailed input
+        self.logger.info(f"LLM Streaming Input - {len(msg_list)} messages:")
+        for i, msg in enumerate(msg_list):
+            content_preview = msg.content[:300] + "..." if len(msg.content) > 300 else msg.content
+            self.logger.info(f"  [{i}] {msg.role}: {content_preview}")
+        
         request_body = {
             "model": self.config.model,
             "messages": [m.model_dump() for m in msg_list],
@@ -134,11 +159,15 @@ class OpenAIProvider(BaseLLMProvider):
             "stream": True,
         }
         
+        # Log request body
+        self.logger.info(f"LLM Streaming Request: model={request_body['model']}, temperature={request_body['temperature']}, max_tokens={request_body['max_tokens']}")
+        
         try:
             client = await self._get_client()
             async with client.stream("POST", "/chat/completions", json=request_body) as response:
                 if response.status_code != 200:
                     error_text = await response.aread()
+                    self.logger.error(f"LLM Streaming API error - status: {response.status_code}, response: {error_text}")
                     raise Exception(f"OpenAI API error: {response.status_code} - {error_text}")
                 
                 accumulated_content = ""
@@ -154,6 +183,10 @@ class OpenAIProvider(BaseLLMProvider):
                             delta = data["choices"][0]["delta"].get("content", "")
                             accumulated_content += delta
                             
+                            # Log streaming chunks (only for significant content)
+                            if len(delta) > 0:
+                                self.logger.info(f"LLM Streaming delta: {delta[:150]}")
+                            
                             yield StreamChunk(
                                 content=accumulated_content,
                                 delta=delta,
@@ -161,8 +194,15 @@ class OpenAIProvider(BaseLLMProvider):
                             )
                         except json.JSONDecodeError:
                             continue
+                
+                # Log final accumulated content
+                content_preview = accumulated_content[:500] + "..." if len(accumulated_content) > 500 else accumulated_content
+                latency_ms = (time.time() - start_time) * 1000
+                self.logger.info(f"LLM streaming completed - latency: {latency_ms:.2f}ms, total_chars: {len(accumulated_content)}")
+                self.logger.info(f"LLM Streaming Final Output (preview): {content_preview}")
                             
         except Exception as e:
+            self.logger.error(f"LLM streaming failed - error: {str(e)}")
             yield StreamChunk(content=f"Error: {str(e)}", finish=True)
     
     async def count_tokens(self, text: str) -> int:

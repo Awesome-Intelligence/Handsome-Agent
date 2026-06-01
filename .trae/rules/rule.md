@@ -313,6 +313,22 @@ INFO - 🧠 [Decision] - (LLMDrivenDecisionEngine) Initialization complete
 - Error logs should include complete exception information
 - Use sublayer parameter to distinguish different sub-functions within the same module
 
+**LLM Logging Standards** (for agent/llm/ providers):
+- Use `DEBUG` level for detailed input/output logging
+- Log input messages: role and content preview (first 200 chars)
+- Log output content: preview (first 500 chars)
+- Log usage stats: prompt_tokens, completion_tokens, total_tokens
+- Log latency: request completion time in milliseconds
+- Example log format:
+  ```
+  DEBUG - 🧠 [Decision] - [/🤖LLM] - (OpenAIProvider) LLM Input Messages:
+  DEBUG - 🧠 [Decision] - [/🤖LLM] - (OpenAIProvider)   [0] system: ...
+  DEBUG - 🧠 [Decision] - [/🤖LLM] - (OpenAIProvider)   [1] user: ...
+  INFO - 🧠 [Decision] - [/🤖LLM] - (OpenAIProvider) LLM request completed - latency: 1234.56ms
+  DEBUG - 🧠 [Decision] - [/🤖LLM] - (OpenAIProvider) LLM Output Content (preview): ...
+  DEBUG - 🧠 [Decision] - [/🤖LLM] - (OpenAIProvider) LLM Usage - prompt_tokens: 100, completion_tokens: 50
+  ```
+
 ---
 
 ## 三、代码风格
