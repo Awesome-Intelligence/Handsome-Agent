@@ -14,6 +14,7 @@ docs/
 ├── architecture/               # 架构文档
 │   ├── architecture.md         # 三层架构设计（Hermes-Brain + OpenClaw-Body）
 │   ├── overview.md             # 架构概览（轻量版）
+│   ├── restructure-plan.md     # 目录结构重构计划 ⭐
 │   ├── llm-tool-selection.md   # LLM 驱动的工具选择（已废弃，保留参考）
 │   └── compliance-report.md    # 架构合规性分析报告
 │

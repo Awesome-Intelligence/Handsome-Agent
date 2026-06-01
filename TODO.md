@@ -8,212 +8,99 @@
 
 ### 🔴 高优先级
 
+- [ ] **目录结构重构** ⭐ 新增
+  - [ ] 制定详细的重构执行计划
+  - [ ] 创建新目录结构
+  - [ ] 移动文件（不修改代码）
+  - [ ] 修复导入路径
+  - [ ] 测试验证
+  - [ ] 更新 rule.md 约束
+
 - [ ] **完善单元测试**
   - [ ] 修复剩余 6 个失败的测试
   - [ ] 添加集成测试
   - [ ] 添加 E2E 测试
   - [ ] 确保 CI 通过
 
-- [x] **自我进化完善**（越用越好用）
-  - [x] 技能使用追踪（use/view/patch 事件记录）
-  - [x] 技能生命周期管理（active/stale/archived 状态）
-  - [x] Curator 后台定期运行机制
-  - [x] 空闲触发审查
-  - [x] 相似技能识别和合并
-  - [x] 自我进化管理器统一控制
-  - [x] AgentLoop 自动集成
-  - [x] **自动学习触发器 (AutoLearnTrigger)** 🆕
-  - [x] **LLM 辅助技能合成** 🆕
-  - [x] **技能质量评分机制** 🆕
-  - [x] **用户反馈触发学习** 🆕
-  - [ ] 遗忘机制（删除低置信度技能）
+- [ ] **遗忘机制（删除低置信度技能）**
+
+### 🟡 中优先级
 
 - [ ] **梦境能力（Dream Capability）**
-  - [ ] 设计梦境架构（梦境生成、梦境分析、梦境学习）
+  - [ ] 设计梦境架构
   - [ ] 模拟人类睡眠时的潜意识处理机制
-  - [ ] 梦境场景生成（模拟各种环境和情境）
-  - [ ] 从梦境中提取有价值的洞察和创意
-  - [ ] 参考：agent/dreaming.py 模块设计
 
 - [ ] **任务拆解与可打断重规划**
   - [ ] 复杂任务自动分解为子任务
   - [ ] 支持任务执行中断
-  - [ ] 中断后智能重规划能力
-  - [ ] 子任务状态追踪和回滚机制
-  - [ ] 参考：agent/trajectory.py 轨迹机制
-
-- [ ] **OpenHuman 能力集成**
-  - [ ] OAuth 2.0 认证流程实现
-  - [ ] 获取用户数据压缩片段能力
-  - [ ] 数据隐私和安全处理
-  - [ ] 参考：agent/openhuman.py 模块
-
-- [ ] **用户自定义 Skill 导入**（像 OpenClaw 那样）
-  - [x] CLI skills install 命令（从 URL/GitHub 安装）
-  - [x] CLI skills sync 命令（同步本地 skills 目录）
-  - [x] CLI skills upload 命令（上传 skill 归档）
-  - [x] CLI skills enable/disable 命令（启用/禁用技能）
-  - [x] CLI skills update 命令（更新技能）
-  - [x] 技能版本管理
-  - [x] Gateway API: skills.install 端点
-  - [x] Gateway API: skills.list 端点
-  - [ ] skills search 命令（搜索技能市场）
-  - [ ] 技能评分和反馈机制
-
-### 🟡 中优先级
 
 - [ ] **多渠道适配器**
   - [ ] Telegram 适配器
   - [ ] Discord 适配器
   - [ ] Slack 适配器
-  - [ ] 飞书适配器
 
-- [ ] **性能优化（高级语言替代）**
-  - [ ] 评估热点模块性能瓶颈
-  - [ ] 核心路由模块考虑 Rust/Go/C 重写
-  - [ ] LLM 推理加速（考虑 TensorRT、vLLM）
-  - [ ] 向量检索性能优化
-  - [ ] 保持 Python 胶水层和插件扩展能力
-
-- [ ] **OpenClaw & Hermes 用例借鉴**
-  - [ ] 研究 OpenClaw computer-use 场景
-  - [ ] 研究 Hermes 高级推理模式
-  - [ ] 整合优秀用例到 Handsome Agent
-  - [ ] 保持架构兼容性和扩展性
-
-- [ ] **监控与日志**
-  - [ ] 集成 Prometheus 指标
-  - [ ] 添加结构化日志
-  - [ ] 实现告警机制
-
-- [ ] **性能优化（基础）**
-  - [ ] 实现响应缓存
-  - [ ] 添加连接池
-  - [ ] 性能基准测试
+- [ ] **用户自定义 Skill 导入**
+  - [ ] skills search 命令（搜索技能市场）
+  - [ ] 技能评分和反馈机制
 
 ---
 
 ## ✅ 已完成
 
 ### 架构设计
-- [x] 架构设计文档 (docs/ARCHITECTURE.md)
-- [x] 三层架构目录结构
-- [x] 项目依赖清单 (requirements.txt)
+- [x] 架构设计文档
+- [x] 目标目录结构设计（参考 Hermes）
 - [x] TODO.md 任务清单
+- [x] 编码规范 (rule.md)
 
-### 接入层 (Adapter Layer)
-- [x] Gateway 核心接口
-- [x] 标准化消息格式 (message.py)
-- [x] HTTP/WebSocket 适配器
-- [x] CLI 适配器
-- [x] 通信协议定义
-- [x] Gateway CLI 入口
+### 目录结构重构（规划中）
+> 详见 [docs/architecture/restructure-plan.md](docs/architecture/restructure-plan.md)
 
-### 决策层 (Brain Layer)
-- [x] Brain Service API
+**目标结构**：
+```
+Handsome-Agent/
+├── agent/                    # 🤖 Agent 核心
+│   ├── agent_loop.py        # Agent Loop
+│   ├── schemas.py           # 数据模型
+│   ├── curator/             # Curator（自我进化）
+│   ├── llm/                 # LLM Provider
+│   └── templates/           # Agent 模板
+│
+├── skills/                   # 🛠️ 技能系统（用户数据）
+├── gateway/                  # 🚪 网关
+├── executor/                  # 🏃 执行层
+├── tools/                    # 🛠️ 工具定义
+├── common/                    # 📦 基础设施
+├── lightweight/              # ⚡ 轻量版（零依赖）
+├── cli/                      # 💬 CLI
+├── tests/                    # 🧪 测试
+├── docs/                     # 📚 文档
+└── api/                      # 📋 OpenAPI
+```
+
+### 决策层
 - [x] Agent Loop (ReAct 实现 + 自我进化集成)
 - [x] LLM Provider 接口
-- [x] OpenAI Provider
-- [x] Claude Provider
-- [x] LLM Factory
-- [x] Tool Schema 定义
+- [x] OpenAI Provider / Claude Provider
 - [x] Tool Registry
-- [x] 向量存储 (简化版)
-- [x] SQLite + FTS5 存储
-- [x] 上下文压缩器 (Summarizer)
-- [x] 技能匹配器
-- [x] 技能加载器
-- [x] 技能注册表
-- [x] ChromaDB 向量存储支持
-- [x] Brain Service CLI 入口
-- [x] **自我进化集成**
-  - 轨迹记录集成到 Agent Loop
-  - Curator 自动触发
-  - 已学习技能加载和使用
-  - 新 API: /api/v1/trajectories, /api/v1/trajectories/stats
+- [x] 技能系统（匹配、加载、注册、追踪、生命周期、合并）
+- [x] Curator 自我进化（轨迹评估、技能合成）
 
-### 执行层 (Executor Layer)
+### 执行层
 - [x] Executor 基类
 - [x] Shell 执行器
 - [x] Docker 执行器
 
-### Tool Schema 对齐层
-- [x] Schema Registry
-- [x] Hermes Tool Adapter
-- [x] OpenClaw Tool Adapter
-- [x] 文件工具定义
-- [x] Shell 工具定义
-- [x] Web 工具定义
-- [x] **OpenClaw 高级工具定义**
-  - str_replace_editor (字符串替换编辑)
-  - computer_use (GUI 自动化)
-  - multi_edit (多位置编辑)
-  - create_file (创建新文件)
-  - search_files (文件内容搜索)
-  - insert_content_at_line (行插入)
-  - view_lines (行范围查看)
-
-### 后处理层 (Curator)
-- [x] 轨迹评估器
-- [x] 技能合成器
-- [x] 技能写入器
-- [x] **TrajectoryRecorder 轨迹记录器**
-  - 记录每个 Thought/Action/Observation
-  - 持久化到 JSON 文件
-  - 支持反馈机制
-- [x] **Curator 自我进化核心**
-  - 轨迹自动评估
-  - 技能自动合成
-  - 自动学习到 ~/.skills/
-  - 用户反馈闭环
-- [x] **增强版 Curator** (brain_curator/enhanced_curator.py)
-  - 后台定期运行机制
-  - 空闲触发审查
-  - CuratorState 持久化
-  - 条件运行检查
-- [x] **技能使用追踪** (brain/skills/telemetry.py)
-  - 记录 use/view/patch 事件
-  - 持久化到 .skill_usage.json
-  - 支持归档和恢复
-- [x] **技能生命周期管理** (brain/skills/lifecycle.py)
-  - 自动状态转换: active → stale → archived
-  - 固定技能防止自动管理
-  - 回调机制
-- [x] **技能合并器** (brain/skills/merger.py)
-  - 前缀聚类识别
-  - 伞形技能自动创建
-  - 相似技能合并
-- [x] **自我进化管理器** (brain/skills/evolution_manager.py)
-  - 统一管理所有组件
-  - 启动/停止控制
-  - 状态查询
-
-### 共享模块
-- [x] 配置管理 (shared/config.py)
-- [x] 日志配置 (shared/logging.py)
-- [x] 公共异常 (shared/exceptions.py)
-- [x] 公共数据模型 (shared/models.py)
-
-### 容器化部署
-- [x] docker-compose.yml
-- [x] Dockerfile.brain
-- [x] Dockerfile.gateway
-
-### 测试
-- [x] Agent Loop 测试
-- [x] LLM 模块测试
-- [x] Gateway 测试
-- [x] Message 测试
-- [x] Executor 测试
-- [x] Tool Registry 测试
-- [x] 技能使用追踪测试 (17个测试)
-- [x] 技能生命周期管理测试 (11个测试)
-- [x] 技能合并器测试 (11个测试)
-- [x] 增强版 Curator 测试 (17个测试)
-- [x] 自我进化集成测试 (9个测试)
+### 接入层
+- [x] Gateway 核心接口
+- [x] 标准化消息格式
+- [x] HTTP/WebSocket 适配器
+- [x] CLI 适配器
 
 ### 其他
-- [x] OpenAPI 规范 (api/brain_service.yaml)
+- [x] 容器化部署 (Docker)
+- [x] OpenAPI 规范
+- [x] 测试套件
 
 ---
 
@@ -222,62 +109,31 @@
 | 组件 | 技术选型 | 状态 |
 |------|---------|------|
 | 语言 | Python 3.11+ | ✅ |
-| Web 框架 | FastAPI | ✅ |
+| Web 框架 | 标准库 HTTP Server | ✅ |
 | 数据库 | SQLite + FTS5 | ✅ |
 | LLM | OpenAI / Claude | ✅ |
 | 向量检索 | ChromaDB / 简单实现 | ✅ |
 | 容器化 | Docker | ✅ |
-| 异步任务 | Celery | ⏳ 可选 |
 
 ---
 
 ## 🚀 快速开始
 
 ```bash
-# 安装依赖
+# 轻量版（无需依赖）
+python -m lightweight
+
+# 完整版
 pip install -r requirements.txt
+python -m cli.main chat
 
-# 运行 Brain Service (规则模式)
-python -m brain.service
-
-# 运行 Brain Service (LLM 模式)
-python -m brain.service --llm openai --api-key YOUR_KEY
-
-# 运行 Gateway
-python -m adapter.gateway --cli
-
-# Docker 运行
+# Docker
 docker-compose up -d
 
-# 运行测试
+# 测试
 pytest tests/unit/ -v
 ```
 
 ---
 
-## 🐳 Docker 部署
-
-```bash
-# 构建并启动所有服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
-
-### 环境变量
-
-| 变量名 | 默认值 | 说明 |
-|--------|--------|------|
-| BRAIN_SERVICE_PORT | 8001 | Brain Service 端口 |
-| GATEWAY_PORT | 8000 | Gateway 端口 |
-| BRAIN_SERVICE_URL | http://brain:8001 | Brain Service 地址 |
-| MAX_ITERATIONS | 10 | Agent 最大迭代次数 |
-| TIMEOUT_SECONDS | 60 | 超时时间 |
-
----
-
-*最后更新: 2026-05-31 - 完成自我进化核心功能（技能追踪、生命周期、Curator增强、技能合并、AgentLoop集成）*
+*最后更新: 2026-06-01 - 添加目录结构重构任务*
