@@ -103,18 +103,158 @@ class Agent:
                 self._session = session_manager.create_session(session_id)
                 self._access_logger.info(f"Resumed session: {session_id}")
     
-    async def chat(
+    async def _should_use_react(self, user_input: str) -> bool:
+        """
+        判断是否使用 ReAct 模式
+        """
+        if not self.llm_provider:
+            return False
+        
+        prompt = f"""用户输入：{user_input}
+
+判断这个任务是否需要使用 ReAct 循环模式（多步骤任务规划）？
+
+ReAct 模式特点：
+- 复杂任务（需要多个步骤）
+- 任务规划（需要拆解子任务）
+- 项目开发（需要创建文件、目录）
+- 多工具协作（需要调用多个工具）
+
+简单任务（不需要 ReAct）：
+- 简单问答
+- 单一操作
+- 信息查询
+
+返回 JSON：
+{{"use_react": true/false, "reasoning": "判断理由"}}
+
+Respond with ONLY the JSON object."""
+
+        try:
+            import json
+            response = await self.llm_provider.generate(prompt)
+            content = response.content if hasattr(response, 'content') else str(response)
+            result = json.loads(content)
+            use_react = result.get("use_react", False)
+            reasoning = result.get("reasoning", "")
+            self._decision_logger.debug(f"ReAct 模式判断: {use_react} - {reasoning}")
+            return use_react
+        except Exception as e:
+            self._decision_logger.warning(f"ReAct 判断失败: {e}")
+            return False
+    
+    async def _chat_react(
         self,
         user_input: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> AgentResponse:
         """
-        处理用户输入（主要接口）
+        使用 ReAct 模式处理用户输入
+        
+        ReAct 模式特点：
+        1. LLM 每次决策都可能调用工具
+        2. 支持复杂任务的多步骤执行
+        3. 集成 Rail 机制（事件追踪、权限控制等）
         
         Args:
             user_input: 用户输入
             conversation_history: 可选的对话历史
+            
+        Returns:
+            AgentResponse
+        """
+        from agent.react import ReActLoop, ReActContext
+        from agent.rails import get_rail_manager, TaskEventRail
         
+        self._access_logger.info(f"[/✅Task] 使用 ReAct 模式")
+        
+        session_id = self._session.session_id if self._session else "default"
+        
+        rails = []
+        try:
+            rail_manager = get_rail_manager(session_id)
+            rail_manager.register_rail(TaskEventRail(session_id))
+            rails = [TaskEventRail(session_id)]
+        except Exception as e:
+            self._decision_logger.warning(f"Rail 初始化失败: {e}")
+        
+        loop = ReActLoop(
+            llm_provider=self.llm_provider,
+            session_id=session_id,
+            rails=rails
+        )
+        
+        tools = self.engine.tool_selector.get_tools_schema()
+        tool_handlers = {
+            t.name: t.handler for t in self.engine.tool_selector.tools.values()
+        }
+        
+        context = ReActContext(
+            task_description=user_input,
+            tools=tools,
+            tool_handlers=tool_handlers,
+            conversation_history=conversation_history
+        )
+        
+        result = await loop.run(context)
+        
+        final_result = result.get("final_result", "")
+        iterations = result.get("iterations", 0)
+        
+        if isinstance(final_result, dict):
+            final_result = json.dumps(final_result, ensure_ascii=False)
+        
+        self._access_logger.info(
+            f"[/✅Task] ReAct 完成，迭代 {iterations} 次"
+        )
+        
+        return AgentResponse(
+            content=str(final_result),
+            confidence_score=0.9,
+            metadata={"react_iterations": iterations}
+        )
+    
+    async def chat(
+        self,
+        user_input: str,
+        conversation_history: Optional[List[Dict]] = None,
+        use_react: Optional[bool] = None
+    ) -> AgentResponse:
+        """
+        处理用户输入（主要接口
+        
+        自动判断使用哪种模式：
+        - 复杂任务 → ReAct 模式（多步骤循环执行）
+        - 简单任务 → 直接模式（单次交互）
+        
+        Args:
+            user_input: 用户输入
+            conversation_history: 可选的对话历史
+            use_react: 强制指定模式，None 则自动判断
+            
+        Returns:
+            AgentResponse
+        """
+        if use_react is None:
+            use_react = await self._should_use_react(user_input)
+        
+        if use_react:
+            return await self._chat_react(user_input, conversation_history)
+        
+        return await self._chat_simple(user_input, conversation_history)
+    
+    async def _chat_simple(
+        self,
+        user_input: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> AgentResponse:
+        """
+        简单模式：单次交互
+        
+        Args:
+            user_input: 用户输入
+            conversation_history: 可选的对话历史
+            
         Returns:
             AgentResponse
         """

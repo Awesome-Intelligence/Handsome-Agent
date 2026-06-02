@@ -40,6 +40,7 @@ SUB_LAYERS = {
     # Decision layer submodules
     "memory": {"emoji": "💾", "name": "Memory"},
     "skills": {"emoji": "📋", "name": "Skills"},
+    "task": {"emoji": "✅", "name": "Task"},
     "trajectory": {"emoji": "📝", "name": "Trajectory"},
     "curator": {"emoji": "🔬", "name": "Curator"},
     "context": {"emoji": "📊", "name": "Context"},

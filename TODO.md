@@ -17,7 +17,12 @@
 - [ ] **遗忘机制（删除低置信度技能）**
 - [ ] **满足harness架构**
 
-- [ ] **日志里的层级没有显示全**
+jiuwenswarm 的 Rail 机制：
+├── TaskPlanningRail      → 通过 register_rail() 注册
+├── StreamEventRail       → 通过 register_rail() 注册
+├── PermissionsRail       → 通过 register_rail() 注册
+└── RuntimePromptRail     → 通过 register_rail() 注册
+
 - [ ] **有些模块不打印日志？**
 - [ ] **jiuwen的todo能力是不是也可以作为一个子层**
 - [ ] 可以让agent持续不断地思考，像人一样（让用户配置一个便宜的小模型，或者本地的模型）**
