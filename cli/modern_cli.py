@@ -58,6 +58,17 @@ def print_header(title: str, subtitle: str = ""):
 
 async def interactive_mode(agent: ModernAgent):
     """交互模式"""
+    
+    # 显示会话摘要（如果继续现有会话）
+    if agent._session and agent._session.messages:
+        print_header("Previous Conversation", agent._session.session_id)
+        recent_msgs = agent._session.messages[-10:]  # 最近10条
+        for msg in recent_msgs:
+            role_icon = "●" if msg.role == "user" else "◆"
+            content = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+            print(f"  {role_icon} {msg.role}: {content}")
+        print()
+    
     print_header("Interactive Mode", "Type 'quit' or 'exit' to end")
     
     while True:
@@ -184,6 +195,24 @@ Examples:
         help="Suppress all logging except errors"
     )
     
+    # Session options
+    parser.add_argument(
+        "--continue", "-c",
+        action="store_true",
+        help="Continue today's session (default behavior)"
+    )
+    parser.add_argument(
+        "--session", "-s",
+        type=str,
+        default=None,
+        help="Resume a specific session by ID or 'last' for latest"
+    )
+    parser.add_argument(
+        "--new-session", "-n",
+        action="store_true",
+        help="Force create a new session"
+    )
+    
     args = parser.parse_args()
     
     # 配置日志
@@ -223,7 +252,17 @@ Examples:
     initialize_tools()
     
     # 创建 Agent
-    agent = ModernAgent(llm_provider=llm_provider)
+    session_id = args.session if args.session else "last"
+    force_new = args.new_session
+    agent = ModernAgent(
+        llm_provider=llm_provider,
+        session_id=session_id,
+        force_new_session=force_new
+    )
+    
+    # 显示会话信息
+    if agent._session:
+        print(f"📝 Session: {agent._session.session_id}")
     
     # 只测试初始化
     if args.test_init:

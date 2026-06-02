@@ -335,6 +335,22 @@ def main():
         help="Enable detailed processing logs (default: True)"
     )
     parser.add_argument(
+        "--continue", "-c",
+        action="store_true",
+        help="Continue today's session (default behavior)"
+    )
+    parser.add_argument(
+        "--session", "-s",
+        type=str,
+        default=None,
+        help="Resume a specific session by ID"
+    )
+    parser.add_argument(
+        "--new-session", "-n",
+        action="store_true",
+        help="Force create a new session"
+    )
+    parser.add_argument(
         "--no-detailed-logs",
         action="store_true",
         help="Disable detailed processing logs"
@@ -481,7 +497,22 @@ def main():
     print("✨ Using NEW LLM-driven Modern Agent!")
     print()
     
-    agent = ModernAgent(llm_provider=llm_provider, enable_session=True)
+    # Session options
+    session_id = args.session if args.session else "last"
+    force_new = args.new_session
+    
+    agent = ModernAgent(
+        llm_provider=llm_provider,
+        enable_session=True,
+        session_id=session_id,
+        force_new_session=force_new
+    )
+    
+    # 显示会话信息
+    if agent._session:
+        print(f"📝 Session: {agent._session.session_id}")
+        if agent._session.messages:
+            print(f"   Messages: {len(agent._session.messages)}")
     
     if args.interactive:
         asyncio.run(interactive_mode(agent, model_name))

@@ -76,21 +76,33 @@ class BaseSessionStore(ABC):
 
 
 class FileSessionStore(BaseSessionStore):
-    """File-based session storage."""
+    """File-based session storage with date-based organization."""
     
     def __init__(self, base_path: str = "./sessions"):
         self.base_path = base_path
         import os
         os.makedirs(base_path, exist_ok=True)
     
+    def _get_date_dir(self, session_id: str = None) -> str:
+        """Get or extract date directory path from session_id or current date."""
+        if session_id and len(session_id) >= 8:
+            date_str = session_id[:8]  # YYYYMMDD format
+            return date_str
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d")
+    
     def _get_file_path(self, session_id: str) -> str:
         """Get the file path for a session."""
         import os
-        return os.path.join(self.base_path, f"{session_id}.json")
+        date_dir = self._get_date_dir(session_id)
+        full_path = os.path.join(self.base_path, date_dir)
+        os.makedirs(full_path, exist_ok=True)
+        return os.path.join(full_path, f"{session_id}.json")
     
     def save(self, session_id: str, data: Dict[str, Any]):
         """Save session data to file."""
         file_path = self._get_file_path(session_id)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     
@@ -113,13 +125,57 @@ class FileSessionStore(BaseSessionStore):
             os.remove(file_path)
     
     def list_sessions(self) -> List[str]:
-        """List all session IDs."""
+        """List all session IDs (flat list)."""
         import os
         sessions = []
-        for filename in os.listdir(self.base_path):
+        for root, dirs, files in os.walk(self.base_path):
+            for filename in files:
+                if filename.endswith('.json'):
+                    session_id = filename[:-5]
+                    sessions.append(session_id)
+        return sessions
+    
+    def list_today_sessions(self) -> List[str]:
+        """List sessions from today."""
+        import os
+        from datetime import datetime
+        today_dir = datetime.now().strftime("%Y-%m-%d")
+        today_path = os.path.join(self.base_path, today_dir)
+        
+        if not os.path.exists(today_path):
+            return []
+        
+        sessions = []
+        for filename in os.listdir(today_path):
             if filename.endswith('.json'):
                 sessions.append(filename[:-5])
-        return sessions
+        return sorted(sessions, reverse=True)
+    
+    def list_sessions_by_date(self) -> Dict[str, List[str]]:
+        """List all sessions grouped by date."""
+        import os
+        result = {}
+        for root, dirs, files in os.walk(self.base_path):
+            date_dir = os.path.basename(root)
+            if date_dir and '-' in date_dir:
+                sessions = [f[:-5] for f in files if f.endswith('.json')]
+                if sessions:
+                    result[date_dir] = sorted(sessions, reverse=True)
+        return result
+    
+    def get_latest_session(self) -> Optional[str]:
+        """Get the most recent session ID."""
+        sessions = self.list_sessions()
+        if sessions:
+            return sorted(sessions, reverse=True)[0]
+        return None
+    
+    def get_latest_today_session(self) -> Optional[str]:
+        """Get the most recent session ID from today."""
+        sessions = self.list_today_sessions()
+        if sessions:
+            return sessions[0]
+        return None
 
 
 class Session:
@@ -443,6 +499,65 @@ class Session:
         self._save_session()
         self.logger.info("Session ended")
     
+    def get_summary(self, max_messages: int = 10) -> str:
+        """
+        Generate a summary of the session for memory purposes.
+        
+        Args:
+            max_messages: Maximum number of recent messages to include in summary
+            
+        Returns:
+            Summary string describing the session
+        """
+        if not self.messages:
+            return "Empty session"
+        
+        recent_msgs = self.messages[-max_messages:]
+        
+        summary_parts = []
+        user_count = 0
+        assistant_count = 0
+        
+        for msg in recent_msgs:
+            if msg.role == 'user':
+                user_count += 1
+                content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+                summary_parts.append(f"User: {content_preview}")
+            elif msg.role == 'assistant':
+                assistant_count += 1
+                content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+                summary_parts.append(f"Assistant: {content_preview}")
+        
+        total_msgs = len(self.messages)
+        return f"Session {self.session_id} ({total_msgs} messages: {user_count} user, {assistant_count} assistant):\n" + "\n".join(summary_parts)
+    
+    def get_memory_content(self) -> str:
+        """
+        Generate memory content for this session.
+        
+        Returns:
+            Markdown-formatted string for memory.md
+        """
+        from datetime import datetime
+        
+        date = datetime.fromtimestamp(self.messages[0].timestamp if self.messages else time.time())
+        date_str = date.strftime("%Y-%m-%d")
+        
+        topics = []
+        for msg in self.messages:
+            if msg.role == 'user':
+                content_preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
+                topics.append(content_preview)
+        
+        topics_str = "; ".join(topics[:5]) if topics else "General conversation"
+        
+        return f"""### {date_str}
+
+- Session ID: `{self.session_id}`
+- Messages: {len(self.messages)} ({sum(1 for m in self.messages if m.role == 'user')} user, {sum(1 for m in self.messages if m.role == 'assistant')} assistant)
+- Topics: {topics_str}
+"""
+    
     def get_stats(self) -> Dict[str, Any]:
         """Get session statistics."""
         stats = {
@@ -520,9 +635,13 @@ class SessionManager:
         return session
     
     def _generate_session_id(self) -> str:
-        """Generate a unique session ID."""
+        """Generate a date-based session ID: YYYYMMDD_HHMMSS_<random>"""
         import uuid
-        return str(uuid.uuid4())[:8]
+        from datetime import datetime
+        now = datetime.now()
+        date_part = now.strftime("%Y%m%d_%H%M%S")
+        random_part = str(uuid.uuid4())[:6]
+        return f"{date_part}_{random_part}"
     
     def get_session(self, session_id: str) -> Optional[Session]:
         """
@@ -562,6 +681,85 @@ class SessionManager:
         in_memory = set(self.sessions.keys())
         stored = set(self.store.list_sessions())
         return list(in_memory.union(stored))
+    
+    def list_sessions_by_date(self) -> Dict[str, List[str]]:
+        """List all sessions grouped by date."""
+        return self.store.list_sessions_by_date()
+    
+    def get_today_sessions(self) -> List[str]:
+        """List sessions from today."""
+        return self.store.list_today_sessions()
+    
+    def get_latest_today_session(self) -> Optional[Session]:
+        """
+        Get the most recent session from today.
+        
+        Returns:
+            Session instance or None if no session exists today
+        """
+        latest_session_id = self.store.get_latest_today_session()
+        if latest_session_id:
+            return self.get_session(latest_session_id)
+        return None
+    
+    def get_or_create_today_session(self) -> Session:
+        """
+        Get today's session or create a new one.
+        
+        If a session from today exists, return it.
+        Otherwise, create a new session for today.
+        
+        Returns:
+            Session instance
+        """
+        existing = self.get_latest_today_session()
+        if existing:
+            self.logger.info(f"Continuing today's session: {existing.session_id}")
+            return existing
+        
+        session = self.create_session()
+        self.logger.info(f"Created new session for today: {session.session_id}")
+        return session
+    
+    def sync_to_memory_md(self, workspace_path: str = None):
+        """
+        Sync all sessions to memory.md.
+        
+        This generates a summary of recent sessions for cross-session context.
+        
+        Args:
+            workspace_path: Path to memory.md file. If None, uses default location.
+        """
+        import os
+        from datetime import datetime, timedelta
+        
+        if workspace_path is None:
+            workspace_path = os.path.join(os.path.expanduser("~"), ".handsome_agent", "memory.md")
+        
+        sessions_by_date = self.list_sessions_by_date()
+        
+        memory_lines = ["# Memory", "", "## Daily Sessions", ""]
+        
+        today = datetime.now()
+        for i in range(7):
+            date = today - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            
+            if date_str in sessions_by_date:
+                sessions = sessions_by_date[date_str]
+                for session_id in sessions[:3]:
+                    session = self.get_session(session_id)
+                    if session and session.messages:
+                        memory_lines.append(session.get_memory_content())
+                        memory_lines.append("")
+        
+        memory_content = "\n".join(memory_lines)
+        
+        os.makedirs(os.path.dirname(workspace_path), exist_ok=True)
+        with open(workspace_path, 'w', encoding='utf-8') as f:
+            f.write(memory_content)
+        
+        self.logger.info(f"Synced sessions to memory.md: {workspace_path}")
     
     def get_active_sessions(self) -> List[Session]:
         """Get all currently active sessions."""

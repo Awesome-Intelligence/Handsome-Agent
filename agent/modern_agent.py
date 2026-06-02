@@ -55,7 +55,7 @@ class ModernAgent:
     特点：
     1. 使用 LLM 直接做工具选择决策
     2. 整合了 ToolRegistry 中的所有工具
-    3. 支持会话管理
+    3. 支持会话管理（自动检测今日会话）
     4. 支持记忆系统
     """
     
@@ -63,13 +63,15 @@ class ModernAgent:
         self,
         llm_provider=None,
         enable_session: bool = True,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        force_new_session: bool = False
     ):
         """
         Args:
             llm_provider: LLM Provider
             enable_session: Enable session management
-            session_id: Session ID (if resuming session)
+            session_id: Session ID (if resuming session). Use "last" for latest session
+            force_new_session: Force create a new session even if today's session exists
         """
         # Configure httpx logger to avoid polluting output
         httpx_logger = logging.getLogger("httpx")
@@ -78,19 +80,29 @@ class ModernAgent:
         self.llm_provider = llm_provider
         self.enable_session = enable_session
         
+        # Initialize loggers FIRST (before using them)
+        self._access_logger = get_access_logger("ModernAgent")
+        self._decision_logger = get_decision_logger("ModernAgent")
+        self._execution_logger = get_execution_logger("ModernAgent")
+        self._tool_logger = get_tool_logger("ModernAgent")
+        
         # Initialize tool engine
         self.engine = get_integrated_engine(llm_provider=llm_provider)
         
         # Initialize session
         self._session: Optional[Session] = None
         if self.enable_session:
-            self._session = session_manager.create_session(session_id)
-        
-        # Get loggers
-        self._access_logger = get_access_logger("ModernAgent")
-        self._decision_logger = get_decision_logger("ModernAgent")
-        self._execution_logger = get_execution_logger("ModernAgent")
-        self._tool_logger = get_tool_logger("ModernAgent")
+            if session_id == "last" or session_id is None and not force_new_session:
+                # Auto-detect: get today's session or create new
+                self._session = session_manager.get_or_create_today_session()
+                if session_manager.get_latest_today_session():
+                    self._access_logger.info(f"Continuing today's session: {self._session.session_id}")
+                else:
+                    self._access_logger.info(f"Created new session: {self._session.session_id}")
+            else:
+                # Create/resume specific session
+                self._session = session_manager.create_session(session_id)
+                self._access_logger.info(f"Resumed session: {session_id}")
     
     async def chat(
         self,
