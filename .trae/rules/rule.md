@@ -21,46 +21,66 @@
 ```
 Handsome-Agent/
 │
-├── agent/                    # 🤖 Agent 核心
-│   ├── agent_loop.py        #   Agent Loop（ReAct 模式）
-│   ├── schemas.py           #   数据模型
-│   ├── trajectory.py        #   轨迹记录
-│   ├── memory.py            #   记忆管理
-│   ├── context_engine.py    #   上下文引擎
-│   ├── prompt_builder.py    #   提示词构建
-│   ├── curator/             #   Curator（自我进化）
-│   ├── llm/                 #   LLM Provider
-│   └── templates/           #   Agent 模板
+├── agent/                    # 🧠 Decision - 🤖 LLM, 💾 Memory, 🔬 Curator, 📊 Context
+│   ├── modern_agent.py      #   🧠 Decision - Agent 协调器
+│   ├── llm_tool_selector.py #   🧠 Decision - 🤖 LLM - 工具选择器
+│   ├── session.py           #   🧠 Decision - 💾 Memory - 会话管理
+│   ├── context_engine.py    #   🧠 Decision - 📊 Context - 上下文引擎
+│   ├── prompt_builder.py    #   🧠 Decision - 📊 Context - 提示词构建
+│   ├── curator/             #   🧠 Decision - 🔬 Curator - 自我进化
+│   │   ├── curator.py
+│   │   └── synthesizer.py
+│   └── llm/                 #   🧠 Decision - 🤖 LLM - LLM 提供商
+│       ├── openai_provider.py
+│       ├── claude_provider.py
+│       └── deepseek_provider.py
 │
-├── skills/                   # 🛠️ 技能系统
-│   ├── matcher.py           #   技能匹配
-│   ├── loader.py            #   技能加载
+├── tools/                    # 🏃 Execution - 🛠️ ToolExec - 工具定义
+│   ├── registry.py           #   工具注册表
+│   ├── app_launcher.py      #   应用启动
+│   ├── file_tools_bridge.py #   文件工具
+│   ├── cronjob_tool.py      #   定时任务
+│   ├── vision_tool.py       #   图片分析
+│   ├── memory_tool.py       #   记忆工具
+│   └── web_tools.py         #   网络工具
+│
+├── skills/                   # 🧠 Decision - 📋 Skills - 技能系统
 │   ├── registry.py          #   技能注册
+│   ├── matcher.py          #   技能匹配
+│   ├── loader.py            #   技能加载
+│   ├── lifecycle.py         #   生命周期
+│   ├── merger.py            #   技能合并
 │   ├── system/              #   系统内置技能
 │   └── user/                #   用户技能
 │
-├── gateway/                  # 🚪 网关
-│   ├── server.py            #   HTTP 服务器
-│   ├── middleware.py         #   中间件
+├── gateway/                  # 🚪 Access - 🚪 Gateway - HTTP 网关
+│   ├── server.py           #   HTTP 服务器
+│   ├── gateway.py           #   网关核心
+│   ├── gateway_cli.py      #   网关 CLI
 │   └── adapters/            #   渠道适配器
 │
-├── executor/                  # 🏃 执行层
-│   ├── shell.py             #   Shell 执行
-│   └── docker.py            #   Docker 执行
+├── executor/                 # 🏃 Execution - 执行器
+│   ├── shell.py            #   🏃 Execution - 🐚 ShellExec - Shell 执行
+│   └── docker.py           #   🏃 Execution - 🐳 DockerExec - Docker 执行
 │
-├── tools/                    # 🛠️ 工具定义
-│   ├── registry.py          #   注册表
-│   └── file_tools.py       #   文件工具
+├── common/                   # 🔧 System - 基础设施
+│   ├── config.py           #   配置管理
+│   ├── logging_manager.py  #   日志管理
+│   ├── exceptions.py        #   异常定义
+│   └── state.py            #   状态管理
 │
-├── common/                    # 📦 基础设施
-│   ├── config.py            #   配置
-│   ├── logging.py           #   日志
-│   └── exceptions.py        #   异常
+├── cli/                      # 🚪 Access - 💬 CLI - 命令行
+│   ├── main.py             #   主入口
+│   └── modern_cli.py       #   现代 CLI
 │
-├── cli/                      # 💬 CLI
-├── tests/                    # 🧪 测试
-├── docs/                     # 📚 文档
-└── api/                      # 📋 OpenAPI
+├── tests/                    # 测试套件
+│   ├── unit/
+│   └── integration/
+│
+├── docs/                     # 文档
+│   └── flows.md            #   用户交互流程详解
+│
+└── api/                      # OpenAPI 规范
 ```
 
 ### 1.2 目录职责
@@ -88,6 +108,97 @@ Handsome-Agent/
 - `llm_integration/` → 已合并到 `agent/llm/`
 - `plugins/` → 已废弃
 - `lightweight/` → 已废弃（功能已合并到 `agent/`）
+
+### 1.4 层级与目录结构约束 ⭐ **强制约束**
+
+#### 核心原则
+
+| 原则 | 说明 |
+|------|------|
+| **层级决定职责** | Layer 和 Sublayer 是逻辑分层，决定代码职责 |
+| **目录是物理组织** | Directory 是代码文件位置 |
+| **目录可含多层** | 一个目录可以包含多个层/子层的代码 |
+| **子层可跨目录** | 一个子层的代码可以分布在多个目录 |
+
+#### 层-子层定义
+
+| Layer | Emoji | Sublayers | 说明 |
+|-------|-------|-----------|------|
+| 🚪 Access | 🚪 | 💬 CLI, 🚪 Gateway | 用户接入、请求入口 |
+| 🧠 Decision | 🧠 | 🤖 LLM, 🔧 ToolSelect, 💾 Memory, 📋 Skills, 🔬 Curator, 📊 Context | 智能决策、推理 |
+| 🏃 Execution | 🏃 | 🐚 ShellExec, 🐳 DockerExec, 🛠️ ToolExec | 工具执行、操作 |
+| 🔧 System | 🔧 | (无) | 系统基础设施 |
+
+#### 目录与层级映射
+
+| 目录 | Primary Layer | Sublayers | 约束 |
+|------|--------------|-----------|------|
+| `agent/` | 🧠 Decision | 🤖 LLM, 💾 Memory, 🔬 Curator, 📊 Context | Agent 核心代码 |
+| `agent/llm/` | 🧠 Decision | 🤖 LLM | LLM Provider 实现 |
+| `agent/curator/` | 🧠 Decision | 🔬 Curator | 自我进化 |
+| `tools/` | 🏃 Execution | 🛠️ ToolExec | 工具定义（主体） |
+| `executor/` | 🏃 Execution | 🐚 ShellExec, 🐳 DockerExec | 执行器 |
+| `gateway/` | 🚪 Access | 🚪 Gateway | HTTP 网关 |
+| `cli/` | 🚪 Access | 💬 CLI | 命令行入口 |
+| `common/` | 🔧 System | (无) | 基础设施，**禁止放其他层代码** |
+| `skills/` | 🧠 Decision | 📋 Skills | 技能系统 |
+
+#### 文件注释规范
+
+**新增文件必须在注释中标注层和子层**：
+
+```python
+# ✅ 正确：标注层-子层
+def read_file(path):
+    """Read file content."""
+    # 🏃 Execution - 🛠️ ToolExec - 文件读取
+
+# ❌ 错误：未标注
+def read_file(path):
+    """Read file content."""
+```
+
+**注释格式**：
+```
+# {Layer} - {Sublayer} - 功能描述
+```
+
+**示例**：
+```python
+# agent/llm_tool_selector.py
+# 🧠 Decision - 🤖 LLM - 工具选择器
+
+# tools/app_launcher.py
+# 🏃 Execution - 🛠️ ToolExec - 应用启动
+
+# agent/session.py
+# 🧠 Decision - 💾 Memory - 会话管理
+
+# executor/shell.py
+# 🏃 Execution - 🐚 ShellExec - 命令执行
+```
+
+#### 约束规则
+
+| 规则 | 说明 | 违规处理 |
+|------|------|---------|
+| `common/` 只属于 🔧 System | 不能放其他层的代码 | ⛔ 禁止 |
+| `agent/` 可含多子层 | 🤖 LLM, 💾 Memory, 🔬 Curator 都在这里 | ✅ 允许 |
+| `tools/` 主要在 🏃 Execution | 但可以有 Decision 层的工具 | ✅ 允许 |
+| `executor/` 只在 🏃 Execution | 只放 Shell/Docker 执行器 | ✅ 允许 |
+| 新文件必须标注层-子层 | 在文件顶部注释中标注 | ⚠️ 警告 |
+| 层级变更必须同步文档 | README, flows.md, rule.md | ⚠️ 警告 |
+
+#### 层级一致性检查
+
+修改任何层级相关内容时，必须同步更新以下文档：
+
+| 文档 | 位置 | 更新内容 |
+|------|------|---------|
+| README | `/README.md` | 项目目录结构 |
+| flows.md | `/docs/flows.md` | 层-子层-模块速查表 |
+| rule.md | `/.trae/rules/rule.md` | 层级定义、约束规则 |
+| logging_manager.py | `/common/logging_manager.py` | LOG_LAYERS, SUB_LAYERS 定义 |
 
 ---
 
@@ -202,13 +313,6 @@ executor/ (通过抽象接口)
 | 日志系统 | `/common/logging_manager.py` | `LOG_LAYERS`、`SUB_LAYERS` 定义 |
 | 编码规范 | `/.trae/rules/rule.md` | 层级映射表、日志规范 |
 
-**一致性检查项**：
-
-1. **主层定义一致**：接入层、决策层、执行层、系统层的标识和说明必须一致
-2. **子层定义一致**：各主层下的子模块命名和职责必须一致  
-3. **模块-层级映射一致**：各代码模块对应的层级必须一致
-4. **目录-层级映射一致**：各目录对应的层级必须一致
-
 **修改流程**：
 
 ```
@@ -234,32 +338,7 @@ executor/ (通过抽象接口)
 
 **Must follow**: All logging must use the unified logger from `common/logging_manager.py`. Direct use of `logging.getLogger()` is prohibited.
 
-**Main Layers (Three-Tier Architecture)**:
-
-| Layer ID | Emoji | Name | Description |
-|----------|-------|------|-------------|
-| `access` | 🚪 | Access | User input, response output, gateway communication |
-| `decision` | 🧠 | Decision | LLM-driven decisions, tool selection, intent understanding |
-| `execution` | 🏃 | Execution | Tool execution, command execution, task execution |
-| `system` | 🔧 | System | System initialization, config loading, basic services |
-
-**Sublayer Definitions**:
-
-| Sublayer ID | Emoji | Name | Parent Layer |
-|-------------|-------|------|--------------|
-| `memory` | 💾 | Memory | Decision |
-| `skills` | 📋 | Skills | Decision |
-| `trajectory` | 📝 | Trajectory | Decision |
-| `curator` | 🔬 | Curator | Decision |
-| `context` | 📊 | Context | Decision |
-| `llm` | 🤖 | LLM | Decision |
-| `tool_select` | 🔧 | ToolSelect | Decision |
-| `tool_exec` | 🛠️ | ToolExec | Execution |
-| `shell_exec` | 🐚 | ShellExec | Execution |
-| `docker_exec` | 🐳 | DockerExec | Execution |
-| `api` | 🌐 | API | Access |
-| `cli` | 💬 | CLI | Access |
-| `gateway` | 🚪 | Gateway | Access |
+**Layer and Sublayer definitions**: See [1.4 层级与目录结构约束](#14-层级与目录结构约束-⭐-强制约束) for complete definitions.
 
 **Log Format Specification**:
 

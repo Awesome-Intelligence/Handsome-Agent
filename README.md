@@ -14,7 +14,7 @@ Handsome Agent 是一个企业级 AI Agent 系统，融合了：
 - **OpenClaw** 的多渠道接入能力和工具抽象
 - **Hermes** 的智能决策和自我进化能力
 
-**核心特性**：LLM 驱动的意图识别 + 工具选择、自动学习进化、技能生命周期管理。
+**核心特性**：智能意图理解 + 工具选择、自动学习进化、技能生命周期管理。
 
 ***
 
@@ -30,21 +30,11 @@ Handsome Agent 是一个企业级 AI Agent 系统，融合了：
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
 │                    🧠 Decision Layer                        │
-│                                                             │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  🤖 LLMDrivenDecisionEngine                           │  │
-│  │  LLM directly understands intent + selects tools      │  │
+│  │  Smart intent understanding + tool selection      │  │
 │  └───────────────────────────────────────────────────────┘  │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ 💾 Memory    │  │ 📋 Skills    │  │ 📝 Trajectory│      │
-│  │              │  │              │  │              │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │  🔬 Curator (Async Post-Processing)                   │  │
-│  │  Trajectory Evaluation → Skill Synthesis → Evolution  │  │
-│  └───────────────────────────────────────────────────────┘  │
+│  💾 Memory │ 📋 Skills │ 📝 Trajectory │ 🔬 Curator         │
 └─────────────────────────────┬───────────────────────────────┘
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
@@ -60,589 +50,167 @@ Handsome Agent 是一个企业级 AI Agent 系统，融合了：
 ```
 Handsome-Agent/
 │
-├── agent/                    # 🤖 Agent 核心
-│   ├── agent_loop.py        #   Agent Loop（ReAct 模式）
-│   ├── schemas.py           #   数据模型
-│   ├── trajectory.py        #   轨迹记录
-│   ├── memory.py            #   记忆管理
-│   ├── context_engine.py    #   上下文引擎
-│   ├── prompt_builder.py    #   提示词构建
-│   ├── modern_agent.py      #   现代 Agent 实现
-│   ├── llm_tool_selector.py #   LLM 驱动的工具选择器
-│   ├── workspace.py         #   工作空间管理
-│   ├── curator/             #   Curator（自我进化）
-│   ├── llm/                 #   LLM Provider (OpenAI/Claude/DeepSeek等)
-│   └── templates/           #   Agent 模板
+├── agent/                    # 🚪 Access / 🧠 Decision / 🏃 Execution
+│   ├── modern_agent.py      #   🧠 Decision - Agent 协调器
+│   ├── llm_tool_selector.py #   🧠 Decision - 🤖 LLM - 工具选择器
+│   ├── session.py           #   🧠 Decision - 💾 Memory - 会话管理
+│   ├── context_engine.py    #   🧠 Decision - 📊 Context - 上下文引擎
+│   ├── prompt_builder.py    #   🧠 Decision - 📊 Context - 提示词构建
+│   ├── curator/             #   🧠 Decision - 🔬 Curator - 自我进化
+│   │   ├── curator.py
+│   │   └── synthesizer.py
+│   └── llm/                 #   🧠 Decision - 🤖 LLM - LLM 提供商
+│       ├── openai_provider.py
+│       ├── claude_provider.py
+│       └── deepseek_provider.py
 │
-├── skills/                   # 🛠️ 技能系统
-│   ├── matcher.py           #   技能匹配
-│   ├── loader.py            #   技能加载
-│   ├── registry.py          #   技能注册
-│   ├── system/             #   系统内置技能
-│   └── user/               #   用户技能
+├── tools/                    # 🏃 Execution - 🛠️ ToolExec - 工具定义
+│   ├── registry.py           #   工具注册表
+│   ├── app_launcher.py       #   应用启动
+│   ├── file_tools_bridge.py  #   文件工具
+│   ├── cronjob_tool.py       #   定时任务
+│   ├── vision_tool.py        #   图片分析
+│   ├── memory_tool.py        #   记忆工具
+│   ├── web_tools.py          #   网络工具
+│   └── skill_manager_tool.py #   技能管理
 │
-├── gateway/                  # 🚪 网关
-│   ├── server.py           #   HTTP 服务器
-│   ├── middleware.py       #   中间件（认证/限流）
-│   └── adapters/           #   渠道适配器
+├── skills/                   # 🧠 Decision - 📋 Skills - 技能系统
+│   ├── registry.py
+│   ├── matcher.py
+│   ├── loader.py
+│   ├── lifecycle.py
+│   ├── merger.py
+│   ├── evolution_manager.py
+│   ├── telemetry.py
+│   ├── system/              #   系统内置技能
+│   └── user/                #   用户技能
 │
-├── executor/                 # 🏃 执行层
-│   ├── shell.py            #   Shell 执行器
-│   └── docker.py          #   Docker 执行器
+├── gateway/                  # 🚪 Access - 网关
+│   ├── server.py            #   HTTP 服务器
+│   ├── gateway.py           #   网关核心
+│   ├── gateway_cli.py       #   网关 CLI
+│   └── adapters/            #   渠道适配器
 │
-├── tools/                    # 🛠️ 工具定义
-│   ├── registry.py          #   注册表
-│   ├── integrated_tools.py #   集成工具
-│   └── file_tools.py       #   文件工具
+├── executor/                 # 🏃 Execution - 执行器
+│   ├── shell.py             #   🐚 ShellExec - Shell 执行器
+│   └── docker.py            #   🐳 DockerExec - Docker 执行器
 │
-├── common/                   # 📦 基础设施
-│   ├── config.py           #   配置
-│   ├── logging_manager.py  #   日志管理（统一 LayerLogger）
-│   ├── exceptions.py       #   异常
-│   └── logging.py          #   简化日志配置
+├── common/                   # 🔧 System - 基础设施
+│   ├── config.py            #   配置管理
+│   ├── logging_manager.py   #   日志管理
+│   ├── exceptions.py         #   异常定义
+│   └── state.py             #   状态管理
 │
-├── cli/                      # 💬 CLI
-│   ├── main.py             #   主入口
-│   ├── modern_cli.py       #   现代 CLI 实现
-│   └── setup_wizard.py     #   配置向导
+├── cli/                      # 🚪 Access - 💬 CLI - 命令行
+│   ├── main.py              #   主入口
+│   └── modern_cli.py        #   现代 CLI
 │
-├── tests/                    # 🧪 测试套件
-│   ├── unit/               #   单元测试
-│   ├── integration/        #   集成测试
-│   └── performance/        #   性能测试
+├── tests/                    # 测试套件
+│   ├── unit/
+│   └── integration/
 │
-├── docs/                     # 📚 文档系统
-│   ├── index.md            #   文档索引
-│   ├── architecture/       #   架构文档
-│   ├── guides/             #   使用指南
-│   ├── modules/            #   模块文档
-│   └── references/         #   参考资料
+├── docs/                     # 文档
+│   └── flows.md             #   用户交互流程详解
 │
-├── api/                      # 📋 OpenAPI 规范
-│   └── brain_service.yaml  #   网关 HTTP API 的 OpenAPI 规范
-│
-└── workspace/                # 💾 工作空间
-    ├── logs/               #   日志目录
-    └── sessions/           #   会话目录
+├── api/                      # OpenAPI 规范
+└── workspace/                # 工作空间
 ```
+
+### 层-子层速查
+
+| 目录 | Layer | Sublayer | 说明 |
+|------|-------|----------|------|
+| agent/ | 🧠 Decision | 🤖 LLM | LLM 集成 |
+| agent/session.py | 🧠 Decision | 💾 Memory | 会话管理 |
+| agent/curator/ | 🧠 Decision | 🔬 Curator | 自我进化 |
+| tools/ | 🏃 Execution | 🛠️ ToolExec | 工具执行 |
+| executor/shell.py | 🏃 Execution | 🐚 ShellExec | Shell 执行 |
+| executor/docker.py | 🏃 Execution | 🐳 DockerExec | Docker 执行 |
+| gateway/ | 🚪 Access | 🚪 Gateway | 网关 |
+| cli/ | 🚪 Access | 💬 CLI | 命令行 |
+| common/ | 🔧 System | - | 基础设施 |
 
 ***
 
 ## 🔑 核心特性
 
-### 1. LLM 驱动的意图识别（无预定义意图）
+### 1. 技能系统
 
-```python
-# 旧架构：预定义意图 → 工具选择
-# 新架构：LLM 直接理解 + 选择工具
-result = await engine.process(
-    user_input="打开 agent.md 看看内容",
-    available_tools=["read_file", "open_file", "launch_app"]
-)
-# → LLM 直接决定使用 read_file
-```
+技能加载、匹配、执行、追踪（use/view/patch 事件）、生命周期管理（active → stale → archived）
 
-### 2. 技能系统 (Skills)
-
-- 技能加载、匹配、执行
-- 技能使用追踪（use/view/patch 事件）
-- 生命周期管理（active → stale → archived）
-- 技能合并（相似技能自动聚合）
-
-### 3. 自我进化 (Self-Evolution)
+### 2. 自我进化
 
 ```
-用户对话 → 轨迹记录 → Curator 评估 → 技能合成 → 自动学习
-                                                      ↓
-                                           越聊越好用 ✨
+用户对话 → 轨迹记录 → Curator 评估 → 技能合成 → 越用越聪明
 ```
 
-### 4. 完整工具生态
+### 3. 工具生态
 
-| 类别    | 工具                                                      |
-| ----- | ------------------------------------------------------- |
-| 📁 文件 | read\_file, write\_file, list\_directory, search\_files |
-| 🚀 应用 | launch\_app, open\_calculator, open\_notepad            |
-| 💻 终端 | terminal, run\_python                                   |
-| 🔍 网络 | web\_search, web\_extract                               |
-| 🧠 记忆 | memory\_save, memory\_search                            |
+| 类别    | 工具                                     |
+| ----- | -------------------------------------- |
+| 📁 文件 | read\_file, write\_file, search\_files |
+| 🚀 应用 | launch\_app, calculator, notepad       |
+| 💻 终端 | terminal, run\_python                  |
+| 🔍 网络 | web\_search                            |
+| 🧠 记忆 | memory\_save, memory\_search           |
 
 ***
 
-## 🔄 User Interaction Flows
+## 🔄 交互流程
 
-This section documents all possible user interaction flows through the system. Understanding these flows helps developers trace issues and extend functionality.
-
-### Flow Notation
+### 流程 1: 简单对话（无需工具）
 
 ```
-User Input → [Component] → [Component] → ... → Response
+用户输入 → ModernAgent → LLM直接回复 → 响应
 ```
 
----
-
-### Flow 1: Simple Conversation
-
-**Trigger**: User asks a general question or chat
+### 流程 2: 文件操作
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "你好，今天天气怎么样？"                                          │
-└─────────────────────────────────────────────────────────────────┬────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼────┐
-│ 🚪 Access Layer                                                         │
-│   [CLI/main.py] → [ModernAgent] → [Session Management]                   │
-│   - Records user input to session                                        │
-│   - Loads conversation history                                             │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - LLM processes input directly                                        │
-│   - Decision: direct_response (no tool needed, confidence: 1.0)          │
-│   - LLM generates response                                              │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   [ModernAgent] → [Session]                                             │
-│   - Records response to session                                          │
-│   - Displays to user                                                   │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Result: Direct text response from LLM
+用户请求 → LLM决策 → 执行层(Shell/File) → 格式化响应
 ```
 
----
-
-### Flow 2: File Reading
-
-**Trigger**: User asks to read a file
+### 流程 3: 代码执行
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "帮我看看 agent.md 的内容"                                        │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - LLM identifies need: read_file tool                                 │
-│   - Decision: tool_call (tool: read_file, confidence: high)              │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [ToolExecutionEngine] → [FileTools] → [ShellExecutor]                  │
-│   - Executes file read operation                                         │
-│   - Returns file content                                                 │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Formats response with file content                                   │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   [ModernAgent] → [Session]                                             │
-│   - Displays formatted response                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Result: File content displayed to user
+用户请求 → LLM决策 → ShellExecutor(安全验证) → 输出结果
 ```
 
----
-
-### Flow 3: Code Execution
-
-**Trigger**: User asks to run code or execute a command
+### 流程 4: 会话恢复
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "帮我运行这个 Python 脚本：test.py"                               │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Decision: tool_call (tool: terminal_execute)                        │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [ShellExecutor]                                                      │
-│   - Validates command (security check)                                   │
-│   - Executes Python script                                              │
-│   - Captures output/error                                               │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   - Formats output for display                                          │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Displays execution result                                           │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Security: Commands validated against whitelist patterns
+启动CLI → 检测今日会话 → 加载历史 → 继续对话
 ```
 
----
+**更多流程** (12个完整流程图): [docs/flows.md](docs/flows.md)
 
-### Flow 4: Application Launch
+***
 
-**Trigger**: User asks to open an application
+## 📁 数据存储
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "打开计算器"                                                    │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Decision: tool_call (tool: launch_app)                             │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [AppLauncher] → [Subprocess]                                          │
-│   - Finds application path (calc.exe)                                    │
-│   - Launches application                                                │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Confirms application launched                                        │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Supported Apps: calculator, notepad, explorer, cmd, powershell, etc.
-```
-
----
-
-### Flow 5: Web Search
-
-**Trigger**: User asks to search the web
+### 用户数据: `~/.handsome_agent/`
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "帮我搜索一下最新的 AI 新闻"                                       │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Decision: tool_call (tool: web_search)                              │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [WebTools] → [HTTPClient]                                            │
-│   - Executes web search                                                │
-│   - Returns search results                                              │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Summarizes results with LLM                                          │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Displays summarized results                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+~/.handsome_agent/
+├── config.json           # 配置文件
+├── sessions/{date}/      # 对话历史 (按日期组织)
+├── skills/user/         # 用户技能
+├── memories/            # 长期记忆
+├── logs/                # 日志文件
+└── handsome_agent.db    # SQLite数据库
 ```
 
----
+<br />
 
-### Flow 6: Memory Operations
+### 环境变量
 
-**Trigger**: User asks to save or recall information
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "记住我的生日是 6 月 1 日"                                       │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Decision: tool_call (tool: memory_save)                              │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [MemoryTool] → [SessionStore]                                        │
-│   - Saves memory to session/memory store                                │
-│   - Persists to memory.md                                              │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Confirms memory saved                                              │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Memory Types: Session (short-term), Memory (long-term via memory.md)
+```bash
+export HANDSOME_HOME=/custom/path  # 自定义数据目录
 ```
 
----
+***
 
-### Flow 7: Skill Creation
-
-**Trigger**: User asks to learn/create a new skill
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "教我怎么部署 Docker 容器"                                       │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - LLM generates response with skill content                           │
-│   - User confirms save                                                 │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [SkillManager]                                                       │
-│   - Creates skill from conversation                                     │
-│   - Saves to user/skills/ directory                                    │
-│   - Registers in skill registry                                        │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🔬 Curator (Self-Evolution)                                             │
-│   - Tracks skill usage pattern                                         │
-│   - Evaluates skill effectiveness                                      │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Skills stored in: ~/.handsome_agent/skills/
-```
-
----
-
-### Flow 8: Session Resume
-
-**Trigger**: User resumes previous conversation
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: (Starts CLI with --continue or automatic today detection)          │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   [CLI] → [SessionManager]                                             │
-│   - Detects today's existing session                                   │
-│   - Loads session history                                             │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   [ModernAgent] → [Session]                                            │
-│   - Displays conversation recap (last 10 exchanges)                      │
-│   - User sees previous context                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Session Storage: ~/.handsome_agent/sessions/{YYYY-MM-DD}/
-Session Format: {YYYYMMDD_HHMMSS}_{random}.json
-```
-
----
-
-### Flow 9: Docker Operations
-
-**Trigger**: User asks to run a Docker container
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "帮我启动一个 nginx 容器"                                        │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Decision: tool_call (tool: docker_run)                              │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [DockerExecutor]                                                     │
-│   - Pulls image if needed                                              │
-│   - Runs container                                                     │
-│   - Returns container status                                            │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Displays container status                                           │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Docker requires: Docker daemon running, proper permissions
-```
-
----
-
-### Flow 10: Scheduled Tasks (Cron)
-
-**Trigger**: User asks to set up a scheduled task
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "每天早上 9 点提醒我开会"                                         │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Decision: tool_call (tool: cron_create)                            │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [CronjobTool] → [System Scheduler]                                   │
-│   - Parses natural language schedule                                    │
-│   - Registers cron job                                                │
-│   - Saves to ~/.handsome_agent/cronjobs.json                           │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Confirms scheduled task created                                    │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Supported: cron expressions, natural language ("daily at 9am")
-```
-
----
-
-### Flow 11: Image Analysis
-
-**Trigger**: User asks to analyze an image
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "帮我看看这张图片里有什么" (with image attachment)           │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Detects image attachment                                          │
-│   - Decision: tool_call (tool: vision_analyze)                          │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [VisionTool] → [LLM with Vision]                                     │
-│   - Encodes image to base64                                           │
-│   - Sends to vision-capable LLM                                       │
-│   - Receives analysis                                                 │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Displays image analysis                                           │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Supported formats: PNG, JPG, JPEG, GIF, BMP, WebP
-```
-
----
-
-### Flow 12: Agent Delegation (Sub-Agent)
-
-**Trigger**: User asks to delegate a complex task
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ User: "帮我重构整个 backend 项目"                                      │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   [LLMDrivenDecisionEngine]                                             │
-│   - Identifies complex multi-step task                                 │
-│   - Decision: tool_call (tool: delegate_task)                            │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🏃 Execution Layer                                                     │
-│   [DelegateTool] → [SubAgent]                                          │
-│   - Creates sub-agent instance                                         │
-│   - Delegates sub-task                                                 │
-│   - Sub-agent processes with its own ReAct loop                        │
-│   - Aggregates results                                                 │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🧠 Decision Layer                                                      │
-│   - Formats delegation report                                           │
-└─────────────────────────────────────────────────────────────────┬───────────┘
-                                                                          │
-┌─────────────────────────────────────────────────────────────────────▼───────────┐
-│ 🚪 Access Layer                                                         │
-│   - Displays delegation results                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### Component Reference
-
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| [ModernAgent](agent/modern_agent.py) | `agent/modern_agent.py` | Main agent orchestrator |
-| [Session](agent/session.py) | `agent/session.py` | Conversation state management |
-| [ToolRegistry](tools/registry.py) | `tools/registry.py` | Tool registration and discovery |
-| [LLMDrivenDecisionEngine](agent/llm_tool_selector.py) | `agent/llm_tool_selector.py` | LLM-based tool selection |
-| [FileTools](tools/file_tools.py) | `tools/file_tools.py) | File operations |
-| [ShellExecutor](executor/shell.py) | `executor/shell.py` | Command execution |
-| [Curator](agent/curator/curator.py) | `agent/curator/curator.py` | Self-evolution and skill synthesis |
-
----
-
-### Architecture Summary
-
-```
-                    🚪 Access Layer
-                    ┌────────────────────────────────────────┐
-                    │  CLI / Gateway / HTTP / WebSocket    │
-                    │  Session Management                 │
-                    │  Response Formatting               │
-                    └────────────────┬───────────────────┘
-                                     │
-                    🧠 Decision Layer
-                    ┌────────────────▼───────────────────┐
-                    │  LLMDrivenDecisionEngine          │
-                    │  ┌──────────────────────────────┐ │
-                    │  │  LLM Provider (OpenAI/Claude/DeepSeek)  │ │
-                    │  └──────────────────────────────┘ │
-                    │  Memory | Skills | Trajectory      │
-                    │  Curator (Self-Evolution)          │
-                    └────────────────┬───────────────────┘
-                                     │
-                    🏃 Execution Layer
-                    ┌────────────────▼───────────────────┐
-                    │  ToolExecutionEngine               │
-                    │  Shell | Docker | File | Network   │
-                    └────────────────────────────────────┘
-```
-
----
-
-## 🚀 Quick Start
-
-### 方式一：CLI 交互
+## 🚀 快速开始
 
 ```bash
 # 安装依赖
@@ -651,74 +219,36 @@ pip install -r requirements.txt
 # 配置 LLM（首次运行会提示）
 python -m cli.main setup
 
-# 启动交互式对话
+# 启动交互式对话（自动继续今日会话）
 python -m cli.main chat
 
-# 运行测试
-pytest tests/unit/ -v
-```
+# 强制新建会话
+python -m cli.main chat --new-session
 
-### 方式二：Docker
-
-```bash
-docker-compose up -d
+# 指定会话
+python -m cli.main chat --session <session_id>
 ```
 
 ***
 
 ## 📚 文档导航
 
-> 完整文档系统位于 [docs/index.md](docs/index.md)
-
-### 新手入门
-
-| 文档                                   | 内容      | 预计时间  |
-| ------------------------------------ | ------- | ----- |
-| [快速开始](docs/guides/quick-start.md)   | 5分钟快速上手 | 5min  |
-| [系统设计](docs/guides/system-design.md) | 设计文档    | 10min |
-
-### 架构与设计
-
-| 文档                                            | 内容             |
-| --------------------------------------------- | -------------- |
-| [架构设计](docs/architecture/architecture.md)     | 三层架构详解         |
-| [重构计划](docs/architecture/restructure-plan.md) | 目录结构重构计划       |
-| [迁移指南](docs/guides/migration-guide.md)        | 意图识别层迁移 ⚠️ 已废弃 |
-
-### 模块文档
-
-| 模块                                        | 文档       |
-| ----------------------------------------- | -------- |
-| [Agent](docs/modules/agent/README.md)     | Agent 核心 |
-| [Skills](docs/modules/skills/README.md)   | 技能系统     |
-| [Gateway](docs/modules/gateway/README.md) | 网关       |
-| [Tools](docs/modules/tools/README.md)     | 工具定义     |
-| [CLI](docs/modules/cli/README.md)         | 命令行界面    |
-| [Common](docs/modules/common/README.md)   | 基础设施     |
-
-### 参考资料
-
-| 文档                                               | 内容          |
-| ------------------------------------------------ | ----------- |
-| [LLM 集成](docs/references/llm-integration.md)     | 25+ LLM 提供商 |
-| [能力清单](docs/references/capabilities-overview.md) | Agent 能力矩阵  |
-| [编码规范](.trae/rules/rule.md)                      | 开发规范        |
+| 文档                                        | 内容     |
+| ----------------------------------------- | ------ |
+| [快速开始](docs/guides/quick-start.md)        | 5分钟上手  |
+| [架构设计](docs/architecture/architecture.md) | 三层架构详解 |
+| [编码规范](.trae/rules/rule.md)               | 开发规范   |
 
 ***
 
-## 🧪 Testing
+## 🧩 模块文档
 
-```bash
-# Run all tests
-pytest tests/unit/ -v
-
-# With coverage
-pytest tests/unit/ --cov=. --cov-report=term-missing
-
-# Specific modules
-pytest tests/unit/curator/ -v
-pytest tests/unit/tools/ -v
-```
+| 模块      | 文档                                                               |
+| ------- | ---------------------------------------------------------------- |
+| Agent   | [docs/modules/agent/README.md](docs/modules/agent/README.md)     |
+| Skills  | [docs/modules/skills/README.md](docs/modules/skills/README.md)   |
+| Gateway | [docs/modules/gateway/README.md](docs/modules/gateway/README.md) |
+| Tools   | [docs/modules/tools/README.md](docs/modules/tools/README.md)     |
 
 ***
 
@@ -728,6 +258,4 @@ MIT License
 
 ***
 
-*Handsome Agent - Making AI smarter with use* ✨
 *Last updated: 2026-06-01*
-*Version: v3.0.0 - Architecture restructuring complete, unified logging system online*
