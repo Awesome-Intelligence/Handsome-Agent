@@ -82,7 +82,7 @@ jiuwenswarm 的 Rail 机制：
   - [ ] `memory_nudge_interval`：周期性提示更新记忆
   - [ ] Background Review：后台异步执行
 
-### � 中优先级
+### 🟡 中优先级
 
 - [ ] setup里的选项内容排序，emoj、排版、高度太低
 
@@ -93,6 +93,46 @@ jiuwenswarm 的 Rail 机制：
 - [ ] **任务拆解与可打断重规划**
   - [ ] 复杂任务自动分解为子任务
   - [ ] 支持任务执行中断
+
+### 📦 待导入的 Hermes 内置工具
+
+> 参考 `e:\hermes-agent-study\tools\` 目录
+
+#### 🔴 高优先级
+
+- [ ] **browser_cdp_tool.py** - 浏览器 CDP 工具
+  - [ ] WebSocket 连接管理
+  - [ ] Chrome DevTools Protocol 封装
+  - [ ] 跨进程 iframe 路由
+
+- [ ] **send_message_tool.py** - 跨平台消息发送
+  - [ ] Telegram / Slack / Discord 集成
+  - [ ] WhatsApp / Signal / Matrix 集成
+  - [ ] 飞书 / 企业微信 / 钉钉 集成
+
+#### 🟡 中优先级
+
+- [ ] **transcription_tools.py** - 语音转文字 (STT)
+  - [ ] Local Whisper (faster-whisper)
+  - [ ] Groq / OpenAI / Mistral / xAI 多个提供商
+  - [ ] 音频格式验证和转换
+
+- [ ] **tts_tool.py** - 文字转语音 (TTS)
+  - [ ] Edge TTS / ElevenLabs / OpenAI TTS
+  - [ ] MiniMax / Mistral / Gemini / xAI TTS
+  - [ ] 本地 TTS: NeuTTS / KittenTTS / Piper
+
+- [ ] **x_search_tool.py** - X 平台搜索
+  - [ ] xAI Responses API 集成
+  - [ ] 日期范围和用户过滤
+  - [ ] 引用和内联标注解析
+
+- [ ] **skills_hub.py** - 技能中心源适配器
+  - [ ] GitHub / WellKnown / UrlSource
+  - [ ] LobeHub / ClawHub / ClaudeMarketplace
+  - [ ] 并行多源搜索和统一接口
+
+### 🚪 渠道接入
 
 - [ ] **多渠道适配器**
   - [ ] Telegram 适配器
@@ -157,6 +197,14 @@ Handsome-Agent/
 - [x] Executor 基类
 - [x] Shell 执行器
 - [x] Docker 执行器
+
+### 工具层 (从 Hermes 参考)
+- [x] **checkpoint_manager.py** - Git 快照管理器 (自动回滚)
+- [x] **todo_tool.py** - 待办事项管理
+- [x] **interrupt.py** - 线程级中断信号
+- [x] **skill_manager_tool.py** - 技能管理 (已完善)
+- [x] **memory_tool.py** - 持久化记忆 (已完善)
+- [x] **kanban_tool.py** - 看板任务管理 (已完善)
 
 ### 接入层
 - [x] Gateway 核心接口
