@@ -26,17 +26,19 @@
 | 🚪 Access | 💬 CLI | cli/main.py | 命令行入口 |
 | 🚪 Access | 💬 CLI | cli/modern_cli.py | 现代 CLI |
 | 🚪 Access | 🚪 Gateway | gateway/gateway.py | 网关 |
-| 🧠 Decision | 🤖 LLM | llm/openai_provider.py | OpenAI 提供商 |
-| 🧠 Decision | 🤖 LLM | llm/claude_provider.py | Claude 提供商 |
-| 🧠 Decision | 🤖 LLM | llm/deepseek_provider.py | DeepSeek 提供商 |
-| 🧠 Decision | 🔧 ToolSelect | llm_tool_selector.py | 工具选择器 |
-| 🧠 Decision | 💾 Memory | session.py | 会话管理 |
-| 🧠 Decision | 💾 Memory | memory_tool.py | 记忆工具 |
-| 🧠 Decision | 📋 Skills | skill_manager_tool.py | 技能管理 |
-| 🧠 Decision | 🔬 Curator | curator/curator.py | 自我进化 |
-| 🧠 Decision | 📊 Context | context_engine.py | 上下文引擎 |
+| 🧠 Decision | 🤖 LLM | agent/llm/openai_provider.py | OpenAI 提供商 |
+| 🧠 Decision | 🤖 LLM | agent/llm/claude_provider.py | Claude 提供商 |
+| 🧠 Decision | 🤖 LLM | agent/llm/llm_web_search.py | 网络搜索 |
+| 🧠 Decision | 🔧 ToolSelect | agent/tool_selector/llm_tool_selector.py | 工具选择器 |
+| 🧠 Decision | 💾 Memory | agent/session.py | 会话管理 |
+| 🧠 Decision | 💾 Memory | agent/memory/markdown_memory.py | 记忆存储 |
+| 🧠 Decision | 📋 Skills | agent/skills/skill_manager.py | 技能管理 |
+| 🧠 Decision | 🔬 Curator | agent/curator/curator.py | 自我进化 |
+| 🧠 Decision | 🔬 Curator | agent/curator/trajectory.py | 轨迹记录 |
+| 🧠 Decision | 📊 Context | agent/context/context_engine.py | 上下文引擎 |
+| 🧠 Decision | 📊 Context | agent/context/prompt_builder.py | 提示词构建 |
 | 🏃 Execution | 🛠️ ToolExec | tools/registry.py | 工具注册表 |
-| 🏃 Execution | 🛠️ ToolExec | integrated_tools.py | 集成工具 |
+| 🏃 Execution | 🛠️ ToolExec | tools/integrated_tools.py | 集成工具 |
 | 🏃 Execution | 🐚 ShellExec | executor/shell.py | Shell 执行器 |
 | 🏃 Execution | 🐳 DockerExec | executor/docker.py | Docker 执行器 |
 | 🏃 Execution | 🛠️ ToolExec | tools/app_launcher.py | 应用启动 |
@@ -83,7 +85,7 @@
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ 🧠 Decision Layer / 🤖 LLM                                                  │
 │ ┌────────────────────────────────────────────────────────────────────────┐ │
-│ │ agent/llm_tool_selector.py                                              │ │
+│ │ agent/tool_selector/llm_tool_selector.py                                           │ │
 │ │ Step 3: LLM 分析意图，判断是否需要工具                                   │ │
 │ │         输入: 用户输入 + 可用工具列表 + 历史对话                         │ │
 │ │         输出: Decision {type: "direct_response", tool: null}            │ │
@@ -909,20 +911,21 @@ ALLOWED_COMMANDS = {
 |-------|----------|--------|------|
 | 🚪 Access | 💬 CLI | [cli/main.py](cli/main.py) | 命令行入口 |
 | 🚪 Access | 💬 CLI | [cli/modern_cli.py](cli/modern_cli.py) | 现代 CLI |
-| 🚪 Access | 🚪 Gateway | [agent/modern_agent.py](agent/modern_agent.py) | Agent 协调器 |
-| 🧠 Decision | 🤖 LLM | [llm/openai_provider.py](agent/llm/openai_provider.py) | OpenAI 提供商 |
-| 🧠 Decision | 🤖 LLM | [llm/claude_provider.py](agent/llm/claude_provider.py) | Claude 提供商 |
-| 🧠 Decision | 🔧 ToolSelect | [llm_tool_selector.py](agent/llm_tool_selector.py) | 工具选择器 |
-| 🧠 Decision | 💾 Memory | [session.py](agent/session.py) | 会话管理 |
-| 🧠 Decision | 💾 Memory | [memory_tool.py](tools/memory_tool.py) | 记忆工具 |
-| 🧠 Decision | 📋 Skills | [skill_manager_tool.py](tools/skill_manager_tool.py) | 技能管理 |
-| 🧠 Decision | 🔬 Curator | [curator.py](agent/curator/curator.py) | 自我进化 |
-| 🏃 Execution | 🛠️ ToolExec | [registry.py](tools/registry.py) | 工具注册表 |
-| 🏃 Execution | 🛠️ ToolExec | [app_launcher.py](tools/app_launcher.py) | 应用启动 |
-| 🏃 Execution | 🛠️ ToolExec | [cronjob_tool.py](tools/cronjob_tool.py) | 定时任务 |
-| 🏃 Execution | 🛠️ ToolExec | [vision_tool.py](tools/vision_tool.py) | 图片分析 |
-| 🏃 Execution | 🐚 ShellExec | [shell.py](executor/shell.py) | 命令执行 |
-| 🏃 Execution | 🐳 DockerExec | [docker.py](executor/docker.py) | Docker 管理 |
+| 🚪 Access | 🚪 Gateway | [agent/agent.py](agent/agent.py) | Agent 协调器 |
+| 🧠 Decision | 🤖 LLM | [agent/llm/openai_provider.py](agent/llm/openai_provider.py) | OpenAI 提供商 |
+| 🧠 Decision | 🤖 LLM | [agent/llm/claude_provider.py](agent/llm/claude_provider.py) | Claude 提供商 |
+| 🧠 Decision | 🔧 ToolSelect | [agent/tool_selector/llm_tool_selector.py](agent/tool_selector/llm_tool_selector.py) | 工具选择器 |
+| 🧠 Decision | 💾 Memory | [agent/session.py](agent/session.py) | 会话管理 |
+| 🧠 Decision | 💾 Memory | [agent/memory/markdown_memory.py](agent/memory/markdown_memory.py) | 记忆存储 |
+| 🧠 Decision | 📋 Skills | [agent/skills/skill_manager.py](agent/skills/skill_manager.py) | 技能管理 |
+| 🧠 Decision | 🔬 Curator | [agent/curator/curator.py](agent/curator/curator.py) | 自我进化 |
+| 🧠 Decision | 📊 Context | [agent/context/context_engine.py](agent/context/context_engine.py) | 上下文引擎 |
+| 🏃 Execution | 🛠️ ToolExec | [tools/registry.py](tools/registry.py) | 工具注册表 |
+| 🏃 Execution | 🛠️ ToolExec | [tools/app_launcher.py](tools/app_launcher.py) | 应用启动 |
+| 🏃 Execution | 🛠️ ToolExec | [tools/cronjob_tool.py](tools/cronjob_tool.py) | 定时任务 |
+| 🏃 Execution | 🛠️ ToolExec | [tools/vision_tool.py](tools/vision_tool.py) | 图片分析 |
+| 🏃 Execution | 🐚 ShellExec | [executor/shell.py](executor/shell.py) | 命令执行 |
+| 🏃 Execution | 🐳 DockerExec | [executor/docker.py](executor/docker.py) | Docker 管理 |
 
 ---
 

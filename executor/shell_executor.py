@@ -5,9 +5,23 @@ Shell 执行器
 
 import subprocess
 import asyncio
-from typing import Optional
+from typing import Optional, Dict, Any
+from enum import Enum
 from .base import BaseExecutor, ExecutorConfig, ExecutionResult
-from agent.schemas import ToolCall, SafetyLevel
+
+
+class SafetyLevel(Enum):
+    """安全级别"""
+    SAFE = "safe"
+    CAUTION = "caution"
+    DANGER = "danger"
+
+
+class ToolCall:
+    """Tool call definition"""
+    def __init__(self, name: str, parameters: Dict[str, Any] = None):
+        self.name = name
+        self.parameters = parameters or {}
 
 
 class ShellExecutor(BaseExecutor):

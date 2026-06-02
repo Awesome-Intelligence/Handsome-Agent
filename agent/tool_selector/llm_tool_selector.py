@@ -61,7 +61,7 @@ class AgentDefinitionLoader:
     """
     
     def __init__(self):
-        from .workspace import get_workspace_manager
+        from agent.workspace import get_workspace_manager
         
         self.workspace_manager = get_workspace_manager()
         self._definitions: Dict[str, str] = {}

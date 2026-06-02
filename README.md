@@ -52,17 +52,31 @@ Handsome-Agent/
 │
 ├── agent/                    # 🧠 Decision
 │   ├── agent.py             #   🧠 Decision - Agent 协调器
-│   ├── llm_tool_selector.py #   🧠 Decision - 🤖 LLM - 工具选择器
 │   ├── session.py           #   🧠 Decision - 💾 Memory - 会话管理
-│   ├── context_engine.py    #   🧠 Decision - 📊 Context - 上下文引擎
-│   ├── prompt_builder.py    #   🧠 Decision - 📊 Context - 提示词构建
+│   ├── response_router.py  #   🧠 Decision - 响应路由
+│   ├── self_improvement.py  #   🧠 Decision - 自我改进
+│   ├── context/             #   🧠 Decision - 📊 Context
+│   │   ├── context_engine.py
+│   │   └── prompt_builder.py
 │   ├── curator/             #   🧠 Decision - 🔬 Curator - 自我进化
 │   │   ├── curator.py
-│   │   └── synthesizer.py
-│   └── llm/                 #   🧠 Decision - 🤖 LLM - LLM 提供商
-│       ├── openai_provider.py
-│       ├── claude_provider.py
-│       └── deepseek_provider.py
+│   │   ├── trajectory.py
+│   │   └── trajectory_recorder.py
+│   ├── llm/                 #   🧠 Decision - 🤖 LLM - LLM 提供商
+│   │   ├── openai_provider.py
+│   │   ├── claude_provider.py
+│   │   ├── llm_web_search.py
+│   │   └── llm_terminal_command.py
+│   ├── memory/              #   🧠 Decision - 💾 Memory - 记忆存储
+│   │   └── markdown_memory.py
+│   ├── skills/              #   🧠 Decision - 📋 Skills - 技能管理
+│   │   └── skill_manager.py
+│   ├── task/               #   🧠 Decision - Task - 任务管理
+│   │   ├── task_planner.py
+│   │   └── task_executor.py
+│   ├── tool_selector/       #   🧠 Decision - 🔧 ToolSelect - 工具选择
+│   │   └── llm_tool_selector.py
+│   └── templates/           #   Agent 模板
 │
 ├── tools/                    # 🏃 Execution - 🛠️ ToolExec - 工具定义
 │   ├── registry.py           #   工具注册表

@@ -17,7 +17,8 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from agent.simplified_agent import ActionType
+from enum import Enum
+
 from agent.session import session_manager, Session, Message
 from tools.integrated_tools import (
     get_integrated_engine,
@@ -30,6 +31,13 @@ from common.logging_manager import (
     get_llm_logger,
     get_tool_logger
 )
+
+
+class ActionType(Enum):
+    """Action type enum"""
+    TOOL_CALL = "tool_call"
+    DIRECT_RESPONSE = "direct_response"
+    CLARIFICATION = "clarification"
 
 logger = logging.getLogger(__name__)
 

@@ -9,21 +9,22 @@ import sys
 import os
 import json
 import logging
-from typing import Dict, List, Optional, Any, Callable
-from pathlib import Path
+from typing import Dict, List, Optional, Any, Callable, TYPE_CHECKING
 
-# 添加项目根目录到路径
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+if TYPE_CHECKING:
+    from agent.agent import AgentResponse
 
 from tools.registry import registry, ToolEntry
-from agent.llm_tool_selector import (
-    LLMDrivenDecisionEngine,
-    ToolDefinition
-)
-from agent.simplified_agent import Tool
+from agent.tool_selector import LLMDrivenDecisionEngine, ToolDefinition
 from common.logging_manager import get_decision_logger
+
+
+class Tool:
+    """Tool definition"""
+    def __init__(self, name: str, description: str = "", category: str = "general"):
+        self.name = name
+        self.description = description
+        self.category = category
 
 logger = get_decision_logger(__name__)
 

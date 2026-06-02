@@ -1,14 +1,9 @@
-"""brain.agent - Agent 相关模块"""
-from .agent_loop import AgentLoop, AgentConfig, AgentState
-from .schemas import ToolCall, ToolSchema, ToolRegistry, Thought, Action
+"""
+Main Agent module for Handsome Agent
 
-__all__ = [
-    "AgentLoop",
-    "AgentConfig", 
-    "AgentState",
-    "ToolCall",
-    "ToolSchema",
-    "ToolRegistry",
-    "Thought",
-    "Action",
-]
+🧠 Decision - Agent Core
+"""
+
+from .agent import Agent, AgentResponse
+
+__all__ = ['Agent', 'AgentResponse']
