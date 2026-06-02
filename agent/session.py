@@ -101,6 +101,7 @@ class FileSessionStore(BaseSessionStore):
     
     def save(self, session_id: str, data: Dict[str, Any]):
         """Save session data to file."""
+        import os
         file_path = self._get_file_path(session_id)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w', encoding='utf-8') as f:

@@ -71,10 +71,11 @@ class LogConfig:
     """Log configuration class"""
     
     def __init__(self):
+        from common.config import get_logs_dir
         self.log_level: str = "moderate"
         self.console_enabled: bool = True
         self.file_enabled: bool = False
-        self.file_path: str = "logs/handsome-agent.log"
+        self.file_path: str = str(get_logs_dir() / "handsome-agent.log")
         self.console_style: str = ConsoleStyle.PRETTY
         self.max_file_size: int = 10 * 1024 * 1024
         self.backup_count: int = 5
@@ -137,7 +138,7 @@ class ColoredFormatter(logging.Formatter):
         # 格式化消息
         message = record.getMessage()
         
-        return f"{timestamp} - {subsystem} - {level} - {message}"
+        return f"{timestamp} - {level} - {subsystem} - {message}"
     
     def _format_compact(self, record: logging.LogRecord) -> str:
         """Compact 格式：无时间戳，紧凑"""
@@ -445,8 +446,8 @@ class LayerLogger:
     """Layered logger wrapper
     
     Log format specification:
-    - With sublayer: INFO - [🚪MainLayer] - [/💾SublayerName] - (ModuleName) message
-    - Without sublayer: INFO - [🚪MainLayer] - (ModuleName) message
+    - With sublayer: INFO - [🧠Decision] - [/🤖LLM] - (ModuleName) message
+    - Without sublayer: INFO - [🧠Decision] - (ModuleName) message
     
     Parameters:
         name: Module name (e.g., class name)
@@ -461,7 +462,7 @@ class LayerLogger:
         
         # 获取主层信息
         self._layer_info = LOG_LAYERS.get(layer, {"emoji": "📋", "name": layer})
-        self._logger = LogManager.get_instance().get_logger(f"{self._layer_info['emoji']} [{self._layer_info['name']}]", layer)
+        self._logger = LogManager.get_instance().get_logger(f"[{self._layer_info['emoji']}{self._layer_info['name']}]", layer)
         
         # 获取主层 emoji 和名称
         self._layer_emoji = self._layer_info['emoji']
@@ -474,13 +475,13 @@ class LayerLogger:
         """Format log message
         
         Format:
-        - With sublayer: (ModuleName) - [/💾SublayerName] message
+        - With sublayer: [/💾SublayerName] - (ModuleName) message
         - Without sublayer: (ModuleName) message
         """
         if self._sublayer_info:
             sublayer_emoji = self._sublayer_info['emoji']
             sublayer_name = self._sublayer_info['name']
-            return f"({self._name}) - [/{sublayer_emoji}{sublayer_name}] {msg}"
+            return f"[/{sublayer_emoji}{sublayer_name}] - ({self._name}) {msg}"
         else:
             return f"({self._name}) {msg}"
     
