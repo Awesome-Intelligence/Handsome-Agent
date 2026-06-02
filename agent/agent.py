@@ -1,382 +1,341 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Handsome Agent Core Implementation
-Inspired by Hermes Agent Architecture
+Agent Core - Agent 核心实现
 
-Three-layer architecture: Access / Decision / Execution
-
-DEPRECATED: This module uses the old intent-based architecture.
-Please migrate to the new LLM-driven architecture.
-See: core/llm_tool_selector.py and docs/MIGRATION_GUIDE.md
+使用整合后的工具系统，完全基于 LLM 驱动的决策
 """
 
-import os
 import sys
+import os
 import json
-import time
-import warnings
-from typing import Dict, List, Optional, Any, Callable, Union
+import logging
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
-import asyncio
+from pathlib import Path
 
-from pydantic import BaseModel, Field
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-from common.exceptions import (
-    AgentError,
-    InputValidationError, 
-    ResponseGenerationError,
-    ToolExecutionError,
+from agent.simplified_agent import ActionType
+from agent.session import session_manager, Session, Message
+from tools.integrated_tools import (
+    get_integrated_engine,
+    initialize_tools
 )
-from common.logging_manager import get_decision_logger
-
-
-# Module-level logger (kept for compatibility with deprecated module)
-logger = get_decision_logger("AgentCore")
-from common.cache import LRUCache, create_cache_key, hash_config
-from .skill_manager import skill_manager, SkillResult, BaseSkill
-from .session import session_manager, Session, Message
-from common.i18n import I18n
 from common.logging_manager import (
     get_access_logger,
     get_decision_logger,
     get_execution_logger,
     get_llm_logger,
-    get_tool_logger,
-    set_log_level
-)
-from .response_router import ResponseStrategyRouter, ResponseStrategy
-
-warnings.warn(
-    "This module uses the deprecated intent-based architecture. "
-    "Please migrate to core/llm_tool_selector.py. "
-    "See docs/MIGRATION_GUIDE.md for instructions.",
-    DeprecationWarning,
-    stacklevel=2
+    get_tool_logger
 )
 
-
-class AgentConfig(BaseModel):
-    """Agent configuration using Pydantic for validation."""
-    name: str = "CustomAgent"
-    version: str = "1.0.0"
-    explanation_depth: str = "detailed"
-    response_format: str = "structured" 
-    language: str = "zh"
-    enable_caching: bool = True
-    max_response_length: int = 4000
-    timeout_seconds: float = 30.0
-    enable_routing: bool = True
-    enable_skills: bool = True
-    enable_session: bool = True
-    
-    enable_task_planning: bool = True
-    task_complexity_threshold: int = 2
-    
-    enable_advanced_reasoning: bool = True
-    
-    supported_languages: List[str] = ["zh", "en", "ja", "ko"]
-    
-    log_level: str = "info"
-    enable_detailed_logs: bool = True
-    enable_summary_logs: bool = True
-    
-    class Config:
-        extra = "allow"
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class AgentResponse:
-    """Response from the agent."""
+    """Agent 响应"""
     content: str
-    reasoning_steps: List[str] = field(default_factory=list)
+    tool_used: Optional[str] = None
+    tool_result: Optional[Any] = None
     confidence_score: float = 1.0
     metadata: Dict[str, Any] = field(default_factory=dict)
     execution_time: float = 0.0
-    error_code: int = 0
 
 
-class BaseAgentModule(ABC):
-    """Base class for agent modules."""
-    
-    __slots__ = ('config', 'logger')
-    
-    def __init__(self, config: AgentConfig):
-        self.config = config
-        self.logger = get_decision_logger(self.__class__.__name__)
-        self.logger.propagate = False
-    
-    @abstractmethod
-    async def process(self, input_data: Any, session: Optional[Session] = None) -> AgentResponse:
-        """Process input and return response."""
-        pass
-
-
-class ExplanationModule(BaseAgentModule):
-    """Module for generating explanations."""
-    
-    __slots__ = ('_logger',)
-    
-    def __init__(self, config=None):
-        super().__init__(config)
-        from common.logging_manager import get_postprocess_logger
-        self._logger = get_postprocess_logger("ExplanationModule")
-    
-    async def process(self, input_data: Any, session: Optional[Session] = None) -> AgentResponse:
-        """Generate explanation for the response."""
-        self._logger.debug(f"ExplanationModule processing: {input_data}")
-        
-        return AgentResponse(
-            content=str(input_data),
-            reasoning_steps=["Generated explanation"]
-        )
-
-
-class CustomAgent:
+class Agent:
     """
-    Custom Agent - DEPRECATED.
+    Agent - 使用整合后的工具系统
     
-    WARNING: This class uses the deprecated intent-based architecture.
-    Please migrate to the new LLM-driven architecture.
-    
-    Migration guide: See docs/MIGRATION_GUIDE.md
+    特点：
+    1. 使用 LLM 直接做工具选择决策
+    2. 整合了 ToolRegistry 中的所有工具
+    3. 支持会话管理（自动检测今日会话）
+    4. 支持记忆系统
     """
     
-    __slots__ = (
-        'config', 'explanation_module',
-        '_access_logger', '_cache_logger', '_memory_logger',
-        '_router_logger', '_tool_select_logger', '_session_logger',
-        '_postprocess_logger', '_execution_logger', '_cache', '_config_hash',
-        '_session', '_router',
-        'llm_provider', '_i18n', '_task_planner', '_advanced_reasoning_module',
-        '_strategy_router'
-    )
-    
-    def __init__(self, config: Optional[AgentConfig] = None, session_id: Optional[str] = None):
-        warnings.warn(
-            "CustomAgent is deprecated. Please use the new architecture from "
-            "core/llm_tool_selector.py or core/simplified_agent.py",
-            DeprecationWarning,
-            stacklevel=2
-        )
-
-        self.config = config or AgentConfig()
-        self.explanation_module = ExplanationModule(self.config)
-        self._i18n = I18n(self.config.language)
-        self.setup_logging()
-
-        from common.logging_manager import (
-            get_access_logger, get_execution_logger,
-            get_memory_logger, get_postprocess_logger, get_decision_logger
-        )
-
-        self._access_logger = get_access_logger("InputHandler")
-        self._cache_logger = get_execution_logger("MemoryCache")
-        self._memory_logger = get_memory_logger("MemoryRetrieval")
-        self._router_logger = get_decision_logger("TaskRouter")
-        self._tool_select_logger = get_decision_logger("ToolSelector")
-        self._session_logger = get_execution_logger("SessionManager")
-        self._postprocess_logger = get_postprocess_logger("PostProcessor")
-        self._execution_logger = get_execution_logger("ExecutionLayer")
-
-        skill_manager.set_explanation_depth(self.config.explanation_depth)
-
-        # 初始化路由器 - 使用全局 router 实例
-        self._router = None
-        if self.config.enable_routing:
-            try:
-                from .router import router
-                self._router = router
-                self._router_logger.info(f"TaskRouter initialized with {len(router.routes)} handlers")
-            except Exception as e:
-                self._router_logger.error(f"Failed to load router: {e}")
-
-        if self.config.enable_caching:
-            self._cache = LRUCache(maxsize=100)
-            self._config_hash = hash_config(self.config)
-        else:
-            self._cache = None
-            self._config_hash = None
-
-        if self.config.enable_session:
-            session_manager._enable_detailed_logs = self.config.enable_detailed_logs
-            self._session = session_manager.create_session(
-                session_id,
-                enable_detailed_logs=self.config.enable_detailed_logs
-            )
-        else:
-            self._session = None
-
-        self.llm_provider = None
-        self._task_planner = None
-        self._advanced_reasoning_module = None
-        self._strategy_router = None
-    
-    def setup_logging(self):
-        """Setup logging configuration."""
-        if self.config.log_level:
-            level = getattr(logging, self.config.log_level.upper(), logging.INFO)
-            logging.root.setLevel(level)
-    
-    def set_llm_provider(self, provider):
-        """Set the LLM provider."""
-        self.llm_provider = provider
-        
-        if self.config.enable_advanced_reasoning:
-            try:
-                from agent.advanced_reasoning.integration import AdvancedReasoningModule
-                self._advanced_reasoning_module = AdvancedReasoningModule(provider)
-            except ImportError:
-                self._advanced_reasoning_module = None
-        
-        if self.config.enable_task_planning:
-            try:
-                from .task_planner import TaskPlanner
-                self._task_planner = TaskPlanner(provider)
-            except ImportError:
-                self._task_planner = None
-    
-    async def chat(self, user_input: str) -> AgentResponse:
+    def __init__(
+        self,
+        llm_provider=None,
+        enable_session: bool = True,
+        session_id: Optional[str] = None,
+        force_new_session: bool = False
+    ):
         """
-        Process user input and generate response.
-
-        DEPRECATED: This method uses the old intent-based architecture.
-        Please migrate to the new LLM-driven architecture.
+        Args:
+            llm_provider: LLM Provider
+            enable_session: Enable session management
+            session_id: Session ID (if resuming session). Use "last" for latest session
+            force_new_session: Force create a new session even if today's session exists
         """
-        warnings.warn(
-            "The chat() method uses the deprecated intent-based architecture. "
-            "Please migrate to the new LLM-driven decision engine. "
-            "See docs/MIGRATION_GUIDE.md",
-            DeprecationWarning,
-            stacklevel=2
-        )
-
-        if not user_input or not user_input.strip():
-            return AgentResponse(
-                content="Please provide input.",
-                error_code=400
-            )
-
+        httpx_logger = logging.getLogger("httpx")
+        httpx_logger.setLevel(logging.WARNING)
+        
+        self.llm_provider = llm_provider
+        self.enable_session = enable_session
+        
+        self._access_logger = get_access_logger("Agent")
+        self._decision_logger = get_decision_logger("Agent")
+        self._execution_logger = get_execution_logger("Agent")
+        self._tool_logger = get_tool_logger("Agent")
+        
+        self.engine = get_integrated_engine(llm_provider=llm_provider)
+        
+        self._session: Optional[Session] = None
+        if self.enable_session:
+            if session_id == "last" or session_id is None and not force_new_session:
+                self._session = session_manager.get_or_create_today_session()
+                if session_manager.get_latest_today_session():
+                    self._access_logger.info(f"Continuing today's session: {self._session.session_id}")
+                else:
+                    self._access_logger.info(f"Created new session: {self._session.session_id}")
+            else:
+                self._session = session_manager.create_session(session_id)
+                self._access_logger.info(f"Resumed session: {session_id}")
+    
+    async def chat(
+        self,
+        user_input: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> AgentResponse:
+        """
+        处理用户输入（主要接口）
+        
+        Args:
+            user_input: 用户输入
+            conversation_history: 可选的对话历史
+        
+        Returns:
+            AgentResponse
+        """
+        import time
+        start_time = time.time()
+        
+        self._access_logger.info(f"User input: {user_input[:50]}...")
+        
+        history = conversation_history
+        if not history and self._session:
+            history = self._get_session_messages()
+        
         if self._session:
             self._session.add_message('user', user_input)
-
-        # 尝试使用路由器
-        if self._router:
-            self._router_logger.info(f"Routing request: {user_input[:50]}...")
-            self._execution_logger.info(f"[执行层] 收到请求: {user_input[:30]}...")
-
-            try:
-                # 构建路由上下文
-                context = {
-                    'session_id': self._session.session_id if self._session else None,
-                    'llm_provider': self.llm_provider,
-                    'skill_manager': skill_manager,
-                    'session_history': self._session.messages if self._session else [],
-                    'enable_detailed_logs': self.config.enable_detailed_logs
-                }
-
-                # 执行路由
-                route_match = self._router.route(user_input)
-
-                if route_match:
-                    self._router_logger.info(
-                        f"Routed to {route_match.route_id} "
-                        f"(confidence: {route_match.confidence:.2f})"
-                    )
-                    self._execution_logger.info(f"[执行层] 路由到: {route_match.route_id}")
-
-                    # 执行处理器
-                    if asyncio.iscoroutinefunction(route_match.handler):
-                        response_text, execution_flow = await route_match.handler(
-                            user_input,
-                            context
-                        )
-                    else:
-                        # 同步处理器
-                        response_text, execution_flow = route_match.handler(
-                            user_input,
-                            context
-                        )
-
-                    # 记录执行流程
-                    for step in execution_flow:
-                        self._execution_logger.debug(f"  {step}")
-
-                    if self._session:
-                        self._session.add_message('assistant', response_text)
-                        self._session._save_session()
-
-                    return AgentResponse(
-                        content=response_text,
-                        reasoning_steps=execution_flow,
-                        confidence_score=route_match.confidence
-                    )
-
-            except Exception as e:
-                self._router_logger.error(f"Routing failed: {e}")
-                self._execution_logger.error(f"[执行层] 路由失败: {e}")
-                # 继续使用 LLM 作为 fallback
-
-        # 如果没有路由器或路由失败，使用 LLM
-        if not self.llm_provider:
-            return AgentResponse(
-                content="LLM provider not configured and no router handler matched.",
-                error_code=500
+        
+        result = await self.engine.process(
+            user_input,
+            conversation_history=history
+        )
+        
+        self._decision_logger.info(f"Engine result type: {result['type']}")
+        
+        final_response = ""
+        
+        if result['type'] == 'tool_execution':
+            tool_name = result['tool']
+            tool_result = result['result']
+            
+            self._tool_logger.info(f"Executed tool: {tool_name}")
+            
+            if self.llm_provider:
+                final_response = await self._summarize_with_llm(
+                    user_input,
+                    tool_name,
+                    tool_result,
+                    conversation_history=history
+                )
+            else:
+                final_response = f"Executed {tool_name}: {json.dumps(tool_result, ensure_ascii=False)}"
+            
+            response_obj = AgentResponse(
+                content=final_response,
+                tool_used=tool_name,
+                tool_result=tool_result,
+                confidence_score=getattr(result.get('selection'), 'confidence', 0.8)
             )
-
-        try:
-            self._router_logger.info("No route matched, using LLM directly")
-            self._execution_logger.info("[执行层] 使用 LLM 直接响应")
-
-            response_text = await self.llm_provider.generate(user_input)
-
-            if self._session:
-                self._session.add_message('assistant', response_text)
-                self._session._save_session()
-
-            return AgentResponse(
-                content=response_text,
+        
+        elif result['type'] == 'direct_response':
+            if self.llm_provider:
+                response = await self._generate_direct_response(user_input, conversation_history=history)
+                final_response = response.content if hasattr(response, 'content') else str(response)
+            else:
+                final_response = "This is a direct response (no LLM configured)."
+            
+            response_obj = AgentResponse(
+                content=final_response,
                 confidence_score=1.0
             )
-
-        except Exception as e:
-            self._router_logger.error(f"LLM generation failed: {e}")
-            return AgentResponse(
-                content=f"Error: {str(e)}",
-                error_code=500
+        
+        elif result['type'] == 'clarification_needed':
+            selection = result.get('selection')
+            clarification = getattr(selection, 'reasoning', 'Could you provide more details?')
+            
+            if self.llm_provider:
+                response = await self._generate_clarification_response(
+                    user_input,
+                    clarification,
+                    conversation_history=history
+                )
+                final_response = response.content if hasattr(response, 'content') else str(response)
+            else:
+                final_response = clarification
+            
+            response_obj = AgentResponse(
+                content=final_response,
+                confidence_score=0.5
             )
+        
+        else:
+            final_response = "I'm not sure how to respond to that."
+            response_obj = AgentResponse(
+                content=final_response,
+                confidence_score=0.3
+            )
+        
+        if self._session:
+            self._session.add_message('assistant', final_response)
+        
+        response_obj.execution_time = time.time() - start_time
+        
+        self._access_logger.info(f"Response generated in {response_obj.execution_time:.2f}s")
+        
+        return response_obj
     
-    async def process(self, user_input: str) -> AgentResponse:
-        """
-        Process user input (alias for chat).
+    async def _summarize_with_llm(
+        self,
+        user_input: str,
+        tool_name: str,
+        tool_result: Any,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> str:
+        """使用 LLM 总结工具执行结果"""
+        try:
+            result_str = json.dumps(tool_result, ensure_ascii=False)
+            
+            messages = []
+            if conversation_history:
+                messages.extend(conversation_history)
+            messages.append({"role": "user", "content": user_input})
+            
+            prompt = f"""I executed tool: {tool_name}
+Tool result: {result_str}
 
-        DEPRECATED: Use the new architecture instead.
-        """
-        warnings.warn(
-            "process() is deprecated. Use chat() or migrate to the new architecture.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return await self.chat(user_input)
+Please provide a natural language response to the user based on the tool result."""
+            
+            messages.append({"role": "user", "content": prompt})
+            
+            response = await self.llm_provider.generate(prompt, messages=messages)
+            return response.content if hasattr(response, 'content') else str(response)
+        except Exception as e:
+            logger.error(f"Failed to summarize with LLM: {e}")
+            try:
+                prompt = f"""User asked: {user_input}
 
-    async def respond(self, user_input: str) -> AgentResponse:
-        """
-        Respond to user input (alias for chat).
+I executed tool: {tool_name}
+Tool result: {result_str}
 
-        DEPRECATED: This method is deprecated. Please use the new LLM-driven
-        architecture from agent.llm_tool_selector instead.
+Please provide a natural language response to the user based on the tool result."""
+                response = await self.llm_provider.generate(prompt)
+                return response.content if hasattr(response, 'content') else str(response)
+            except:
+                return f"Tool {tool_name} executed. Result: {json.dumps(tool_result, ensure_ascii=False)}"
+    
+    async def _generate_direct_response(
+        self,
+        user_input: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> str:
+        """使用对话历史生成直接回复"""
+        try:
+            messages = []
+            system_prompt = self._build_identity_prompt()
+            messages.append({"role": "system", "content": system_prompt})
+            
+            if conversation_history:
+                messages.extend(conversation_history)
+            
+            messages.append({"role": "user", "content": user_input})
+            
+            response = await self.llm_provider.generate(user_input, messages=messages)
+            return response
+        except Exception as e:
+            logger.error(f"Failed to generate with history: {e}")
+            response = await self.llm_provider.generate(user_input)
+            return response
+    
+    def _build_identity_prompt(self) -> str:
+        """构建 Agent 身份提示词"""
+        from agent.llm_tool_selector import AgentDefinitionLoader
+        
+        loader = AgentDefinitionLoader()
+        identity = loader.get_identity_summary()
+        capabilities = loader.get_capabilities_summary()
+        
+        return f"""{identity}
 
-        Args:
-            user_input: User input string
+{capabilities}
 
-        Returns:
-            AgentResponse: Response from the agent
-        """
-        warnings.warn(
-            "respond() is deprecated. Please use the new LLM-driven architecture "
-            "from agent.llm_tool_selector instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return await self.chat(user_input)
+Please respond naturally based on your identity and capabilities. When asked "who are you" or "你是谁", introduce yourself as Handsome Agent."""
+    
+    async def _generate_clarification_response(
+        self,
+        user_input: str,
+        clarification: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> str:
+        """使用对话历史生成澄清回复"""
+        try:
+            messages = []
+            if conversation_history:
+                messages.extend(conversation_history)
+            messages.append({"role": "user", "content": user_input})
+            
+            prompt = f"""User asked: {user_input}
+
+You need to ask for clarification. Reason: {clarification}
+
+Please ask for more details in a natural way."""
+            
+            messages.append({"role": "user", "content": prompt})
+            
+            response = await self.llm_provider.generate(prompt, messages=messages)
+            return response
+        except Exception as e:
+            logger.error(f"Failed to generate clarification: {e}")
+            response = await self.llm_provider.generate(
+                f"User asked: {user_input}. You need to ask for clarification. Reason: {clarification}"
+            )
+            return response
+    
+    def _get_session_messages(self) -> List[Dict]:
+        """从会话中获取消息列表"""
+        if not self._session:
+            return []
+        
+        return [
+            {"role": msg.role, "content": msg.content}
+            for msg in self._session.messages
+        ]
+    
+    def get_tool_list(self) -> List[Dict[str, Any]]:
+        """获取可用工具列表"""
+        return [
+            {
+                'name': tool.name,
+                'description': tool.description,
+                'category': tool.category
+            }
+            for tool in self.engine.tool_selector.tools.values()
+        ]
+
+
+if __name__ == "__main__":
+    print("Testing Agent initialization...")
+    initialize_tools()
+    
+    agent = Agent(llm_provider=None)
+    
+    print(f"\n✅ Agent initialized with {len(agent.get_tool_list())} tools!")
+    print("\nAvailable tools:")
+    for tool in agent.get_tool_list():
+        print(f"  - {tool['name']} ({tool.get('category', 'general')})")

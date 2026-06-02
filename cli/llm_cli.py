@@ -9,8 +9,7 @@ Provides Text User Interface for LLM provider configuration.
 import argparse
 import os
 from typing import Optional
-from agent.agent import AgentConfig
-from agent.advanced_reasoning.integration import enhance_agent_with_advanced_reasoning
+from agent.agent import Agent, AgentResponse
 from llm_integration import LLMConfig, setup_llm_integration
 
 

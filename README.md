@@ -50,8 +50,8 @@ Handsome Agent 是一个企业级 AI Agent 系统，融合了：
 ```
 Handsome-Agent/
 │
-├── agent/                    # 🚪 Access / 🧠 Decision / 🏃 Execution
-│   ├── modern_agent.py      #   🧠 Decision - Agent 协调器
+├── agent/                    # 🧠 Decision
+│   ├── agent.py             #   🧠 Decision - Agent 协调器
 │   ├── llm_tool_selector.py #   🧠 Decision - 🤖 LLM - 工具选择器
 │   ├── session.py           #   🧠 Decision - 💾 Memory - 会话管理
 │   ├── context_engine.py    #   🧠 Decision - 📊 Context - 上下文引擎
@@ -161,7 +161,7 @@ Handsome-Agent/
 ### 流程 1: 简单对话（无需工具）
 
 ```
-用户输入 → ModernAgent → LLM直接回复 → 响应
+用户输入 → Agent → LLM直接回复 → 响应
 ```
 
 ### 流程 2: 文件操作

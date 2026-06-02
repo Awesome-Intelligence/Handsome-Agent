@@ -4,7 +4,7 @@
 Main entry point for the Handsome Agent
 Provides Text User Interface for testing and interaction
 
-Updated to use the new LLM-driven ModernAgent!
+Updated to use the new LLM-driven Agent!
 """
 
 import asyncio
@@ -64,8 +64,8 @@ else:
     # 日志已经被配置（例如从 main.py 调用），保持现有配置
     pass
 
-# 导入新的 ModernAgent！
-from agent.modern_agent import ModernAgent, ModernAgentResponse
+# 导入 Agent
+from agent.agent import Agent, AgentResponse
 
 # 保持原有的异常导入（虽然可能不再需要，但保持兼容性）
 from common.exceptions import AgentError, InputValidationError, ResponseGenerationError
@@ -129,11 +129,11 @@ def run_setup_if_needed():
         print()
 
 
-async def interactive_mode(agent: ModernAgent, model_name: str = "Modern Agent"):
+async def interactive_mode(agent: Agent, model_name: str = "Agent"):
     """Run the agent in interactive mode.
     
     Args:
-        agent: The ModernAgent instance to use for processing user input.
+        agent: The Agent instance to use for processing user input.
         model_name: Name of the model to display in status bar.
     """
     from cli import ui
@@ -197,11 +197,11 @@ async def interactive_mode(agent: ModernAgent, model_name: str = "Modern Agent")
             ui.print_error(f"错误: {e}")
 
 
-async def single_query_mode(agent: ModernAgent, query: str, model_name: str = "Modern Agent"):
+async def single_query_mode(agent: Agent, query: str, model_name: str = "Agent"):
     """Run the agent with a single query.
     
     Args:
-        agent: The ModernAgent instance to use.
+        agent: The Agent instance to use.
         query: The user's query string.
         model_name: Name of the model to display in status bar.
     """
@@ -492,16 +492,16 @@ def main():
         from common.logging_manager import set_log_level
         set_log_level(explanation_depth)
     
-    # Create NEW ModernAgent!
+    # Create Agent!
     print()
-    print("✨ Using NEW LLM-driven Modern Agent!")
+    print("✨ Using LLM-driven Agent!")
     print()
     
     # Session options
     session_id = args.session if args.session else "last"
     force_new = args.new_session
     
-    agent = ModernAgent(
+    agent = Agent(
         llm_provider=llm_provider,
         enable_session=True,
         session_id=session_id,

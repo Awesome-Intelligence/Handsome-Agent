@@ -6,8 +6,7 @@ This file contains shared fixtures and configuration for all tests.
 
 import pytest
 import asyncio
-from agent.agent import AgentConfig, CustomAgent
-from agent.advanced_reasoning.integration import enhance_agent_with_advanced_reasoning
+from agent.agent import Agent, AgentResponse
 
 
 @pytest.fixture(scope="session")
@@ -20,42 +19,11 @@ def event_loop():
 
 @pytest.fixture
 def basic_agent():
-    """Create a basic agent instance for testing."""
-    config = AgentConfig(
-        enable_caching=False,  # Disable caching for predictable tests
-        timeout_seconds=1.0
-    )
-    return CustomAgent(config)
-
-
-@pytest.fixture
-def advanced_agent():
-    """Create an advanced agent instance for testing."""
-    config = AgentConfig(
-        enable_caching=False,  # Disable caching for predictable tests
-        timeout_seconds=1.0
-    )
-    return enhance_agent_with_advanced_reasoning(config)
+    """Create a basic Agent instance for testing."""
+    return Agent(llm_provider=None)
 
 
 @pytest.fixture
 def test_config():
     """Create a test configuration."""
-    return AgentConfig(
-        enable_caching=False,
-        timeout_seconds=1.0,
-        max_response_length=2000
-    )
-
-
-@pytest.fixture
-def sample_queries():
-    """Provide sample queries for testing."""
-    return {
-        'basic': "What is machine learning?",
-        'programming': "How do I optimize Python code?",
-        'ml': "Explain neural networks",
-        'system_design': "REST vs GraphQL comparison",
-        'empty': "",
-        'whitespace': "   "
-    }
+    return {"timeout_seconds": 1.0}

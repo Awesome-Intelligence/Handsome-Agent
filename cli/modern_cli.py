@@ -3,7 +3,7 @@
 """
 Modern CLI - 现代版命令行接口
 
-使用新的 ModernAgent 和整合后的工具系统
+使用新的 Agent 和整合后的工具系统
 """
 
 import asyncio
@@ -19,7 +19,7 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from agent.modern_agent import ModernAgent, ModernAgentResponse
+from agent.agent import Agent, AgentResponse
 from tools.integrated_tools import initialize_tools
 
 CONFIG_FILE = os.path.expanduser("~/.handsome_agent/config.json")
@@ -56,7 +56,7 @@ def print_header(title: str, subtitle: str = ""):
     print(f"{'=' * 60}\n")
 
 
-async def interactive_mode(agent: ModernAgent):
+async def interactive_mode(agent: Agent):
     """交互模式"""
     
     # 显示会话摘要（如果继续现有会话）
@@ -110,7 +110,7 @@ async def interactive_mode(agent: ModernAgent):
             print(f"\n❌ Error: {e}")
 
 
-async def single_query_mode(agent: ModernAgent, query: str):
+async def single_query_mode(agent: Agent, query: str):
     """单次查询模式"""
     print_header("Single Query Mode", query[:60])
     
@@ -128,7 +128,7 @@ async def single_query_mode(agent: ModernAgent, query: str):
     print(response.content)
 
 
-def list_tools(agent: ModernAgent):
+def list_tools(agent: Agent):
     """列出所有可用工具"""
     tools = agent.get_tool_list()
     
@@ -254,7 +254,7 @@ Examples:
     # 创建 Agent
     session_id = args.session if args.session else "last"
     force_new = args.new_session
-    agent = ModernAgent(
+    agent = Agent(
         llm_provider=llm_provider,
         session_id=session_id,
         force_new_session=force_new

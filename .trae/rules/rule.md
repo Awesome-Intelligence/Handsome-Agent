@@ -4,6 +4,9 @@
 
 ---
 
+回复的最后一句话请使用“我已经帅帅地完成了任务！”。以便于我确定你是否真的有加载本文件。
+
+
 ## 参考项目路径
 
 **重要提示**：当需要参考 OpenClaw 和 Hermes 项目时，请使用以下路径：
@@ -22,7 +25,7 @@
 Handsome-Agent/
 │
 ├── agent/                    # 🧠 Decision - 🤖 LLM, 💾 Memory, 🔬 Curator, 📊 Context
-│   ├── modern_agent.py      #   🧠 Decision - Agent 协调器
+│   ├── agent.py             #   🧠 Decision - Agent 协调器
 │   ├── llm_tool_selector.py #   🧠 Decision - 🤖 LLM - 工具选择器
 │   ├── session.py           #   🧠 Decision - 💾 Memory - 会话管理
 │   ├── context_engine.py    #   🧠 Decision - 📊 Context - 上下文引擎
@@ -288,23 +291,6 @@ executor/ (通过抽象接口)
 | README 标题 | `Architecture`, `Key Features`, `Quick Start` | 使用英文标题 |
 | README 表格内容 | `Agent Core`, `Skills System`, `Gateway` | 使用英文描述 |
 
-**禁止做法**：
-- ❌ 在 README 中将层级名称翻译为中文（如"接入层"应改为"Access Layer"）
-- ❌ 使用混合中英文命名（如"技能系统"应改为"Skills System"）
-- ❌ 在代码注释中使用中文描述层级功能（应使用英文）
-
-**必须做法**：
-- ✅ 所有层级、模块、目录名称使用英文
-- ✅ README 中的标题和表格内容使用英文
-- ✅ 代码注释中涉及层级的描述使用英文
-
-**一致性检查项**：
-
-1. **主层定义一致**：接入层、决策层、执行层、系统层的标识和说明必须一致
-2. **子层定义一致**：各主层下的子模块命名和职责必须一致  
-3. **模块-层级映射一致**：各代码模块对应的层级必须一致
-4. **目录-层级映射一致**：各目录对应的层级必须一致
-
 **一致性约束范围**：
 
 | 文档/模块 | 文件路径 | 层级相关内容 |
@@ -312,12 +298,6 @@ executor/ (通过抽象接口)
 | README.md | `/README.md` | 三层架构图、目录结构、模块职责 |
 | 日志系统 | `/common/logging_manager.py` | `LOG_LAYERS`、`SUB_LAYERS` 定义 |
 | 编码规范 | `/.trae/rules/rule.md` | 层级映射表、日志规范 |
-
-**修改流程**：
-
-```
-修改层级定义 → 更新所有相关文档 → 同步日志系统配置 → 更新测试用例
-```
 
 **禁止做法**：
 - ❌ 修改 README 中的架构图但不同步日志系统配置
@@ -334,7 +314,29 @@ executor/ (通过抽象接口)
 - 开发者：负责在修改时保持一致性
 - 审核者：负责检查 PR 中的层级一致性
 
-### 2.8 Logging with Unified LayerLogger
+### 2.8 CI 与代码质量 ⭐ **强制约束**
+
+**每次代码修改后，必须运行 CI 检查确保代码质量**：
+
+```bash
+# 运行测试
+pytest tests/unit/ -v
+
+# 检查语法
+python -m py_compile agent/ tools/ cli/ common/
+```
+
+**禁止行为**：
+- ❌ 修改代码但不运行测试
+- ❌ 提交有测试失败的代码
+- ❌ 提交有语法错误的代码
+
+**必须行为**：
+- ✅ 运行 `pytest tests/unit/` 确保测试通过
+- ✅ 运行 `python -m py_compile <module>` 确保语法正确
+- ✅ 检查日志输出是否有 ERROR 级别错误
+
+### 2.9 Logging with Unified LayerLogger
 
 **Must follow**: All logging must use the unified logger from `common/logging_manager.py`. Direct use of `logging.getLogger()` is prohibited.
 

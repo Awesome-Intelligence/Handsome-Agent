@@ -64,7 +64,7 @@
 │ 🚪 Access Layer / 💬 CLI                                                     │
 │ ┌────────────────────────────────────────────────────────────────────────┐ │
 │ │ cli/main.py                                                             │ │
-│ │ Step 1: 接收用户输入，验证非空，传递给 ModernAgent                      │ │
+│ │ Step 1: 接收用户输入，验证非空，传递给 Agent                      │ │
 │ └────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -72,7 +72,7 @@
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ 🚪 Access Layer / 🚪 Gateway                                                 │
 │ ┌────────────────────────────────────────────────────────────────────────┐ │
-│ │ agent/modern_agent.py                                                   │ │
+│ │ agent/agent.py                                                   │ │
 │ │ Step 2: Session 模块记录用户输入                                        │ │
 │ │         - 将消息添加到 messages 列表                                   │ │
 │ │         - 记录 timestamp                                                │ │
@@ -114,12 +114,12 @@
 ### 日志输出示例
 
 ```
-2026-06-01 10:30:00 - 🚪 [Access] - INFO - (ModernAgent) User input: 你好，今天天气怎么样？
+2026-06-01 10:30:00 - 🚪 [Access] - INFO - (Agent) User input: 你好，今天天气怎么样？
 2026-06-01 10:30:00 - 🧠 [Decision] - INFO - (LLMToolSelector) LLM Tool Selector: Requesting tool selection
 2026-06-01 10:30:01 - 🧠 [Decision] - INFO - (OpenAIProvider) LLM Input - 3 messages:
 2026-06-01 10:30:01 - 🧠 [Decision] - INFO - (LLMDrivenDecisionEngine) Decision: direct_response (tool: None, confidence: 1.00)
 2026-06-01 10:30:02 - 🧠 [Decision] - INFO - (OpenAIProvider) LLM Output (preview): 今天天气晴朗...
-2026-06-01 10:30:02 - 🚪 [Access] - INFO - (ModernAgent) Response generated in 2.00s
+2026-06-01 10:30:02 - 🚪 [Access] - INFO - (Agent) Response generated in 2.00s
 ```
 
 ---
