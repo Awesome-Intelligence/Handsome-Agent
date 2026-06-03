@@ -1,54 +1,55 @@
 """
 LLM Factory - LLM Provider 工厂
+🧠 Decision - 🤖 LLM - Provider 工厂类
 """
 
-from typing import Optional, Dict
-from .base import BaseLLMProvider, LLMConfig
-from .openai_provider import OpenAIProvider
-from .claude_provider import ClaudeProvider
+from typing import Optional, Dict, List, Type
+from .providers.base import BaseProvider, ProviderConfig
 
 
 class LLMFactory:
-    """LLM Provider 工厂"""
-    
-    _providers: Dict[str, type] = {
-        "openai": OpenAIProvider,
-        "gpt": OpenAIProvider,
-        "claude": ClaudeProvider,
-        "anthropic": ClaudeProvider,
-        "nvidia": OpenAIProvider,
-        "deepseek": OpenAIProvider,
-        "gemini": OpenAIProvider,
-        "kimi": OpenAIProvider,
-        "kimi-cn": OpenAIProvider,
-        "alibaba": OpenAIProvider,
-        "openrouter": OpenAIProvider,
-        "minimax": ClaudeProvider,
-        "minimax-cn": ClaudeProvider,
-        "xai": OpenAIProvider,
-        "nous": OpenAIProvider,
-        "custom": OpenAIProvider,
-    }
-    
+    """LLM Provider 工厂
+
+    管理所有 Provider 类的注册和创建
+    """
+
+    # Provider 注册表
+    _providers: Dict[str, Type[BaseProvider]] = {}
+
+    # 默认模型映射
     _default_models: Dict[str, str] = {
-        "openai": "gpt-4",
-        "gpt": "gpt-4",
-        "claude": "claude-3-sonnet",
-        "anthropic": "claude-3-sonnet",
-        "nvidia": "nvidia/llama-3.3-70b-instruct",
+        "openai": "gpt-4o-mini",
+        "claude": "claude-3-5-sonnet",
         "deepseek": "deepseek-chat",
-        "gemini": "gemini-3-flash-preview",
+        "gemini": "gemini-1.5-flash",
         "kimi": "moonshot-v1-32k",
-        "kimi-cn": "moonshot-v1-32k",
-        "alibaba": "qwen-plus",
-        "openrouter": "anthropic/claude-sonnet-4.6",
-        "minimax": "MiniMax-M2.7",
-        "minimax-cn": "MiniMax-M2.7",
-        "xai": "grok-2",
-        "nous": "nous-hermes-3-mixtral-8x7b",
-        "custom": "",
+        "azure": "gpt-4o",
     }
-    
+
+    # 别名映射
+    _aliases: Dict[str, str] = {
+        "gpt": "openai",
+        "anthropic": "claude",
+        "nvidia": "openai",
+        "openrouter": "openai",
+        "minimax": "claude",
+        "xai": "openai",
+        "nous": "openai",
+        "custom": "openai",
+        "kimi-cn": "kimi",
+        "alibaba": "openai",  # 通义千问兼容 OpenAI API
+    }
+
+    @classmethod
+    def register(cls, name: str, provider_class: Type[BaseProvider]) -> None:
+        """注册 Provider
+
+        Args:
+            name: Provider 名称
+            provider_class: Provider 类
+        """
+        cls._providers[name.lower()] = provider_class
+
     @classmethod
     def create(
         cls,
@@ -56,61 +57,99 @@ class LLMFactory:
         api_key: str,
         model: Optional[str] = None,
         **kwargs
-    ) -> BaseLLMProvider:
-        """
-        创建 LLM Provider
-        
+    ) -> BaseProvider:
+        """创建 Provider 实例
+
         Args:
-            provider: 提供商名称
+            provider: Provider 名称
             api_key: API 密钥
             model: 模型名称（可选）
             **kwargs: 其他配置参数
-            
+
         Returns:
-            BaseLLMProvider: LLM Provider 实例
+            BaseProvider: Provider 实例
         """
         provider_lower = provider.lower()
-        
+
+        # 处理别名
+        if provider_lower in cls._aliases:
+            provider_lower = cls._aliases[provider_lower]
+
         if provider_lower not in cls._providers:
+            available = list(cls._providers.keys())
             raise ValueError(
                 f"Unknown provider: {provider}. "
-                f"Available: {list(cls._providers.keys())}"
+                f"Available: {available}"
             )
-        
+
         provider_class = cls._providers[provider_lower]
-        
-        config_kwargs = {}
-        for k, v in kwargs.items():
-            if hasattr(LLMConfig, '__dataclass_fields__') and k in LLMConfig.__dataclass_fields__:
-                config_kwargs[k] = v
-            elif hasattr(LLMConfig, 'model_fields') and k in LLMConfig.model_fields:
-                config_kwargs[k] = v
-        
-        config = LLMConfig(
-            provider=provider_lower,
+
+        config = ProviderConfig(
             api_key=api_key,
             model=model or cls._default_models.get(provider_lower, "gpt-4"),
-            **config_kwargs
+            **kwargs
         )
-        
+
         return provider_class(config)
-    
+
     @classmethod
-    def list_providers(cls) -> list[str]:
-        """列出支持的提供商"""
+    def list_providers(cls) -> List[str]:
+        """列出所有注册的 Provider"""
         return list(cls._providers.keys())
-    
+
     @classmethod
-    def list_models(cls, provider: str) -> list[str]:
-        """列出提供商支持的模型"""
-        from . import get_all_providers
-        providers = get_all_providers()
-        for p in providers:
-            if p["id"] == provider.lower():
-                return p["models"]
-        return []
-    
+    def get_provider_info(cls, name: str) -> Optional[Dict[str, any]]:
+        """获取 Provider 信息
+
+        Args:
+            name: Provider 名称
+
+        Returns:
+            Provider 信息字典
+        """
+        name_lower = name.lower()
+        if name_lower in cls._aliases:
+            name_lower = cls._aliases[name_lower]
+
+        if name_lower not in cls._providers:
+            return None
+
+        provider_class = cls._providers[name_lower]
+        return {
+            "name": provider_class.provider_name,
+            "display_name": provider_class.provider_display_name,
+            "supported_models": provider_class.supported_models,
+            "default_model": cls._default_models.get(name_lower, ""),
+        }
+
     @classmethod
-    def register_provider(cls, name: str, provider_class: type) -> None:
-        """注册新的 Provider"""
-        cls._providers[name.lower()] = provider_class
+    def list_all_providers_info(cls) -> List[Dict[str, any]]:
+        """列出所有 Provider 的信息"""
+        result = []
+        for name in cls._providers:
+            info = cls.get_provider_info(name)
+            if info:
+                result.append(info)
+        return result
+
+
+# 自动注册所有 Provider
+def _register_providers():
+    """自动注册所有 Provider"""
+    from .providers.openai import OpenAIProvider
+    from .providers.claude import ClaudeProvider
+    from .providers.deepseek import DeepSeekProvider
+    from .providers.gemini import GeminiProvider
+    from .providers.kimi import KimiProvider
+    from .providers.azure import AzureProvider
+
+    LLMFactory.register("openai", OpenAIProvider)
+    LLMFactory.register("claude", ClaudeProvider)
+    LLMFactory.register("deepseek", DeepSeekProvider)
+    LLMFactory.register("gemini", GeminiProvider)
+    LLMFactory.register("kimi", KimiProvider)
+    LLMFactory.register("azure", AzureProvider)
+
+
+# 注册所有 Provider
+_register_providers()
