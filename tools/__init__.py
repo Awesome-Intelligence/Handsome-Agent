@@ -10,7 +10,7 @@ Hermes 风格工具系统，包含：
 - 任务工具 (Task Tools)
 - 工具注册表 (Tool Registry)
 
-新增工具（参考 Hermes）：
+内置工具实现：
 - 记忆工具 (Memory Tool)
 - 技能管理工具 (Skill Manager Tool)
 - 审批工具 (Approval Tool)
@@ -19,6 +19,14 @@ Hermes 风格工具系统，包含：
 - MCP 工具 (MCP Tool)
 - 看板工具 (Kanban Tool)
 - 定时任务工具 (Cronjob Tool)
+
+新增工具（参考 Hermes）：
+- 浏览器工具 (Browser Tool) - 浏览器自动化
+- TTS 工具 (TTS Tool) - 文本转语音
+- 代码执行工具 (Code Execution Tool) - 安全代码执行
+- 图像生成工具 (Image Generation Tool) - AI 图像生成
+- Home Assistant 工具 (Home Assistant Tool) - 智能家居控制
+- 会话搜索工具 (Session Search Tool) - 历史会话搜索
 """
 
 from .schema_registry import SchemaRegistry, UnifiedToolSchema, ToolSource
