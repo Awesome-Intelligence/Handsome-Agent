@@ -48,14 +48,14 @@ except ImportError:
 
 
 def print_logo():
-    """打印 Logo"""
-    from .ui import print_banner
-    print_banner()
+    """打印 Logo - 使用增强的 Banner"""
+    from .banner import print_setup_banner
+    print_setup_banner()
 
 
 def print_config_summary():
     """打印配置摘要"""
-    from .setup_wizard import has_existing_config, show_current_config, load_config as wizard_load_config
+    from .setup import has_existing_config, show_current_config, load_config as wizard_load_config
     
     if has_existing_config():
         config = wizard_load_config()

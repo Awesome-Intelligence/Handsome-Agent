@@ -77,6 +77,10 @@ class CompressionCommands:
                 "pending": True,
             }
 
+        # 即使非 force 模式，也设置 focus_topic 以便 compress 使用
+        if focus_topic:
+            self._integration._focus_topic = focus_topic
+
         messages = self._get_current_messages()
         if not messages:
             return {
@@ -88,6 +92,9 @@ class CompressionCommands:
         compressed = self._integration.compress(messages)
         stats = self._integration.get_stats()
 
+        # 清理 focus_topic
+        self._integration._focus_topic = None
+
         if len(compressed) >= len(messages):
             return {
                 "success": True,
@@ -97,7 +104,7 @@ class CompressionCommands:
 
         return {
             "success": True,
-            "message": f"压缩完成: {len(messages)} -> {len(compressed)} 条消息",
+            "message": f"压缩完成: {len(messages)} -> {len(compressed)} 条消息 (focus: {focus_topic or '无'})",
             "original_count": len(messages),
             "compressed_count": len(compressed),
             "stats": stats,
@@ -193,8 +200,8 @@ class CompressionCommands:
         if initialized:
             lines.append("")
             lines.append("  可用命令:")
-            lines.append("    /compress           - 手动触发压缩")
-            lines.append("    /compress --focus=X - 聚焦压缩")
+            lines.append("    /compress           - 手动压缩上下文")
+            lines.append("    /compress --focus=X - 聚焦压缩（保留特定主题）")
             lines.append("    /usage             - 显示使用统计")
             lines.append("    /compression-status - 显示压缩状态")
 
@@ -303,7 +310,7 @@ def parse_compression_command(text: str) -> tuple:
     解析压缩命令
 
     Args:
-        text: 命令文本（如 "/compress --focus=代码"）
+        text: 命令文本（如 "/compress --focus=python"）
 
     Returns:
         (command_name, args) 元组

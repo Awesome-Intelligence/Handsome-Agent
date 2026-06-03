@@ -35,15 +35,15 @@ class ToolDefinition:
     category: str = "general"
     examples: List[str] = field(default_factory=list)
     # 🏃 Execution - 🛠️ ToolExec - 工具标识（类型图标）
-    emoji: str = "🔧"  # 默认图标，会被显示为 🔧(🔧)
+    emoji: str = "🔧"  # 默认图标，会被显示为 🔧=🔧
     
     def get_display_name(self) -> str:
         """获取带 emoji 的显示名称
         
-        格式: 🔧(类型图标)工具名
-        例如: 🔧(📁)read_file
+        格式: 🔧=类型图标 工具名
+        例如: 🔧=📁 read_file
         """
-        return f"🔧({self.emoji}){self.name}"
+        return f"🔧={self.emoji} {self.name}"
 
 
 @dataclass

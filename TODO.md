@@ -221,23 +221,22 @@ LLMToolSelector (🔧 ToolSelect) # 工具选择
 
 #### 🔴 高优先级
 
-- [ ] **迭代摘要更新 (Iterative Summary)**
-  - [ ] 实现 `_previous_summary` 状态追踪
-  - [ ] 支持基于前一次摘要的增量更新
-  - [ ] 避免重复信息丢失
+- [x] **迭代摘要更新 (Iterative Summary)** ✅
+  - [x] 实现 `_previous_summary` 状态追踪
+  - [x] 支持基于前一次摘要的增量更新
+  - [x] 避免重复信息丢失
 
-- [ ] **聚焦压缩 (Focus Topic)**
-  - [ ] `_generate_summary()` 中使用 focus_topic 参数
-  - [ ] CLI 命令 `/compress --focus=X` 实际生效
-  - [ ] 保留特定主题的详细信息
+- [x] **聚焦压缩 (Focus Topic)** ✅
+  - [x] `_generate_summary()` 中使用 focus_topic 参数
+  - [x] CLI 命令 `/compress --focus=X` 实际生效
+  - [x] 保留特定主题的详细信息
 
-- [ ] **更完整的摘要模板 (12 字段)**
-  - [ ] 添加 `## Constraints & Preferences`
-  - [ ] 添加 `## In Progress`
-  - [ ] 添加 `## Blocked`
-  - [ ] 添加 `## Resolved Questions`
-  - [ ] 添加 `## Relevant Files`
-  - [ ] 添加 `## Critical Context`
+- [x] **更完整的摘要模板 (12 字段)** ✅
+  - [x] 添加 `## Constraints & Preferences`
+  - [x] 添加 `## In Progress`
+  - [x] 添加 `## Blocked`
+  - [x] 添加 `## Relevant Files`
+  - [x] 添加 `## Critical Context`
 
 #### 🟡 中优先级
 

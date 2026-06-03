@@ -2,75 +2,85 @@
 # -*- coding: utf-8 -*-
 """
 Custom TUI Module - Geek Green themed terminal output.
-Inspired by Hermes Agent's elegant design principles.
+
+🚪 Access - 💬 CLI - UI 组件
+
+这是一个门面模块，将功能委托给专门的模块：
+- cli.colors: 颜色定义和 Theme
+- cli.cli_output: 输出函数
+- cli.banner: Banner 渲染
+
+参考 Hermes 的设计，将职责分离到专门的模块中。
 """
 
-import sys
 import os
+import sys
 import time
 import shutil
 import re
 from typing import Optional, List, Dict, Any
 
+# ============================================================================
+# Re-export from specialized modules for backward compatibility
+# ============================================================================
 
-class Colors:
-    """Unified color scheme - 使用兼容的颜色格式."""
-    
-    RESET = "\033[0m"
-    
-    # 牛油果绿主题色（RGB: 139, 154, 70 / #8B9A46）
-    GREEN = "\033[38;2;139;154;70m"           # 牛油果绿
-    GREEN_BRIGHT = "\033[38;2;160;180;90m"    # 亮牛油果绿
-    GREEN_DIM = "\033[38;2;100;120;50m"       # 暗牛油果绿
-    
-    GRAY = "\033[90m"            # 亮灰色
-    GRAY_BRIGHT = "\033[97m"     # 白色
-    GRAY_DIM = "\033[90m"        # 暗灰色
-    
-    RED = "\033[31m"            # 红色
-    RED_BRIGHT = "\033[91m"     # 亮红色
-    YELLOW = "\033[33m"         # 黄色
-    YELLOW_BRIGHT = "\033[93m"   # 亮黄色
-    BLUE = "\033[34m"           # 蓝色
-    CYAN = "\033[36m"           # 青色
-    
-    BG_GREEN = "\033[48;2;139;154;70m"       # 牛油果绿背景
-    BG_GRAY = "\033[47m"        # 灰色背景
-    
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    ITALIC = "\033[3m"
-    UNDERLINE = "\033[4m"
-    REVERSE = "\033[7m"
+from cli.colors import (
+    Colors,
+    Theme,
+    should_use_color,
+    supports_ansi,
+    enable_ansi_support,
+    get_terminal_width,
+    get_terminal_height,
+    strip_color as strip_ansi,
+    HEX_AVOCADO,
+    HEX_AVOCADO_BRIGHT,
+    HEX_AVOCADO_DIM,
+    RGB_AVOCADO,
+    RGB_AVOCADO_BRIGHT,
+    RGB_AVOCADO_DIM,
+)
+
+from cli.cli_output import (
+    print_info,
+    print_success,
+    print_warning,
+    print_error,
+    print_header,
+    print_divider,
+    print_step,
+    print_substep,
+    print_end_step,
+    print_box,
+    print_table_row,
+    print_spinner,
+    Spinner,
+    prompt,
+    prompt_yes_no,
+    prompt_choice,
+)
+
+# ============================================================================
+# Rich library integration
+# ============================================================================
+
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+    from rich import box
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+
+# Initialize rich console
+_rich_console = Console() if HAS_RICH else None
 
 
-class Theme:
-    """Unified theme colors - Main color is Geek Green, inspired by Hermes."""
-
-    BORDER = Colors.GREEN
-    BORDER_DIM = Colors.GRAY_DIM
-    BORDER_LIGHT = Colors.GREEN_DIM
-
-    PRIMARY = Colors.GREEN_BRIGHT
-    PRIMARY_BOLD = f"{Colors.BOLD}{Colors.GREEN_BRIGHT}"
-    PRIMARY_DIM = Colors.GREEN_DIM
-
-    SECONDARY = Colors.GRAY_BRIGHT
-    SECONDARY_DIM = Colors.GRAY
-    SECONDARY_MUTED = Colors.GRAY_DIM
-
-    ACCENT = Colors.GREEN_BRIGHT
-    ACCENT_DIM = Colors.GREEN
-
-    SUCCESS = Colors.GREEN
-    SUCCESS_BRIGHT = Colors.GREEN_BRIGHT
-    ERROR = Colors.RED
-    ERROR_BRIGHT = Colors.RED_BRIGHT
-    WARNING = Colors.YELLOW
-    WARNING_BRIGHT = Colors.YELLOW_BRIGHT
-    INFO = Colors.BLUE
-    INFO_BRIGHT = Colors.CYAN
-
+# ============================================================================
+# StatusBar (UI-specific, retained here)
+# ============================================================================
 
 class StatusBar:
     """Persistent status bar inspired by Hermes Agent."""
@@ -211,133 +221,46 @@ class StatusBar:
         return " ".join(parts)
 
 
+# Global status bar instance
 status_bar = StatusBar()
 
 
-class Spinner:
-    """Loading spinner for long operations."""
+# ============================================================================
+# Banner (delegated to cli.banner)
+# ============================================================================
 
-    def __init__(self, message: str = "Processing"):
-        self.message = message
-        self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self.running = False
-        self.last_update = 0
+def print_banner(model: str = None, tools_count: int = None, skills_count: int = None, version: str = "0.0.1"):
+    """Print welcome banner - 委托给 cli.banner 统一处理"""
+    from cli.banner import build_welcome_banner, print_simple_banner
 
-    def start(self):
-        """Start the spinner."""
-        self.running = True
-        self.last_update = time.time()
-        print(f"{Theme.ACCENT}⠋{Colors.RESET} {self.message}...", end="\r", flush=True)
-
-    def update(self):
-        """Update spinner animation."""
-        if not self.running:
-            return
-        now = time.time()
-        if now - self.last_update > 0.1:
-            idx = int((now * 10) % len(self.spinner_chars))
-            print(f"{Theme.ACCENT}{self.spinner_chars[idx]}{Colors.RESET} {self.message}...", end="\r", flush=True)
-            self.last_update = now
-
-    def stop(self, success: bool = True):
-        """Stop the spinner and show completion."""
-        self.running = False
-        if success:
-            print(f"{Theme.SUCCESS}✓{Colors.RESET} {self.message}")
+    try:
+        # 尝试使用 rich 版本
+        if HAS_RICH:
+            build_welcome_banner(
+                model=model,
+                provider=None,
+                cwd=os.getcwd(),
+                tools_count=tools_count or 0,
+                skills_count=skills_count or 0,
+                context_length=None,
+            )
         else:
-            print(f"{Theme.ERROR}✗{Colors.RESET} {self.message}")
-
-
-def get_terminal_width() -> int:
-    """Get terminal width with fallback."""
-    try:
-        return shutil.get_terminal_size().columns
-    except:
-        return 80
-
-
-def strip_ansi(text: str) -> str:
-    """Remove ANSI codes from text."""
-    ansi_pattern = re.compile(r'\x1b\[[0-9;]*m')
-    return ansi_pattern.sub('', text)
-
-
-def supports_color() -> bool:
-    """Check if terminal supports colors.
-    
-    优先尝试启用 ANSI 支持，然后再检测。
-    """
-    # Windows 环境尝试启用 ANSI 支持
-    if sys.platform == "win32":
-        enable_ansi_support()
-        
-        # 检查环境变量
-        if os.environ.get("WT_SESSION"):  # Windows Terminal
-            return True
-        if os.environ.get("TERM"):
-            return True
-        
-        # 检查控制台模式
-        try:
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            GetConsoleMode = kernel32.GetConsoleMode
-            GetStdHandle = kernel32.GetStdHandle
-            STD_OUTPUT_HANDLE = -11
-            console = GetStdHandle(STD_OUTPUT_HANDLE)
-            mode = ctypes.c_ulong()
-            if GetConsoleMode(console, ctypes.byref(mode)):
-                # 检查是否启用了 ANSI 或虚拟终端模式
-                ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-                if mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING:
-                    return True
-        except:
-            pass
-        
-        return False
-    
-    # Unix/Linux/macOS 环境
-    if not sys.stdout.isatty():
-        return False
-    
-    term = os.environ.get("TERM", "")
-    if term in ("", "dumb"):
-        return False
-    
-    # 大多数现代终端都支持 ANSI 颜色
-    return True
-
-
-def enable_ansi_support():
-    """在 Windows 上启用 ANSI 颜色支持."""
-    if sys.platform != "win32":
-        return
-    
-    try:
-        import ctypes
-        kernel32 = ctypes.windll.kernel32
-        
-        # 获取标准输出句柄
-        STD_OUTPUT_HANDLE = -11
-        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-        
-        # 获取当前模式
-        mode = ctypes.c_ulong()
-        kernel32.GetConsoleMode(handle, ctypes.byref(mode))
-        
-        # 启用 ANSI 转义序列支持（Windows 10 1607+）
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-        kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-        
-        # 同时启用输出模式
-        STD_ERROR_HANDLE = -12
-        err_handle = kernel32.GetStdHandle(STD_ERROR_HANDLE)
-        kernel32.GetConsoleMode(err_handle, ctypes.byref(mode))
-        kernel32.SetConsoleMode(err_handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-        
+            print_simple_banner()
     except Exception:
-        pass  # 忽略错误，继续运行
+        # 降级使用简单版本
+        print_banner_simple()
 
+
+def print_banner_simple():
+    """Print simple banner without rich enhancements (fallback)."""
+    print_header("Handsome Agent", "Welcome!")
+    print(f"  {Theme.PRIMARY_BOLD}🚀 Handsome Agent V 0.0.1{Colors.RESET}")
+    print()
+
+
+# ============================================================================
+# Box Drawing Helpers (UI-specific)
+# ============================================================================
 
 def print_top_border(width: int = 0):
     """Print top border with corners."""
@@ -349,24 +272,6 @@ def print_bottom_border(width: int = 0):
     """Print bottom border with corners."""
     width = width or get_terminal_width()
     print(f"{Theme.BORDER}╰{'─' * (width - 2)}╯{Colors.RESET}")
-
-
-def print_divider(char: str = "─", width: int = 0):
-    """Print divider line."""
-    width = width or get_terminal_width()
-    print(f"{Theme.BORDER_LIGHT}{char * width}{Colors.RESET}")
-
-
-def print_header(text: str, subtitle: str = None, width: int = 0):
-    """Print header with border, inspired by Hermes."""
-    width = width or get_terminal_width()
-    print()
-    print_top_border(width)
-    print_border_side(f"{Theme.PRIMARY_BOLD}{text}{Colors.RESET}", width)
-    if subtitle:
-        print_border_side(f"{Theme.SECONDARY_DIM}{subtitle}{Colors.RESET}", width)
-    print_bottom_border(width)
-    print()
 
 
 def print_border_side(content: str, width: int = 0, align: str = "left"):
@@ -409,25 +314,9 @@ def print_boxed_message(message: str, style: str = "info"):
     print()
 
 
-def print_success(message: str):
-    """Print success message with icon."""
-    print(f"{Theme.SUCCESS}✓{Colors.RESET} {message}")
-
-
-def print_error(message: str):
-    """Print error message with icon."""
-    print(f"{Theme.ERROR}✗{Colors.RESET} {message}")
-
-
-def print_warning(message: str):
-    """Print warning message with icon."""
-    print(f"{Theme.WARNING}⚠{Colors.RESET} {message}")
-
-
-def print_info(message: str):
-    """Print info message with icon."""
-    print(f"{Theme.INFO}ℹ{Colors.RESET} {message}")
-
+# ============================================================================
+# UI-specific Output Functions
+# ============================================================================
 
 def print_prompt(message: str = None) -> str:
     """Print input prompt and return the prompt string."""
@@ -466,26 +355,6 @@ def print_list(items: List[str], title: str = None, icon: str = "•"):
         print(f"  {Theme.ACCENT}{icon}{Colors.RESET} {item}")
 
 
-def print_step(step: int, total: int, title: str):
-    """Print step indicator."""
-    total_str = str(total)
-    step_str = str(step).rjust(len(total_str))
-    print()
-    print(f"{Theme.BORDER}├{Colors.RESET} {Theme.PRIMARY_BOLD}[{step_str}/{total_str}]{Colors.RESET} {Theme.PRIMARY}{title}{Colors.RESET}")
-    print(f"{Theme.BORDER}│{Colors.RESET}")
-
-
-def print_substep(text: str, indent: int = 1):
-    """Print substep with indentation."""
-    indent_str = "  " * indent
-    print(f"{Theme.BORDER}│{Colors.RESET} {indent_str}{Theme.SECONDARY}{text}{Colors.RESET}")
-
-
-def print_end_step():
-    """Print end of step section."""
-    print(f"{Theme.BORDER}└{'─' * 50}{Colors.RESET}")
-
-
 def print_agent_response(response: str, confidence: float = None):
     """Print agent response with beautiful formatting."""
     print()
@@ -522,13 +391,13 @@ def print_provider_list(providers: List[Dict[str, Any]]):
     print(f"{Theme.BORDER}│{Colors.RESET}")
     print(f"{Theme.BORDER}│{Colors.RESET} {Theme.PRIMARY_BOLD}可用的大模型提供商:{Colors.RESET}")
     print(f"{Theme.BORDER}│{Colors.RESET}")
-    
+
     for i, provider in enumerate(providers, 1):
         provider_name = provider.get("name", "Unknown")
         provider_description = provider.get("description", "")
         provider_models = provider.get("models", [])
         default_model = provider.get("default_model", "")
-        
+
         print(f"{Theme.BORDER}│{Colors.RESET}")
         print(f"{Theme.BORDER}│{Colors.RESET} {Theme.SUCCESS}{i}. {provider_name}{Colors.RESET}")
         if provider_description:
@@ -537,7 +406,7 @@ def print_provider_list(providers: List[Dict[str, Any]]):
             print(f"{Theme.BORDER}│{Colors.RESET}   {Theme.SECONDARY_DIM}支持模型: {', '.join(provider_models[:3])}{'...' if len(provider_models) > 3 else ''}{Colors.RESET}")
         if default_model:
             print(f"{Theme.BORDER}│{Colors.RESET}   {Theme.SECONDARY_DIM}默认模型: {default_model}{Colors.RESET}")
-    
+
     print(f"{Theme.BORDER}│{Colors.RESET}")
 
 
@@ -550,42 +419,144 @@ def print_setup_complete():
     print()
 
 
-def print_banner():
-    """Print welcome banner inspired by Hermes Agent."""
-    if not supports_color():
-        print_header("Handsome Agent", "Welcome!")
+# ============================================================================
+# Rich-based helper functions
+# ============================================================================
+
+def print_rich_table(data: List[List[str]], headers: List[str] = None,
+                     title: str = None, style: str = "accent") -> None:
+    """Print data as a rich table."""
+    if not HAS_RICH:
+        # Fallback to simple text table
+        print()
+        if title:
+            print(f"{Theme.PRIMARY_BOLD}{title}{Colors.RESET}")
+        if headers:
+            print("  " + " | ".join(headers))
+            print("  " + "-" * len(" | ".join(headers)))
+        for row in data:
+            print("  " + " | ".join(row))
+        print()
         return
 
-    width = get_terminal_width()
-    max_width = min(width, 80)
+    table = Table(show_header=headers is not None, box=box.ROUNDED)
 
-    wow_lines = [
-        " ░█░█░█▀█░█▀█░█▀▄░█▀▀░█▀█░█▄█░█▀▀ ",
-        " ░█▀█░█▀█░█░█░█░█░▀▀█░█░█░█░█░█▀▀ ",
-        " ░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀▀▀░▀░▀░▀▀▀ ",
-    ]
+    color_map = {
+        "accent": "#8B9A46",
+        "success": "#4CAF50",
+        "warning": "#FF9800",
+        "error": "#F44336",
+    }
+    border_color = color_map.get(style, "#8B9A46")
 
+    if headers:
+        for h in headers:
+            table.add_column(h, style=border_color)
+    elif data:
+        for _ in data[0]:
+            table.add_column()
+
+    for row in data:
+        table.add_row(*row)
+
+    if title:
+        print()
+        print(f"{Theme.PRIMARY_BOLD}{title}{Colors.RESET}")
+
+    _rich_console.print(table)
     print()
-    print(f"{Theme.BORDER}╭{'─' * (max_width - 2)}╮{Colors.RESET}")
-    print(f"{Theme.BORDER}│{Colors.RESET}{' ' * (max_width - 2)}{Theme.BORDER}│{Colors.RESET}")
 
-    for line in wow_lines:
-        line_len = len(line.rstrip())
-        padding = (max_width - 2 - line_len) // 2
-        print(f"{Theme.BORDER}│{Colors.RESET}{' ' * padding}{Theme.PRIMARY_BOLD}{line}{Colors.RESET}{' ' * (max_width - 2 - padding - line_len)}{Theme.BORDER}│{Colors.RESET}")
 
-    print(f"{Theme.BORDER}│{Colors.RESET}{' ' * (max_width - 2)}{Theme.BORDER}│{Colors.RESET}")
+def print_rich_panel(content: str, title: str = None,
+                     style: str = "accent", width: int = None) -> None:
+    """Print content in a rich panel."""
+    if not HAS_RICH:
+        print_boxed_message(content, style)
+        return
 
-    # 获取国际化副标题
-    from common.i18n import get_i18n
-    i18n = get_i18n()
-    subtitle = i18n.t("subtitle")
-    sub_len = len(subtitle)
-    sub_padding = (max_width - 2 - sub_len) // 2
-    print(f"{Theme.BORDER}│{Colors.RESET}{' ' * sub_padding}{Theme.SECONDARY_DIM}{subtitle}{Colors.RESET}{' ' * (max_width - 2 - sub_padding - sub_len)}{Theme.BORDER}│{Colors.RESET}")
+    color_map = {
+        "accent": "#8B9A46",
+        "success": "#4CAF50",
+        "warning": "#FF9800",
+        "error": "#F44336",
+        "info": "#2196F3",
+    }
+    border_color = color_map.get(style, "#8B9A46")
 
-    print(f"{Theme.BORDER}│{Colors.RESET}{' ' * (max_width - 2)}{Theme.BORDER}│{Colors.RESET}")
-    print(f"{Theme.BORDER}╰{'─' * (max_width - 2)}╯{Colors.RESET}")
-    print()
-    print(f"  {Theme.PRIMARY_BOLD}🚀 Handsome Agent V 0.0.1{Colors.RESET}")
-    print()
+    if width is None:
+        try:
+            width = min(shutil.get_terminal_size().columns, 80)
+        except:
+            width = 80
+
+    panel = Panel(
+        content,
+        title=title,
+        border_style=border_color,
+        padding=(1, 2),
+        width=width
+    )
+    _rich_console.print(panel)
+
+
+def print_rich_progress(items: List[str], title: str = None,
+                        style: str = "accent") -> None:
+    """Print items as a rich list with optional title."""
+    if not HAS_RICH:
+        print_list(items, title)
+        return
+
+    color_map = {
+        "accent": "#8B9A46",
+        "success": "#4CAF50",
+        "warning": "#FF9800",
+        "error": "#F44336",
+    }
+    item_color = color_map.get(style, "#8B9A46")
+
+    if title:
+        print(f"\n{Theme.PRIMARY_BOLD}{title}{Colors.RESET}")
+
+    for item in items:
+        _rich_console.print(f"[{item_color}]•[/{item_color}] {item}")
+
+
+def print_rich_success(message: str) -> None:
+    """Print success message with rich styling."""
+    if HAS_RICH:
+        _rich_console.print(f"[bold #4CAF50]✓[/] {message}")
+    else:
+        print_success(message)
+
+
+def print_rich_error(message: str) -> None:
+    """Print error message with rich styling."""
+    if HAS_RICH:
+        _rich_console.print(f"[bold #F44336]✗[/] {message}")
+    else:
+        print_error(message)
+
+
+def print_rich_warning(message: str) -> None:
+    """Print warning message with rich styling."""
+    if HAS_RICH:
+        _rich_console.print(f"[bold #FF9800]⚠[/] {message}")
+    else:
+        print_warning(message)
+
+
+def print_rich_info(message: str) -> None:
+    """Print info message with rich styling."""
+    if HAS_RICH:
+        _rich_console.print(f"[bold #2196F3]ℹ[/] {message}")
+    else:
+        print_info(message)
+
+
+# ============================================================================
+# Backward compatibility aliases (deprecated, use cli_output instead)
+# ============================================================================
+
+def supports_color() -> bool:
+    """Check if terminal supports colors. Alias for should_use_color()."""
+    return should_use_color()

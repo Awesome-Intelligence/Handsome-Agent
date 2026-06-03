@@ -15,6 +15,9 @@ uvicorn[standard]>=0.24.0
 # Terminal UI - inquirer (跨平台，推荐)
 inquirer>=3.0.0
 
+# Rich library for enhanced terminal output (可选)
+rich>=13.0.0
+
 # Database
 # sqlite3 (built-in)
 

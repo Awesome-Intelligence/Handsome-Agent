@@ -29,6 +29,7 @@ from agent.context.compression_commands import (
 )
 from agent.context.compression_integration import CompressionIntegration
 from tools.integrated_tools import initialize_tools
+from cli.banner import print_simple_banner, build_welcome_banner
 
 CONFIG_FILE = os.path.expanduser("~/.handsome_agent/config.json")
 
@@ -45,14 +46,8 @@ def load_saved_config() -> dict:
 
 
 def print_banner():
-    """打印欢迎横幅"""
-    banner = """
-╔═══════════════════════════════════════════════════════════════╗
-║           Handsome Agent - Modern Edition                     ║
-║           Powered by LLM-driven Decision Engine               ║
-╚═══════════════════════════════════════════════════════════════╝
-    """
-    print(banner)
+    """打印欢迎横幅 - 使用统一的 rich Banner"""
+    print_simple_banner()
 
 
 def print_header(title: str, subtitle: str = ""):
@@ -220,7 +215,7 @@ Examples:
         help="Start interactive mode (default)"
     )
     parser.add_argument(
-        "--query", "-q",
+        "--query",
         type=str,
         help="Run a single query and exit"
     )

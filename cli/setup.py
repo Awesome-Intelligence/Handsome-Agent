@@ -3,12 +3,9 @@
 """
 Handsome Agent Setup Wizard.
 
-参考 Hermes 和 OpenClaw 的配置设计，支持：
-1. Model & Provider — 选择你的 AI provider 和 model
-2. Terminal Backend — 配置命令执行环境
-3. Agent Settings — iterations、compression、session reset
-4. Tools — 配置 TTS、web search、image generation 等
-5. Messaging Platforms — 连接 Telegram、Discord 等
+🚪 Access - 💬 CLI - 设置向导
+
+与 Hermes 的 setup.py 保持一致的重命名版本（原 setup_wizard.py）。
 
 Config files are stored in ~/.handsome_agent/ for easy access.
 """
@@ -21,12 +18,12 @@ from cli import ui
 
 ui.enable_ansi_support()
 
-# 导入增强的 Banner 模块 (🚪 Access - 🚪 Gateway - 欢迎横幅)
+# 导入增强的 Banner 模块
 from cli.banner import print_setup_banner, print_simple_banner, print_setup_summary
 
 
 CONFIG_DIR = os.path.expanduser("~/.handsome_agent")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "config.yaml")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
 
 QUIT_COMMANDS = ['quit', 'exit', 'q', '退出', 'back', 'b', '返回']
@@ -60,10 +57,10 @@ def ask_yes_no(question: str, default: bool = True) -> bool | None:
 
 
 def ask_choice(question: str, options: list, default: int = 0, current_value: str = None) -> int | None:
-    """让用户从选项中选择."""
+    """让用户从选项中选择 - 不显示重复的 logo."""
     print()
-    from cli.interactive_select import print_menu_with_logo
-    result = print_menu_with_logo(options, question, current_value)
+    from cli.interactive_select import select_option
+    result = select_option(options, question, current_value=current_value, show_logo=False, show_config=False)
     return result
 
 
@@ -911,9 +908,9 @@ def setup_intent(config: dict) -> dict | None:
 
 def run_full_setup_wizard():
     """运行完整的配置向导流程."""
-    config = {}
+    config = load_config()  # 加载现有配置（如果有）
 
-    print_setup_banner()
+    print_setup_banner(config)
     print("\n🔄 开始全新配置...\n")
     
     sections = [
@@ -1015,7 +1012,7 @@ def _build_config_status(config: dict) -> dict:
 def run_quick_config_wizard():
     """快速配置向导 - 每次只配置一个重要选项"""
     config = load_config()
-    print_setup_banner()
+    print_setup_banner(config)
     print("\n🚀 快速配置向导\n")
     print("按顺序引导配置重要选项，每个选项配置完成后返回主菜单。\n")
     
@@ -1044,7 +1041,7 @@ def run_quick_config_wizard():
             ui.print_success("✅ 配置已保存!")
         
         print("\n")
-        print_setup_banner()
+        print_setup_banner(config)
         print("🚀 快速配置向导\n")
 
         remaining = len(important_sections) - i
@@ -1068,8 +1065,8 @@ def run_setup_wizard():
     """运行设置向导."""
     config = load_config()
 
-    # 始终显示 Setup Banner
-    print_setup_banner()
+    # 始终显示 Setup Banner（带当前配置信息）
+    print_setup_banner(config)
 
     # 如果没有配置文件，显示提示
     if not has_existing_config():

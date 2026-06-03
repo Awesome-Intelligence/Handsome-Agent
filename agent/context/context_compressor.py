@@ -382,6 +382,35 @@ class ContextCompressor(ContextEngine):
             return False
         return True
 
+    # Required abstract methods from ContextEngine
+    def add_message(self, message: ContextMessage) -> None:
+        """Add a new message to the context. (ContextCompressor doesn't store messages internally)"""
+        pass
+
+    def clear(self) -> None:
+        """Clear compression state."""
+        self._previous_summary = None
+        self._ineffective_compression_count = 0
+        self._last_summary_error = None
+
+    def get_context(self, max_tokens: Optional[int] = None) -> List[ContextMessage]:
+        """Get context. (ContextCompressor doesn't store messages internally)"""
+        return []
+
+    def summarize(self, messages: List[ContextMessage]) -> str:
+        """Generate a summary of messages. Uses LLM-based summarization."""
+        dict_messages = [
+            {"role": m.role, "content": m.content}
+            for m in messages
+        ]
+        result = self._generate_summary(dict_messages)
+        return result if result else "Summary unavailable"
+
+    def update_from_response(self, usage: Dict[str, Any]) -> None:
+        """Update internal state from LLM response usage info."""
+        if usage:
+            self._last_prompt_tokens = usage.get("prompt_tokens", 0)
+
     def _prune_old_tool_results(
         self, messages: List[Dict[str, Any]], protect_tail_count: int,
         protect_tail_tokens: int | None = None,
@@ -571,9 +600,18 @@ class ContextCompressor(ContextEngine):
 ## Goal
 [What the user is trying to accomplish overall]
 
+## Constraints & Preferences
+[Any specific constraints, style preferences, or requirements mentioned by the user]
+
 ## Completed Actions
 [Numbered list of concrete actions taken - include tool used, target, and outcome.
 Format: N. ACTION target - outcome [tool: name]]
+
+## In Progress
+[Actions currently being executed or about to start]
+
+## Blocked
+[Any actions that cannot proceed due to missing information, errors, or dependencies]
 
 ## Active State
 [Current working state - include:
@@ -596,6 +634,9 @@ Format: N. ACTION target - outcome [tool: name]]
 
 ## Remaining Work
 [What remains to be done - framed as context, not instructions]
+
+## Critical Context
+[Any critical information that must NOT be lost during compression: API keys, config values, specific file paths, etc.]
 
 Target ~{summary_budget} tokens. Be CONCRETE - include file paths, command outputs, error messages. Avoid vague descriptions."""
 
