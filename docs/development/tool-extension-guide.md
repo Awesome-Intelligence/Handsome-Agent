@@ -163,8 +163,8 @@ ToolResult(
 ### 格式规范
 
 ```
-🔧(类型图标)工具名
-例如: 🔧(📁)read_file, 🔧(🌐)web_search
+🔧=类型图标 工具名
+例如: 🔧=📁 read_file, 🔧=🌐 web_search
 ```
 
 ### 类型图标
@@ -183,9 +183,9 @@ ToolResult(
 ### 日志显示示例
 
 ```
-INFO - 🏃 [Execution] - [/🛠️ToolExec] - (LLMToolSelector) Executing tool: 🔧(📁)read_file
-INFO - 🏃 [Execution] - [/🛠️ToolExec] - (LLMToolSelector) Executing tool: 🔧(🌐)web_search
-INFO - 🏃 [Execution] - [/🛠️ToolExec] - (LLMToolSelector) Executing tool: 🔧(💾)memory
+INFO - 🏃 [Execution] - [/🛠️ToolExec] - (LLMToolSelector) Executing tool: (🔧·📁)read_file
+INFO - 🏃 [Execution] - [/🛠️ToolExec] - (LLMToolSelector) Executing tool: (🔧·🌐)web_search
+INFO - 🏃 [Execution] - [/🛠️ToolExec] - (LLMToolSelector) Executing tool: (🔧·💾)memory
 ```
 
 在 `register_tool()` 中指定：
@@ -193,7 +193,7 @@ INFO - 🏃 [Execution] - [/🛠️ToolExec] - (LLMToolSelector) Executing tool:
 engine.register_tool(
     name="my_tool",
     description="...",
-    emoji="📁"  # 类型图标，外部会自动加上 🔧()
+    emoji="📁"  # 类型图标，外部会自动加上 (🔧·)
 )
 ```
 

@@ -87,9 +87,18 @@ Handsome-Agent/
 │   └── templates/           #   Agent 模板
 │
 ├── tools/                    # 🏃 Execution - 🛠️ ToolExec - 工具定义
+│   ├── definitions/         #   工具定义
+│   │   ├── file_tools.py     #   文件操作
+│   │   ├── shell_tools.py   #   Shell 命令
+│   │   ├── web_tools.py     #   网络工具
+│   │   ├── code_tools.py    #   代码工具
+│   │   ├── browser_tools.py #   浏览器自动化
+│   │   ├── multimedia_tools.py  #   多媒体
+│   │   └── task_tools.py    #   任务工具
 │   ├── registry.py           #   工具注册表
+│   ├── schema_registry.py     #   Schema 注册表
 │   ├── app_launcher.py       #   应用启动
-│   ├── file_tools_bridge.py  #   文件工具
+│   ├── file_tools_bridge.py  #   文件工具桥接
 │   ├── cronjob_tool.py       #   定时任务
 │   ├── vision_tool.py        #   图片分析
 │   ├── memory_tool.py        #   记忆工具
@@ -97,13 +106,13 @@ Handsome-Agent/
 │   └── skill_manager_tool.py #   技能管理
 │
 ├── skills/                   # 🧠 Decision - 📋 Skills - 技能系统
-│   ├── registry.py
-│   ├── matcher.py
-│   ├── loader.py
-│   ├── lifecycle.py
-│   ├── merger.py
-│   ├── evolution_manager.py
-│   ├── telemetry.py
+│   ├── registry.py          #   技能注册表
+│   ├── matcher.py           #   技能匹配器
+│   ├── loader.py            #   技能加载器
+│   ├── lifecycle.py         #   生命周期管理
+│   ├── merger.py            #   技能合并器
+│   ├── evolution_manager.py #   进化管理器
+│   ├── telemetry.py         #   遥测数据
 │   ├── system/              #   系统内置技能
 │   └── user/                #   用户技能
 │
@@ -168,43 +177,37 @@ Handsome-Agent/
 
 ### 3. 工具生态
 
-| 类别    | 工具                                     |
-| ----- | -------------------------------------- |
-| 📁 文件 | read\_file, write\_file, search\_files |
-| 🚀 应用 | launch\_app, calculator, notepad       |
-| 💻 终端 | terminal, run\_python                  |
-| 🔍 网络 | web\_search                            |
-| 🧠 记忆 | memory\_save, memory\_search           |
+| 类别 | 工具 | 功能 |
+|------|------|------|
+| **📁 文件** | file_read, file_write, file_edit, directory_list | 读写文件、目录操作 |
+| **🖥️ 命令** | shell_execute, python_execute, git_command | 命令执行、代码运行 |
+| **🌐 网络** | web_search, web_extract, http_request | 搜索、抓取、HTTP请求 |
+| **💻 代码** | code_analysis, code_format | 代码分析和处理 |
+| **🌐 浏览器** | browser_open, browser_click | 浏览器自动化 |
+| **🎨 多媒体** | image_generate, text_to_speech | 图像生成、语音合成 |
+| **✅ 任务** | todo_add, todo_list, todo_complete | Todo 列表管理 |
+| **💾 记忆** | memory_save, memory_search | 记忆存储检索 |
+| **📋 技能** | skill_register, skill_execute | 技能注册执行 |
+| **👁️ 视觉** | vision_analyze, vision_ocr | 图像分析和 OCR |
+| **📅 定时** | cronjob_create, cronjob_list | 定时任务调度 |
+| **🚀 应用** | app_launch, calculator | 应用启动 |
 
 ***
 
 ## 🔄 交互流程
 
-### 流程 1: 简单对话（无需工具）
-
+### 简单对话
 ```
 用户输入 → Agent → LLM直接回复 → 响应
 ```
 
-### 流程 2: 文件操作
-
+### 工具调用
 ```
-用户请求 → LLM决策 → 执行层(Shell/File) → 格式化响应
-```
-
-### 流程 3: 代码执行
-
-```
-用户请求 → LLM决策 → ShellExecutor(安全验证) → 输出结果
+用户请求 → LLM决策 → ToolRegistry → 工具执行 → 格式化响应
 ```
 
-### 流程 4: 会话恢复
-
-```
-启动CLI → 检测今日会话 → 加载历史 → 继续对话
-```
-
-**更多流程** (12个完整流程图): [docs/flows.md](docs/flows.md)
+### 更多流程
+详细流程图 (12个)：[docs/flows.md](docs/flows.md)
 
 ***
 
@@ -234,6 +237,8 @@ export HANDSOME_HOME=/custom/path  # 自定义数据目录
 
 ## 🚀 快速开始
 
+**要求**: Python 3.11+
+
 ```bash
 # 安装依赖
 pip install -r requirements.txt
@@ -255,22 +260,25 @@ python -m cli.main chat --session <session_id>
 
 ## 📚 文档导航
 
-| 文档                                        | 内容     |
-| ----------------------------------------- | ------ |
-| [快速开始](docs/guides/quick-start.md)        | 5分钟上手  |
-| [架构设计](docs/architecture/architecture.md) | 三层架构详解 |
-| [编码规范](.trae/rules/rule.md)               | 开发规范   |
+| 文档                                           | 内容     |
+| -------------------------------------------- | ------ |
+| [快速开始](docs/guides/quick-start.md)           | 5分钟上手  |
+| [架构设计](docs/architecture/architecture.md)    | 三层架构详解 |
+| [编码规范](.trae/rules/rule.md)                  | 开发规范   |
+| [变更日志](docs/CHANGELOG.md)                    | 版本更新   |
+| [贡献指南](docs/guides/contributing.md)          | 参与贡献   |
 
-***
+---
 
 ## 🧩 模块文档
 
-| 模块      | 文档                                                               |
-| ------- | ---------------------------------------------------------------- |
-| Agent   | [docs/modules/agent/README.md](docs/modules/agent/README.md)     |
-| Skills  | [docs/modules/skills/README.md](docs/modules/skills/README.md)   |
+| 模块      | 文档                                                          |
+| ------- | ----------------------------------------------------------- |
+| Agent   | [docs/modules/agent/README.md](docs/modules/agent/README.md)      |
+| Skills  | [docs/modules/skills/README.md](docs/modules/skills/README.md)    |
 | Gateway | [docs/modules/gateway/README.md](docs/modules/gateway/README.md) |
-| Tools   | [docs/modules/tools/README.md](docs/modules/tools/README.md)     |
+| Tools   | [docs/modules/tools/README.md](docs/modules/tools/README.md)      |
+| CLI     | [docs/modules/cli/README.md](docs/modules/cli/README.md)          |
 
 ***
 
@@ -280,4 +288,4 @@ MIT License
 
 ***
 
-*Last updated: 2026-06-01*
+*Last updated: 2026-06-03*
