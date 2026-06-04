@@ -209,9 +209,13 @@ def _strip_historical_media(messages: List[Dict[str, Any]]) -> List[Dict[str, An
 
 
 def _summarize_tool_result(tool_name: str, tool_args: str, tool_content: str) -> str:
-    """Create an informative 1-line summary of a tool call + result."""
+    """Create an informative 1-line summary of a tool call + result.
+    
+    Inspired by Hermes Agent's implementation, extended for Handsome Agent tools.
+    Provides meaningful summaries instead of raw content to save context space.
+    """
     try:
-        args = json.loads(tool_args) if tool_args else {}
+        args = json.loads(tool_args) if tool_args and tool_args.strip().startswith("{") else {}
     except (json.JSONDecodeError, TypeError):
         args = {}
 
@@ -219,64 +223,262 @@ def _summarize_tool_result(tool_name: str, tool_args: str, tool_content: str) ->
     content_len = len(content)
     line_count = content.count("\n") + 1 if content.strip() else 0
 
-    if tool_name == "terminal":
-        cmd = args.get("command", "")
-        if len(cmd) > 80:
-            cmd = cmd[:77] + "..."
-        exit_match = re.search(r'"exit_code"\s*:\s*(-?\d+)', content)
-        exit_code = exit_match.group(1) if exit_match else "?"
-        return f"[terminal] ran `{cmd}` -> exit {exit_code}, {line_count} lines output"
-
+    # ═══════════════════════════════════════════════════════════════
+    # 📁 File Operations (文件操作)
+    # ═══════════════════════════════════════════════════════════════
     if tool_name == "read_file":
         path = args.get("path", "?")
         offset = args.get("offset", 1)
-        return f"[read_file] read {path} from line {offset} ({content_len:,} chars)"
+        limit = args.get("limit", "")
+        location = f"line {offset}" + (f"-{offset + limit}" if limit else "")
+        return f"[read_file] read {path} from {location} ({content_len:,} chars)"
 
     if tool_name == "write_file":
         path = args.get("path", "?")
-        written_lines = args.get("content", "").count("\n") + 1 if args.get("content") else "?"
-        return f"[write_file] wrote to {path} ({written_lines} lines)"
+        content_param = args.get("content", "")
+        lines = content_param.count("\n") + 1 if content_param else "?"
+        return f"[write_file] wrote {path} ({lines} lines)"
 
+    if tool_name == "patch":
+        path = args.get("path", "?")
+        mode = args.get("mode", "replace")
+        old_str = args.get("old_string", "")
+        new_str = args.get("new_string", "")
+        return f"[patch] {mode} in {path} - {'updated' if new_str else 'modified'}"
+
+    if tool_name == "list_directory":
+        path = args.get("path", ".")
+        all_files = args.get("all", False)
+        # Try to count entries from content
+        entry_count = content.count("\n") if content.strip() else "?"
+        return f"[list_directory] listing {path} ({entry_count} entries{' incl. hidden' if all_files else ''})"
+
+    if tool_name == "create_directory":
+        path = args.get("path", "?")
+        return f"[create_directory] created {path}"
+
+    if tool_name == "delete_file":
+        path = args.get("path", "?")
+        return f"[delete_file] deleted {path}"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🔍 Search Operations (搜索操作)
+    # ═══════════════════════════════════════════════════════════════
     if tool_name == "search_files":
         pattern = args.get("pattern", "?")
         path = args.get("path", ".")
         target = args.get("target", "content")
         match_count = re.search(r'"total_count"\s*:\s*(\d+)', content)
         count = match_count.group(1) if match_count else "?"
-        return f"[search_files] {target} search for '{pattern}' in {path} -> {count} matches"
+        return f"[search_files] {target} '{pattern}' in {path} -> {count} matches"
 
-    if tool_name == "patch":
-        path = args.get("path", "?")
-        mode = args.get("mode", "replace")
-        return f"[patch] {mode} in {path} ({content_len:,} chars result)"
+    if tool_name == "grep":
+        pattern = args.get("pattern", "?")
+        path = args.get("path", ".")
+        # Use the same pattern matching as search_files
+        match_count = re.search(r'"total_count"\s*:\s*(\d+)', content)
+        count = match_count.group(1) if match_count else "?"
+        return f"[grep] '{pattern}' in {path} -> {count} matches"
 
-    if tool_name in {"browser_navigate", "browser_click", "browser_snapshot",
-                     "browser_type", "browser_scroll", "browser_vision"}:
-        url = args.get("url", "")
-        ref = args.get("ref", "")
-        detail = f" {url}" if url else (f" ref={ref}" if ref else "")
-        return f"[{tool_name}]{detail} ({content_len:,} chars)"
+    # ═══════════════════════════════════════════════════════════════
+    # 🖥️ Terminal Operations (终端操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name == "terminal":
+        cmd = args.get("command", "")
+        if len(cmd) > 60:
+            cmd = cmd[:57] + "..."
+        exit_match = re.search(r'"exit_code"\s*:\s*(-?\d+)', content)
+        exit_code = exit_match.group(1) if exit_match else "?"
+        return f"[terminal] `{cmd}` -> exit {exit_code}, {line_count} lines"
 
+    if tool_name == "bash":
+        cmd = args.get("command", "")
+        if len(cmd) > 60:
+            cmd = cmd[:57] + "..."
+        exit_match = re.search(r'"exit_code"\s*:\s*(-?\d+)', content)
+        exit_code = exit_match.group(1) if exit_match else "?"
+        return f"[bash] `{cmd}` -> exit {exit_code}, {line_count} lines"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🐳 Code Execution (代码执行)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name == "execute_code":
+        language = args.get("language", "?")
+        code_preview = (args.get("code") or "")[:40].replace("\n", " ")
+        if len(args.get("code", "")) > 40:
+            code_preview += "..."
+        return f"[execute_code] {language}: `{code_preview}` ({line_count} lines output)"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🌐 Web Operations (网络操作)
+    # ═══════════════════════════════════════════════════════════════
     if tool_name == "web_search":
         query = args.get("query", "?")
-        return f"[web_search] query='{query}' ({content_len:,} chars result)"
+        limit = args.get("limit", 5)
+        return f"[web_search] query='{query}' (limit={limit}, {content_len:,} chars)"
 
+    if tool_name == "web_fetch":
+        url = args.get("url", args.get("urls", ["?"]))
+        if isinstance(url, list):
+            url = url[0] if url else "?"
+        return f"[web_fetch] {url} ({content_len:,} chars)"
+
+    if tool_name == "web_extract":
+        urls = args.get("urls", [])
+        url_count = len(urls) if isinstance(urls, list) else 1
+        url_desc = urls[0] if isinstance(urls, list) and urls else str(url)[:50]
+        return f"[web_extract] {url_desc}" + (f" (+{url_count-1} more)" if url_count > 1 else "") + f" ({content_len:,} chars)"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🌐 Browser Operations (浏览器操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name in {"browser_navigate", "browser_click", "browser_type", 
+                      "browser_scroll", "browser_press", "browser_back"}:
+        url = args.get("url", "")
+        ref = args.get("ref", "")
+        action = tool_name.replace("browser_", "")
+        detail = f" {url}" if url else (f" ref={ref[:20]}" if ref else "")
+        return f"[browser_{action}]{detail}"
+
+    if tool_name == "browser_snapshot":
+        url = args.get("url", "")
+        return f"[browser_snapshot] {url}" + (f" ({content_len:,} chars)" if content_len > 0 else "")
+
+    if tool_name == "browser_vision":
+        question = args.get("question", "")[:50]
+        return f"[browser_vision] '{question}'" + (f" ({content_len:,} chars)" if content_len > 0 else "")
+
+    if tool_name == "browser_console":
+        return f"[browser_console] ({content_len:,} chars)"
+
+    if tool_name == "browser_get_images":
+        return f"[browser_get_images] ({content_len:,} chars)"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🖼️ Vision/Image Operations (视觉/图像操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name == "analyze_image":
+        question = args.get("question", "")[:50]
+        return f"[analyze_image] '{question}' ({content_len:,} chars)"
+
+    if tool_name == "extract_text":
+        return f"[extract_text] ({content_len:,} chars extracted)"
+
+    if tool_name == "compare_images":
+        return f"[compare_images] ({content_len:,} chars)"
+
+    if tool_name == "image_generate":
+        prompt = args.get("prompt", "")[:50]
+        model = args.get("model", "?")
+        return f"[image_generate] model={model}: '{prompt}'" + (f" ({content_len:,} chars)" if content_len > 0 else "")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🧠 Memory Operations (记忆操作)
+    # ═══════════════════════════════════════════════════════════════
     if tool_name == "memory":
         action = args.get("action", "?")
         target = args.get("target", "?")
-        return f"[memory] {action} on {target}"
+        entry_count = re.search(r'"entry_count"\s*:\s*(\d+)', content)
+        count = entry_count.group(1) if entry_count else "?"
+        return f"[memory] {action} on {target} ({count} entries)"
 
+    if tool_name == "session_search":
+        query = args.get("query", "?")
+        limit = args.get("limit", 5)
+        result_count = re.search(r'"result_count"\s*:\s*(\d+)', content)
+        count = result_count.group(1) if result_count else "?"
+        return f"[session_search] '{query}' -> {count} results (limit={limit})"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 📋 Task Management (任务管理)
+    # ═══════════════════════════════════════════════════════════════
     if tool_name == "todo":
-        return "[todo] updated task list"
+        action = args.get("action", "?")
+        return f"[todo] {action}"
+
+    if tool_name == "todo_create":
+        title = args.get("title", "")[:40]
+        return f"[todo_create] '{title}'"
+
+    if tool_name == "todo_add":
+        task = args.get("task", "")[:40]
+        return f"[todo_add] '{task}'"
+
+    if tool_name == "todo_complete":
+        task_id = args.get("task_id", "?")
+        return f"[todo_complete] task={task_id}"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🛠️ Skills Operations (技能操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name in {"skill_view", "skills_list", "skill_manage", "skill_create"}:
+        name = args.get("name", "?")
+        action = args.get("action", tool_name.replace("skill_", ""))
+        return f"[{tool_name}] name={name} ({action})"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 📢 Communication Operations (通信操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name == "text_to_speech":
+        text = args.get("text", "")[:30]
+        voice = args.get("voice", "?")
+        return f"[text_to_speech] voice={voice}: '{text}'" + (f" ({content_len:,} chars)" if content_len > 0 else "")
 
     if tool_name == "clarify":
         return "[clarify] asked user a question"
 
+    # ═══════════════════════════════════════════════════════════════
+    # ⏰ Scheduler Operations (调度操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name == "cronjob":
+        action = args.get("action", "?")
+        return f"[cronjob] {action}"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🔧 System Operations (系统操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name == "checkpoint":
+        action = args.get("action", "?")
+        name = args.get("name", "?")
+        return f"[checkpoint] {action}: {name}"
+
+    if tool_name == "process":
+        action = args.get("action", "?")
+        sid = args.get("session_id", "?")
+        return f"[process] {action} session={sid}"
+
+    if tool_name == "delegate_task":
+        goal = args.get("goal", "")
+        if len(goal) > 50:
+            goal = goal[:47] + "..."
+        return f"[delegate_task] '{goal}' ({content_len:,} chars result)"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🏠 Home Automation (智能家居)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name.startswith("ha_"):
+        action = tool_name.replace("ha_", "")
+        entity = args.get("entity_id", "?")
+        return f"[ha_{action}] entity={entity}"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 📦 Checkpoint Operations (检查点操作)
+    # ═══════════════════════════════════════════════════════════════
+    if tool_name == "checkpoint_restore":
+        checkpoint_id = args.get("checkpoint_id", "?")
+        return f"[checkpoint_restore] id={checkpoint_id}"
+
+    if tool_name == "checkpoint_list":
+        return f"[checkpoint_list] ({content_len:,} chars)"
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🔄 Generic Fallback (通用回退)
+    # ═══════════════════════════════════════════════════════════════
     first_arg = ""
     for k, v in list(args.items())[:2]:
-        sv = str(v)[:40]
+        sv = str(v)[:30]
         first_arg += f" {k}={sv}"
-    return f"[{tool_name}]{first_arg} ({content_len:,} chars result)"
+    return f"[{tool_name}]{first_arg} ({content_len:,} chars)"
 
 
 class ContextCompressor(ContextEngine):
