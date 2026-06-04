@@ -127,19 +127,34 @@ class ColoredFormatter(logging.Formatter):
         return f"{color}{text}{self.COLORS['reset']}"
     
     def _format_pretty(self, record: logging.LogRecord) -> str:
-        """Pretty 格式：带时间戳、层级，无颜色"""
+        """Pretty 格式：带时间戳、层级，根据级别着色"""
         timestamp = datetime.fromtimestamp(record.created).strftime(self.date_format)
         
         # 获取 subsystem（logger name）
         subsystem = record.name if record.name else "root"
         
-        # 获取日志级别（无颜色）
+        # 获取日志级别
         level = record.levelname
+        level_colored = level
+        
+        # 根据日志级别着色
+        if record.levelno == logging.DEBUG:
+            # DEBUG 整行灰色（dim）- 在任何背景上都清晰
+            dim = self.COLORS['dim']
+            reset = self.COLORS['reset']
+            return f"{dim}{timestamp} - {level} - {subsystem} - {record.getMessage()}{reset}"
+        elif record.levelno == logging.ERROR:
+            # 红色 - 在任何背景上都清晰
+            level_colored = f"{self.COLORS['red']}{level}{self.COLORS['reset']}"
+        elif record.levelno == logging.WARNING:
+            # 黄色 - 警告级别
+            level_colored = f"{self.COLORS['yellow']}{level}{self.COLORS['reset']}"
+        # INFO 保持默认（白色/无色）
         
         # 格式化消息
         message = record.getMessage()
         
-        return f"{timestamp} - {level} - {subsystem} - {message}"
+        return f"{timestamp} - {level_colored} - {subsystem} - {message}"
     
     def _format_compact(self, record: logging.LogRecord) -> str:
         """Compact 格式：无时间戳，紧凑"""
