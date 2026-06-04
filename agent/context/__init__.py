@@ -6,6 +6,6 @@ Context module for Handsome Agent
 
 from .context_engine import ContextEngine
 from .prompt_builder import PromptBuilder
-from .context_builder import ContextBuilder, AgentDefinitionLoader
+from .context_builder import ContextBuilder
 
-__all__ = ['ContextEngine', 'PromptBuilder', 'ContextBuilder', 'AgentDefinitionLoader']
+__all__ = ['ContextEngine', 'PromptBuilder', 'ContextBuilder']

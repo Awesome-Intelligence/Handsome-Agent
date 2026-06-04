@@ -224,16 +224,23 @@ class LLMToolSelector:
             })
         return schema
 
-    def _build_system_prompt(self, conversation_history: Optional[List[Dict]] = None) -> str:
-        """构建系统提示词（包含 Agent 定义）
+    def _build_system_prompt(
+        self, 
+        conversation_history: Optional[List[Dict]] = None,
+        user_input: str = ""
+    ) -> str:
+        """构建系统提示词（包含 Agent 定义和自动预取的记忆）
         
-        注意：此方法已重定向到 ContextBuilder
+        注意：此方法已重定向到 ContextBuilder，会自动预取相关记忆（Hermes 风格）
         """
         from agent.context.context_builder import ContextBuilder
         
-        # 🧠 Decision - [/🔧ToolSelect] - 委托给 ContextBuilder
+        # 🧠 Decision - [/🔧ToolSelect] - 委托给 ContextBuilder（传入 user_input 用于记忆预取）
         context_builder = ContextBuilder(tools=self.tools)
-        return context_builder.build_system_prompt(conversation_history)
+        return context_builder.build_system_prompt(
+            conversation_history=conversation_history,
+            user_message=user_input
+        )
 
     def _keyword_fallback(self, user_input: str) -> ToolSelectionResult:
         """
@@ -377,8 +384,8 @@ class LLMToolSelector:
             return self._keyword_fallback(user_input)
 
         try:
-            # 构建提示词
-            system_prompt = self._build_system_prompt(conversation_history)
+            # 构建提示词（传入 user_input 用于记忆预取）
+            system_prompt = self._build_system_prompt(conversation_history, user_input)
 
             # 添加上下文（如果有）
             if context:
@@ -393,7 +400,11 @@ class LLMToolSelector:
 
             # 解析响应
             try:
-                content = response.content if hasattr(response, 'content') else str(response)
+                from agent.llm.providers.base import ProviderResponse
+                if isinstance(response, ProviderResponse):
+                    content = response.content
+                else:
+                    content = str(response)
                 result = json.loads(content.strip())
                 
                 # 兼容两种格式："selected_tool" 或 "tool"
@@ -407,7 +418,7 @@ class LLMToolSelector:
                     confidence=result.get('confidence', 0.5)
                 )
             except json.JSONDecodeError:
-                self.logger.error(f"Failed to parse LLM response as JSON: {response[:200]}")
+                self.logger.error(f"Failed to parse LLM response as JSON: {content[:200] if isinstance(content, str) else str(content)[:200]}")
                 # 回退到直接回复
                 return ToolSelectionResult(
                     selected_tool=None,
