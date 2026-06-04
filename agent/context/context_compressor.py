@@ -30,7 +30,7 @@ import logging
 import re
 import time
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, NamedTuple
+from typing import Any, Dict, List, Optional, Set, Tuple, NamedTuple, Callable, Protocol
 
 from agent.context.token_estimator import (
     estimate_messages_tokens_rough,
@@ -42,6 +42,151 @@ from common.logging_manager import get_decision_logger
 from agent.context.context_engine import ContextEngine, ContextMessage
 
 logger = get_decision_logger(__name__, sublayer="context")
+
+
+# ============================================================================
+# Compression Hooks (压缩钩子系统)
+# ============================================================================
+
+class CompressionHookInfo(NamedTuple):
+    """压缩钩子回调的上下文信息."""
+    compress_count: int           # 压缩次数
+    total_tokens_before: int      # 压缩前 token 数
+    total_tokens_after: int        # 压缩后 token 数
+    messages_count_before: int     # 压缩前消息数
+    messages_count_after: int     # 压缩后消息数
+    compression_ratio: float      # 压缩比例 (after/before)
+    summary_generated: bool       # 是否生成了摘要
+    summary_model_used: str       # 使用的摘要模型
+    elapsed_seconds: float         # 压缩耗时
+
+
+class CompressionEvent(NamedTuple):
+    """压缩事件类型."""
+    PRE_COMPRESS = "pre_compress"   # 压缩前
+    POST_COMPRESS = "post_compress" # 压缩后
+    SUMMARY_SUCCESS = "summary_success"    # 摘要生成成功
+    SUMMARY_FAILED = "summary_failed"      # 摘要生成失败
+    FALLBACK_TRIGGERED = "fallback_triggered"  # 回退触发
+
+
+# Hook callback type definitions
+PreCompressHook = Callable[[List[Dict[str, Any]]], None]
+"""压缩前钩子: (messages) -> None"""
+
+PostCompressHook = Callable[[List[Dict[str, Any]], List[Dict[str, Any]], CompressionHookInfo], None]
+"""压缩后钩子: (original_messages, compressed_messages, info) -> None"""
+
+SummaryHook = Callable[[str, bool, float], None]
+"""摘要钩子: (summary_content, success, elapsed_seconds) -> None"""
+
+FallbackHook = Callable[[str, str], None]
+"""回退钩子: (from_model, to_model) -> None"""
+
+
+class CompressionHooks:
+    """压缩钩子管理器.
+    
+    提供灵活的钩子注册和调用机制，用于监控和扩展上下文压缩行为。
+    典型用途:
+    - 记录压缩统计信息
+    - 集成外部监控/告警系统
+    - 触发自定义处理逻辑
+    - 调试和日志增强
+    """
+    
+    def __init__(self):
+        self._pre_compress_hooks: List[PreCompressHook] = []
+        self._post_compress_hooks: List[PostCompressHook] = []
+        self._summary_success_hooks: List[SummaryHook] = []
+        self._summary_failed_hooks: List[SummaryHook] = []
+        self._fallback_hooks: List[FallbackHook] = []
+        self._stats = {
+            "total_compressions": 0,
+            "total_summaries": 0,
+            "total_fallbacks": 0,
+            "total_savings_tokens": 0,
+        }
+    
+    def on_pre_compress(self, hook: PreCompressHook) -> None:
+        """注册压缩前钩子."""
+        self._pre_compress_hooks.append(hook)
+    
+    def on_post_compress(self, hook: PostCompressHook) -> None:
+        """注册压缩后钩子."""
+        self._post_compress_hooks.append(hook)
+    
+    def on_summary_success(self, hook: SummaryHook) -> None:
+        """注册摘要成功钩子."""
+        self._summary_success_hooks.append(hook)
+    
+    def on_summary_failed(self, hook: SummaryHook) -> None:
+        """注册摘要失败钩子."""
+        self._summary_failed_hooks.append(hook)
+    
+    def on_fallback(self, hook: FallbackHook) -> None:
+        """注册回退钩子."""
+        self._fallback_hooks.append(hook)
+    
+    def clear(self) -> None:
+        """清除所有钩子."""
+        self._pre_compress_hooks.clear()
+        self._post_compress_hooks.clear()
+        self._summary_success_hooks.clear()
+        self._summary_failed_hooks.clear()
+        self._fallback_hooks.clear()
+    
+    @property
+    def stats(self) -> Dict[str, Any]:
+        """获取统计信息."""
+        return self._stats.copy()
+    
+    def _run_pre_compress(self, messages: List[Dict[str, Any]]) -> None:
+        """触发压缩前钩子."""
+        for hook in self._pre_compress_hooks:
+            try:
+                hook(messages)
+            except Exception as e:
+                logger.debug("Pre-compress hook failed: %s", e)
+    
+    def _run_post_compress(
+        self,
+        original: List[Dict[str, Any]],
+        compressed: List[Dict[str, Any]],
+        info: CompressionHookInfo,
+    ) -> None:
+        """触发压缩后钩子."""
+        for hook in self._post_compress_hooks:
+            try:
+                hook(original, compressed, info)
+            except Exception as e:
+                logger.debug("Post-compress hook failed: %s", e)
+    
+    def _run_summary_success(self, content: str, elapsed: float) -> None:
+        """触发摘要成功钩子."""
+        self._stats["total_summaries"] += 1
+        for hook in self._summary_success_hooks:
+            try:
+                hook(content, True, elapsed)
+            except Exception as e:
+                logger.debug("Summary success hook failed: %s", e)
+    
+    def _run_summary_failed(self, error: str, elapsed: float) -> None:
+        """触发摘要失败钩子."""
+        for hook in self._summary_failed_hooks:
+            try:
+                hook(error, False, elapsed)
+            except Exception as e:
+                logger.debug("Summary failed hook failed: %s", e)
+    
+    def _run_fallback(self, from_model: str, to_model: str) -> None:
+        """触发回退钩子."""
+        self._stats["total_fallbacks"] += 1
+        for hook in self._fallback_hooks:
+            try:
+                hook(from_model, to_model)
+            except Exception as e:
+                logger.debug("Fallback hook failed: %s", e)
 
 
 # ============================================================================
@@ -748,6 +893,7 @@ class ContextCompressor(ContextEngine):
         api_key: str = "",
         provider: str = "",
         llm_client: Any = None,
+        memory_manager: Any = None,  # 🧠 Memory Manager for on_pre_compress
     ):
         self.model = model
         self.base_url = base_url
@@ -759,6 +905,7 @@ class ContextCompressor(ContextEngine):
         self.summary_target_ratio = max(0.10, min(summary_target_ratio, 0.80))
         self.quiet_mode = quiet_mode
         self.llm_client = llm_client
+        self.memory_manager = memory_manager  # 🧠 Memory Manager for on_pre_compress
 
         self.context_length = self._get_model_context_length(model)
         # threshold_tokens: 触发压缩的绝对 token 数 (Hermes MINIMUM_CONTEXT_LENGTH: 8192)
@@ -791,6 +938,9 @@ class ContextCompressor(ContextEngine):
         # 可配置的 summary_model (用于压缩的辅助模型)
         self._config_summary_model: str = summary_model or ""
         
+        # 钩子系统
+        self._hooks = CompressionHooks()
+        
         self.logger = get_decision_logger(self.__class__.__name__, sublayer="context")
 
         if not quiet_mode:
@@ -800,6 +950,98 @@ class ContextCompressor(ContextEngine):
                 model, self.context_length, self.threshold_tokens,
                 threshold_percent * 100, self.tail_token_budget,
             )
+
+    def update_model(
+        self,
+        model: str,
+        context_length: int,
+        base_url: str = "",
+        api_key: Any = "",
+        provider: str = "",
+        api_mode: str = "",
+        summary_model_override: str = "",
+    ) -> None:
+        """Update model info after a model switch or fallback activation.
+        
+        Args:
+            model: New main model name
+            context_length: Context window size for the new model
+            base_url: API base URL (optional)
+            api_key: API key (optional)
+            provider: Provider name (optional)
+            api_mode: API mode (optional)
+            summary_model_override: Override model for compression summarization (optional)
+        """
+        self.model = model
+        self.base_url = base_url
+        self.api_key = api_key
+        self.provider = provider
+        self.api_mode = api_mode
+        self.context_length = context_length
+        
+        # 更新摘要模型配置
+        if summary_model_override:
+            self._config_summary_model = summary_model_override
+            self._summary_model_fallen_back = False  # 重置回退状态
+            if not self.quiet_mode:
+                self.logger.info(
+                    "Context compressor updated: model=%s, summary_model=%s",
+                    model, summary_model_override,
+                )
+
+    # =========================================================================
+    # Hook API (钩子 API)
+    # =========================================================================
+    
+    def register_pre_compress_hook(self, hook: PreCompressHook) -> None:
+        """注册压缩前钩子.
+        
+        Args:
+            hook: (messages: List[Dict]) -> None
+        """
+        self._hooks.on_pre_compress(hook)
+    
+    def register_post_compress_hook(self, hook: PostCompressHook) -> None:
+        """注册压缩后钩子.
+        
+        Args:
+            hook: (original, compressed, info) -> None
+        """
+        self._hooks.on_post_compress(hook)
+    
+    def register_summary_success_hook(self, hook: SummaryHook) -> None:
+        """注册摘要成功钩子.
+        
+        Args:
+            hook: (summary_content, success=True, elapsed) -> None
+        """
+        self._hooks.on_summary_success(hook)
+    
+    def register_summary_failed_hook(self, hook: SummaryHook) -> None:
+        """注册摘要失败钩子.
+        
+        Args:
+            hook: (error_message, success=False, elapsed) -> None
+        """
+        self._hooks.on_summary_failed(hook)
+    
+    def register_fallback_hook(self, hook: FallbackHook) -> None:
+        """注册回退钩子.
+        
+        Args:
+            hook: (from_model, to_model) -> None
+        """
+        self._hooks.on_fallback(hook)
+    
+    def get_compression_stats(self) -> Dict[str, Any]:
+        """获取压缩统计信息."""
+        stats = self._hooks.stats.copy()
+        stats["compression_count"] = self.compression_count
+        return stats
+    
+    def clear_hooks(self) -> None:
+        """清除所有钩子."""
+        self._hooks.clear()
 
     @staticmethod
     def _get_model_context_length(model: str) -> int:
@@ -1133,6 +1375,9 @@ Use this exact structure:
 FOCUS TOPIC: "{focus_topic}"
 The user has requested that this compaction PRIORITISE preserving all information related to the focus topic above. For content related to "{focus_topic}", include full detail. For content NOT related to the focus topic, summarise more aggressively."""
 
+        # 确定使用的模型：优先使用 summary_model_override，否则使用主模型
+        model_to_use = self._config_summary_model or self.model
+        
         try:
             import asyncio
 
@@ -1140,6 +1385,7 @@ The user has requested that this compaction PRIORITISE preserving all informatio
                 response = await self.llm_client.generate(
                     prompt=prompt,
                     system_prompt=None,
+                    model=model_to_use,  # 支持使用不同的模型进行摘要
                 )
                 return response
 
@@ -1153,7 +1399,12 @@ The user has requested that this compaction PRIORITISE preserving all informatio
             self._previous_summary = summary
             self._summary_failure_cooldown_until = 0.0
             self._last_summary_error = None
+            self._last_aux_model_failure_error = None
             self._summary_model_fallen_back = False
+            
+            # 触发摘要成功钩子
+            self._hooks._run_summary_success(summary, elapsed=0.0)
+            
             return f"{SUMMARY_PREFIX}\n{summary}"
 
         except Exception as e:
@@ -1174,13 +1425,16 @@ The user has requested that this compaction PRIORITISE preserving all informatio
             # 检查是否应该回退到主模型
             if classification.should_fallback and self._config_summary_model:
                 if not self._summary_model_fallen_back:
+                    from_model = self._config_summary_model
                     self.logger.info(
                         "Compression failed with summary model '%s' (%s). "
                         "Falling back to main model '%s' for compression.",
-                        self._config_summary_model,
+                        from_model,
                         classification.reason,
                         self.model,
                     )
+                    # 触发回退钩子
+                    self._hooks._run_fallback(from_model, self.model)
                     # 回退到主模型，清除摘要模型配置
                     self._config_summary_model = ""
                     self._summary_model_fallen_back = True
@@ -1217,6 +1471,9 @@ The user has requested that this compaction PRIORITISE preserving all informatio
                     err_text,
                     classification.cooldown_seconds,
                 )
+            
+            # 触发摘要失败钩子
+            self._hooks._run_summary_failed(err_text, elapsed=0.0)
             
             return None
 
@@ -1347,12 +1604,27 @@ The user has requested that this compaction PRIORITISE preserving all informatio
 
     def compress(self, messages: List[Dict[str, Any]], current_tokens: int = None, focus_topic: str = None) -> List[Dict[str, Any]]:
         """Compress conversation messages by summarizing middle turns."""
+        compress_start_time = time.monotonic()
+        
         self._last_summary_dropped_count = 0
         self._last_summary_fallback_used = False
         self._last_summary_error = None
         self._last_compress_aborted = False
 
         n_messages = len(messages)
+        original_tokens = current_tokens if current_tokens else estimate_messages_tokens_rough(messages)
+        
+        # 触发压缩前钩子
+        self._hooks._run_pre_compress(messages)
+        
+        # 🧠 Memory Manager on_pre_compress - 从即将压缩的消息中提取关键信息
+        memory_prefetch_context = ""
+        if self.memory_manager:
+            try:
+                memory_prefetch_context = self.memory_manager.on_pre_compress(messages)
+            except Exception as e:
+                self.logger.debug(f"Memory manager on_pre_compress failed: {e}")
+
         _min_for_compress = self._protect_head_size(messages) + 3 + 1
         if n_messages <= _min_for_compress:
             if not self.quiet_mode:
@@ -1362,7 +1634,7 @@ The user has requested that this compaction PRIORITISE preserving all informatio
                 )
             return messages
 
-        display_tokens = current_tokens if current_tokens else estimate_messages_tokens_rough(messages)
+        display_tokens = original_tokens
 
         messages, pruned_count = self._prune_old_tool_results(
             messages, protect_tail_count=self.protect_last_n,
@@ -1390,6 +1662,13 @@ The user has requested that this compaction PRIORITISE preserving all informatio
             )
 
         summary = self._generate_summary(messages[compress_start:compress_end], focus_topic=focus_topic)
+
+        # 🧠 将 memory_prefetch_context 注入到 summary 中
+        if memory_prefetch_context:
+            if summary:
+                summary = f"{summary}\n\n## Memory Insights from Compressed Context\n{memory_prefetch_context}"
+            else:
+                summary = f"{SUMMARY_PREFIX}\n## Memory Insights from Compressed Context\n{memory_prefetch_context}"
 
         compressed = []
         for i in range(compress_start):
@@ -1462,6 +1741,26 @@ The user has requested that this compaction PRIORITISE preserving all informatio
                 n_messages, len(compressed), saved_estimate, savings_pct,
             )
             self.logger.info("Compression #%d complete", self.compression_count)
+
+        # 触发压缩后钩子
+        elapsed = time.monotonic() - compress_start_time
+        model_used = self._config_summary_model or self.model
+        hook_info = CompressionHookInfo(
+            compress_count=self.compression_count,
+            total_tokens_before=original_tokens,
+            total_tokens_after=new_estimate,
+            messages_count_before=n_messages,
+            messages_count_after=len(compressed),
+            compression_ratio=len(compressed) / n_messages if n_messages > 0 else 1.0,
+            summary_generated=summary not in (None, "") and not self._last_summary_fallback_used,
+            summary_model_used=model_used,
+            elapsed_seconds=elapsed,
+        )
+        self._hooks._run_post_compress(messages, compressed, hook_info)
+        
+        # 更新统计
+        self._hooks._stats["total_compressions"] += 1
+        self._hooks._stats["total_savings_tokens"] += saved_estimate
 
         return compressed
 

@@ -69,6 +69,7 @@ class CompressionIntegration:
         llm_client: Any = None,
         config: Optional[CompressionConfig] = None,
         quiet_mode: bool = False,
+        memory_manager: Any = None,  # 🧠 Memory Manager for on_pre_compress
     ):
         """
         Args:
@@ -83,6 +84,7 @@ class CompressionIntegration:
         self.llm_client = llm_client
         self.config = config or get_config()
         self.quiet_mode = quiet_mode
+        self.memory_manager = memory_manager  # 🧠 Memory Manager for on_pre_compress
 
         self._compressor: Optional[ContextCompressor] = None
         self._rail: Optional[ContextCompressionRail] = None
@@ -112,6 +114,7 @@ class CompressionIntegration:
             api_key=self.config.api_key,
             provider=self.config.provider,
             llm_client=self.llm_client,
+            memory_manager=self.memory_manager,  # 🧠 Memory Manager for on_pre_compress
         )
 
         self._rail_manager = CompressionRailManager(self.session_id)
@@ -361,6 +364,7 @@ def create_integration(
     model: str = "gpt-4o",
     llm_client: Any = None,
     config: Optional[CompressionConfig] = None,
+    memory_manager: Any = None,  # 🧠 Memory Manager for on_pre_compress
 ) -> CompressionIntegration:
     """
     创建压缩集成器（便捷函数）
@@ -370,6 +374,7 @@ def create_integration(
         model: 模型名称
         llm_client: LLM 客户端
         config: 压缩配置
+        memory_manager: Memory Manager 实例
 
     Returns:
         CompressionIntegration 实例
@@ -379,6 +384,7 @@ def create_integration(
         model=model,
         llm_client=llm_client,
         config=config,
+        memory_manager=memory_manager,
     )
 
 
