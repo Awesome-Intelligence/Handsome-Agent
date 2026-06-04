@@ -97,10 +97,28 @@ class ContextBuilder:
         """获取工具 Schema（用于 LLM）"""
         schema = []
         for tool_name, tool in self.tools.items():
+            tool_name = tool.name if hasattr(tool, 'name') else tool_name
+            tool_desc = tool.description if hasattr(tool, 'description') else ''
+            tool_params = tool.parameters if hasattr(tool, 'parameters') else {}
+            
+            # 构建完整的工具 schema（包含 name, description, parameters）
+            param_props = {}
+            if isinstance(tool_params, dict):
+                # 提取 parameters.properties
+                if 'properties' in tool_params:
+                    param_props = tool_params['properties']
+                elif 'type' not in tool_params:
+                    # 如果参数是简单 dict，转换为 schema
+                    param_props = tool_params
+            
             schema.append({
-                'name': tool.name if hasattr(tool, 'name') else tool_name,
-                'description': tool.description if hasattr(tool, 'description') else '',
-                'parameters': tool.parameters if hasattr(tool, 'parameters') else {}
+                'name': tool_name,
+                'description': tool_desc,
+                'parameters': {
+                    'type': 'object',
+                    'properties': param_props,
+                    'required': []  # 可根据工具定义添加
+                }
             })
         return schema
     
@@ -108,7 +126,8 @@ class ContextBuilder:
         self,
         conversation_history: Optional[List[Dict]] = None,
         include_tools: bool = True,
-        user_message: str = ""
+        user_message: str = "",
+        model: str = None
     ) -> str:
         """
         构建完整的系统提示词（Hermes 风格）
@@ -119,6 +138,7 @@ class ContextBuilder:
             conversation_history: 对话历史
             include_tools: 是否包含工具列表
             user_message: 用户消息（用于检索相关记忆）
+            model: 模型名称（用于注入模型特定指导）
             
         Returns:
             完整的系统提示词
@@ -182,9 +202,9 @@ class ContextBuilder:
         if memory_context:
             prompt_parts.append(memory_context)
         
-        # 5. 工具使用指导（使用代码常量）
+        # 5. 工具使用指导（使用代码常量，含模型特定指导）
         if self.enable_guidance:
-            guidance = self._build_guidance()
+            guidance = self._build_guidance(model)
             if guidance:
                 prompt_parts.append(guidance)
         
@@ -349,7 +369,7 @@ class ContextBuilder:
 {content}
 </memory-context>"""
     
-    def _build_guidance(self) -> str:
+    def _build_guidance(self, model: str = None) -> str:
         """
         构建指导性文本（Hermes 风格）
         
@@ -359,17 +379,42 @@ class ContextBuilder:
         1. 分层组织：stable (稳定) / context (上下文) / volatile (可变)
         2. 工具感知：只有当工具可用时才添加相关指导
         3. 模型特定：不同模型有不同的执行指导
+        
+        Args:
+            model: 模型名称（用于判断是否需要注入模型特定指导）
         """
         guidance_parts = []
         
-        # 1. 记忆使用指导
+        # 1. 工具使用强制规范（所有模型都需要）
+        from agent.context.prompt_templates import TOOL_USE_ENFORCEMENT, TOOL_CALL_FORMAT
+        guidance_parts.append(TOOL_USE_ENFORCEMENT)
+        guidance_parts.append(TOOL_CALL_FORMAT)
+        
+        # 2. 必须使用工具的场景列表
+        from agent.context.prompt_templates import MANDATORY_TOOL_USE
+        guidance_parts.append(MANDATORY_TOOL_USE)
+        
+        # 3. 行动而非询问
+        from agent.context.prompt_templates import ACT_DONT_ASK
+        guidance_parts.append(ACT_DONT_ASK)
+        
+        # 4. 记忆使用指导
         guidance_parts.append(MEMORY_GUIDANCE)
         
-        # 2. 跨会话搜索指导
+        # 5. 跨会话搜索指导
         guidance_parts.append(SESSION_SEARCH_GUIDANCE)
         
-        # 3. 技能保存指导
+        # 6. 技能保存指导
         guidance_parts.append(SKILLS_GUIDANCE)
+        
+        # 7. 模型特定执行指导（按模型类型注入，参考 Hermes）
+        if model:
+            model_lower = model.lower()
+            from agent.context.prompt_templates import OPENAI_MODEL_EXECUTION_GUIDANCE
+            
+            # DeepSeek/GPT 系列模型使用 OpenAI 执行指导
+            if any(p in model_lower for p in ["deepseek", "gpt", "grok", "glm", "qwen"]):
+                guidance_parts.append(OPENAI_MODEL_EXECUTION_GUIDANCE)
         
         return "\n\n".join(guidance_parts)
 

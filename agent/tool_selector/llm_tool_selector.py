@@ -424,6 +424,39 @@ class LLMToolSelector:
                 # 检测回复是否是对话内容（闲聊、问候等）
                 content_str = content.strip() if isinstance(content, str) else str(content)
                 
+                # 🏃 Execution - 🛠️ ToolExec - 检测 XML 工具调用标签格式
+                import re
+                tool_call_pattern = r'<(\w+)>([^<]*)</\1>'
+                tool_matches = re.findall(tool_call_pattern, content_str)
+                
+                if tool_matches:
+                    # 检测到工具调用标签，解析第一个匹配的工具
+                    tool_name = tool_matches[0][0]
+                    # 参数解析（简单处理：如果有 command= 则提取）
+                    params = {}
+                    params_match = re.search(r'<parameters>(.*?)</parameters>', content_str, re.DOTALL)
+                    if params_match:
+                        try:
+                            params = json.loads(params_match.group(1))
+                        except:
+                            pass
+                    else:
+                        # 尝试从工具标签内容中提取参数
+                        tool_content = tool_matches[0][1].strip()
+                        if tool_name == 'execute_terminal':
+                            cmd_match = re.search(r'<command>(.*?)</command>', tool_content, re.DOTALL)
+                            if cmd_match:
+                                params['command'] = cmd_match.group(1).strip()
+                    
+                    self.logger.info(f"Detected tool call XML tag: {tool_name}, params: {params}")
+                    return ToolSelectionResult(
+                        selected_tool=tool_name,
+                        action="use_tool",
+                        reasoning=f"Detected tool call from XML tag: {tool_name}",
+                        parameters=params,
+                        confidence=0.9
+                    )
+                
                 # 如果回复看起来像对话（短、以标点/表情开头、包含问候语等），视为闲聊
                 is_conversation = (
                     len(content_str) < 500 and  # 回复较短

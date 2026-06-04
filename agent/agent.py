@@ -507,10 +507,11 @@ Please provide a natural language response to the user based on the tool result.
                     f"Context Compression: {result.original_count} -> {result.compressed_count} messages"
                 )
 
-            # 使用统一的 ContextBuilder 构建系统提示词
+            # 使用统一的 ContextBuilder 构建系统提示词（传入模型名称）
             system_prompt = self._context_builder.build_system_prompt(
                 conversation_history=compressed_history,
-                include_tools=False
+                include_tools=False,
+                model=getattr(self.llm_provider, 'model', None)
             )
 
             messages = [
