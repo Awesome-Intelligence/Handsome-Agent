@@ -276,8 +276,7 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
                     print(result.get('message', ''))
                 continue
 
-            # Show processing indicator
-            print()
+            # Show processing indicator (spinner will output directly without extra newline)
             spinner = ui.Spinner("思考中...")
             spinner.start()
 

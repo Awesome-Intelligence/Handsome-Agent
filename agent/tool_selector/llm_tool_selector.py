@@ -252,20 +252,21 @@ class LLMToolSelector:
 
         # 关键词到工具的映射
         keyword_tool_mapping = {
-            # 计算器相关
-            '计算': 'open_calculator',
-            '算一下': 'open_calculator',
-            'calculator': 'open_calculator',
-            '打开计算器': 'open_calculator',
-            # 记事本相关
-            '记事本': 'open_notepad',
-            '打开记事本': 'open_notepad',
-            # CMD相关
-            'cmd': 'open_cmd',
-            '命令提示符': 'open_cmd',
-            '终端': 'open_cmd',
-            '打开终端': 'open_cmd',
-            # 文件夹相关
+            # 计算器相关 - 统一使用 launch_app
+            '计算': 'launch_app',
+            '算一下': 'launch_app',
+            'calculator': 'launch_app',
+            '打开计算器': 'launch_app',
+            # 记事本相关 - 统一使用 launch_app
+            '记事本': 'launch_app',
+            '打开记事本': 'launch_app',
+            'notepad': 'launch_app',
+            # CMD相关 - 统一使用 launch_app
+            'cmd': 'launch_app',
+            '命令提示符': 'launch_app',
+            '终端': 'launch_app',
+            '打开终端': 'launch_app',
+            # 文件夹相关 - 使用 open_folder（有特殊处理）
             '文件夹': 'open_folder',
             '打开文件夹': 'open_folder',
             '打开目录': 'open_folder',
@@ -312,11 +313,20 @@ class LLMToolSelector:
                             confidence=0.8
                         )
                     else:
+                        # launch_app：提取应用名称
+                        # 先尝试从用户输入中提取（去掉"帮我打开"等前缀）
+                        app_name = user_lower
+                        for prefix in ['帮我', '请', '打开', '启动', 'launch', 'open', 'start']:
+                            app_name = app_name.replace(prefix, '')
+                        app_name = app_name.strip()
+                        # 如果提取的为空或太短，使用 keyword
+                        if not app_name or len(app_name) < 2:
+                            app_name = keyword
                         return ToolSelectionResult(
                             selected_tool=tool_name,
                             action="use_tool",
                             reasoning=f"Keyword '{keyword}' matched {tool_name}",
-                            parameters={'app_name': keyword.replace('打开', '').replace('启动', '')},
+                            parameters={'app_name': app_name},
                             confidence=0.7
                         )
 
@@ -648,11 +658,23 @@ class LLMDrivenDecisionEngine:
             llm_provider: LLM 提供者
             enable_llm_selection: 是否启用 LLM 工具选择
         """
+        self._llm_provider = llm_provider
         self.tool_selector = LLMToolSelector(llm_provider)
         self.direct_router = DirectToolRouter()
         self.execution_engine = ToolExecutionEngine()
         self.enable_llm_selection = enable_llm_selection
         self.logger = get_decision_logger(self.__class__.__name__)
+
+    @property
+    def llm_provider(self):
+        """获取 LLM provider"""
+        return self._llm_provider or self.tool_selector.llm_provider
+
+    @llm_provider.setter
+    def llm_provider(self, value):
+        """设置 LLM provider（同时更新 tool_selector）"""
+        self._llm_provider = value
+        self.tool_selector.llm_provider = value
 
     def register_tool(
         self,

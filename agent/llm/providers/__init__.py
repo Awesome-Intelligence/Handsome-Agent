@@ -10,6 +10,12 @@ from .deepseek import DeepSeekProvider
 from .gemini import GeminiProvider
 from .kimi import KimiProvider
 from .azure import AzureProvider
+from .groq import GroqProvider
+from .minimax import MiniMaxProvider
+from .zhipu import ZhipuProvider
+from .dashscope import DashscopeProvider
+from .siliconflow import SiliconFlowProvider
+from .openrouter import OpenRouterProvider
 
 # 导出所有 Provider
 __all__ = [
@@ -24,4 +30,10 @@ __all__ = [
     "GeminiProvider",
     "KimiProvider",
     "AzureProvider",
+    "GroqProvider",
+    "MiniMaxProvider",
+    "ZhipuProvider",
+    "DashscopeProvider",
+    "SiliconFlowProvider",
+    "OpenRouterProvider",
 ]

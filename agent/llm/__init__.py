@@ -15,6 +15,12 @@ from .providers import (
     GeminiProvider,
     KimiProvider,
     AzureProvider,
+    GroqProvider,
+    MiniMaxProvider,
+    ZhipuProvider,
+    DashscopeProvider,
+    SiliconFlowProvider,
+    OpenRouterProvider,
 )
 
 __all__ = [
@@ -36,6 +42,12 @@ __all__ = [
     "GeminiProvider",
     "KimiProvider",
     "AzureProvider",
+    "GroqProvider",
+    "MiniMaxProvider",
+    "ZhipuProvider",
+    "DashscopeProvider",
+    "SiliconFlowProvider",
+    "OpenRouterProvider",
 ]
 
 

@@ -15,8 +15,6 @@ if TYPE_CHECKING:
     from agent.agent import AgentResponse
 
 from tools.registry import registry, ToolEntry
-from agent.tool_selector.llm_tool_selector import LLMToolSelector
-from agent.tool_selector import LLMDrivenDecisionEngine, ToolDefinition
 from common.logging_manager import get_decision_logger
 
 
@@ -31,13 +29,15 @@ class Tool:
 logger = get_decision_logger(__name__)
 
 
-def register_integrated_tools(engine: LLMDrivenDecisionEngine):
+def register_integrated_tools(engine):
     """
     把 ToolRegistry 中的工具注册到 LLM 驱动的决策引擎中
-    
+
     Args:
         engine: LLMDrivenDecisionEngine 实例
     """
+    # 延迟导入，避免循环依赖
+    from agent.tool_selector.llm_tool_selector import ToolDefinition
     # 导入我们新创建的工具
     import tools.app_launcher
     import tools.file_tools_bridge
@@ -178,27 +178,34 @@ def initialize_tools():
 
 
 # 单例：已初始化的决策引擎
-_global_engine: Optional[LLMDrivenDecisionEngine] = None
+_global_engine: Optional[Any] = None
 
 
-def get_integrated_engine(llm_provider=None, force_reinit: bool = False) -> LLMDrivenDecisionEngine:
+def get_integrated_engine(llm_provider=None, force_reinit: bool = False):
     """
     获取整合后的决策引擎（单例）
-    
+
     Args:
         llm_provider: LLM 提供者
         force_reinit: 是否强制重新初始化
-    
+
     Returns:
         LLMDrivenDecisionEngine: 已注册所有工具的决策引擎
     """
     global _global_engine
-    
+
+    # 延迟导入，避免循环依赖
+    from agent.tool_selector.llm_tool_selector import LLMDrivenDecisionEngine
+
     if _global_engine is None or force_reinit:
         initialize_tools()
         _global_engine = LLMDrivenDecisionEngine(llm_provider=llm_provider)
         register_integrated_tools(_global_engine)
-    
+    else:
+        # 如果 engine 已存在但传入了新的 llm_provider，更新它
+        if llm_provider is not None:
+            _global_engine.llm_provider = llm_provider
+
     return _global_engine
 
 

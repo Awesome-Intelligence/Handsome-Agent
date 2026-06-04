@@ -24,6 +24,12 @@ class LLMFactory:
         "gemini": "gemini-1.5-flash",
         "kimi": "moonshot-v1-32k",
         "azure": "gpt-4o",
+        "groq": "llama-3.3-70b-versatile",
+        "minimax": "MiniMax-M2.7",
+        "zhipu": "glm-4-flash",
+        "dashscope": "qwen-plus",
+        "siliconflow": "Qwen/Qwen2.5-72B-Instruct",
+        "openrouter": "anthropic/claude-3.5-sonnet",
     }
 
     # 别名映射
@@ -31,13 +37,11 @@ class LLMFactory:
         "gpt": "openai",
         "anthropic": "claude",
         "nvidia": "openai",
-        "openrouter": "openai",
-        "minimax": "claude",
-        "xai": "openai",
-        "nous": "openai",
         "custom": "openai",
         "kimi-cn": "kimi",
-        "alibaba": "openai",  # 通义千问兼容 OpenAI API
+        "moonshot": "kimi",
+        "aliyun": "dashscope",
+        "qwen": "dashscope",
     }
 
     @classmethod
@@ -142,6 +146,12 @@ def _register_providers():
     from .providers.gemini import GeminiProvider
     from .providers.kimi import KimiProvider
     from .providers.azure import AzureProvider
+    from .providers.groq import GroqProvider
+    from .providers.minimax import MiniMaxProvider
+    from .providers.zhipu import ZhipuProvider
+    from .providers.dashscope import DashscopeProvider
+    from .providers.siliconflow import SiliconFlowProvider
+    from .providers.openrouter import OpenRouterProvider
 
     LLMFactory.register("openai", OpenAIProvider)
     LLMFactory.register("claude", ClaudeProvider)
@@ -149,7 +159,13 @@ def _register_providers():
     LLMFactory.register("gemini", GeminiProvider)
     LLMFactory.register("kimi", KimiProvider)
     LLMFactory.register("azure", AzureProvider)
+    LLMFactory.register("groq", GroqProvider)
+    LLMFactory.register("minimax", MiniMaxProvider)
+    LLMFactory.register("zhipu", ZhipuProvider)
+    LLMFactory.register("dashscope", DashscopeProvider)
+    LLMFactory.register("siliconflow", SiliconFlowProvider)
+    LLMFactory.register("openrouter", OpenRouterProvider)
 
 
-# 注册所有 Provider
+# 自动注册
 _register_providers()

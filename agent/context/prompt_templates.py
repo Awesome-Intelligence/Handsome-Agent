@@ -96,14 +96,19 @@ Agent 具备以下核心能力域：
 
 ## 🔧 核心工具说明
 
+### 打开应用（计算器、记事本等）
+- `launch_app` - 启动应用程序（参数：app_name）
+- 支持：calculator, notepad, cmd, powershell, explorer, paint, wordpad, chrome, edge 等
+- 用途：用户说"打开计算器"、"打开记事本"、"打开浏览器"时使用
+
 ### 打开文件夹/目录
 - `open_folder` - 打开指定的文件夹路径（参数：path）
 - 用途：用户说"打开C盘"、"打开桌面文件夹"时使用
 
 ### 终端命令执行
 - `execute_terminal` - 执行系统命令（参数：command, shell）
-- 用途：执行 explorer、start 等系统命令
-- 注意：优先使用 `open_folder`，除非用户明确要求执行命令
+- 用途：执行非标准命令、复杂的 shell 脚本等
+- 注意：**优先使用 `launch_app`** 或 `open_folder`，除非没有对应工具
 
 ### 文件操作
 - `read_file` - 读取文件内容（参数：path）
@@ -115,9 +120,10 @@ Agent 具备以下核心能力域：
 - `detect_browsers` - 检测已安装的浏览器
 
 ### 注意事项
-1. 打开文件夹时，**优先使用 `open_folder`**，不要使用 `execute_terminal`
-2. 执行系统命令前，确认用户意图
-3. 所有工具参数必须是有效的 JSON 格式
+1. 打开应用时，**优先使用 `launch_app`**（计算器、记事本、浏览器等）
+2. 打开文件夹时，**优先使用 `open_folder`**
+3. 只有在没有对应工具时才使用 `execute_terminal`
+4. 所有工具参数必须是有效的 JSON 格式
 """
 
 # ═══════════════════════════════════════════════════════════════════════════════

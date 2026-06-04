@@ -392,15 +392,13 @@ def print_provider_list(providers: List[Dict[str, Any]]):
     print(f"{Theme.BORDER}│{Colors.RESET}")
 
     for i, provider in enumerate(providers, 1):
-        provider_name = provider.get("name", "Unknown")
-        provider_description = provider.get("description", "")
-        provider_models = provider.get("models", [])
+        # 支持 display_name 和 name 两种字段
+        provider_name = provider.get("display_name", provider.get("name", "Unknown"))
+        provider_models = provider.get("supported_models", provider.get("models", []))
         default_model = provider.get("default_model", "")
 
         print(f"{Theme.BORDER}│{Colors.RESET}")
         print(f"{Theme.BORDER}│{Colors.RESET} {Theme.SUCCESS}{i}. {provider_name}{Colors.RESET}")
-        if provider_description:
-            print(f"{Theme.BORDER}│{Colors.RESET}   {Theme.SECONDARY}{provider_description}{Colors.RESET}")
         if provider_models:
             print(f"{Theme.BORDER}│{Colors.RESET}   {Theme.SECONDARY_DIM}支持模型: {', '.join(provider_models[:3])}{'...' if len(provider_models) > 3 else ''}{Colors.RESET}")
         if default_model:
