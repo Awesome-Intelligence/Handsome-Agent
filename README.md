@@ -89,6 +89,10 @@ Handsome-Agent/
 │   │   ├── session.py       #   会话管理
 │   │   ├── transport.py     #   传输层 (stdio/HTTP/WebSocket)
 │   │   └── tools.py         #   ACP 工具
+│   ├── a2a/                  #   🧠 Decision - 💾 Memory - A2A 协议 (Google)
+│   │   ├── models.py        #   A2A 数据模型
+│   │   ├── server.py        #   A2A 服务器
+│   │   └── client.py        #   A2A 客户端/代理
 │   └── templates/           #   Agent 模板
 │
 ├── tools/                    # 🏃 Execution - 🛠️ ToolExec - 工具定义
@@ -163,7 +167,8 @@ Handsome-Agent/
 | agent/ | 🧠 Decision | 🤖 LLM | LLM 集成 |
 | agent/session.py | 🧠 Decision | 💾 Memory | 会话管理 |
 | agent/curator/ | 🧠 Decision | 🔬 Curator | 自我进化 |
-| agent/acp/ | 🧠 Decision | 💾 Memory | Agent 通信协议 |
+| agent/acp/ | 🧠 Decision | 💾 Memory | ACP 通信协议 |
+| agent/a2a/ | 🧠 Decision | 💾 Memory | A2A 通信协议 (Google) |
 | tools/ | 🏃 Execution | 🛠️ ToolExec | 工具执行 |
 | executor/shell.py | 🏃 Execution | 🐚 ShellExec | Shell 执行 |
 | executor/docker.py | 🏃 Execution | 🐳 DockerExec | Docker 执行 |

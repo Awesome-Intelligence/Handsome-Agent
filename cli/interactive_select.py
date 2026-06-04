@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-交互式选择器 - 以 inquirer 为主的跨平台实现
+交互式选择器 - 跨平台实现，支持 curses/inquirer/原生 ANSI
 
-优先级：
-1. inquirer (跨平台，首选)
-2. 自定义原生实现 (inquirer 失败时的后备)
-3. 降级数字输入 (最后的保障)
+优先级（追求最佳跨平台体验）：
+1. curses (Hermes 风格，跨平台最佳)
+2. inquirer (跨平台，备用)
+3. 自定义原生实现 (ANSI 降级)
+4. 降级数字输入 (最后的保障)
 
 特性：
 - ✅ 跨平台：Windows/macOS/Linux
 - ✅ 无闪烁
 - ✅ 键盘导航
 - ✅ 牛油果绿主题
+- ✅ curses 优先（如可用）
 """
 
 import sys
@@ -46,6 +48,21 @@ except ImportError:
     except ImportError:
         pass
 
+# 检查 curses 可用性（延迟导入以避免 Windows 上报错）
+_curses_available = None
+
+def _check_curses_available():
+    """延迟检查 curses 是否可用"""
+    global _curses_available
+    if _curses_available is not None:
+        return _curses_available
+    try:
+        from cli.curses_ui import has_curses
+        _curses_available = has_curses()
+    except Exception:
+        _curses_available = False
+    return _curses_available
+
 
 def print_logo():
     """打印 Logo - 使用增强的 Banner"""
@@ -73,6 +90,22 @@ def _show_cursor():
     print('\033[?25h', end='', flush=True)
 
 # ============ 1. inquirer 主实现（跨平台） ============
+
+# 牛油果绿主题 - 匹配 Handsome Agent 品牌色
+AVOCADO_THEME = None  # 延迟初始化
+
+def _get_avocado_theme():
+    """获取牛油果绿主题（延迟初始化）"""
+    global AVOCADO_THEME
+    if AVOCADO_THEME is None:
+        try:
+            from inquirer.themes import GreenPassion
+            AVOCADO_THEME = GreenPassion()
+        except Exception:
+            AVOCADO_THEME = None
+    return AVOCADO_THEME
+
+
 def _select_with_inquirer(
     options: List[Union[str, Tuple[str, str]]],
     title: Optional[str] = None,
@@ -80,15 +113,17 @@ def _select_with_inquirer(
 ) -> Optional[int]:
     """
     使用 inquirer 库（首选，跨平台）
+    Ctrl+C 直接返回 None（退出选择），不降级到其他菜单
+    使用牛油果绿主题
     """
     try:
         import inquirer
     except ImportError:
         import inquirer3 as inquirer
-    
+
     choices = []
     option_map = {}
-    
+
     for i, opt in enumerate(options):
         if isinstance(opt, tuple):
             opt_id, opt_label = opt
@@ -99,7 +134,7 @@ def _select_with_inquirer(
             opt_id = label
         choices.append((label, i))
         option_map[i] = opt_id
-    
+
     questions = [
         inquirer.List(
             'choice',
@@ -107,13 +142,18 @@ def _select_with_inquirer(
             choices=choices,
         )
     ]
-    
+
     _hide_cursor()
     try:
-        result = inquirer.prompt(questions)
+        # 主题传给 prompt，不是传给 List
+        result = inquirer.prompt(questions, theme=_get_avocado_theme())
+    except KeyboardInterrupt:
+        # Ctrl+C 直接返回 None（退出），不降级
+        _show_cursor()
+        return None
     finally:
         _show_cursor()
-    
+
     if result and 'choice' in result:
         return result['choice']
     return None
@@ -334,12 +374,13 @@ def select_option(
     show_config: bool = True
 ) -> Optional[int]:
     """
-    智能选择器 - 以 inquirer 为主的跨平台实现
+    智能选择器 - 跨平台最佳体验实现
     
     优先级：
-    1. inquirer (跨平台首选)
-    2. 自定义原生实现 (inquirer 失败时)
-    3. 降级数字输入 (最后的保障)
+    1. curses (最佳跨平台体验，Hermes 风格)
+    2. inquirer (跨平台备用)
+    3. 自定义原生实现 (ANSI 降级)
+    4. 降级数字输入 (最后的保障)
     
     Args:
         options: 选项列表
@@ -361,19 +402,44 @@ def select_option(
         print_config_summary()
     
     try:
-        # 方案 1: inquirer（跨平台首选）
-        if HAS_INQUIRER:
+        # 优先级（跨平台最佳体验）：
+        # 1. Windows: inquirer（不清屏，Windows 上更稳定）
+        # 2. Unix: curses（最佳跨平台体验）
+        # 3. 其他: ANSI 菜单
+        if IS_WINDOWS and HAS_INQUIRER:
+            # Windows 用 inquirer（不会清屏）
             result = _select_with_inquirer(options, title, current_value)
             if result is not None:
                 return result
+            # inquirer 返回 None 表示用户取消/退出，直接返回，不降级
+            return None
+        elif _check_curses_available():
+            # Unix 用 curses
+            from cli.curses_ui import radio_select
+            result = radio_select(
+                question=title or "请选择:",
+                options=options,
+                default=default_idx,
+                description=description
+            )
+            if result is not None and result >= 0:
+                return result
+            # curses 返回 None 表示用户取消/退出，直接返回
+            return None
+        elif HAS_INQUIRER:
+            # 回退到 inquirer
+            result = _select_with_inquirer(options, title, current_value)
+            if result is not None:
+                return result
+            return None
         
-        # 方案 2: 自定义实现
+        # ANSI 原生菜单
         result = _select_with_native(options, title, current_value)
         if result is not None:
             return result
-    
+
     except Exception as e:
-        print(f"{GRAY}inquirer 选择器出错: {e}{RESET}")
+        print(f"{GRAY}选择器出错: {e}{RESET}")
     
     # 最后的保障：降级方案
     return _fallback_select(options, title, default_idx, current_value)

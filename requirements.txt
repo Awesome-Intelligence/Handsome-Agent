@@ -15,6 +15,12 @@ uvicorn[standard]>=0.24.0
 # Terminal UI - inquirer (跨平台，推荐)
 inquirer>=3.0.0
 
+# Curses support for enhanced terminal UI (Hermes 风格)
+# Linux/macOS: 使用系统自带 curses
+# Windows: 需要安装 windows-curses 包
+# 如果不可用，会自动降级到 ANSI 菜单
+windows-curses>=2.3.0; platform_system == "Windows"
+
 # Rich library for enhanced terminal output (可选)
 rich>=13.0.0
 
