@@ -135,5 +135,63 @@ class ToolCategory(Enum):
 
 
 def validate_parameters(schema: Dict, params: Dict) -> Dict:
-    """验证参数是否符合 Schema"""
+    """
+    验证参数是否符合 Schema
+
+    Args:
+        schema: 工具参数 Schema
+        params: 实际参数
+
+    Returns:
+        验证后的参数（可能添加默认值）
+
+    Raises:
+        ValueError: 缺少必需参数或参数类型错误
+    """
+    if not schema:
+        return params
+
+    # 获取参数定义
+    properties = schema.get("properties", {})
+    required_params = schema.get("required", [])
+
+    # 检查必需参数
+    for param_name in required_params:
+        if param_name not in params:
+            raise ValueError(f"缺少必需参数: {param_name}")
+
+    # 验证每个参数的类型
+    for param_name, param_value in params.items():
+        if param_name not in properties:
+            # 未定义的参数，只发出警告
+            continue
+
+        param_schema = properties[param_name]
+        expected_type = param_schema.get("type", "string")
+
+        # 类型验证
+        if not _validate_type(param_value, expected_type, param_schema):
+            raise ValueError(
+                f"参数类型错误: {param_name}，期望 {expected_type}，实际 {type(param_value).__name__}"
+            )
+
     return params
+
+
+def _validate_type(value: Any, expected_type: str, param_schema: Dict) -> bool:
+    """验证值是否符合预期类型"""
+    if value is None:
+        return True  # None 值通过（除非有 required 约束）
+
+    if expected_type == "string":
+        return isinstance(value, str)
+    elif expected_type == "number" or expected_type == "integer":
+        return isinstance(value, (int, float))
+    elif expected_type == "boolean":
+        return isinstance(value, bool)
+    elif expected_type == "array":
+        return isinstance(value, list)
+    elif expected_type == "object":
+        return isinstance(value, dict)
+
+    return True  # 未知类型默认通过

@@ -1,0 +1,16 @@
+feat(memory): integrate MemoryManager.on_pre_compress into context compression flow
+
+Referencing Hermes Agent implementation, call on_pre_compress hooks from all
+Providers before context compression to extract key information from messages
+about to be compressed, and inject them into the compression summary.
+
+Changes:
+- ContextCompressor: add memory_manager parameter, call on_pre_compress() in
+  compress() and inject results into summary
+- CompressionIntegration: pass through memory_manager to ContextCompressor
+
+Workflow:
+1. Pre-compression hooks triggered
+2. MemoryManager.on_pre_compress(messages) called
+3. Providers extract key information
+4. Key information injected into "## Memory Insights" section of summary
