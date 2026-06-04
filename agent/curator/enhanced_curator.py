@@ -224,7 +224,7 @@ class EnhancedCurator:
         """
         Process trajectory - main entry
         """
-        logger.info(f"Processing trajectory: {trajectory.get('trajectory_id', 'unknown')}")
+        logger.debug(f"Processing trajectory: {trajectory.get('trajectory_id', 'unknown')}")
 
         report = await self.evaluate(trajectory)
 

@@ -207,7 +207,7 @@ Respond with ONLY the JSON object."""
             result = json.loads(content)
             use_react = result.get("use_react", False)
             reasoning = result.get("reasoning", "")
-            self._decision_logger.debug(f"ReAct 模式判断: {use_react} - {reasoning}")
+            self._decision_logger.info(f"ReAct 模式判断: {use_react} - {reasoning}")
             return use_react
         except Exception as e:
             self._decision_logger.warning(f"ReAct 判断失败: {e}")
@@ -319,6 +319,8 @@ Respond with ONLY the JSON object."""
         Returns:
             AgentResponse
         """
+        self._decision_logger.info(f"User input: {user_input[:50]}...")
+        
         if use_react is None:
             use_react = await self._should_use_react(user_input)
         
@@ -344,8 +346,6 @@ Respond with ONLY the JSON object."""
         """
         import time
         start_time = time.time()
-        
-        self._decision_logger.info(f"User input: {user_input[:50]}...")
         
         self._trajectory_recorder.add_human_message(user_input)
         
@@ -443,7 +443,7 @@ Respond with ONLY the JSON object."""
         
         response_obj.execution_time = time.time() - start_time
         
-        self._decision_logger.info(f"Response generated in {response_obj.execution_time:.2f}s")
+        self._decision_logger.debug(f"Response generated in {response_obj.execution_time:.2f}s")
         
         await self._process_trajectory_async(response_obj)
         
@@ -524,7 +524,10 @@ Please provide a natural language response to the user based on the tool result.
                 f"history msgs={len(compressed_history) if compressed_history else 0}"
             )
 
-            response = await self.llm_provider.generate(user_input, messages=messages)
+            response = await self.llm_provider.generate(
+                user_input,
+                system_prompt=system_prompt
+            )
             return response
         except Exception as e:
             logger.error(f"Failed to generate with history: {e}")

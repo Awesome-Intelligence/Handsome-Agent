@@ -23,8 +23,7 @@
 
 | Layer | Sublayer | Module | 说明 |
 |-------|----------|--------|------|
-| 🚪 Access | 💬 CLI | cli/main.py | 命令行入口 |
-| 🚪 Access | 💬 CLI | cli/modern_cli.py | 现代 CLI |
+| 🚪 Access | 💬 CLI | cli/main.py | 命令行入口（含压缩命令）|
 | 🚪 Access | 🚪 Gateway | gateway/gateway.py | 网关 |
 | 🧠 Decision | 🤖 LLM | agent/llm/openai_provider.py | OpenAI 提供商 |
 | 🧠 Decision | 🤖 LLM | agent/llm/claude_provider.py | Claude 提供商 |
@@ -643,8 +642,8 @@ ALLOWED_COMMANDS = {
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ 🚪 Access Layer / 💬 CLI                                                    │
 │ ┌────────────────────────────────────────────────────────────────────────┐ │
-│ │ cli/modern_cli.py                                                       │ │
-│ │ Step 4: 显示最近 10 条对话，提示可继续                                   │ │
+│ │ cli/main.py - 交互模式                                                    │ │
+│ │ Step 4: 显示最近 10 条对话，提示可继续                                    │ │
 │ └────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -916,8 +915,7 @@ ALLOWED_COMMANDS = {
 
 | Layer | Sublayer | Module | 职责 |
 |-------|----------|--------|------|
-| 🚪 Access | 💬 CLI | [cli/main.py](cli/main.py) | 命令行入口 |
-| 🚪 Access | 💬 CLI | [cli/modern_cli.py](cli/modern_cli.py) | 现代 CLI |
+| 🚪 Access | 💬 CLI | [cli/main.py](cli/main.py) | 命令行入口（含压缩命令）|
 | 🚪 Access | 🚪 Gateway | [agent/agent.py](agent/agent.py) | Agent 协调器 |
 | 🧠 Decision | 🤖 LLM | [agent/llm/openai_provider.py](agent/llm/openai_provider.py) | OpenAI 提供商 |
 | 🧠 Decision | 🤖 LLM | [agent/llm/claude_provider.py](agent/llm/claude_provider.py) | Claude 提供商 |

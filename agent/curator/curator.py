@@ -102,7 +102,7 @@ class Curator:
         Returns:
             SynthesizedSkill: Synthesized skill (if any)
         """
-        logger.info(f"Processing trajectory: {trajectory.get('trajectory_id', 'unknown')}")
+        logger.debug(f"Processing trajectory: {trajectory.get('trajectory_id', 'unknown')}")
 
         report = await self.evaluate(trajectory)
 

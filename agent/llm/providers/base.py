@@ -160,3 +160,24 @@ class BaseProvider(ABC):
         chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
         english_chars = len(text) - chinese_chars
         return int(chinese_chars * 2 + english_chars * 0.25)
+    
+    def _format_message_for_log(self, role: str, content: str) -> str:
+        """格式化消息用于日志输出（系统/用户提示词显示首尾，不同角色不同颜色）"""
+        # ANSI 256 色代码（低调配色方案：雾霾色调 - 低饱和度灰彩）
+        COLORS = {
+            "system": "\033[38;5;146m",    # 灰紫 - 系统提示词（信息说明）
+            "user": "\033[38;5;180m",      # 灰橘 - 用户输入（操作意图）
+            "assistant": "\033[38;5;109m", # 灰绿 - AI 回复（生成内容）
+        }
+        RESET = "\033[0m"
+        
+        color = COLORS.get(role, "")
+        
+        if role in ("system", "user") and len(content) > 200:
+            preview = content[:100] + " ... [省略] ... " + content[-100:]
+        elif len(content) > 200:
+            preview = content[:200] + "..."
+        else:
+            preview = content
+        
+        return f"{color}{preview}{RESET}"

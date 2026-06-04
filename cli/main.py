@@ -18,6 +18,15 @@ import os
 import json
 import logging
 
+from agent.context.compression_commands import (
+    is_compression_command,
+    parse_compression_command,
+    handle_compress_command,
+    handle_usage_command,
+    handle_status_command,
+)
+from agent.context.compression_integration import CompressionIntegration
+
 # 首先解析命令行参数，以便在导入其他模块之前配置日志
 _pre_parser = argparse.ArgumentParser(add_help=False)
 _pre_parser.add_argument(
@@ -46,6 +55,7 @@ if not _logging_already_configured:
 # 导入 Agent
 from agent.agent import Agent, AgentResponse
 from common.exceptions import AgentError, InputValidationError, ResponseGenerationError
+from common.logging_manager import get_access_logger
 
 # 常量
 CONFIG_FILE = os.path.expanduser("~/.handsome_agent/config.json")
@@ -123,9 +133,25 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
         agent: The Agent instance to use for processing user input.
         model_name: Name of the model to display in status bar.
     """
+    # 🚪 Access - 💬 CLI - 初始化 CLI 日志记录器
+    logger = get_access_logger("CLI", sublayer="cli")
+    logger.info("Interactive mode started")
+    
     from cli import ui
     from cli.banner import build_welcome_banner, print_simple_banner
     from cli.commands import execute_command
+
+    # 初始化压缩集成器
+    compression_integration = None
+    if hasattr(agent, 'llm_provider') and agent.llm_provider:
+        try:
+            compression_integration = CompressionIntegration(
+                session_id=agent._session.session_id if agent._session else "cli",
+                model=model_name,
+                llm_client=agent.llm_provider,
+            )
+        except Exception:
+            pass
 
     # 使用增强的 Banner 显示欢迎界面
     try:
@@ -167,21 +193,33 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
     print()
     ui.print_header("交互模式", "Type '/help' for commands, 'quit' to exit.")
 
+    # 显示压缩命令帮助
+    if compression_integration:
+        print("  Commands:")
+        print("    /compress              - 手动压缩上下文")
+        print("    /compress --focus=X    - 聚焦压缩")
+        print("    /usage                - 显示 Token 使用统计")
+        print("    /compression-status   - 显示压缩功能状态")
+        print()
+
     # Command context
     context = {"agent": agent, "model_name": model_name}
 
     while True:
         try:
-            print()
             ui.print_user_input()
             user_input = input().strip()
 
             if user_input.lower() in ['quit', 'exit', 'q']:
+                logger.info("Interactive mode ended")
                 ui.print_success("再见!")
                 break
 
             if not user_input:
                 continue
+
+            # 🚪 Access - 💬 CLI - 记录用户输入
+            logger.info(f"User input: {user_input[:50]}...")
 
             # Check for slash commands
             if user_input.startswith('/'):
@@ -214,6 +252,30 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
                     print(result)
                 continue
 
+            # Handle context compression commands
+            if is_compression_command(user_input):
+                command, args = parse_compression_command(user_input)
+                if command == "/compress":
+                    result = handle_compress_command(
+                        agent._session.session_id if agent._session else "cli",
+                        args,
+                        compression_integration,
+                    )
+                    ui.print_info(result.get('message', '压缩命令执行完成'))
+                elif command == "/usage":
+                    result = handle_usage_command(
+                        agent._session.session_id if agent._session else "cli",
+                        compression_integration,
+                    )
+                    print(result.get('message', ''))
+                elif command == "/compression-status":
+                    result = handle_status_command(
+                        agent._session.session_id if agent._session else "cli",
+                        compression_integration,
+                    )
+                    print(result.get('message', ''))
+                continue
+
             # Show processing indicator
             print()
             spinner = ui.Spinner("思考中...")
@@ -228,6 +290,9 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
                 # Clear spinner line
                 print("\r" + " " * 50 + "\r", end="", flush=True)
 
+                # 🚪 Access - 💬 CLI - 记录 Agent 响应（打印在响应内容之前）
+                logger.info(f"Agent response: {response.content[:100]}...")
+
                 # If a tool was used, show that info
                 if response.tool_used:
                     ui.print_info(f"🔧 Used tool: {response.tool_used}")
@@ -241,12 +306,16 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
 
         except KeyboardInterrupt:
             print()
+            logger.info("Interactive mode ended (KeyboardInterrupt)")
             ui.print_success("再见!")
             break
         except EOFError:
+            print()
+            logger.info("Interactive mode ended (EOF)")
             ui.print_success("再见!")
             break
         except Exception as e:
+            logger.error(f"Interactive mode error: {e}")
             ui.print_error(f"错误: {e}")
 
 
@@ -258,6 +327,10 @@ async def single_query_mode(agent: Agent, query: str, model_name: str = "Agent")
         query: The user's query string.
         model_name: Name of the model to display in status bar.
     """
+    # 🚪 Access - 💬 CLI - 初始化 CLI 日志记录器
+    logger = get_access_logger("CLI", sublayer="cli")
+    logger.info(f"Single query mode started: {query[:50]}...")
+    
     from cli import ui
     from cli.banner import print_simple_banner
 
@@ -285,10 +358,15 @@ async def single_query_mode(agent: Agent, query: str, model_name: str = "Agent")
                 ui.print_info(f"🔧 Used tool: {response.tool_used}")
 
             ui.print_agent_response(response.content, response.confidence_score)
+            
+            # 🚪 Access - 💬 CLI - 记录 Agent 响应
+            logger.info(f"Agent response: {response.content[:100]}...")
+            logger.info("Single query mode completed")
         finally:
             pass
 
     except Exception as e:
+        logger.error(f"Single query mode failed: {e}")
         ui.print_error(f"错误: {e}")
 
 

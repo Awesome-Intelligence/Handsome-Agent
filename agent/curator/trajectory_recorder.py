@@ -142,7 +142,7 @@ class TrajectoryRecorder:
                 for entry in self._trajectories:
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
             
-            logger.info(f"Trajectory saved to {filepath}")
+            logger.debug(f"Trajectory saved to {filepath}")
             return filepath
         except Exception as e:
             logger.error(f"Failed to save trajectory: {e}")

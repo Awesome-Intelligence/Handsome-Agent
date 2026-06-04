@@ -83,6 +83,35 @@ class LogConfig:
         self.module_levels: Dict[str, int] = {}
         self.date_format: str = "%Y-%m-%d %H:%M:%S"
 
+        # 默认禁用第三方库的 DEBUG 日志，避免过多的网络请求细节
+        self._setup_third_party_log_levels()
+
+    def _setup_third_party_log_levels(self) -> None:
+        """设置第三方库的日志级别，减少过多输出"""
+        # 网络请求库 - 设置为 WARNING 避免过多 HTTP 调试信息
+        third_party_levels = {
+            "httpx": logging.WARNING,
+            "httpcore": logging.WARNING,
+            "httpcore.connection": logging.WARNING,
+            "httpcore.http11": logging.WARNING,
+            "httpcore.http2": logging.WARNING,
+            "urllib3": logging.WARNING,
+            "requests": logging.WARNING,
+            "aiohttp": logging.WARNING,
+            "charset_normalizer": logging.WARNING,
+            "certifi": logging.WARNING,
+            # LLM SDK
+            "openai": logging.WARNING,
+            "anthropic": logging.WARNING,
+            "litellm": logging.WARNING,
+            "vllm": logging.WARNING,
+            "tenacity": logging.WARNING,
+            # 其他常见第三方库
+            "http": logging.WARNING,
+            "asyncio": logging.WARNING,
+        }
+        self.module_levels.update(third_party_levels)
+
 
 def _get_subsystem_color(subsystem: str) -> Tuple[int, int, int]:
     """Generate consistent RGB color based on subsystem name"""

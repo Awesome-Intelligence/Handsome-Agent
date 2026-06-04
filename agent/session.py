@@ -297,7 +297,7 @@ class Session:
         
         self.messages.append(message)
         
-        self.logger.debug(f"（SessionManager） 添加消息: 角色={role}, 内容={content[:50]}..., 消息数={len(self.messages)}")
+        self.logger.info(f"（SessionManager） 添加消息: 角色={role}, 内容={content[:50]}..., 消息数={len(self.messages)}")
         
         if len(self.messages) > self.config.max_history_length:
             self.messages = self.messages[-self.config.max_history_length:]

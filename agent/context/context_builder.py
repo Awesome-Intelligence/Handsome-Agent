@@ -76,7 +76,7 @@ class ContextBuilder:
         self._memory_store: Optional["MemoryStore"] = None
         
         # 🧠 Decision - 💾 Context - 上下文构建器初始化
-        self.logger.info(f"ContextBuilder initialized (memory_prefetch={enable_memory_prefetch})")
+        self.logger.debug(f"ContextBuilder initialized (memory_prefetch={enable_memory_prefetch})")
     
     @property
     def memory_store(self) -> "MemoryStore":
@@ -85,13 +85,13 @@ class ContextBuilder:
             from tools.memory_tool import MemoryStore
             self._memory_store = MemoryStore()
             self._memory_store.load_from_disk()
-            self.logger.debug("MemoryStore loaded")
+            self.logger.info("MemoryStore loaded")
         return self._memory_store
 
     def set_tools(self, tools: Dict[str, Any]) -> None:
         """设置工具字典"""
         self.tools = tools
-        self.logger.info(f"Tools set: {len(tools)} tools available")
+        self.logger.debug(f"Tools set: {len(tools)} tools available")
     
     def get_tools_schema(self) -> List[Dict[str, Any]]:
         """获取工具 Schema（用于 LLM）"""
@@ -124,7 +124,7 @@ class ContextBuilder:
             完整的系统提示词
         """
         # 🧠 Decision - 💾 Context - 开始构建上下文
-        self.logger.info("Context Assembly: Starting prompt building")
+        self.logger.debug("Context Assembly: Starting prompt building")
         
         # 使用代码常量定义 Agent 身份和能力（Hermes 风格）
         identity = AGENT_IDENTITY

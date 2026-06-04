@@ -271,6 +271,18 @@ def build_top_level_parser():
         metavar="N",
         help="Maximum tool-calling iterations per conversation turn (default: 90)",
     )
+    chat_parser.add_argument(
+        "--compress",
+        action="store_true",
+        default=False,
+        help="Compress context before starting chat",
+    )
+    chat_parser.add_argument(
+        "--usage",
+        action="store_true",
+        default=False,
+        help="Show token usage statistics",
+    )
 
     # =========================================================================
     # setup command

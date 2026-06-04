@@ -7,33 +7,69 @@ on:
     branches: [master, main]
 
 jobs:
-  test:
+  lint-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          
+          pip install ruff pytest pytest-cov
+
+      # ========== 硬编码检测（新增）==========
+      - name: Run hardcode check
+        run: |
+          echo "🔍 运行硬编码检测..."
+          python scripts/pre_commit_check.py || {
+            echo "❌ 硬编码检测失败，请修复违规代码"
+            exit 1
+          }
+
+      - name: Run ruff lint
+        run: |
+          echo "🔍 运行 Ruff Lint 检查..."
+          ruff check . --config ruff.toml || {
+            echo "❌ Ruff Lint 检查失败"
+            exit 1
+          }
+
+      - name: Run ruff format check
+        run: |
+          echo "🔍 检查代码格式..."
+          ruff format --check . --config ruff.toml || {
+            echo "❌ 代码格式不符合规范"
+            exit 1
+          }
+
+      # ========== 原有测试（保留）==========
       - name: Run tests
         run: |
           pytest tests/ -v
-          
+
       - name: Run tests with coverage
         run: |
           pytest tests/ --cov=. --cov-report=xml
-          
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         if: success()
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
+
+      # ========== 代码质量报告 ==========
+      - name: Code quality summary
+        run: |
+          echo "✅ CI 检查完成"
+          echo "   - 硬编码检测: PASSED"
+          echo "   - Ruff Lint: PASSED"
+          echo "   - Ruff Format: PASSED"
+          echo "   - 测试: PASSED"

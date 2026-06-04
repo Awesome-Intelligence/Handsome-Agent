@@ -380,7 +380,6 @@ def print_status_bar():
 
 def print_user_input(prompt: str = None):
     """Print user input prompt with icon."""
-    print()
     if prompt:
         print(f"{Theme.ACCENT}👤 {prompt}:{Colors.RESET}")
     print(f"{Theme.ACCENT}❯{Colors.RESET} ", end="")

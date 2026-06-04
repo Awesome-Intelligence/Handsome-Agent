@@ -549,7 +549,7 @@ print(f"压缩后: {len(result)} 条消息")
 ### 3. CLI 交互验证
 
 ```bash
-python -m cli.modern_cli -i
+python -m cli.main chat
 > /compression-status   # 查看状态
 > /usage              # 查看统计
 > /compress           # 手动压缩
@@ -560,7 +560,7 @@ python -m cli.modern_cli -i
 
 ```bash
 # 启动带压缩的交互式会话
-python -m cli.modern_cli -i --verbose
+python -m cli.main chat --verbose
 
 # 在会话中触发多次对话，观察压缩行为
 ```

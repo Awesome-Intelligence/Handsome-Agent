@@ -206,7 +206,7 @@ class LLMToolSelector:
     def register_tool(self, tool: ToolDefinition):
         """注册工具"""
         self.tools[tool.name] = tool
-        self.logger.info(f"Registered tool: {tool.name}")
+        self.logger.debug(f"Registered tool: {tool.name}")
 
     def register_tools(self, tools: List[ToolDefinition]):
         """批量注册工具"""
@@ -396,7 +396,10 @@ class LLMToolSelector:
 
             # 调用 LLM
             self.logger.info("LLM Tool Selector: Requesting tool selection")
-            response = await self.llm_provider.generate(system_prompt + f"\n\nUser: {user_input}")
+            response = await self.llm_provider.generate(
+                user_input,
+                system_prompt=system_prompt
+            )
 
             # 解析响应
             try:
@@ -418,15 +421,35 @@ class LLMToolSelector:
                     confidence=result.get('confidence', 0.5)
                 )
             except json.JSONDecodeError:
-                self.logger.error(f"Failed to parse LLM response as JSON: {content[:200] if isinstance(content, str) else str(content)[:200]}")
-                # 回退到直接回复
-                return ToolSelectionResult(
-                    selected_tool=None,
-                    action="direct_response",
-                    reasoning="LLM response parsing failed, responding directly",
-                    parameters={},
-                    confidence=0.3
+                # 检测回复是否是对话内容（闲聊、问候等）
+                content_str = content.strip() if isinstance(content, str) else str(content)
+                
+                # 如果回复看起来像对话（短、以标点/表情开头、包含问候语等），视为闲聊
+                is_conversation = (
+                    len(content_str) < 500 and  # 回复较短
+                    any(greeting in content_str for greeting in ['你好', '嗨', '哈', '嗨', 'hi', 'hello', '👋', '😊', '您好']) or
+                    content_str.startswith(('哈哈', '嗯', '好的', '好的', 'OK', '好', '好的', '没问题'))
                 )
+                
+                if is_conversation:
+                    self.logger.info(f"Detected conversational response, treating as direct_response")
+                    return ToolSelectionResult(
+                        selected_tool=None,
+                        action="direct_response",
+                        reasoning="User appears to be greeting or chatting, responding directly",
+                        parameters={},
+                        confidence=0.8
+                    )
+                else:
+                    self.logger.warning(f"Failed to parse LLM response as JSON: {content_str[:200]}")
+                    # 无法解析，返回直接回复
+                    return ToolSelectionResult(
+                        selected_tool=None,
+                        action="direct_response",
+                        reasoning="LLM response parsing failed, responding directly",
+                        parameters={},
+                        confidence=0.3
+                    )
 
         except Exception as e:
             self.logger.error(f"Tool selection failed: {e}")
@@ -518,7 +541,7 @@ class ToolExecutionEngine:
     def register_tool(self, tool: ToolDefinition):
         """注册工具及其处理器"""
         self.tools[tool.name] = tool
-        self.logger.info(f"Registered tool handler: {tool.name}")
+        self.logger.debug(f"Registered tool handler: {tool.name}")
 
     async def execute(
         self,

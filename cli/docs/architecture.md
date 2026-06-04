@@ -201,7 +201,7 @@ cli/
 ├── interactive_select.py    # ✅ 已有
 ├── skills_cli.py           # ✅ 已有
 ├── llm_cli.py             # ✅ 已有
-├── modern_cli.py          # ⚠️ 可能多余
+├── modern_cli.py          # ✅ 已合并到 main.py（已删除）
 ├── batch_runner.py        # ⚠️ 功能不清
 ├── colors.py              # ✅ 已有
 ├── skin_engine.py        # ✅ 已有
@@ -388,7 +388,7 @@ cli/
 | 10.1 | 新增 `relaunch.py` | CLI 自我重启 | ⭐ |
 | 10.2 | 新增 `backup.py` | 备份功能 | ⭐ |
 | 10.3 | 新增 `uninstall.py` | 卸载程序 | ⭐ |
-| 10.4 | 清理 `modern_cli.py` | 合并或删除 | ⭐ |
+| 10.4 | 清理 `modern_cli.py` | ✅ 已合并到 main.py | ✅ |
 | 10.5 | 清理 `batch_runner.py` | 合并或删除 | ⭐ |
 
 ---

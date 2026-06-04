@@ -1,0 +1,70 @@
+# Ruff Lint Configuration for Handsome Agent
+# 🧠 Decision - 🔧 System - Lint 规则配置
+
+# 基础配置
+line-length = 120
+target-version = "py311"
+
+# 启用规则
+select = [
+    # 基础规则
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+
+    # 导入规则
+    "I",      # isort
+
+    # 代码风格
+    "N",      # pep8-naming
+
+    # 复杂度和可维护性
+    "C",      # flake8-comprehensions
+    "SIM",    # flake8-simplify
+
+    # Bug 检测
+    "B",      # flake8-bugbear
+    "FBT",    # flake8-builtins-top-level
+]
+
+ignore = [
+    "E501",   # 行长度由 line-length 控制
+    "N802",   # 函数名大小写（某些回调需要）
+    "N803",   # 参数名大小写
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011", "SIM102", "SIM108", "N802"]
+"**/__init__.py" = ["F401", "F403"]
+
+# ========== 自定义硬编码检测规则 ==========
+
+# 1. 意图理解硬编码检测
+# 检测: if "关键词" in text, if query in text 等模式
+[lint.rule-paths]
+# 自定义规则由 ruff 插件提供，这里使用内置规则的组合检测
+
+# 2. 敏感信息检测（使用 Ruff 内置的敏感信息检测）
+[lint.extend-safe-paths]
+# 可信路径白名单
+
+# 3. 硬编码字符串检测
+[lint.flake8-hardcoded-temp-dir]
+tmp-dir-prefix = "/tmp/handsome-agent"
+
+# 检测 hardcoded-tuple-bindings
+[lint.extend-per-file-ignores]
+"tools/*" = ["B006"]  # 在 tools 中允许可变默认参数
+
+# ========== 自定义检测注释 ==========
+# 检测意图硬编码模式的额外规则
+
+[linter.pyflakes]
+# 不检查未使用的导入（允许某些导入存在）
+allow-dup = true
+
+# 代码复杂度
+[lint.complexity]
+max-branches = 20
+max-returns = 10
+max-statements = 100

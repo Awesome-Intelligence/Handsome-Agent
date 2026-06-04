@@ -142,8 +142,7 @@ Handsome-Agent/
 │   └── state.py             #   状态管理
 │
 ├── cli/                      # 🚪 Access - 💬 CLI - 命令行
-│   ├── main.py              #   主入口
-│   └── modern_cli.py        #   现代 CLI
+│   └── main.py              #   主入口（含压缩命令支持）
 │
 ├── tests/                    # 测试套件
 │   ├── unit/
