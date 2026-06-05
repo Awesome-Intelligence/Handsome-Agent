@@ -35,6 +35,8 @@ description: |
 
 ## ⭐⭐ 开发流程顺序
 
+> 复杂任务可通过 `.trae/todo.md` 记录分阶段目标，逐步完成。
+
 ### 功能代码修改
 1. 编写功能代码
 2. 更新对应测试用例
@@ -93,7 +95,18 @@ description: |
 
 ---
 
-## 三、意图理解规则
+## 三、参考项目
+
+> 当需要参考 Hermes 或 OpenClaw 的实现时，查看以下项目代码
+
+| 项目 | 路径 |
+|------|------|
+| Hermes (Hermes-Brain) | `E:\hermes-agent-study` |
+| OpenClaw (OpenClaw-Body) | `E:\openclaw-for-study` |
+
+---
+
+## 四、意图理解规则
 
 **必须使用 LLM** 理解意图，禁止硬编码关键词/正则。
 

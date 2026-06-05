@@ -511,136 +511,363 @@ def setup_language(config: dict) -> dict | None:
 # =============================================================================
 
 def setup_llm_provider(config: dict) -> dict | None:
-    """配置大模型."""
+    """配置大模型 - 参考 Hermes 设计重构.
+    
+    流程：
+    1. 显示当前配置状态
+    2. 选择 Provider（支持保持不变）
+    3. Provider 特定配置流程
+    """
     ui.print_step(1, 1, "🤖 大模型配置")
     
+    # Step 1: 显示当前状态
+    _show_llm_current_status(config)
+    
+    # Step 2: 获取所有 Provider
     providers = get_all_providers()
-    ui.print_provider_list(providers)
-    # Provider info 使用 "name" 字段作为 ID，显示 supported_models 作为描述
+    
+    # 构建 Provider 选项列表
     provider_options = []
     for p in providers:
         display_name = p.get('display_name', p['name'])
         models = p.get('supported_models', [])
-        models_str = ", ".join(models[:3]) + ("..." if len(models) > 3 else "")
+        models_str = ", ".join(models[:3])
+        if len(models) > 3:
+            models_str += "..."
         provider_options.append((p["name"], f"{display_name} ({models_str})"))
-    provider_options.append(("none", "暂不使用 (使用基础模板模式)"))
     
-    current_provider = config.get('llm', {}).get('provider', 'none')
-    current_idx = next((i for i, (k, _) in enumerate(provider_options) if k == current_provider), len(provider_options) - 1)
+    # 获取当前配置
+    current_provider = config.get('llm', {}).get('provider', '')
+    current_model = config.get('llm', {}).get('model', '')
+    
+    # 添加特殊选项
+    provider_options.append(("none", "暂不使用 (使用基础模板模式)"))
+    provider_options.append(("leave", "保持不变"))
+    
+    # 设置默认选中（当前 Provider 或第一个）
+    if current_provider:
+        current_idx = next(
+            (i for i, (k, _) in enumerate(provider_options) if k == current_provider),
+            0
+        )
+    else:
+        current_idx = 0
     
     choice = ask_choice("请选择大模型提供商:", provider_options, default=current_idx, current_value=current_provider)
     if choice is None:
         return None
     
-    provider_id = provider_options[choice][0]
+    selected_provider = provider_options[choice][0]
     
-    if provider_id == "none":
+    # 保持不变
+    if selected_provider == "leave":
+        ui.print_info("保持当前配置不变")
+        return config.get('llm', {})
+    
+    # 不使用 LLM
+    if selected_provider == "none":
         ui.print_info("将使用基础模板模式")
         return {"provider": "none", "api_key": None, "model": None, "base_url": None}
     
+    # Step 3: Provider 特定配置流程
+    return _setup_provider_flow(selected_provider, config)
+
+
+def _show_llm_current_status(config: dict) -> None:
+    """显示当前 LLM 配置状态."""
+    llm = config.get('llm', {})
+    provider = llm.get('provider', '')
+    model = llm.get('model', '')
+    api_key = llm.get('api_key', '')
+    
+    provider_labels = {
+        "openai": "OpenAI",
+        "anthropic": "Anthropic Claude",
+        "google": "Google Gemini",
+        "deepseek": "DeepSeek",
+        "minimax": "MiniMax",
+        "moonshot": "Kimi (月之暗面)",
+        "zhipu": "智谱AI",
+        "dashscope": "阿里通义千问",
+        "groq": "Groq",
+        "siliconflow": "SiliconFlow",
+        "custom": "自定义 API"
+    }
+    
+    provider_display = provider_labels.get(provider, provider) if provider else "未配置"
+    model_display = model if model else "(未设置)"
+    
+    print()
+    ui.print_info("当前配置:")
+    ui.print_config_item("  Provider", provider_display)
+    ui.print_config_item("  Model", model_display)
+    if api_key:
+        ui.print_info(f"  API Key: {api_key[:4]}...{api_key[-4:]}")
+    print()
+
+
+def _setup_provider_flow(provider_id: str, config: dict) -> dict | None:
+    """Provider 特定配置流程."""
+    # 定义 Provider 分类
+    api_key_providers = {
+        "openai", "deepseek", "google", "minimax", "moonshot",
+        "zhipu", "dashscope", "groq", "siliconflow"
+    }
+    oauth_providers = {"anthropic"}
+    special_providers = {"openrouter"}
+    
+    if provider_id in oauth_providers:
+        return _setup_oauth_provider(provider_id, config)
+    elif provider_id == "openrouter":
+        return _setup_openrouter_provider(provider_id, config)
+    elif provider_id == "custom":
+        return _setup_custom_provider(provider_id, config)
+    elif provider_id in api_key_providers:
+        return _setup_api_key_provider(provider_id, config)
+    else:
+        # 默认走 API Key 流程
+        return _setup_api_key_provider(provider_id, config)
+
+
+def _setup_api_key_provider(provider_id: str, config: dict) -> dict | None:
+    """通用 API Key Provider 配置流程."""
+    providers = get_all_providers()
     provider_info = next((p for p in providers if p["name"] == provider_id), None)
     
     if not provider_info:
         ui.print_error(f"未找到提供商: {provider_id}")
         return None
     
-    new_config = {
-        "provider": provider_id,
-        "api_key": None,
-        "model": provider_info.get("default_model", ""),
-    }
+    display_name = provider_info.get('display_name', provider_id)
     
-    if provider_id == "custom":
-        new_config["base_url"] = ask_input("API地址", default="http://localhost:11434/v1")
-        if new_config["base_url"] is None:
-            return None
-    else:
-        # base_url 可能没有在 provider_info 中，需要检查
-        default_url = provider_info.get('base_url', '')
-        if not default_url:
-            # 尝试从 provider 的 supported_models 中获取 base_url
-            # 或者使用空字符串
-            default_url = ''
-        current_url = config.get('llm', {}).get('base_url') or default_url
-        ui.print_substep(f"默认API地址: `{default_url}`" if default_url else "使用提供商默认地址")
-        use_custom_url = ask_yes_no("是否使用自定义API地址?", default=False)
-        if use_custom_url is None:
-            return None
-        if use_custom_url:
-            new_url = ask_input("请输入自定义API地址", default=current_url)
-            if new_url is None:
-                return None
-            new_config["base_url"] = new_url
-    
-    ui.print_substep(f"请设置 {provider_info.get('name')} API Key")
-    if provider_info.get("api_key_url"):
-        ui.print_substep(f"获取地址: {provider_info.get('api_key_url')}")
+    # 获取 API Key
+    api_key_url = provider_info.get('api_key_url', '')
+    if api_key_url:
+        ui.print_info(f"获取 {display_name} API Key: {api_key_url}")
     
     current_key = config.get('llm', {}).get('api_key', '')
+    current_model = config.get('llm', {}).get('model', '')
+    
     if current_key:
         ui.print_info(f"已配置 API Key: {current_key[:4]}...{current_key[-4:]}")
         reuse = ask_yes_no("是否保留现有 API Key?", default=True)
         if reuse is None:
             return None
         if reuse:
-            new_config["api_key"] = current_key
-            new_config["model"] = config.get('llm', {}).get('model')
-            return new_config
+            return {
+                "provider": provider_id,
+                "api_key": current_key,
+                "model": current_model,
+                "base_url": config.get('llm', {}).get('base_url'),
+            }
     
-    api_key = ask_input("API Key", password=True, required=True)
+    # 输入新 API Key
+    api_key = ask_input(f"{display_name} API Key", password=True, required=True)
     if api_key is None:
         return None
-    new_config["api_key"] = api_key
     
-    from agent.llm import get_provider_models
-    current_model = config.get('llm', {}).get('model')
+    # 可选的 Base URL
+    base_url = provider_info.get('base_url', '')
+    use_custom_url = False
+    if base_url:
+        use_custom_url = ask_yes_no("是否使用自定义 API 地址?", default=False)
     
-    ui.print_info("正在获取模型列表...")
-    models = get_provider_models(provider_id, api_key)
+    custom_url = None
+    if use_custom_url:
+        current_url = config.get('llm', {}).get('base_url', base_url)
+        custom_url = ask_input("API 地址", default=current_url)
+        if custom_url is None:
+            return None
+    
+    # 获取模型列表
+    models = provider_info.get('supported_models', [])
     
     if models:
-        ui.print_header_text("请选择模型:")
-        model_options = [(m, m) for m in models]
-        current_model_idx = next((i for i, (m_id, _) in enumerate(model_options) if m_id == current_model), 0)
-        print(f"\n当前值: {model_options[current_model_idx][1]}")
+        return _prompt_model_selection(
+            provider_id, models, current_model=current_model,
+            api_key=api_key, base_url=custom_url
+        )
+    else:
+        # 无模型列表，使用默认或手动输入
+        return _prompt_model_selection_offline(
+            provider_id, current_model=current_model,
+            api_key=api_key, base_url=custom_url
+        )
+
+
+def _setup_oauth_provider(provider_id: str, config: dict) -> dict | None:
+    """OAuth Provider 配置（如 Anthropic）."""
+    current_key = config.get('llm', {}).get('api_key', '')
+    current_model = config.get('llm', {}).get('model', '')
+    
+    has_creds = bool(current_key)
+    
+    if has_creds:
+        ui.print_info(f"已有 API Key: {current_key[:12]}... ✓")
+        print()
+        ui.print_info("  1. 使用现有凭证")
+        ui.print_info("  2. 重新输入新 API Key")
+        ui.print_info("  3. 取消")
+        
+        try:
+            choice = input("  选择 [1/2/3]: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            choice = "1"
+        
+        if choice == "3":
+            return None
+        elif choice == "2":
+            current_key = ""
+        # choice == "1" 或默认：使用现有凭证
+    
+    if not current_key:
+        api_key = ask_input("API Key (sk-ant-...)", password=True, required=True)
+        if api_key is None:
+            return None
+    else:
+        api_key = current_key
+    
+    # 获取模型列表
+    providers = get_all_providers()
+    provider_info = next((p for p in providers if p["name"] == provider_id), None)
+    models = provider_info.get('supported_models', []) if provider_info else []
+    
+    if models:
+        return _prompt_model_selection(
+            provider_id, models, current_model=current_model,
+            api_key=api_key
+        )
+    else:
+        return _prompt_model_selection_offline(
+            provider_id, current_model=current_model,
+            api_key=api_key
+        )
+
+
+def _setup_openrouter_provider(provider_id: str, config: dict) -> dict | None:
+    """OpenRouter 配置."""
+    ui.print_info("OpenRouter 支持多种模型的统一入口")
+    ui.print_info("获取 API Key: https://openrouter.ai/keys")
+    
+    current_key = config.get('llm', {}).get('api_key', '')
+    
+    if current_key:
+        ui.print_info(f"已配置 API Key: {current_key[:4]}...{current_key[-4:]}")
+        reuse = ask_yes_no("是否保留现有 API Key?", default=True)
+        if reuse is None:
+            return None
+        if reuse:
+            return {
+                "provider": provider_id,
+                "api_key": current_key,
+                "model": config.get('llm', {}).get('model'),
+                "base_url": config.get('llm', {}).get('base_url'),
+            }
+    
+    api_key = ask_input("OpenRouter API Key", password=True, required=True)
+    if api_key is None:
+        return None
+    
+    return _setup_api_key_provider(provider_id, config)
+
+
+def _setup_custom_provider(provider_id: str, config: dict) -> dict | None:
+    """自定义 API Endpoint 配置."""
+    current_base_url = config.get('llm', {}).get('base_url', 'http://localhost:11434/v1')
+    current_model = config.get('llm', {}).get('model', '')
+    
+    base_url = ask_input("API 地址", default=current_base_url)
+    if base_url is None:
+        return None
+    
+    model = ask_input("模型名称", default=current_model or "gpt-4o-mini")
+    if model is None:
+        return None
+    
+    api_key = ask_input("API Key (可选)", password=True, required=False)
+    
+    return {
+        "provider": "custom",
+        "api_key": api_key or None,
+        "model": model,
+        "base_url": base_url,
+    }
+
+
+def _prompt_model_selection(
+    provider_id: str,
+    models: list,
+    current_model: str = "",
+    api_key: str = "",
+    base_url: str = None
+) -> dict | None:
+    """提示用户选择模型."""
+    ui.print_header_text("请选择模型:")
+    print()
+    
+    model_options = [(m, m) for m in models]
+    
+    # 尝试匹配当前模型
+    current_idx = 0
+    if current_model:
+        try:
+            current_idx = models.index(current_model)
+        except ValueError:
+            pass
+    
+    from cli.interactive_select import select_option_safe
+    model_choice = select_option_safe(model_options, default_idx=current_idx, current_value=current_model)
+    if model_choice is None:
+        return None
+    
+    selected_model = models[model_choice]
+    
+    return {
+        "provider": provider_id,
+        "api_key": api_key,
+        "model": selected_model,
+        "base_url": base_url,
+    }
+
+
+def _prompt_model_selection_offline(
+    provider_id: str,
+    current_model: str = "",
+    api_key: str = "",
+    base_url: str = None
+) -> dict | None:
+    """离线模式模型选择（使用默认列表）."""
+    ui.print_warning("无法获取模型列表，使用离线默认列表")
+    print()
+    
+    default_models = _DEFAULT_PROVIDER_MODELS.get(provider_id, [])
+    if default_models:
+        ui.print_info(f"{provider_id} 默认模型列表:")
+        model_options = [(m, m) for m in default_models]
+        
+        # 尝试匹配当前模型
+        current_idx = 0
+        if current_model and current_model in default_models:
+            current_idx = default_models.index(current_model)
         
         from cli.interactive_select import select_option_safe
-        model_choice = select_option_safe(model_options, default_idx=current_model_idx, current_value=current_model)
+        model_choice = select_option_safe(model_options, default_idx=current_idx, current_value=current_model)
         if model_choice is None:
             return None
-        new_config["model"] = models[model_choice]
-    else:
-        # API 不可用，使用离线默认模型列表
-        ui.print_warning("无法获取模型列表，使用离线默认列表")
-        ui.print_info("如果 API 可用，建议稍后重新运行 setup 获取完整列表")
-        print()
         
-        default_models = _DEFAULT_PROVIDER_MODELS.get(provider_id, [])
-        if default_models:
-            ui.print_header_text(f"{provider_id} 默认模型列表:")
-            model_options = [(m, m) for m in default_models]
-            
-            # 尝试匹配当前已选模型
-            current_model_idx = 0
-            if current_model and current_model in default_models:
-                current_model_idx = default_models.index(current_model)
-            
-            print(f"\n当前值: {model_options[current_model_idx][1]}")
-            
-            from cli.interactive_select import select_option_safe
-            model_choice = select_option_safe(model_options, default_idx=current_model_idx, current_value=current_model)
-            if model_choice is None:
-                return None
-            new_config["model"] = default_models[model_choice]
-        else:
-            # 没有默认列表，提示用户手动输入
-            ui.print_warning("没有可用的模型列表，请手动输入模型名称")
-            manual_model = ask_input("模型名称", default="gpt-4o-mini")
-            if manual_model is None:
-                return None
-            new_config["model"] = manual_model
+        selected_model = default_models[model_choice]
+    else:
+        ui.print_warning("没有可用模型列表，请手动输入")
+        selected_model = ask_input("模型名称", default="gpt-4o-mini")
+        if selected_model is None:
+            return None
     
-    return new_config
+    return {
+        "provider": provider_id,
+        "api_key": api_key,
+        "model": selected_model,
+        "base_url": base_url,
+    }
 
 
 def setup_model_config(config: dict) -> dict | None:
@@ -2258,91 +2485,18 @@ def run_quick_config_wizard():
 # =============================================================================
 # Main Setup Wizard
 # =============================================================================
-
-def run_setup_wizard():
-    """运行设置向导."""
-    config = load_config()
-
-    # 始终显示 Setup Banner（带当前配置信息）
-    print_setup_banner(config)
-
-    # 如果没有配置文件，显示提示
-    if not has_existing_config():
-        print()
-        ui.print_warning("⚠️  尚未配置系统")
-        print()
-        ui.print_info("请选择「🚀 快速配置向导」开始配置，或选择其他选项进行单独配置。")
-        print()
-    
-    while True:
-        main_options = [
-            # ===== 核心配置 (按重要性排序) =====
-            ("quick", "� 快速配置向导 (Quick Setup)"),
-            ("llm", "🤖 大模型配置 (Model & Provider)"),
-            ("vision", "👁️ 视觉分析 (Vision & Image Analysis)"),
-            ("model", "🔧 模型参数 (Model Parameters)"),
-            ("terminal", "💻 Terminal 后端 (Terminal Backend)"),
-            
-            # ===== 通讯与语音 =====
-            ("gateway", "📱 消息平台 (Messaging Platforms)"),
-            ("tts", "🔊 文字转语音 (Text-to-Speech)"),
-            ("stt", "🎤 语音转文字 (Speech-to-Text)"),
-            
-            # ===== Agent 与记忆 =====
-            ("agent", "⚙️ Agent 设置 (Agent Settings)"),
-            ("memory", "🧠 记忆系统 (Memory System)"),
-            
-            # ===== 工具与扩展 =====
-            ("tools", "🛠️ 工具配置 (Tools Configuration)"),
-            ("browser", "🌐 Browser 自动化 (Browser Automation)"),
-            
-            # ===== 系统设置 =====
-            ("language", "🌐 语言设置 (Language)"),
-            ("depth", "📝 响应详细程度 (Explanation Depth)"),
-            ("caching", "⚡ 响应缓存 (Response Caching)"),
-            
-            # ===== 其他 =====
-            ("skills_hub", "🛠️ Skills Hub (GitHub Skills)"),
-            ("debug_tools", "🐛 Debug 配置 (Debug Tools)"),
-            ("intent", "🎯 意图识别模式 (Intent Mode)"),
-            
-            # ===== 辅助功能 =====
-            ("view", "📋 查看当前配置 (View Config)"),
-            ("reset_all", "🔄 重新全部配置 (Full Reset)"),
-            ("quit", "❌ 退出配置 (Exit)")
-        ]
-        
-        print()
-        choice = ask_choice("请选择操作:", main_options)
-        
-        if choice is None:
-            ui.print_info("退出配置")
-            return
-        
-        option_id = main_options[choice][0]
-        
-        if option_id == "view":
-            show_current_config(config)
-        elif option_id == "quick":
-            run_quick_config_wizard()
-        elif option_id == "reset_all":
-            result = run_full_setup_wizard()
-            if result is not None:
-                config = result
-        elif option_id == "quit":
-            break
-        # =============================================================================
 # Multi-Level Menu System (多级菜单系统)
 # =============================================================================
 
 class MenuNode:
     """菜单节点，支持嵌套子菜单."""
-    def __init__(self, id: str, label: str, icon: str = "", action: str = None, children: list = None):
+    def __init__(self, id: str, label: str, icon: str = "", action: str = None, children: list = None, hint: str = ""):
         self.id = id
         self.label = label
         self.icon = icon
         self.action = action  # 如果是叶子节点，对应的 setup 函数名
         self.children = children  # 子菜单列表
+        self.hint = hint  # 选项说明
 
 
 def run_setup_wizard():
@@ -2372,81 +2526,81 @@ def _build_menu_tree() -> MenuNode:
     # 定义叶子节点（实际配置项）
     leaf_nodes = {
         # 快速开始
-        "quick": MenuNode("quick", "快速配置向导 (Quick Setup)", "🚀"),
-        "reset_all": MenuNode("reset_all", "重新全部配置 (Full Reset)", "🔄"),
+        "quick": MenuNode("quick", "快速配置向导", hint="使用推荐配置，快速完成设置", action="quick"),
+        "reset_all": MenuNode("reset_all", "重新全部配置", hint="清空配置，重新开始", action="reset_all"),
         
         # AI 配置
-        "llm": MenuNode("llm", "大模型配置 (Model & Provider)", "🤖", action="llm"),
-        "vision": MenuNode("vision", "视觉分析 (Vision & Image Analysis)", "👁️", action="vision"),
-        "model": MenuNode("model", "模型参数 (Model Parameters)", "🔧", action="model"),
-        "intent": MenuNode("intent", "意图识别模式 (Intent Mode)", "🎯", action="intent"),
+        "llm": MenuNode("llm", "大模型配置", hint="选择 AI 提供商和模型", action="llm"),
+        "vision": MenuNode("vision", "视觉分析", hint="图片理解能力配置", action="vision"),
+        "model": MenuNode("model", "模型参数", hint="max_tokens、temperature 等", action="model"),
+        "intent": MenuNode("intent", "意图识别模式", hint="如何理解用户意图", action="intent"),
         
         # 通讯与语音
-        "gateway": MenuNode("gateway", "消息平台 (Messaging Platforms)", "📱", action="gateway"),
-        "tts": MenuNode("tts", "文字转语音 (Text-to-Speech)", "🔊", action="tts"),
-        "stt": MenuNode("stt", "语音转文字 (Speech-to-Text)", "🎤", action="stt"),
+        "gateway": MenuNode("gateway", "消息平台", hint="Telegram、Slack 等", action="gateway"),
+        "tts": MenuNode("tts", "文字转语音", hint="TTS 语音合成", action="tts"),
+        "stt": MenuNode("stt", "语音转文字", hint="语音识别输入", action="stt"),
         
         # 系统设置
-        "agent": MenuNode("agent", "Agent 设置 (Agent Settings)", "⚙️", action="agent"),
-        "terminal": MenuNode("terminal", "Terminal 后端 (Terminal Backend)", "💻", action="terminal"),
-        "memory": MenuNode("memory", "记忆系统 (Memory System)", "🧠", action="memory"),
-        "language": MenuNode("language", "语言设置 (Language)", "🌐", action="language"),
+        "agent": MenuNode("agent", "Agent 设置", hint="迭代次数、工具进度等", action="agent"),
+        "terminal": MenuNode("terminal", "Terminal 后端", hint="命令执行环境", action="terminal"),
+        "memory": MenuNode("memory", "记忆系统", hint="向量数据库配置", action="memory"),
+        "language": MenuNode("language", "语言设置", hint="界面显示语言", action="language"),
         
         # 工具与扩展
-        "tools": MenuNode("tools", "工具配置 (Tools Configuration)", "🛠️", action="tools"),
-        "browser": MenuNode("browser", "Browser 自动化 (Browser Automation)", "🌐", action="browser"),
-        "debug_tools": MenuNode("debug_tools", "Debug 配置 (Debug Tools)", "🐛", action="debug_tools"),
-        "skills_hub": MenuNode("skills_hub", "Skills Hub (GitHub Skills)", "🛠️", action="skills_hub"),
+        "tools": MenuNode("tools", "工具配置", hint="Web 搜索、浏览器等", action="tools"),
+        "browser": MenuNode("browser", "Browser 自动化", hint="无头浏览器控制", action="browser"),
+        "debug_tools": MenuNode("debug_tools", "Debug 配置", hint="调试工具开关", action="debug_tools"),
+        "skills_hub": MenuNode("skills_hub", "Skills Hub", hint="GitHub 技能市场", action="skills_hub"),
         
         # 系统偏好
-        "depth": MenuNode("depth", "响应详细程度 (Explanation Depth)", "📝", action="depth"),
-        "caching": MenuNode("caching", "响应缓存 (Response Caching)", "⚡", action="caching"),
+        "depth": MenuNode("depth", "响应详细程度", hint="AI 回复详细程度", action="depth"),
+        "caching": MenuNode("caching", "响应缓存", hint="启用响应缓存加速", action="caching"),
         
         # 辅助功能
-        "view": MenuNode("view", "查看当前配置 (View Config)", "📋"),
+        "view": MenuNode("view", "查看当前配置", hint="显示所有配置项", action="view"),
     }
     
     # 构建菜单树
     return MenuNode("root", "主菜单", children=[
         # 快速开始
-        MenuNode("quick_start", "🚀 快速开始", children=[
+        MenuNode("quick_start", "🚀 快速开始", hint="快速配置或重置所有设置", children=[
             leaf_nodes["quick"],
             leaf_nodes["reset_all"],
         ]),
         # AI 配置
-        MenuNode("ai", "🤖 AI 配置", children=[
+        MenuNode("ai", "🤖 AI 配置", hint="大模型、视觉、参数、意图识别", children=[
             leaf_nodes["llm"],
             leaf_nodes["vision"],
             leaf_nodes["model"],
             leaf_nodes["intent"],
         ]),
         # 通讯与语音
-        MenuNode("communication", "💬 通讯与语音", children=[
+        MenuNode("communication", "💬 通讯与语音", hint="消息平台、TTS、STT", children=[
             leaf_nodes["gateway"],
             leaf_nodes["tts"],
             leaf_nodes["stt"],
         ]),
         # 系统设置
-        MenuNode("system", "⚙️ 系统设置", children=[
+        MenuNode("system", "⚙️ 系统设置", hint="Agent、Terminal、记忆、语言", children=[
             leaf_nodes["agent"],
             leaf_nodes["terminal"],
             leaf_nodes["memory"],
             leaf_nodes["language"],
         ]),
         # 工具与扩展
-        MenuNode("tools_menu", "🛠️ 工具与扩展", children=[
+        MenuNode("tools_menu", "🛠️ 工具与扩展", hint="工具配置、浏览器、调试、Skills", children=[
             leaf_nodes["tools"],
             leaf_nodes["browser"],
             leaf_nodes["debug_tools"],
             leaf_nodes["skills_hub"],
         ]),
         # 系统偏好
-        MenuNode("preferences", "🎨 系统偏好", children=[
+        MenuNode("preferences", "🎨 系统偏好", hint="响应详细程度、缓存", children=[
             leaf_nodes["depth"],
             leaf_nodes["caching"],
         ]),
         # 辅助功能
-        MenuNode("utility", "📋 辅助功能", children=[
+        MenuNode("utility", "📋 辅助功能", hint="查看当前配置", children=[
             leaf_nodes["view"],
         ]),
     ])
@@ -2461,22 +2615,22 @@ def _navigate_menu(node: MenuNode, config: dict):
     # 显示当前菜单
     while True:
         print()
-        ui.print_header_text(f"╰─📁 {node.label}")
-        print()
+        # 主菜单不显示标题，子菜单显示
+        if node.id != "root":
+            ui.print_header_text(f"{node.label}")
+            print()
         
         options = []
         for child in node.children:
-            if child.children:
-                # 有子菜单的节点，显示为目录
-                options.append((child.id, f"📂 {child.label}"))
-            else:
-                # 叶子节点
-                options.append((child.id, f"{child.icon} {child.label}"))
+            # 格式：名称 + 空格 + hint（灰色显示）
+            display = child.label
+            if child.hint:
+                display = f"{child.label}  {ui.Theme.SECONDARY_DIM}{child.hint}{ui.Colors.RESET}"
+            options.append((child.id, display))
         
-        # 添加返回选项
-        options.append(("back", "↩ 返回上级 (Back)"))
+        # 添加返回选项（主菜单不需要显示）
         if node.id != "root":
-            options.append(("main", "🏠 返回主菜单 (Main)"))
+            options.append(("back", "↩ 返回"))
         
         print()
         choice = ask_choice("请选择:", options)
@@ -2488,8 +2642,6 @@ def _navigate_menu(node: MenuNode, config: dict):
         
         if selected_id == "back":
             return  # 返回上级
-        elif selected_id == "main":
-            return  # 返回主菜单（重新从根开始）
         else:
             # 找到对应的节点
             child_node = None
