@@ -15,7 +15,7 @@
 import sys
 import os
 import platform
-from typing import List, Union, Optional, Tuple
+from typing import List, Union, Optional, Tuple, Any
 
 
 # ============ 颜色配置 ============
@@ -88,6 +88,13 @@ def _get_avocado_theme():
             AVOCADO_THEME.List.selection_color = AVOCADO_COLOR
             AVOCADO_THEME.List.selection_cursor = "▸ "
             AVOCADO_THEME.List.unselected_color = "\033[90m"  # 灰色
+            # 设置 Checkbox 颜色 - 与 List 保持一致
+            AVOCADO_THEME.Checkbox.selection_color = AVOCADO_COLOR
+            AVOCADO_THEME.Checkbox.selection_cursor = "▸ "
+            AVOCADO_THEME.Checkbox.unselected_color = "\033[90m"  # 灰色
+            AVOCADO_THEME.Checkbox.selected_color = AVOCADO_COLOR
+            AVOCADO_THEME.Checkbox.selected_cursor = "◉"
+            AVOCADO_THEME.Checkbox.unselected_cursor = "◯"
             # 设置问题颜色 - 统一为牛油果绿
             AVOCADO_THEME.Question.default_color = AVOCADO_COLOR
             AVOCADO_THEME.Question.brackets_color = AVOCADO_COLOR
@@ -147,6 +154,53 @@ def _select_with_inquirer(
 
     if result and 'choice' in result:
         return result['choice']
+    return None
+
+
+def checkbox_with_inquirer(
+    options: List[Union[str, Tuple[str, Any]]],
+    title: Optional[str] = None,
+    defaults: Optional[List[str]] = None
+) -> Optional[List[str]]:
+    """
+    使用 inquirer 库的 Checkbox 多选功能
+    - 空格切换选中/取消
+    - 上下箭头导航
+    - 回车确认
+    - Ctrl+C 返回 None
+    """
+    try:
+        import inquirer
+    except ImportError:
+        try:
+            import inquirer3 as inquirer
+        except ImportError:
+            return None
+
+    # inquirer.Checkbox 使用简单的字符串列表
+    # choices 格式: 字符串或 (value, name) 元组
+    # 返回: 选中的字符串列表
+    
+    questions = [
+        inquirer.Checkbox(
+            'choices',
+            message=title or "请选择",
+            choices=options,
+        )
+    ]
+
+    _hide_cursor()
+    try:
+        result = inquirer.prompt(questions, theme=_get_avocado_theme())
+    except KeyboardInterrupt:
+        _show_cursor()
+        return None
+    finally:
+        _show_cursor()
+
+    # result['choices'] 返回选中的字符串列表（value）
+    if result and 'choices' in result:
+        return result['choices']
     return None
 
 

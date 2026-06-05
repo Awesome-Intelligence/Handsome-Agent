@@ -595,7 +595,7 @@ def main():
 
     # Handle LLM configuration from saved config or args
     llm_provider = None
-    model_name = "Modern Agent"
+    model_name = "Handsome Agent"
     saved_llm_params = saved_config.get("llm_params", {})
 
     if LLM_AVAILABLE:
@@ -614,7 +614,7 @@ def main():
                     enable_detailed_logs=enable_detailed_logs
                 )
                 llm_provider = setup_llm_integration(llm_config)
-                model_name = saved_llm.get("model", "Modern Agent")
+                model_name = saved_llm.get("model", "Handsome Agent")
             except Exception as e:
                 print(f"Warning: Failed to load saved LLM config: {e}")
 

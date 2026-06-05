@@ -2,12 +2,228 @@
 # -*- coding: utf-8 -*-
 """
 Internationalization (i18n) Module for Handsome Agent
-Provides multilingual support for logging and system messages.
+
+Provides multilingual support for user-facing messages.
 Supports: Chinese (zh), English (en), Korean (ko), Japanese (ja)
+
+This module combines:
+1. YAML catalog files (common/locales/*.yaml) - for setup wizard and CLI messages
+2. Embedded translations - for agent flow messages
+
+Language resolution order:
+    1. Explicit ``lang`` argument passed to :func:`t`
+    2. ``HANDSOME_LANGUAGE`` environment variable (for tests / quick override)
+    3. ``language`` from config.yaml
+    4. ``"zh"`` (Chinese default for Handsome Agent)
+
+Supported languages: en, zh, ja, ko.
 """
 
-from typing import Dict, Optional
+from __future__ import annotations
 
+import logging
+import os
+import threading
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+SUPPORTED_LANGUAGES: tuple[str, ...] = (
+    "en", "zh", "ja", "ko",
+)
+DEFAULT_LANGUAGE = "zh"  # Chinese default for Handsome Agent
+
+# Language aliases - maps natural language names to supported codes
+_LANGUAGE_ALIASES: dict[str, str] = {
+    # English
+    "english": "en", "en-us": "en", "en-gb": "en",
+    # Chinese - Simplified (default)
+    "chinese": "zh", "mandarin": "zh", "zh-cn": "zh", "zh-hans": "zh", "zh-sg": "zh",
+    # Japanese
+    "japanese": "ja", "jp": "ja", "ja-jp": "ja",
+    # Korean
+    "korean": "ko", "한국어": "ko", "ko-kr": "ko",
+}
+
+_catalog_cache: dict[str, dict[str, str]] = {}
+_catalog_lock = threading.Lock()
+
+
+def _locales_dir() -> Path:
+    """Return the directory containing locale YAML files.
+
+    Lives under common/ so both bundled install and editable
+    checkouts find it without PYTHONPATH gymnastics.
+    """
+    # common/i18n.py -> common/ -> project root -> common/locales/
+    return Path(__file__).resolve().parent / "locales"
+
+
+def _normalize_lang(value: Any) -> str:
+    """Normalize a user-supplied language value to a supported code.
+
+    Accepts supported codes directly, common aliases (``chinese`` -> ``zh``),
+    and case-insensitive regional tags (``zh-CN`` -> ``zh``).  Returns the
+    default language for unknown values.
+    """
+    if not isinstance(value, str):
+        return DEFAULT_LANGUAGE
+    key = value.strip().lower()
+    if not key:
+        return DEFAULT_LANGUAGE
+    if key in SUPPORTED_LANGUAGES:
+        return key
+    if key in _LANGUAGE_ALIASES:
+        return _LANGUAGE_ALIASES[key]
+    # Try stripping a region suffix (e.g. "zh-CN" -> "zh")
+    base = key.split("-", 1)[0]
+    if base in SUPPORTED_LANGUAGES:
+        return base
+    return DEFAULT_LANGUAGE
+
+
+def _load_catalog(lang: str) -> dict[str, str]:
+    """Load and flatten one locale YAML file into a dotted-key dict.
+
+    YAML files can be nested for human readability; this produces the flat
+    key space :func:`t` expects.  Cached per-language for the process.
+    """
+    with _catalog_lock:
+        cached = _catalog_cache.get(lang)
+        if cached is not None:
+            return cached
+
+    path = _locales_dir() / f"{lang}.yaml"
+    if not path.is_file():
+        logger.debug("i18n catalog missing for %s at %s", lang, path)
+        with _catalog_lock:
+            _catalog_cache[lang] = {}
+        return {}
+
+    try:
+        import yaml  # PyYAML is already a dependency
+        with path.open("r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+    except Exception as exc:
+        logger.warning("Failed to load i18n catalog %s: %s", path, exc)
+        with _catalog_lock:
+            _catalog_cache[lang] = {}
+        return {}
+
+    flat: dict[str, str] = {}
+    _flatten_into(raw, "", flat)
+    with _catalog_lock:
+        _catalog_cache[lang] = flat
+    return flat
+
+
+def _flatten_into(node: Any, prefix: str, out: dict[str, str]) -> None:
+    """Recursively flatten a nested dict into dotted keys."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            child_key = f"{prefix}.{key}" if prefix else str(key)
+            _flatten_into(value, child_key, out)
+    elif isinstance(node, str):
+        out[prefix] = node
+    # Non-string, non-dict leaves are ignored -- catalogs are text-only.
+
+
+@lru_cache(maxsize=1)
+def _config_language_cached() -> str | None:
+    """Read ``language`` from config.yaml once per process.
+
+    Cached because ``t()`` is called in hot paths and re-reading YAML
+    each call would be wasteful.  ``reset_language_cache()`` clears this
+    when config changes at runtime (e.g. after the setup wizard).
+    """
+    try:
+        config_dir = Path.home() / ".handsome_agent"
+        config_file = config_dir / "config.json"
+        if config_file.exists():
+            import json
+            with open(config_file, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+                lang = cfg.get("language")
+                if lang:
+                    return _normalize_lang(lang)
+    except Exception as exc:
+        logger.debug("Could not read language from config: %s", exc)
+    return None
+
+
+def reset_language_cache() -> None:
+    """Invalidate cached language resolution and catalogs.
+
+    Call after config changes at runtime (e.g. after the setup wizard).
+    """
+    _config_language_cached.cache_clear()
+    with _catalog_lock:
+        _catalog_cache.clear()
+
+
+def get_language() -> str:
+    """Resolve the active language using env > config > default order."""
+    # 1. HERMES_LANGUAGE or HANDSOME_LANGUAGE environment variable
+    env_lang = os.environ.get("HERMES_LANGUAGE") or os.environ.get("HANDSOME_LANGUAGE")
+    if env_lang:
+        return _normalize_lang(env_lang)
+    # 2. Config file language setting
+    cfg_lang = _config_language_cached()
+    if cfg_lang:
+        return cfg_lang
+    # 3. Default
+    return DEFAULT_LANGUAGE
+
+
+def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
+    """Translate a dotted key to the active language.
+
+    Parameters
+    ----------
+    key
+        Dotted path into the catalog, e.g. ``"setup.banner.title"``.
+    lang
+        Explicit language override.  Takes precedence over env + config.
+    **format_kwargs
+        ``str.format`` substitution arguments
+        (e.g. ``t("setup.banner.title", name="John")`` expects a catalog entry
+        with a ``{name}`` placeholder).
+
+    Returns
+    -------
+    The translated string, or the English fallback if the key is missing in
+    the target language, or the bare key if English is also missing.
+    """
+    target = _normalize_lang(lang) if lang else get_language()
+    catalog = _load_catalog(target)
+    value = catalog.get(key)
+
+    if value is None and target != DEFAULT_LANGUAGE:
+        # Fall through to default language rather than showing a key path
+        value = _load_catalog(DEFAULT_LANGUAGE).get(key)
+
+    if value is None:
+        # Last-ditch: return the key itself
+        logger.debug("i18n miss: key=%r lang=%r", key, target)
+        value = key
+
+    if format_kwargs:
+        try:
+            return value.format(**format_kwargs)
+        except (KeyError, IndexError, ValueError) as exc:
+            logger.warning(
+                "i18n format failed for key=%r lang=%r kwargs=%r: %s",
+                key, target, format_kwargs, exc,
+            )
+            return value
+    return value
+
+
+# =============================================================================
+# Legacy I18n class for backward compatibility
+# =============================================================================
 
 LAYER_EMOJI = {
     "access": "🚪",
@@ -17,9 +233,10 @@ LAYER_EMOJI = {
 
 
 class I18n:
-    """Internationalization handler for agent messages."""
-    
-    TRANSLATIONS: Dict[str, Dict[str, str]] = {
+    """Internationalization handler for agent messages (legacy support)."""
+
+    # Legacy translations for agent flow messages
+    TRANSLATIONS: dict[str, dict[str, str]] = {
         "zh": {
             "flow_start": "开始处理用户输入",
             "validation_pass": "输入格式验证通过",
@@ -57,7 +274,6 @@ class I18n:
             "session_add_msg": "添加消息",
             "session_trim": "历史记录已修剪",
             "flow_header": "=" * 70,
-            
             "step_input": "接收用户输入",
             "step_validation": "输入格式验证通过",
             "step_session": "消息已添加到会话",
@@ -68,11 +284,9 @@ class I18n:
             "step_skill": "进入技能管理器",
             "step_explanation": "调用解释模块处理请求",
             "step_complete": "🚪 [完成] 总耗时",
-            
             "layer_access": "[接入层]",
             "layer_decision": "[决策层]",
             "layer_execution": "[执行层]",
-            
             "subtitle": "今天的你，也很帅气",
         },
         "en": {
@@ -87,12 +301,12 @@ class I18n:
             "routing_no_match": "🧠 [Decision Layer] No matching route found, trying skills",
             "skill_enabled": "🧠 [Decision Layer] Skills enabled, starting intent classification",
             "skill_discovery": "🧠 [Decision Layer] Found relevant skills",
-            "skill_execute": "（SkillManager） Executing skill",
+            "skill_execute": "🏃 [Execution Layer] Executing skill",
             "skill_success": "🧠 [Decision Layer] Skill executed successfully",
             "skill_fail": "🧠 [Decision Layer] Skill execution failed",
             "explanation_module": "🧠 [Decision Layer] Using explanation module to generate response",
             "response_complete": "🧠 [Decision Layer] Response generation complete",
-            "session_add_assistant": "🏃[Execution Layer] Adding assistant response to session",
+            "session_add_assistant": "🏃 [Execution Layer] Adding assistant response to session",
             "cache_store": "🧠 [Decision Layer] Storing response to cache",
             "complete": "🚪 [Complete] Response generation complete",
             "intent_classifying": "🧠 [Decision Layer] Classifying intent for input",
@@ -106,13 +320,12 @@ class I18n:
             "skill_not_found": "🧠 [Decision Layer] Skill not found",
             "skill_detail": "🏃 [Execution Layer] Skill details",
             "skill_validate_fail": "🧠 [Decision Layer] Parameter validation failed",
-            "skill_execute_start": "⚡[Execution Layer] Parameter validation passed, executing",
+            "skill_execute_start": "🏃 [Execution Layer] Parameter validation passed, executing",
             "skill_execute_success": "🧠 [Decision Layer] Skill executed successfully",
             "skill_execute_error": "🧠 [Decision Layer] Skill execution error",
-            "session_add_msg": "（SessionManager） Adding message",
+            "session_add_msg": "🏃 [Execution Layer] Adding message",
             "session_trim": "🏃 [Execution Layer] History trimmed",
             "flow_header": "=" * 70,
-            
             "step_input": "🚪 [Access Layer] Received user input",
             "step_validation": "🧠 [Decision Layer] Input validation passed",
             "step_session": "🏃 [Execution Layer] Message added to session",
@@ -120,20 +333,18 @@ class I18n:
             "step_cache_miss": "🧠 [Decision Layer] Cache miss, continuing",
             "step_processing": "🧠 [Decision Layer] Starting processing",
             "step_routing": "🧠 [Decision Layer] Entering task router",
-            "step_skill": "（SkillManager） Entering skill manager",
+            "step_skill": "🏃 [Execution Layer] Entering skill manager",
             "step_explanation": "🧠 [Decision Layer] Calling explanation module",
             "step_complete": "🚪 [Complete] Total time",
-            
             "layer_access": "[Access Layer]",
             "layer_decision": "[Decision Layer]",
             "layer_execution": "[Execution Layer]",
-            
             "subtitle": "You look handsome today too",
         },
         "ko": {
             "flow_start": "🚪 [액세스 계층] 사용자 입력 처리 시작",
             "validation_pass": "🧠 [결정 계층] 입력 유효성 검사 통과",
-            "session_add": "（SessionManager） 세션에 사용자 메시지 추가",
+            "session_add": "🏃 [실행 계층] 세션에 사용자 메시지 추가",
             "cache_hit": "🧠 [결정 계층] 캐시 히트, 처리 건너뛰기",
             "cache_miss": "🧠 [결정 계층] 캐시 미스, 정상 처리 계속",
             "processing_start": "🧠 [결정 계층] 요청 처리 시작",
@@ -164,13 +375,12 @@ class I18n:
             "skill_execute_start": "🏃 [실행 계층] 매개변수 유효성 검사 통과, 실행 시작",
             "skill_execute_success": "🧠 [결정 계층] 스킬 실행 성공",
             "skill_execute_error": "🧠 [결정 계층] 스킬 실행 오류",
-            "session_add_msg": "（SessionManager） 메시지 추가",
+            "session_add_msg": "🏃 [실행 계층] 메시지 추가",
             "session_trim": "🏃 [실행 계층] 히스토리 정리됨",
             "flow_header": "=" * 70,
-            
             "step_input": "🚪 [액세스 계층] 사용자 입력 수신",
             "step_validation": "🧠 [결정 계층] 입력 유효성 검사 통과",
-            "step_session": "（SessionManager） 메시지가 세션에 추가됨",
+            "step_session": "🏃 [실행 계층] 메시지가 세션에 추가됨",
             "step_cache_hit": "🧠 [결정 계층] 캐시 히트, 건너뛰기",
             "step_cache_miss": "🧠 [결정 계층] 캐시 미스, 계속",
             "step_processing": "🧠 [결정 계층] 처리 시작",
@@ -178,11 +388,9 @@ class I18n:
             "step_skill": "🏃 [실행 계층] 스킬 매니저 진입",
             "step_explanation": "🧠 [결정 계층] 설명 모듈 호출",
             "step_complete": "🚪 [완료] 총 소요 시간",
-            
             "layer_access": "[액세스 계층]",
             "layer_decision": "[결정 계층]",
             "layer_execution": "[실행 계층]",
-            
             "subtitle": "오늘의 당신도 멋지네요",
         },
         "ja": {
@@ -202,7 +410,7 @@ class I18n:
             "skill_fail": "🧠 [決定層] スキル実行失敗",
             "explanation_module": "🧠 [決定層] 説明モジュールでレスポンス生成",
             "response_complete": "🧠 [決定層] レスポンス生成完了",
-            "session_add_assistant": "（SessionManager） セッションにアシスタントレスポンスを追加",
+            "session_add_assistant": "🏃 [実行層] セッションにアシスタントレスポンスを追加",
             "cache_store": "🧠 [決定層] レスポンスをキャッシュに保存",
             "complete": "🚪 [完了] レスポンス生成完了",
             "intent_classifying": "🧠 [決定層] 入力の意図を分類中",
@@ -212,7 +420,7 @@ class I18n:
             "router_checking": "🧠 [決定層] 登録されたルートを確認中",
             "router_found": "🧠 [決定層] 一致するルートを発見",
             "skill_discovery_start": "🧠 [決定層] スキル発見を開始",
-            "skill_manager_execute": "（SkillManager） スキル実行を試み中",
+            "skill_manager_execute": "🏃 [実行層] スキル実行を試み中",
             "skill_not_found": "🧠 [決定層] スキルが見つかりません",
             "skill_detail": "🏃 [実行層] スキル詳細情報",
             "skill_validate_fail": "🧠 [決定層] パラメーターバリデーション失敗",
@@ -220,9 +428,8 @@ class I18n:
             "skill_execute_success": "🧠 [決定層] スキル実行成功",
             "skill_execute_error": "🧠 [決定層] スキル実行エラー",
             "session_add_msg": "🏃 [実行層] メッセージを追加",
-            "session_trim": "（SessionManager） 履歴が整理されました",
+            "session_trim": "🏃 [実行層] 履歴が整理されました",
             "flow_header": "=" * 70,
-            
             "step_input": "🚪 [アクセス層] ユーザー入力を受信",
             "step_validation": "🧠 [決定層] 入力バリデーション合格",
             "step_session": "🏃 [実行層] メッセージがセッションに追加されました",
@@ -230,68 +437,98 @@ class I18n:
             "step_cache_miss": "🧠 [決定層] キャッシュミス、続行",
             "step_processing": "🧠 [決定層] 処理を開始",
             "step_routing": "🧠 [決定層] タスクルーティングに侵入",
-            "step_skill": "（SkillManager） スキルマネージャーに入る",
+            "step_skill": "🏃 [実行層] スキルマネージャーに入る",
             "step_explanation": "🧠 [決定層] 説明モジュールを呼び出す",
             "step_complete": "🚪 [完了] 合計時間",
-            
             "layer_access": "[アクセス層]",
             "layer_decision": "[決定層]",
             "layer_execution": "[実行層]",
-            
             "subtitle": "今日のあなたもハンサムです",
         }
     }
-    
+
     SUPPORTED_LANGUAGES = {
         "zh": "中文",
-        "en": "English", 
+        "en": "English",
         "ko": "한국어",
         "ja": "日本語"
     }
-    
+
     LAYERS = {
         "access": "接入层",
         "decision": "决策层",
         "execution": "执行层",
     }
-    
-    def __init__(self, language: str = "zh"):
-        self.language = language if language in self.TRANSLATIONS else "zh"
-    
+
+    def __init__(self, language: str = None):
+        """Initialize I18n handler.
+
+        Args:
+            language: Optional language code. If None, uses get_language() resolution.
+        """
+        if language:
+            self.language = _normalize_lang(language)
+        else:
+            self.language = get_language()
+
     def t(self, key: str, **kwargs) -> str:
+        """Translate a key using YAML catalogs first, then fallback to legacy translations."""
+        # Try YAML catalog first
+        result = t(key, lang=self.language, **kwargs)
+        if result != key:
+            return result
+        # Fallback to legacy translations
         template = self.TRANSLATIONS.get(self.language, {}).get(
-            key, 
-            self.TRANSLATIONS["zh"].get(key, key)
+            key,
+            self.TRANSLATIONS.get(DEFAULT_LANGUAGE, {}).get(key, key)
         )
-        
         if kwargs:
             return template.format(**kwargs)
         return template
-    
+
     def set_language(self, language: str):
-        if language in self.TRANSLATIONS:
-            self.language = language
-    
+        if language in SUPPORTED_LANGUAGES:
+            self.language = _normalize_lang(language)
+
     def get_language(self) -> str:
         return self.language
-    
+
     @classmethod
-    def get_supported_languages(cls) -> Dict[str, str]:
+    def get_supported_languages(cls) -> dict[str, str]:
         return cls.SUPPORTED_LANGUAGES.copy()
-    
+
     @classmethod
-    def get_layers(cls) -> Dict[str, str]:
+    def get_layers(cls) -> dict[str, str]:
         return cls.LAYERS.copy()
-    
+
     @classmethod
-    def get_layer_emoji(cls) -> Dict[str, str]:
+    def get_layer_emoji(cls) -> dict[str, str]:
         return LAYER_EMOJI.copy()
 
 
+# Global instance
 i18n = I18n()
 
 
-def get_i18n(language: Optional[str] = None) -> I18n:
-    if language:
-        return I18n(language)
-    return i18n
+def get_i18n(language: str | None = None) -> I18n:
+    """Get an I18n instance.
+
+    Args:
+        language: Optional language code. If None, uses config/env resolution.
+
+    Returns:
+        I18n instance with resolved language.
+    """
+    return I18n(language)
+
+
+__all__ = [
+    "SUPPORTED_LANGUAGES",
+    "DEFAULT_LANGUAGE",
+    "t",
+    "get_language",
+    "reset_language_cache",
+    "I18n",
+    "i18n",
+    "get_i18n",
+]

@@ -11,7 +11,7 @@ description: |
   如涉及日志级别、格式、记录要求等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+# Copyright (c) 2026 Handsome Agent Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -52,13 +52,6 @@ self.logger = get_decision_logger(self.__class__.__name__, sublayer="memory")
 ---
 
 ## 三、日志格式
-
-```
-[时间戳] [级别] [模块名] [请求ID] - 消息
-2026-06-04 10:30:00 INFO workflow_engine req_abc123 - 工作流执行完成
-```
-
-### Handsome Agent 专属格式
 
 详见：[project-architecture-rules.md](project-architecture-rules.md) - 层级 Emoji 速查表
 
@@ -112,9 +105,6 @@ logger = logging.getLogger(__name__)
 # ❌ 禁止：含糊消息
 logger.info("Done")
 logger.error("Error")
-
-# ❌ 禁止：日志中出现中文（生产环境）
-logger.info("处理完成")
 ```
 
 ---

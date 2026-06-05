@@ -10,7 +10,7 @@ description: |
   如涉及命名一致性、命名风格等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+# Copyright (c) 2026 Handsome Agent Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -117,9 +117,7 @@ export function WorkflowCanvas() {
 
 ---
 
-## 五、Handsome Agent 专属命名
-
-### 5.1 模块目录命名
+## 五、模块目录命名
 
 | 目录 | 命名规则 | 示例 |
 |------|----------|------|
@@ -127,17 +125,7 @@ export function WorkflowCanvas() {
 | 工具模块 | snake_case | `file_reader.py` |
 | 网关模块 | snake_case | `http_handler.py` |
 
-### 5.2 日志命名
-
-```python
-from common.logging_manager import get_decision_logger
-
-# 无子层
-logger = get_decision_logger(__name__)
-
-# 有子层
-logger = get_decision_logger(__name__, sublayer="memory")
-```
+> **日志命名**: 详见 [quality-logging-rules.md](quality-logging-rules.md)
 
 ---
 

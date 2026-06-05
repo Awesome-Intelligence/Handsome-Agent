@@ -1,0 +1,470 @@
+# Handsome Agent 静态消息目录 -- 中文（简体）
+# See common/locales/en.yaml for the source of truth; keep keys in sync.
+
+# =============================================================================
+# Setup Wizard (setup.py)
+# =============================================================================
+
+setup:
+  banner:
+    title: "◆ Handsome Agent 设置向导 ◆"
+    subtitle: "你的全能 AI 助手"
+    current_config: "当前配置"
+    not_configured: "尚未配置"
+
+  language:
+    title: "🌐 语言设置"
+    prompt: "请选择显示语言："
+    options:
+      zh: "中文 (Chinese) - 默认"
+      en: "English (英文)"
+      ja: "日本語 (日文)"
+      ko: "한국어 (韩文)"
+    selected: "语言已设置为 {language}"
+
+  common:
+    yes_no_yes: "[Y/n]"
+    yes_no_no: "[y/N]"
+    quit_hint: "(输入 q 返回上一级)"
+    enter_to_default: "(直接回车使用默认值: {default})"
+    cancel: "已取消"
+    saved: "✅ 配置已保存！"
+    back: "返回"
+    exit_msg: "已退出配置"
+
+  questions:
+    required_field: "此项为必填项，请输入值"
+    invalid_input: "请输入 y 或 n"
+    out_of_range: "请输入 1 到 {max} 之间的数字"
+
+  # LLM Provider Setup
+  llm:
+    title: "🤖 大模型配置"
+    current_status: "当前配置："
+    provider: "提供商"
+    model: "模型"
+    api_key_masked: "API Key: {prefix}...{suffix}"
+    select_provider: "请选择大模型提供商："
+    keep_current: "保持不变 ({provider})"
+    not_configured: "未配置（使用基础模板模式）"
+    using_basic_mode: "将使用基础模板模式"
+    get_api_key: "获取 {url} API Key："
+    existing_key: "已有 API Key: {key}"
+    reuse_key: "是否保留现有 API Key？"
+    input_api_key: "API Key"
+    custom_url: "是否使用自定义 API 地址？"
+    input_url: "API 地址"
+    default_url: "默认 API 地址：{url}"
+    select_model: "请选择模型："
+    getting_models: "正在获取模型列表..."
+    no_models: "没有可用模型，请检查 API 配置"
+
+  # Model Config
+  model_config:
+    title: "🔧 模型参数配置"
+    max_tokens: "Max Tokens"
+    temperature: "Temperature (0.0-2.0)"
+    context_window: "Context Window"
+
+  # Terminal Backend
+  terminal:
+    title: "💻 Terminal 后端配置"
+    select_backend: "请选择 Terminal 后端："
+    backends:
+      local: "本地执行 (默认) - 直接在本地执行命令"
+      docker: "Docker 容器 - 在隔离容器中执行命令"
+      ssh: "SSH 远程 - 在远程服务器上执行命令"
+      singularity: "Singularity - 使用 Singularity 容器"
+      modal: "Modal Cloud - 使用 Modal 云服务"
+    using_local: "使用本地执行环境"
+    using_docker: "使用 Docker 容器环境"
+    docker_image: "Docker Image"
+    configure_resources: "是否配置容器资源 (CPU/内存/磁盘)？"
+    using_ssh: "使用 SSH 远程执行"
+    ssh_host: "SSH Host"
+    ssh_user: "SSH User"
+    ssh_port: "SSH Port"
+    ssh_key: "SSH Key Path"
+    using_singularity: "使用 Singularity 容器环境"
+    singularity_image: "Singularity Image"
+    using_modal: "使用 Modal Cloud 环境"
+    modal_image: "Modal Image"
+
+  # Agent Settings
+  agent:
+    title: "⚙️ Agent 设置"
+    max_iterations: "最大迭代次数"
+    max_iterations_hint: "设置越高 = 更复杂的任务，但消耗更多 tokens"
+    max_iterations_default: "大多数任务使用 90，长期探索使用 150+"
+    tool_progress: "工具进度显示"
+    tool_progress_hint: "控制显示多少工具活动"
+    tool_progress_modes:
+      off: "off - 静默，只显示最终响应"
+      new: "new - 仅在工具变化时显示名称"
+      all: "all - 显示每个工具调用及简短预览 (默认)"
+      verbose: "verbose - 完整参数、结果和调试日志"
+    select_mode: "工具进度模式："
+
+  # Session Reset
+  session_reset:
+    title: "🔄 Session 重置策略"
+    select_mode: "请选择 Session 重置模式："
+    modes:
+      both: "两者 (默认) - 每日重置或空闲超时，优先触发"
+      daily: "每日重置 - 每天特定时间重置会话"
+      idle: "空闲超时 - 空闲指定时间后重置会话"
+      none: "从不 - 不自动重置，使用 Context Compression 管理"
+    daily_time: "每日重置时间 (小时 0-23)"
+    idle_time: "空闲超时时间（分钟）"
+    send_notification: "是否发送重置通知？"
+
+  # Memory
+  memory:
+    title: "🧠 记忆系统配置"
+    enable: "是否启用记忆系统？"
+    vector_store: "Vector Store"
+    select_features: "选择要配置的功能（空格切换，回车确认）："
+    stores:
+      sqlite: "SQLite (默认) - 轻量级，适合本地"
+      chroma: "Chroma - 向量数据库，适合生产环境"
+      qdrant: "Qdrant - 云原生向量数据库"
+      milvus: "Milvus - 大规模向量搜索"
+    embedding_model: "Embedding Model"
+    max_entries: "最大记忆条数"
+
+  # Context Compression
+  compression:
+    title: "🗜️ Context 压缩配置"
+    enable: "是否启用 Context Compression？"
+    threshold: "压缩阈值 (0.50-0.95)"
+    threshold_hint: "达到上下文上限的百分比时触发压缩"
+    summary_model: "摘要模型"
+
+  # STT
+  stt:
+    title: "🎤 语音转文字配置"
+    enable: "是否启用 STT？"
+    select_provider: "请选择 STT Provider："
+    providers:
+      local: "本地 (faster-whisper) - 无需 API Key，本地运行"
+      groq: "Groq - 免费 Tier，快速"
+      openai: "OpenAI - Whisper API"
+    model: "STT Model"
+
+  # TTS
+  tts:
+    title: "🔊 文字转语音配置"
+    select_provider: "请选择 TTS Provider："
+    providers:
+      edge: "Edge TTS (免费，云端，无需配置)"
+      elevenlabs: "ElevenLabs (高质量，需要 API key)"
+      openai: "OpenAI TTS (质量好，需要 API key)"
+      xai: "xAI TTS (Grok 声音 - 需要 API key)"
+      minimax: "MiniMax TTS (高音质，支持声音克隆，需要 API key)"
+      mistral: "Mistral Voxtral TTS (多语言，需要 API key)"
+      gemini: "Google Gemini TTS (30 种预置声音，需要 API key)"
+      neutts: "NeuTTS (本地运行，免费，首次使用约下载 300MB)"
+      kittentts: "KittenTTS (本地运行，免费，轻量级)"
+    keep_current: "保持当前 ({provider})"
+    installing: "正在安装依赖..."
+    first_use_download: "首次使用时将下载模型（约 300MB）"
+    voice: "请选择 TTS Voice："
+    voices:
+      alloy: "Alloy - 中性"
+      echo: "Echo - 男声"
+      fable: "Fable - 英式"
+      onyx: "Onyx - 男声"
+      nova: "Nova - 女声"
+      shimmer: "Shimmer - 女声"
+    model: "TTS Model"
+    provider_set: "TTS Provider 已设置为：{provider}"
+
+  # Browser
+  browser:
+    title: "🌐 Browser 自动化配置"
+    enable: "是否启用 Browser 工具？"
+    residential_proxy: "是否启用 Residential Proxies？"
+    stealth_mode: "是否启用高级隐身模式？（需要 Scale Plan）"
+    session_timeout: "Session 超时（秒）"
+    inactivity_timeout: "空闲超时（秒）"
+
+  # Debug Tools
+  debug:
+    title: "🐛 Debug 配置"
+    web_tools: "启用 Web Tools Debug？"
+    vision_tools: "启用 Vision Tools Debug？"
+    moa_tools: "启用 MOA Tools Debug？"
+    image_tools: "启用 Image Tools Debug？"
+
+  # Skills Hub
+  skills_hub:
+    title: "🛠️ Skills Hub 配置"
+    token_configured: "GitHub Token 已配置"
+    token_hint: "Token 末尾：...{suffix}"
+    keep_token: "是否保留现有 GitHub Token？"
+    description: "Skills Hub 允许从 GitHub 安装和更新技能"
+    requires_token: "需要 GitHub Personal Access Token"
+    get_token: "获取地址：https://github.com/settings/tokens"
+    token_permissions: "Token 需要以下权限："
+    permission_repo: "repo (完整仓库访问) - 用于私有技能"
+    permission_read_user: "read:user - 读取用户信息"
+    github_token: "GitHub Personal Access Token"
+    skipped: "跳过 Skills Hub 配置"
+
+  # Preferences
+  preferences:
+    explanation_depth:
+      title: "📝 响应详细程度"
+      prompt: "请选择响应详细程度："
+      options:
+        brief: "简洁 - 只返回要点"
+        moderate: "适中 - 适度详细"
+        detailed: "详细 - 完整说明"
+    caching:
+      title: "⚡ 响应缓存"
+      enable: "是否启用响应缓存？"
+    intent:
+      title: "🎯 意图识别模式"
+      prompt: "请选择意图识别模式："
+      options:
+        llm: "大模型模式 - 优先使用 AI 理解意图，智能但需要 API"
+        hybrid: "混合模式 - 关键词优先，低置信度时调用 AI"
+        keyword: "关键词模式 - 仅使用关键词匹配，无需 API"
+
+  # Vision
+  vision:
+    title: "👁️ 视觉分析与图像理解"
+    already_supported: "{provider} 已支持视觉分析，无需额外配置"
+    prompt: "配置视觉分析："
+    options:
+      openrouter: "OpenRouter - 使用 Gemini (免费额度)"
+      openai_compatible: "OpenAI 兼容端点"
+      skip: "暂时跳过"
+    openrouter_key: "OpenRouter API key"
+    base_url: "Base URL"
+    api_key: "API key"
+    vision_model: "视觉模型名称"
+
+  # Gateway / Messaging Platforms
+  gateway:
+    title: "📱 消息平台"
+    description: "连接你的 AI 助手到消息平台"
+    guide: "指南：{url}"
+    configured: "当前已配置：{platforms}"
+    select_platform: "选择平台："
+
+  # Tools Configuration
+  tools:
+    title: "🛠️ 工具配置"
+    web_search:
+      prompt: "配置 Web 搜索工具？"
+      select_provider: "选择 Web 搜索 Provider："
+      providers:
+        exa: "Exa - AI 驱动的网络搜索"
+        tavily: "Tavily - AI 搜索 API"
+        firecrawl: "Firecrawl - 从网站提取内容"
+        searxng: "SearXNG - 自托管元搜索引擎"
+    browser_automation:
+      prompt: "配置 Browser 工具？"
+      select_provider: "选择 Browser Provider："
+      providers:
+        browserbase: "Browserbase - 云端浏览器基础设施"
+        camofox: "Camofox - 自托管浏览器"
+        local: "本地浏览器 (需要 npm install -g agent-browser)"
+    image_generation:
+      prompt: "配置 Image Generation？"
+      select_provider: "选择 Image Generation Provider："
+      providers:
+        fal: "Fal - 高质量图像生成"
+        openai: "OpenAI DALL-E - 通过现有 OpenAI API key"
+
+  # Summary
+  summary:
+    title: "📋 配置摘要"
+    configured: "已配置"
+    not_configured: "未配置"
+    provider: "提供商：{provider}"
+    model: "模型：{model}"
+    backend: "后端：{backend}"
+    memory: "记忆：{status}"
+    vector_store: "向量存储：{store}"
+
+  # Quick Config
+  quick_config:
+    title: "🚀 快速配置向导"
+    description: "逐个配置重要选项"
+    remaining: "还剩 {count} 个选项"
+    continue_prompt: "是否继续配置下一个选项？"
+    all_complete: "✅ 所有重要选项配置完成！"
+
+  # Full Config
+  full_config:
+    title: "🔄 完整配置"
+    step: "步骤 {current}/{total}：{title}"
+    save_prompt: "是否保存当前配置？"
+    complete: "✅ 配置完成！"
+
+# =============================================================================
+# CLI General Messages
+# =============================================================================
+
+cli:
+  welcome: "欢迎使用 Handsome Agent"
+  goodbye: "再见！"
+  running: "运行中..."
+  error: "错误：{message}"
+  warning: "警告：{message}"
+  info: "提示：{message}"
+  success: "成功：{message}"
+
+# =============================================================================
+# Interactive Select
+# =============================================================================
+
+interactive:
+  select: "请选择："
+  selected: "已选择：{option}"
+
+# =============================================================================
+# Banner Messages
+# =============================================================================
+
+banner:
+  setup_title: "◆ Handsome Agent 设置向导 ◆"
+  setup_subtitle: "你的全能 AI 助手"
+  config_status: "配置状态"
+  run_commands: "运行命令："
+
+# =============================================================================
+# Provider Display Names
+# =============================================================================
+
+providers:
+  openai: "OpenAI"
+  anthropic: "Anthropic Claude"
+  google: "Google Gemini"
+  deepseek: "DeepSeek"
+  minimax: "MiniMax"
+  moonshot: "Kimi (月之暗面)"
+  zhipu: "智谱AI"
+  dashscope: "阿里通义千问"
+  groq: "Groq"
+  siliconflow: "SiliconFlow"
+  openrouter: "OpenRouter"
+  custom: "自定义 API"
+
+# =============================================================================
+# Utility
+# =============================================================================
+
+utils:
+  yes: "是"
+  no: "否"
+  ok: "确定"
+  cancel: "取消"
+  done: "完成"
+  skip: "跳过"
+  back: "返回"
+  continue: "继续"
+  exit: "退出"
+  quit: "退出"
+
+# =============================================================================
+# Menu Navigation
+# =============================================================================
+
+menu:
+  # 子菜单标题
+  quick_start:
+    title: "🚀 快速开始"
+    hint: "快速配置或重置所有设置"
+  ai:
+    title: "🤖 AI 配置"
+    hint: "大模型、视觉、参数、意图识别"
+  communication:
+    title: "📱 通讯与语音"
+    hint: "消息平台、TTS、STT"
+  system:
+    title: "⚙️ 系统设置"
+    hint: "Agent、Terminal、记忆、语言"
+  tools:
+    title: "🛠️ 工具与扩展"
+    hint: "工具配置、浏览器、调试、Skills"
+  preferences:
+    title: "💡 系统偏好"
+    hint: "响应详细程度、缓存"
+  auxiliary:
+    title: "🔧 辅助功能"
+    hint: "查看当前配置"
+
+  # 叶子节点标签
+  quick:
+    label: "🚀 快速配置向导"
+    hint: "使用推荐配置，快速完成设置"
+  reset_all:
+    label: "🔄 重新全部配置"
+    hint: "清空配置，重新开始"
+  llm:
+    label: "🤖 大模型配置"
+    hint: "选择 AI 提供商和模型"
+  vision:
+    label: "👁️ 视觉分析"
+    hint: "图片理解能力配置"
+  model:
+    label: "🔧 模型参数"
+    hint: "max_tokens、temperature 等"
+  intent:
+    label: "🎯 意图识别模式"
+    hint: "如何理解用户意图"
+  gateway:
+    label: "📱 消息平台"
+    hint: "Telegram、Slack 等"
+  tts:
+    label: "🔊 文字转语音"
+    hint: "TTS 语音合成"
+  stt:
+    label: "🎤 语音转文字"
+    hint: "语音识别输入"
+  agent:
+    label: "⚙️ Agent 设置"
+    hint: "迭代次数、工具进度等"
+  terminal:
+    label: "💻 Terminal 后端"
+    hint: "命令执行环境"
+  memory:
+    label: "🧠 记忆系统"
+    hint: "向量数据库配置"
+  language:
+    label: "🌐 语言设置"
+    hint: "界面显示语言"
+  tools_config:
+    label: "🛠️ 工具配置"
+    hint: "Web 搜索、浏览器等"
+  browser:
+    label: "🌐 Browser 自动化"
+    hint: "无头浏览器控制"
+  debug:
+    label: "🐛 Debug 配置"
+    hint: "调试工具开关"
+  skills_hub:
+    label: "🛠️ Skills Hub"
+    hint: "GitHub 技能市场"
+  depth:
+    label: "📝 响应详细程度"
+    hint: "AI 回复详细程度"
+  caching:
+    label: "⚡ 响应缓存"
+    hint: "启用响应缓存加速"
+  view:
+    label: "📋 查看当前配置"
+    hint: "显示所有配置项"
+  root:
+    title: "主菜单"
+
+  # 通用菜单操作
+  back:
+    label: "↩ 返回"
+  exit:
+    label: "❌ 退出配置"
+  select:
+    prompt: "请选择:"

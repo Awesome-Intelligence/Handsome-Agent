@@ -13,7 +13,7 @@ description: |
   如涉及架构设计、模块划分、目录结构、技术选型等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+# Copyright (c) 2026 Handsome Agent Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -78,9 +78,9 @@ Handsome-Agent/
 | 🧠 Decision | LLM | 🤖 | 大语言模型 |
 | | ToolSelect | 🔧 | 工具选择决策 |
 | | Task | ✅ | 任务规划与分解 |
-| | Memory | � | 记忆存储 |
-| | Skills | � | 技能系统 |
-| | Curator | � | 自我进化/优化 |
+| | Memory | 💾 | 记忆存储 |
+| | Skills | 📋 | 技能系统 |
+| | Curator | 🔬 | 自我进化/优化 |
 | | Context | 📊 | 上下文管理 |
 | 🏃 Execution | ShellExec | 🐚 | Shell 命令执行 |
 | | DockerExec | 🐳 | Docker 容器执行 |
@@ -96,7 +96,7 @@ INFO - [🚪MainLayer] - [/💾SublayerName] - (ModuleName) message
 **示例**：
 ```
 INFO - [🧠Decision] - [/💾Memory] - (SessionManager) 会话创建成功
-INFO - [🏃Execution] - [/�ShellExec] - (ShellExecutor) 命令执行完成
+INFO - [🏃Execution] - [/🐚ShellExec] - (ShellExecutor) 命令执行完成
 INFO - [🚪Access] - [/💬CLI] - (MainCLI) 收到用户输入
 ```
 
@@ -170,11 +170,13 @@ tools/, executor/ (通过抽象接口)
 
 ## 八、参考项目
 
-| 项目 | 路径 |
-|------|------|
-| OpenClaw | `e:\openclaw-for-study` |
-| Hermes | `e:\hermes-agent-study` |
-| jiuwenswarm | `e:\jiuwenswarm-study` |
+> 注：路径使用环境变量或相对路径配置，禁止硬编码绝对路径。
+
+| 项目 | 配置方式 |
+|------|----------|
+| OpenClaw | `OPENCLAW_PATH` 环境变量 |
+| Hermes | `HERMES_PATH` 环境变量 |
+| jiuwenswarm | `JIUWEN_PATH` 环境变量 |
 
 ---
 

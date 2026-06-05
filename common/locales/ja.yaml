@@ -1,0 +1,470 @@
+# Handsome Agent 静的メッセージカタログ -- 日本語
+# See common/locales/en.yaml for the source of truth; keep keys in sync.
+
+# =============================================================================
+# Setup Wizard (setup.py)
+# =============================================================================
+
+setup:
+  banner:
+    title: "◆ Handsome Agent セットアップ ◆"
+    subtitle: "あなたの万能AIアシスタント"
+    current_config: "現在の設定"
+    not_configured: "未設定"
+
+  language:
+    title: "🌐 言語設定"
+    prompt: "表示言語を選択してください："
+    options:
+      zh: "中文 (Chinese) - デフォルト"
+      en: "English (英語)"
+      ja: "日本語 (Japanese) - デフォルト"
+      ko: "한국어 (Korean)"
+    selected: "言語が {language} に設定されました"
+
+  common:
+    yes_no_yes: "[Y/n]"
+    yes_no_no: "[y/N]"
+    quit_hint: "(q を入力して戻る)"
+    enter_to_default: "(Enter でデフォルトを使用: {default})"
+    cancel: "キャンセルしました"
+    saved: "✅ 設定が保存されました！"
+    back: "戻る"
+    exit_msg: "設定を終了しました"
+
+  questions:
+    required_field: "この項目は必須です。値を入力してください"
+    invalid_input: "y または n を入力してください"
+    out_of_range: "1 から {max} の間の数字を入力してください"
+
+  # LLM Provider Setup
+  llm:
+    title: "🤖 LLM プロバイダー設定"
+    current_status: "現在の設定："
+    provider: "プロバイダー"
+    model: "モデル"
+    api_key_masked: "API Key: {prefix}...{suffix}"
+    select_provider: "LLM プロバイダーを選択してください："
+    keep_current: "現在の設定を維持 ({provider})"
+    not_configured: "未設定（基本テンプレートモード）"
+    using_basic_mode: "基本テンプレートモードを使用します"
+    get_api_key: "API Key を取得: {url}"
+    existing_key: "既存の API Key: {key}"
+    reuse_key: "既存の API Key を維持しますか？"
+    input_api_key: "API Key"
+    custom_url: "カスタム API URL を使用しますか？"
+    input_url: "API URL"
+    default_url: "デフォルト API URL: {url}"
+    select_model: "モデルを選択してください："
+    getting_models: "モデルリストを取得中..."
+    no_models: "利用可能なモデルがありません。API 設定を確認してください"
+
+  # Model Config
+  model_config:
+    title: "🔧 モデルパラメータ"
+    max_tokens: "Max Tokens"
+    temperature: "Temperature (0.0-2.0)"
+    context_window: "Context Window"
+
+  # Terminal Backend
+  terminal:
+    title: "💻 ターミナルバックエンド"
+    select_backend: "ターミナルバックエンドを選択してください："
+    backends:
+      local: "ローカル実行 (デフォルト) - ローカルマシンで直接コマンドを実行"
+      docker: "Docker コンテナ - 隔離コンテナでコマンドを実行"
+      ssh: "SSH リモート - リモートサーバーでコマンドを実行"
+      singularity: "Singularity - Singularity コンテナを使用"
+      modal: "Modal Cloud - Modal クラウドサービスを使用"
+    using_local: "ローカル実行環境を使用"
+    using_docker: "Docker コンテナ環境を使用"
+    docker_image: "Docker Image"
+    configure_resources: "コンテナリソース (CPU/メモリ/ディスク) を設定しますか？"
+    using_ssh: "SSH リモート実行を使用"
+    ssh_host: "SSH Host"
+    ssh_user: "SSH User"
+    ssh_port: "SSH Port"
+    ssh_key: "SSH Key Path"
+    using_singularity: "Singularity コンテナ環境を使用"
+    singularity_image: "Singularity Image"
+    using_modal: "Modal Cloud 環境を使用"
+    modal_image: "Modal Image"
+
+  # Agent Settings
+  agent:
+    title: "⚙️ Agent 設定"
+    max_iterations: "最大イテレーション数"
+    max_iterations_hint: "高く設定 = より複雑なタスク、だがより多くのトークンを消費"
+    max_iterations_default: "ほとんどのタスクは 90、長期探索は 150+"
+    tool_progress: "ツール進捗表示"
+    tool_progress_hint: "どの程度のツール活動を表示するかを制御"
+    tool_progress_modes:
+      off: "off - サイレント、最終応答のみ表示"
+      new: "new - ツールが変更されたときのみ名前を表示"
+      all: "all - 各ツール呼び出しと短いプレビューを表示 (デフォルト)"
+      verbose: "verbose - 完全な引数、結果、デバッグログ"
+    select_mode: "ツール進捗モード："
+
+  # Session Reset
+  session_reset:
+    title: "🔄 セッションリセットポリシー"
+    select_mode: "セッションリセットモードを選択してください："
+    modes:
+      both: "両方 (デフォルト) - 日次リセットまたはアイドルタイムアウト、優先して発動"
+      daily: "日次リセット - 毎日特定の時間にリセット"
+      idle: "アイドルタイムアウト - アイドル時間後にリセット"
+      none: "なし - 自動リセットなし、Context Compression を使用"
+    daily_time: "日次リセット時刻 (時 0-23)"
+    idle_time: "アイドルタイムアウト (分)"
+    send_notification: "リセット通知を送信しますか？"
+
+  # Memory
+  memory:
+    title: "🧠 メモリシステム"
+    enable: "メモリシステムを有効にしますか？"
+    vector_store: "Vector Store"
+    select_features: "設定する機能を選択（スペースで切り替え、Enterで確定）："
+    stores:
+      sqlite: "SQLite (デフォルト) - 軽量、ローカル向け"
+      chroma: "Chroma - ベクトルデータベース、本番環境向け"
+      qdrant: "Qdrant - クラウドネイティブベクトルデータベース"
+      milvus: "Milvus - 大規模ベクトル検索"
+    embedding_model: "Embedding Model"
+    max_entries: "最大メモリエントリ数"
+
+  # Context Compression
+  compression:
+    title: "🗜️ Context 圧縮"
+    enable: "Context Compression を有効にしますか？"
+    threshold: "圧縮しきい値 (0.50-0.95)"
+    threshold_hint: "コンテキスト上限に達した百分比で圧縮をトリガー"
+    summary_model: "サマリーモデル"
+
+  # STT
+  stt:
+    title: "🎤 音声認識"
+    enable: "STT を有効にしますか？"
+    select_provider: "STT プロバイダーを選択："
+    providers:
+      local: "ローカル (faster-whisper) - API キー不要、ローカル実行"
+      groq: "Groq - 免费的ティア、高速"
+      openai: "OpenAI - Whisper API"
+    model: "STT Model"
+
+  # TTS
+  tts:
+    title: "🔊 テキスト読み上げ"
+    select_provider: "TTS プロバイダーを選択："
+    providers:
+      edge: "Edge TTS (無料、クラウド、セットアップ不要)"
+      elevenlabs: "ElevenLabs (高品質、API キー必要)"
+      openai: "OpenAI TTS (高品質、API キー必要)"
+      xai: "xAI TTS (Grok ボイス - API キー必要)"
+      minimax: "MiniMax TTS (高音質な音声クローン、API キー必要)"
+      mistral: "Mistral Voxtral TTS (多言語、API キー必要)"
+      gemini: "Google Gemini TTS (30 プリセットボイス、API キー必要)"
+      neutts: "NeuTTS (ローカルデバイス対応 무료、初使用時約 300MB ダウンロード)"
+      kittentts: "KittenTTS (ローカルデバイス対応 免费、軽量)"
+    keep_current: "現在のを維持 ({provider})"
+    installing: "依存関係をインストール中..."
+    first_use_download: "初回使用時にモデルがダウンロードされます（約 300MB）"
+    voice: "TTS Voice を選択："
+    voices:
+      alloy: "Alloy - ニュートラル"
+      echo: "Echo - 男性の声"
+      fable: "Fable - イギリス英語"
+      onyx: "Onyx - 男性の声"
+      nova: "Nova - 女性の声"
+      shimmer: "Shimmer - 女性の声"
+    model: "TTS Model"
+    provider_set: "TTS プロバイダーが {provider} に設定されました"
+
+  # Browser
+  browser:
+    title: "🌐 ブラウザー自動化"
+    enable: "ブラウザーゲームを有効にしますか？"
+    residential_proxy: "Residential Proxies を有効にしますか？"
+    stealth_mode: "高度なステルスモードを有効にしますか？（Scale Plan 必要）"
+    session_timeout: "セッションタイムアウト (秒)"
+    inactivity_timeout: "非アクティブタイムアウト (秒)"
+
+  # Debug Tools
+  debug:
+    title: "🐛 デバッグ設定"
+    web_tools: "Web Tools デバッグを有効にしますか？"
+    vision_tools: "Vision Tools デバッグを有効にしますか？"
+    moa_tools: "MOA Tools デバッグを有効にしますか？"
+    image_tools: "Image Tools デバッグを有効にしますか？"
+
+  # Skills Hub
+  skills_hub:
+    title: "🛠️ Skills Hub 設定"
+    token_configured: "GitHub Token が設定されています"
+    token_hint: "Token 末尾: ...{suffix}"
+    keep_token: "既存の GitHub Token を維持しますか？"
+    description: "Skills Hub で GitHub からスキルをインストールして更新できます"
+    requires_token: "GitHub Personal Access Token が必要です"
+    get_token: "取得地址: https://github.com/settings/tokens"
+    token_permissions: "Token に必要な権限："
+    permission_repo: "repo (完全なリポジトリアクセス) - プライベートスキル用"
+    permission_read_user: "read:user - ユーザー情報読み取り"
+    github_token: "GitHub Personal Access Token"
+    skipped: "Skills Hub 設定をスキップ"
+
+  # Preferences
+  preferences:
+    explanation_depth:
+      title: "📝 応答の詳細レベル"
+      prompt: "応答の詳細レベルを選択してください："
+      options:
+        brief: "簡潔 - 要点のみを返す"
+        moderate: "适中 - 適度な詳細"
+        detailed: "詳細 - 完全な説明"
+    caching:
+      title: "⚡ 応答キャッシュ"
+      enable: "応答キャッシュを有効にしますか？"
+    intent:
+      title: "🎯 意図認識モード"
+      prompt: "意図認識モードを選択してください："
+      options:
+        llm: "LLM モード - AI を使用して意図を理解、スマートだが API 必要"
+        hybrid: "ハイブリッドモード - キーワード優先、低信頼度時に AI を使用"
+        keyword: "キーワードモード - キーワードマッチングのみ、API 不要"
+
+  # Vision
+  vision:
+    title: "👁️ 視覚分析と画像理解"
+    already_supported: "{provider} は既に視覚分析をサポート、追加設定不要"
+    prompt: "視覚分析を設定："
+    options:
+      openrouter: "OpenRouter - Gemini を使用 (無料ティア)"
+      openai_compatible: "OpenAI 互換エンドポイント"
+      skip: "今はスキップ"
+    openrouter_key: "OpenRouter API key"
+    base_url: "Base URL"
+    api_key: "API key"
+    vision_model: "ビジョンモデル名"
+
+  # Gateway / Messaging Platforms
+  gateway:
+    title: "📱 メッセージプラットフォーム"
+    description: "AI アシスタントをメッセージプラットフォームに接続"
+    guide: "ガイド: {url}"
+    configured: "現在設定済み: {platforms}"
+    select_platform: "プラットフォームを選択："
+
+  # Tools Configuration
+  tools:
+    title: "🛠️ ツール設定"
+    web_search:
+      prompt: "Web 検索ツールを設定しますか？"
+      select_provider: "Web 検索プロバイダーを選択："
+      providers:
+        exa: "Exa - AI 駆動のウェブ検索"
+        tavily: "Tavily - AI 用検索 API"
+        firecrawl: "Firecrawl - Web サイトからコンテンツを抽出"
+        searxng: "SearXNG - 自己ホスト型メタ搜索引擎"
+    browser_automation:
+      prompt: "ブラウザーゲームをを設定しますか？"
+      select_provider: "ブラウザーゲームプロバイダーを選択："
+      providers:
+        browserbase: "Browserbase - クラウドブラウザーインフラ"
+        camofox: "Camofox - 自己ホスト型ブラウザー"
+        local: "ローカルブラウザー (npm install -g agent-browser 必要)"
+    image_generation:
+      prompt: "画像生成を設定しますか？"
+      select_provider: "画像生成プロバイダーを選択："
+      providers:
+        fal: "Fal - 高品質画像生成"
+        openai: "OpenAI DALL-E - 既存の OpenAI API key を使用"
+
+  # Summary
+  summary:
+    title: "📋 設定サマリー"
+    configured: "設定済み"
+    not_configured: "未設定"
+    provider: "プロバイダー: {provider}"
+    model: "モデル: {model}"
+    backend: "バックエンド: {backend}"
+    memory: "メモリ: {status}"
+    vector_store: "ベクトルストア: {store}"
+
+  # Quick Config
+  quick_config:
+    title: "🚀 快速設定ウィザード"
+    description: "重要なオプションを1つずつ設定"
+    remaining: "残り {count} オプション"
+    continue_prompt: "次のオプションを設定しますか？"
+    all_complete: "✅ すべての重要なオプションが設定されました！"
+
+  # Full Config
+  full_config:
+    title: "🔄 完全設定"
+    step: "ステップ {current}/{total}: {title}"
+    save_prompt: "現在の設定を保存しますか？"
+    complete: "✅ 設定完了！"
+
+# =============================================================================
+# CLI General Messages
+# =============================================================================
+
+cli:
+  welcome: "Handsome Agent へようこそ"
+  goodbye: "さようなら！"
+  running: "実行中..."
+  error: "エラー: {message}"
+  warning: "警告: {message}"
+  info: "情報: {message}"
+  success: "成功: {message}"
+
+# =============================================================================
+# Interactive Select
+# =============================================================================
+
+interactive:
+  select: "選択してください："
+  selected: "選択済み: {option}"
+
+# =============================================================================
+# Banner Messages
+# =============================================================================
+
+banner:
+  setup_title: "◆ Handsome Agent セットアップ ◆"
+  setup_subtitle: "あなたの万能AIアシスタント"
+  config_status: "設定ステータス"
+  run_commands: "実行コマンド："
+
+# =============================================================================
+# Provider Display Names
+# =============================================================================
+
+providers:
+  openai: "OpenAI"
+  anthropic: "Anthropic Claude"
+  google: "Google Gemini"
+  deepseek: "DeepSeek"
+  minimax: "MiniMax"
+  moonshot: "Kimi (月之暗面)"
+  zhipu: "智谱AI"
+  dashscope: "阿里通義千問"
+  groq: "Groq"
+  siliconflow: "SiliconFlow"
+  openrouter: "OpenRouter"
+  custom: "カスタム API"
+
+# =============================================================================
+# Utility
+# =============================================================================
+
+utils:
+  yes: "はい"
+  no: "いいえ"
+  ok: "OK"
+  cancel: "キャンセル"
+  done: "完了"
+  skip: "スキップ"
+  back: "戻る"
+  continue: "続ける"
+  exit: "終了"
+  quit: "終了"
+
+# =============================================================================
+# Menu Navigation
+# =============================================================================
+
+menu:
+  # Submenu titles
+  quick_start:
+    title: "🚀 クイックスタート"
+    hint: "快速設定または全設定リセット"
+  ai:
+    title: "🤖 AI 設定"
+    hint: "LLM、ビジョン、パラメータ、意図"
+  communication:
+    title: "📱 通信と音声"
+    hint: "メッセージング、TTS、STT"
+  system:
+    title: "⚙️ システム設定"
+    hint: "Agent、ターミナル、メモリ、言語"
+  tools:
+    title: "🛠️ ツールと拡張"
+    hint: "ツール設定、ブラウザー、デバッグ、Skills"
+  preferences:
+    title: "💡 システム設定"
+    hint: "応答詳細レベル、キャッシュ"
+  auxiliary:
+    title: "🔧 補助機能"
+    hint: "現在の設定を表示"
+
+  # Leaf node labels
+  quick:
+    label: "🚀 快速設定ウィザード"
+    hint: "推奨設定を使用、快速設定"
+  reset_all:
+    label: "🔄 全設定リセット"
+    hint: "設定をクリア、新規開始"
+  llm:
+    label: "🤖 LLM プロバイダー"
+    hint: "AI プロバイダーとモデルを選択"
+  vision:
+    label: "👁️ ビジョンと画像分析"
+    hint: "画像理解能力の設定"
+  model:
+    label: "🔧 モデルパラメータ"
+    hint: "max_tokens、temperature など"
+  intent:
+    label: "🎯 意図認識モード"
+    hint: "ユーザーの意図を理解する方法"
+  gateway:
+    label: "📱 メッセージングプラットフォーム"
+    hint: "Telegram、Slack など"
+  tts:
+    label: "🔊 テキスト読み上げ"
+    hint: "TTS 音声合成"
+  stt:
+    label: "🎤 音声認識"
+    hint: "音声認識入力"
+  agent:
+    label: "⚙️ Agent 設定"
+    hint: "イテレーション、ツール進捗など"
+  terminal:
+    label: "💻 ターミナルバックエンド"
+    hint: "コマンド実行環境"
+  memory:
+    label: "🧠 メモリシステム"
+    hint: "ベクトルデータベース設定"
+  language:
+    label: "🌐 言語設定"
+    hint: "UI 表示言語"
+  tools_config:
+    label: "🛠️ ツール設定"
+    hint: "Web 検索、ブラウザーなど"
+  browser:
+    label: "🌐 ブラウザー自動化"
+    hint: "ヘッドレスブラウザー制御"
+  debug:
+    label: "🐛 デバッグ設定"
+    hint: "デバッグツール切り替え"
+  skills_hub:
+    label: "🛠️ Skills Hub"
+    hint: "GitHub スキルマーケット"
+  depth:
+    label: "📝 応答詳細レベル"
+    hint: "AI 応答の詳細レベル"
+  caching:
+    label: "⚡ 応答キャッシュ"
+    hint: "応答キャッシュを有効化"
+  view:
+    label: "📋 現在の設定を表示"
+    hint: "全設定項目を表示"
+  root:
+    title: "メインメニュー"
+
+  # Common menu actions
+  back:
+    label: "↩ 戻る"
+  exit:
+    label: "❌ 設定を終了"
+  select:
+    prompt: "選択してください:"

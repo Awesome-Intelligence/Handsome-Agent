@@ -3,12 +3,14 @@ DeepSeek Provider 实现
 🧠 Decision - 🤖 LLM - DeepSeek 系列模型支持
 """
 
+import os
 import httpx
 import json
 import time
 from typing import Optional, List, Dict, Any, AsyncIterator
 from .base import BaseProvider, ProviderConfig, ProviderResponse, StreamChunk, Message
 from common.logging_manager import get_llm_logger
+from common.config import DEFAULT_LLM_BASE_URLS
 
 
 class DeepSeekProvider(BaseProvider):
@@ -30,6 +32,11 @@ class DeepSeekProvider(BaseProvider):
 
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
+        self.base_url = (
+            config.base_url
+            or os.getenv("DEEPSEEK_BASE_URL")
+            or DEFAULT_LLM_BASE_URLS.get("deepseek")
+        )
         self.api_key = config.api_key
         self._client: Optional[httpx.AsyncClient] = None
         self.logger = get_llm_logger(self.__class__.__name__)

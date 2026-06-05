@@ -1,0 +1,470 @@
+# Handsome Agent 정적 메시지 카탈로그 -- 한국어
+# See common/locales/en.yaml for the source of truth; keep keys in sync.
+
+# =============================================================================
+# Setup Wizard (setup.py)
+# =============================================================================
+
+setup:
+  banner:
+    title: "◆ Handsome Agent 설정 마법사 ◆"
+    subtitle: "당신의 만능 AI 어시스턴트"
+    current_config: "현재 설정"
+    not_configured: "설정되지 않음"
+
+  language:
+    title: "🌐 언어 설정"
+    prompt: "표시 언어를 선택하세요："
+    options:
+      zh: "中文 (Chinese) - 기본"
+      en: "English (영어)"
+      ja: "日本語 (일본어)"
+      ko: "한국어 (Korean) - 기본"
+    selected: "언어가 {language}(으)로 설정되었습니다"
+
+  common:
+    yes_no_yes: "[Y/n]"
+    yes_no_no: "[y/N]"
+    quit_hint: "(q 입력하여 돌아가기)"
+    enter_to_default: "(Enter로 기본값 사용: {default})"
+    cancel: "취소됨"
+    saved: "✅ 설정이 저장되었습니다！"
+    back: "돌아가기"
+    exit_msg: "설정을 종료했습니다"
+
+  questions:
+    required_field: "이 필드는 필수입니다. 값을 입력하세요"
+    invalid_input: "y 또는 n을 입력하세요"
+    out_of_range: "1부터 {max} 사이의 숫자를 입력하세요"
+
+  # LLM Provider Setup
+  llm:
+    title: "🤖 LLM 공급자 설정"
+    current_status: "현재 설정："
+    provider: "공급자"
+    model: "모델"
+    api_key_masked: "API Key: {prefix}...{suffix}"
+    select_provider: "LLM 공급자를 선택하세요："
+    keep_current: "현재 유지 ({provider})"
+    not_configured: "설정되지 않음 (기본 템플릿 모드)"
+    using_basic_mode: "기본 템플릿 모드를 사용합니다"
+    get_api_key: "API Key 받기: {url}"
+    existing_key: "기존 API Key: {key}"
+    reuse_key: "기존 API Key를 유지하시겠습니까？"
+    input_api_key: "API Key"
+    custom_url: "사용자 정의 API URL을 사용하시겠습니까？"
+    input_url: "API URL"
+    default_url: "기본 API URL: {url}"
+    select_model: "모델을 선택하세요："
+    getting_models: "모델 목록 가져오는 중..."
+    no_models: "사용 가능한 모델이 없습니다. API 설정을 확인하세요"
+
+  # Model Config
+  model_config:
+    title: "🔧 모델 매개변수"
+    max_tokens: "Max Tokens"
+    temperature: "Temperature (0.0-2.0)"
+    context_window: "Context Window"
+
+  # Terminal Backend
+  terminal:
+    title: "💻 터미널 백엔드"
+    select_backend: "터미널 백엔드를 선택하세요："
+    backends:
+      local: "로컬 실행 (기본) - 로컬 머신에서 직접 명령 실행"
+      docker: "Docker 컨테이너 - 격리된 컨테이너에서 명령 실행"
+      ssh: "SSH 원격 - 원격 서버에서 명령 실행"
+      singularity: "Singularity - Singularity 컨테이너 사용"
+      modal: "Modal Cloud - Modal 클라우드 서비스 사용"
+    using_local: "로컬 실행 환경 사용"
+    using_docker: "Docker 컨테이너 환경 사용"
+    docker_image: "Docker Image"
+    configure_resources: "컨테이너 리소스 (CPU/메모리/디스크)를 설정하시겠습니까？"
+    using_ssh: "SSH 원격 실행 사용"
+    ssh_host: "SSH Host"
+    ssh_user: "SSH User"
+    ssh_port: "SSH Port"
+    ssh_key: "SSH Key Path"
+    using_singularity: "Singularity 컨테이너 환경 사용"
+    singularity_image: "Singularity Image"
+    using_modal: "Modal Cloud 환경 사용"
+    modal_image: "Modal Image"
+
+  # Agent Settings
+  agent:
+    title: "⚙️ Agent 설정"
+    max_iterations: "최대 반복 횟수"
+    max_iterations_hint: "높게 설정 = 더 복잡한 작업, 하지만 더 많은 토큰 소비"
+    max_iterations_default: "대부분의 작업은 90, 장기 탐사는 150+"
+    tool_progress: "도구 진행률 표시"
+    tool_progress_hint: "얼마나 많은 도구 활동을 표시할지 제어"
+    tool_progress_modes:
+      off: "off - 자동 모드, 최종 응답만 표시"
+      new: "new - 도구가 변경될 때만 이름 표시"
+      all: "all - 각 도구 호출과 짧은 미리보기 표시 (기본)"
+      verbose: "verbose - 전체 인수, 결과, 디버그 로그"
+    select_mode: "도구 진행률 모드："
+
+  # Session Reset
+  session_reset:
+    title: "🔄 세션 재설정 정책"
+    select_mode: "세션 재설정 모드를 선택하세요："
+    modes:
+      both: "둘 다 (기본) - 일별 재설정 또는 유휴 시간 초과, 우선 발생"
+      daily: "일별 재설정 - 매일 특정 시간에 재설정"
+      idle: "유휴 시간 초과 - 유휴 시간 후 재설정"
+      none: "없음 - 자동 재설정 없음, Context Compression 사용"
+    daily_time: "일별 재설정 시간 (시 0-23)"
+    idle_time: "유휴 시간 초과 (분)"
+    send_notification: "재설정 알림을 보내시겠습니까？"
+
+  # Memory
+  memory:
+    title: "🧠 메모리 시스템"
+    enable: "메모리 시스템을 활성화하시겠습니까？"
+    vector_store: "Vector Store"
+    select_features: "구성할 기능을 선택하세요 (스페이스로 전환, Enter로 확인)："
+    stores:
+      sqlite: "SQLite (기본) - 가볍고 로컬에 적합"
+      chroma: "Chroma - 프로덕션 환경에 적합한 벡터 데이터베이스"
+      qdrant: "Qdrant - 클라우드 네이티브 벡터 데이터베이스"
+      milvus: "Milvus - 대규모 벡터 검색"
+    embedding_model: "Embedding Model"
+    max_entries: "최대 메모리 항목 수"
+
+  # Context Compression
+  compression:
+    title: "🗜️ Context 압축"
+    enable: "Context Compression을 활성화하시겠습니까？"
+    threshold: "압축 임계값 (0.50-0.95)"
+    threshold_hint: "컨텍스트 상한에 도달한 백분율에서 압축 트리거"
+    summary_model: "요약 모델"
+
+  # STT
+  stt:
+    title: "🎤 음성 인식"
+    enable: "STT를 활성화하시겠습니까？"
+    select_provider: "STT 공급자를 선택："
+    providers:
+      local: "로컬 (faster-whisper) - API 키 필요 없음, 로컬 실행"
+      groq: "Groq - 무료 티어, 빠름"
+      openai: "OpenAI - Whisper API"
+    model: "STT Model"
+
+  # TTS
+  tts:
+    title: "🔊 텍스트 음성 변환"
+    select_provider: "TTS 공급자를 선택："
+    providers:
+      edge: "Edge TTS (무료, 클라우드, 설정 불필요)"
+      elevenlabs: "ElevenLabs (프리미엄 품질, API 키 필요)"
+      openai: "OpenAI TTS (양질, API 키 필요)"
+      xai: "xAI TTS (Grok 음성 - API 키 필요)"
+      minimax: "MiniMax TTS (음성 클론anning 고품질, API 키 필요)"
+      mistral: "Mistral Voxtral TTS (다국어, API 키 필요)"
+      gemini: "Google Gemini TTS (30개 프리셋 음성, API 키 필요)"
+      neutts: "NeuTTS (로컬 디바이스, 무료, 첫 사용 시 약 300MB 다운로드)"
+      kittentts: "KittenTTS (로컬 디바이스, 무료, 가벼움)"
+    keep_current: "현재 유지 ({provider})"
+    installing: "의존성 설치 중..."
+    first_use_download: "첫 사용 시 모델이 다운로드됩니다 (약 300MB)"
+    voice: "TTS Voice 선택："
+    voices:
+      alloy: "Alloy - 중립"
+      echo: "Echo - 남성 목소리"
+      fable: "Fable - 영국식"
+      onyx: "Onyx - 남성 목소리"
+      nova: "Nova - 여성 목소리"
+      shimmer: "Shimmer - 여성 목소리"
+    model: "TTS Model"
+    provider_set: "TTS 공급자가 {provider}(으)로 설정되었습니다"
+
+  # Browser
+  browser:
+    title: "🌐 브라우저 자동화"
+    enable: "브라우저 도구를 활성화하시겠습니까？"
+    residential_proxy: "Residential Proxies를 활성화하시겠습니까？"
+    stealth_mode: "고급 스텔스 모드를 활성화하시겠습니까？（Scale Plan 필요）"
+    session_timeout: "세션 시간 초과 (초)"
+    inactivity_timeout: "비활성 시간 초과 (초)"
+
+  # Debug Tools
+  debug:
+    title: "🐛 디버그 설정"
+    web_tools: "Web Tools 디버그를 활성화하시겠습니까？"
+    vision_tools: "Vision Tools 디버그를 활성화하시겠습니까？"
+    moa_tools: "MOA Tools 디버그를 활성화하시겠습니까？"
+    image_tools: "Image Tools 디버그를 활성화하시겠습니까？"
+
+  # Skills Hub
+  skills_hub:
+    title: "🛠️ Skills Hub 설정"
+    token_configured: "GitHub Token이 설정되었습니다"
+    token_hint: "Token 끝: ...{suffix}"
+    keep_token: "기존 GitHub Token을 유지하시겠습니까？"
+    description: "Skills Hub를 통해 GitHub에서 스킬 설치 및 업데이트 가능"
+    requires_token: "GitHub Personal Access Token 필요"
+    get_token: "토큰 받기: https://github.com/settings/tokens"
+    token_permissions: "토큰에 필요한 권한："
+    permission_repo: "repo (전체 저장소 액세스) - 비공개 스킬용"
+    permission_read_user: "read:user - 사용자 정보 읽기"
+    github_token: "GitHub Personal Access Token"
+    skipped: "Skills Hub 설정 건너뛰기"
+
+  # Preferences
+  preferences:
+    explanation_depth:
+      title: "📝 응답 상세 수준"
+      prompt: "응답 상세 수준을 선택하세요："
+      options:
+        brief: "간결 - 핵심만 반환"
+        moderate: "보통 - 적당한 상세함"
+        detailed: "상세 - 완전한 설명"
+    caching:
+      title: "⚡ 응답 캐싱"
+      enable: "응답 캐싱을 활성화하시겠습니까？"
+    intent:
+      title: "🎯 의도 인식 모드"
+      prompt: "의도 인식 모드를 선택하세요："
+      options:
+        llm: "LLM 모드 - AI를 사용하여 의도 이해, 스마트하지만 API 필요"
+        hybrid: "하이브리드 모드 - 키워드 우선, 낮은 신뢰도 시 AI 사용"
+        keyword: "키워드 모드 - 키워드 매칭만, API 불필요"
+
+  # Vision
+  vision:
+    title: "👁️ 시각 분석 및 이미지 이해"
+    already_supported: "{provider}는 이미 시각 분석을 지원합니다. 추가 설정 불필요"
+    prompt: "시각 분석 설정："
+    options:
+      openrouter: "OpenRouter - Gemini 사용 (무료 티어)"
+      openai_compatible: "OpenAI 호환 엔드포인트"
+      skip: "지금은 건너뛰기"
+    openrouter_key: "OpenRouter API key"
+    base_url: "Base URL"
+    api_key: "API key"
+    vision_model: "비전 모델 이름"
+
+  # Gateway / Messaging Platforms
+  gateway:
+    title: "📱 메시징 플랫폼"
+    description: "AI 어시스턴트를 메시징 플랫폼에 연결"
+    guide: "가이드: {url}"
+    configured: "현재 설정됨: {platforms}"
+    select_platform: "플랫폼 선택："
+
+  # Tools Configuration
+  tools:
+    title: "🛠️ 도구 설정"
+    web_search:
+      prompt: "Web 검색 도구를 설정하시겠습니까？"
+      select_provider: "Web 검색 공급자를 선택："
+      providers:
+        exa: "Exa - AI 기반 웹 검색"
+        tavily: "Tavily - AI용 검색 API"
+        firecrawl: "Firecrawl - 웹사이트에서 콘텐츠 추출"
+        searxng: "SearXNG - 자체 호스팅 메타 검색 엔진"
+    browser_automation:
+      prompt: "브라우저 도구를 설정하시겠습니까？"
+      select_provider: "브라우저 공급자를 선택："
+      providers:
+        browserbase: "Browserbase - 클라우드 브라우저 인프라"
+        camofox: "Camofox - 자체 호스팅 브라우저"
+        local: "로컬 브라우저 (npm install -g agent-browser 필요)"
+    image_generation:
+      prompt: "이미지 생성을 설정하시겠습니까？"
+      select_provider: "이미지 생성 공급자를 선택："
+      providers:
+        fal: "Fal - 고품질 이미지 생성"
+        openai: "OpenAI DALL-E - 기존 OpenAI API key 사용"
+
+  # Summary
+  summary:
+    title: "📋 설정 요약"
+    configured: "설정됨"
+    not_configured: "설정되지 않음"
+    provider: "공급자: {provider}"
+    model: "모델: {model}"
+    backend: "백엔드: {backend}"
+    memory: "메모리: {status}"
+    vector_store: "벡터 스토어: {store}"
+
+  # Quick Config
+  quick_config:
+    title: "🚀 빠른 설정 마법사"
+    description: "중요한 옵션을 하나씩 설정"
+    remaining: "남은 옵션 {count}개"
+    continue_prompt: "다음 옵션 설정을 계속하시겠습니까？"
+    all_complete: "✅ 모든 중요한 옵션 설정 완료！"
+
+  # Full Config
+  full_config:
+    title: "🔄 전체 설정"
+    step: "단계 {current}/{total}: {title}"
+    save_prompt: "현재 설정을 저장하시겠습니까？"
+    complete: "✅ 설정 완료！"
+
+# =============================================================================
+# CLI General Messages
+# =============================================================================
+
+cli:
+  welcome: "Handsome Agent에 오신 것을 환영합니다"
+  goodbye: "안녕히 가세요！"
+  running: "실행 중..."
+  error: "오류: {message}"
+  warning: "경고: {message}"
+  info: "정보: {message}"
+  success: "성공: {message}"
+
+# =============================================================================
+# Interactive Select
+# =============================================================================
+
+interactive:
+  select: "선택하세요："
+  selected: "선택됨: {option}"
+
+# =============================================================================
+# Banner Messages
+# =============================================================================
+
+banner:
+  setup_title: "◆ Handsome Agent 설정 마법사 ◆"
+  setup_subtitle: "당신의 만능 AI 어시스턴트"
+  config_status: "설정 상태"
+  run_commands: "실행 명령："
+
+# =============================================================================
+# Provider Display Names
+# =============================================================================
+
+providers:
+  openai: "OpenAI"
+  anthropic: "Anthropic Claude"
+  google: "Google Gemini"
+  deepseek: "DeepSeek"
+  minimax: "MiniMax"
+  moonshot: "Kimi (월면)"
+  zhipu: "지푸AI"
+  dashscope: "알리 통이 쳔원"
+  groq: "Groq"
+  siliconflow: "SiliconFlow"
+  openrouter: "OpenRouter"
+  custom: "사용자 정의 API"
+
+# =============================================================================
+# Utility
+# =============================================================================
+
+utils:
+  yes: "예"
+  no: "아니오"
+  ok: "확인"
+  cancel: "취소"
+  done: "완료"
+  skip: "건너뛰기"
+  back: "돌아가기"
+  continue: "계속"
+  exit: "종료"
+  quit: "종료"
+
+# =============================================================================
+# Menu Navigation
+# =============================================================================
+
+menu:
+  # Submenu titles
+  quick_start:
+    title: "🚀 빠른 시작"
+    hint: "快速 설정 또는 전체 설정 초기화"
+  ai:
+    title: "🤖 AI 설정"
+    hint: "LLM, 비전, 매개변수, 의도"
+  communication:
+    title: "📱 통신 및 음성"
+    hint: "메시징, TTS, STT"
+  system:
+    title: "⚙️ 시스템 설정"
+    hint: "Agent, 터미널, 메모리, 언어"
+  tools:
+    title: "🛠️ 도구 및 확장"
+    hint: "도구 설정, 브라우저, 디버그, Skills"
+  preferences:
+    title: "💡 시스템 환경설정"
+    hint: "응답 상세 수준, 캐싱"
+  auxiliary:
+    title: "🔧 보조 기능"
+    hint: "현재 설정 보기"
+
+  # Leaf node labels
+  quick:
+    label: "🚀 快速 설정 마법사"
+    hint: "권장 설정 사용, 빠른 설정"
+  reset_all:
+    label: "🔄 전체 설정 초기화"
+    hint: "설정 지우기, 처음부터"
+  llm:
+    label: "🤖 LLM 공급자"
+    hint: "AI 공급자 및 모델 선택"
+  vision:
+    label: "👁️ 비전 및 이미지 분석"
+    hint: "이미지 이해 능력 설정"
+  model:
+    label: "🔧 모델 매개변수"
+    hint: "max_tokens, temperature 등"
+  intent:
+    label: "🎯 의도 인식 모드"
+    hint: "사용자 의도 이해 방법"
+  gateway:
+    label: "📱 메시징 플랫폼"
+    hint: "Telegram, Slack 등"
+  tts:
+    label: "🔊 텍스트 음성 변환"
+    hint: "TTS 음성 합성"
+  stt:
+    label: "🎤 음성 인식"
+    hint: "음성 인식 입력"
+  agent:
+    label: "⚙️ Agent 설정"
+    hint: "반복 횟수, 도구 진행률 등"
+  terminal:
+    label: "💻 터미널 백엔드"
+    hint: "명령 실행 환경"
+  memory:
+    label: "🧠 메모리 시스템"
+    hint: "벡터 데이터베이스 설정"
+  language:
+    label: "🌐 언어 설정"
+    hint: "UI 표시 언어"
+  tools_config:
+    label: "🛠️ 도구 설정"
+    hint: "웹 검색, 브라우저 등"
+  browser:
+    label: "🌐 브라우저 자동화"
+    hint: "헤드리스 브라우저 제어"
+  debug:
+    label: "🐛 디버그 설정"
+    hint: "디버그 도구 토글"
+  skills_hub:
+    label: "🛠️ Skills Hub"
+    hint: "GitHub 스킬 마켓플레이스"
+  depth:
+    label: "📝 응답 상세 수준"
+    hint: "AI 응답 상세 수준"
+  caching:
+    label: "⚡ 응답 캐싱"
+    hint: "응답 캐싱 활성화"
+  view:
+    label: "📋 현재 설정 보기"
+    hint: "모든 설정 항목 표시"
+  root:
+    title: "메인 메뉴"
+
+  # Common menu actions
+  back:
+    label: "↩ 돌아가기"
+  exit:
+    label: "❌ 설정 종료"
+  select:
+    prompt: "선택하세요:"

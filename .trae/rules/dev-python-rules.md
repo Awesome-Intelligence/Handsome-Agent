@@ -10,7 +10,7 @@ description: |
   如涉及 Python 代码风格、类型注解、导入规范等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+# Copyright (c) 2026 Handsome Agent Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -72,7 +72,7 @@ class ValidationError(Exception):
 
 ```python
 # ✅ 正确：使用完整包路径
-from doctor.who import jodie  # 在 doctor/who/ 目录下
+from agent.workflow import executor  # 在 agent/workflow/ 目录下
 
 # ❌ 错误：相对导入
 from . import module
@@ -158,7 +158,7 @@ for last_name, first_name in employee_list:
 
 ### 3.2 命名禁止
 
-- ❌ 单字符名称（除 `i, j, k` 循环变量，`e` 异常，`f` 文件句柄）
+- ❌ 单字符名称（除 `i, j, k` 循环变量，`e` 异常，`f` 文件句柄，`_T`, `_P` 类型变量）
 - ❌ 包含类型信息的名称如 `id_to_name_dict`
 - ❌ `__dunder__` 名称（保留给 Python）
 - ❌ 中划线 `-` 在模块名中

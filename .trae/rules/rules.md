@@ -8,7 +8,7 @@ description: |
   - 自检清单
 ---
 
-# Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+# Copyright (c) 2026 Handsome Agent Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -28,7 +28,8 @@ description: |
 | 禁止意图理解硬编码 | `if "关键词" in text` |
 | 禁止敏感信息硬编码 | `api_key = "sk-xxx"` |
 | 禁止路径分隔符硬编码 | `path.replace("/", "\\")` |
-| 必须使用统一日志 | `logging.getLogger()` |
+| 禁止文本硬编码 | `return "你好"` |
+| 必须使用统一日志 | 必须用 `common.logging_manager` |
 | common/ 只能放基础设施代码 | |
 
 ---
@@ -60,6 +61,7 @@ description: |
 |------|------|
 | [dev-python](dev-python-rules.md) | Python 代码风格 |
 | [dev-naming](dev-naming-rules.md) | 命名规范 |
+| [dev-i18n](dev-i18n-rules.md) | 多语言国际化 (i18n) 规范 |
 
 ### doc-* 文档规范
 | 规则 | 说明 |
@@ -84,25 +86,20 @@ description: |
 
 ## 二、层-子层速查
 
-详见：[project-architecture-rules.md](project-architecture-rules.md) - 层级定义
-
-| Layer | Emoji | Sublayers |
-|-------|-------|-----------|
-| 🚪 Access | 🚪 | 💬 CLI, 🚪 Gateway |
-| 🧠 Decision | 🧠 | 🤖 LLM, 🔧 ToolSelect, ✅ Task, 💾 Memory, 📋 Skills, 🔬 Curator, 📊 Context |
-| 🏃 Execution | 🏃 | 🐚 ShellExec, 🐳 DockerExec, 🛠️ ToolExec |
-| 🔧 System | 🔧 | (无) |
+详见：[project-architecture-rules.md](project-architecture-rules.md) - 层级定义（包含完整 Emoji 速查表）
 
 ---
 
 ## 三、参考项目
 
 > 当需要参考 Hermes 或 OpenClaw 的实现时，查看以下项目代码
+>
+> 注：路径使用环境变量配置（`HERMES_PATH`、`OPENCLAW_PATH`），禁止硬编码绝对路径。
 
-| 项目 | 路径 |
-|------|------|
-| Hermes (Hermes-Brain) | `E:\hermes-agent-study` |
-| OpenClaw (OpenClaw-Body) | `E:\openclaw-for-study` |
+| 项目 | 环境变量 |
+|------|----------|
+| Hermes (Hermes-Brain) | `HERMES_PATH` |
+| OpenClaw (OpenClaw-Body) | `OPENCLAW_PATH` |
 
 ---
 
@@ -114,16 +111,17 @@ description: |
 
 ---
 
-## 四、自检清单
+## 五、自检清单
 
 - [ ] 无意图理解硬编码关键词
 - [ ] 无敏感信息硬编码（用环境变量）
 - [ ] 路径用 `pathlib.Path`
 - [ ] 日志使用统一日志系统
+- [ ] 无用户可见文本硬编码（用 i18n）
 
 ---
 
-## 五、规则架构约束
+## 六、规则架构约束
 
 > 新增子规则时必须遵循以下规范
 
@@ -148,7 +146,7 @@ description: |
 
 ```yaml
 ---
-alwaysApply: false  # 子规则默认 false，主规则无需此字段
+alwaysApply: false  # 子规则默认 false，主规则使用 true
 description: 描述（用于触发加载判断）
 ---
 ```
@@ -169,7 +167,7 @@ description: 描述（用于触发加载判断）
 
 ---
 
-## 六、工具配置速查
+## 七、工具配置速查
 
 | 工具 | 用途 | 命令 |
 |------|------|------|

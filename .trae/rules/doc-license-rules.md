@@ -10,7 +10,7 @@ description: |
   如涉及许可证要求、依赖审查等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+# Copyright (c) 2026 Handsome Agent Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -71,7 +71,7 @@ description: |
 ### 4.1 Python 文件
 
 ```python
-# Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+# Copyright (c) 2026 Handsome Agent Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -81,7 +81,7 @@ description: |
 
 ```typescript
 /**
- * Copyright (c) 2026 AgentZoo/Handsome Agent Contributors
+ * Copyright (c) 2026 Handsome Agent Contributors
  *
  * 本项目采用 MIT 许可证开源
  * 详细信息请参见 LICENSE 文件

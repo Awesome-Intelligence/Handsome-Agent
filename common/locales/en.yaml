@@ -1,0 +1,478 @@
+# Handsome Agent static-message catalog -- English (baseline / source of truth)
+#
+# Only user-facing static messages from the CLI approval prompt and a handful
+# of gateway slash-command replies live here.  Agent-generated output, log
+# lines, error tracebacks, tool outputs, and slash-command descriptions stay
+# in English and are NOT translated -- see common/i18n.py for scope rationale.
+#
+# Keys are dotted paths; nesting below is purely for readability.  Values may
+# contain {placeholder} tokens for str.format substitution.  When adding a
+# new key, add it to EVERY locale file (en/zh/ja/ko) in the same commit.
+
+# =============================================================================
+# Setup Wizard (setup.py)
+# =============================================================================
+
+setup:
+  banner:
+    title: "◆ Handsome Agent Setup ◆"
+    subtitle: "Your AI assistant for everything"
+    current_config: "Current configuration"
+    not_configured: "Not configured yet"
+
+  language:
+    title: "🌐 Language Settings"
+    prompt: "Please select display language:"
+    options:
+      zh: "中文 (Chinese) - default"
+      en: "English"
+      ja: "日本語 (Japanese)"
+      ko: "한국어 (Korean)"
+    selected: "Language set to {language}"
+
+  common:
+    yes_no_yes: "Y/n"
+    yes_no_no: "y/N"
+    quit_hint: "(input q to go back)"
+    enter_to_default: "(press Enter to use default: {default})"
+    cancel: "Cancelled"
+    saved: "Configuration saved!"
+    back: "Back"
+    exit_msg: "Exited configuration"
+
+  questions:
+    required_field: "This field is required, please enter a value"
+    invalid_input: "Please enter 'y' or 'n'"
+    out_of_range: "Please enter a number between 1 and {max}"
+
+  # LLM Provider Setup
+  llm:
+    title: "🤖 LLM Provider Configuration"
+    current_status: "Current configuration:"
+    provider: "Provider"
+    model: "Model"
+    api_key_masked: "API Key: {prefix}...{suffix}"
+    select_provider: "Please select LLM provider:"
+    keep_current: "Keep current ({provider})"
+    not_configured: "Not configured (basic template mode)"
+    using_basic_mode: "Using basic template mode"
+    get_api_key: "Get your API key: {url}"
+    existing_key: "Existing API Key found: {key}"
+    reuse_key: "Keep existing API Key?"
+    input_api_key: "API Key"
+    custom_url: "Use custom API URL?"
+    input_url: "API URL"
+    default_url: "Default API URL: {url}"
+    select_model: "Please select model:"
+    getting_models: "Getting model list..."
+    no_models: "No models available, please check API configuration"
+
+  # Model Config
+  model_config:
+    title: "🔧 Model Parameters"
+    max_tokens: "Max Tokens"
+    temperature: "Temperature (0.0-2.0)"
+    context_window: "Context Window"
+
+  # Terminal Backend
+  terminal:
+    title: "💻 Terminal Backend"
+    select_backend: "Please select Terminal backend:"
+    backends:
+      local: "Local execution (default) - run commands directly on local machine"
+      docker: "Docker container - run commands in isolated container"
+      ssh: "SSH remote - run commands on remote server"
+      singularity: "Singularity - use Singularity container"
+      modal: "Modal Cloud - use Modal cloud service"
+    using_local: "Using local execution environment"
+    using_docker: "Using Docker container environment"
+    docker_image: "Docker Image"
+    configure_resources: "Configure container resources (CPU/memory/disk)?"
+    using_ssh: "Using SSH remote execution"
+    ssh_host: "SSH Host"
+    ssh_user: "SSH User"
+    ssh_port: "SSH Port"
+    ssh_key: "SSH Key Path"
+    using_singularity: "Using Singularity container environment"
+    singularity_image: "Singularity Image"
+    using_modal: "Using Modal Cloud environment"
+    modal_image: "Modal Image"
+
+  # Agent Settings
+  agent:
+    title: "⚙️ Agent Settings"
+    max_iterations: "Max iterations"
+    max_iterations_hint: "Higher = more complex tasks, but consumes more tokens"
+    max_iterations_default: "Most tasks use 90, 150+ for long exploration"
+    tool_progress: "Tool progress display"
+    tool_progress_hint: "Control how much tool activity to show"
+    tool_progress_modes:
+      off: "off - silent, show final response only"
+      new: "new - show name only when tool changes"
+      all: "all - show every tool call with short preview (default)"
+      verbose: "verbose - full arguments, results, and debug logs"
+    select_mode: "Tool progress mode:"
+
+  # Session Reset
+  session_reset:
+    title: "🔄 Session Reset Policy"
+    select_mode: "Please select session reset mode:"
+    modes:
+      both: "Both (default) - daily reset or idle timeout, trigger first"
+      daily: "Daily reset - reset at specific time each day"
+      idle: "Idle timeout - reset after idle time"
+      none: "Never - no auto reset, use Context Compression"
+    daily_time: "Daily reset time (hour 0-23)"
+    idle_time: "Idle timeout (minutes)"
+    send_notification: "Send reset notification?"
+
+  # Memory
+  memory:
+    title: "🧠 Memory System"
+    enable: "Enable memory system?"
+    vector_store: "Vector Store"
+    select_features: "Select features to configure (space to toggle, enter to confirm):"
+    stores:
+      sqlite: "SQLite (default) - lightweight, good for local"
+      chroma: "Chroma - vector database, good for production"
+      qdrant: "Qdrant - cloud-native vector database"
+      milvus: "Milvus - large-scale vector search"
+    embedding_model: "Embedding Model"
+    max_entries: "Max memory entries"
+
+  # Context Compression
+  compression:
+    title: "🗜️ Context Compression"
+    enable: "Enable Context Compression?"
+    threshold: "Compression threshold (0.50-0.95)"
+    threshold_hint: "Context utilization percentage to trigger compression"
+    summary_model: "Summary model"
+
+  # STT
+  stt:
+    title: "🎤 Speech-to-Text"
+    enable: "Enable STT?"
+    select_provider: "Select STT Provider:"
+    providers:
+      local: "Local (faster-whisper) - no API key needed, runs locally"
+      groq: "Groq - free tier, fast"
+      openai: "OpenAI - Whisper API"
+    model: "STT Model"
+
+  # TTS
+  tts:
+    title: "🔊 Text-to-Speech"
+    select_provider: "Select TTS provider:"
+    providers:
+      edge: "Edge TTS (free, cloud-based, no setup needed)"
+      elevenlabs: "ElevenLabs (premium quality, needs API key)"
+      openai: "OpenAI TTS (good quality, needs API key)"
+      xai: "xAI TTS (Grok voices - needs API key)"
+      minimax: "MiniMax TTS (high quality with voice cloning, needs API key)"
+      mistral: "Mistral Voxtral TTS (multilingual, needs API key)"
+      gemini: "Google Gemini TTS (30 prebuilt voices, needs API key)"
+      neutts: "NeuTTS (local on-device, free, ~300MB model download)"
+      kittentts: "KittenTTS (local on-device, free, lightweight)"
+    keep_current: "Keep current ({provider})"
+    installing: "Installing dependencies..."
+    first_use_download: "Model will be downloaded on first use (~300MB)"
+    voice: "Select TTS Voice:"
+    voices:
+      alloy: "Alloy - neutral"
+      echo: "Echo - male voice"
+      fable: "Fable - British"
+      onyx: "Onyx - male voice"
+      nova: "Nova - female voice"
+      shimmer: "Shimmer - female voice"
+    model: "TTS Model"
+    provider_set: "TTS provider set to: {provider}"
+
+  # Browser
+  browser:
+    title: "🌐 Browser Automation"
+    enable: "Enable Browser tool?"
+    residential_proxy: "Enable Residential Proxies?"
+    stealth_mode: "Enable advanced stealth mode? (requires Scale Plan)"
+    session_timeout: "Session timeout (seconds)"
+    inactivity_timeout: "Inactivity timeout (seconds)"
+
+  # Debug Tools
+  debug:
+    title: "🐛 Debug Configuration"
+    web_tools: "Enable Web Tools Debug?"
+    vision_tools: "Enable Vision Tools Debug?"
+    moa_tools: "Enable MOA Tools Debug?"
+    image_tools: "Enable Image Tools Debug?"
+
+  # Skills Hub
+  skills_hub:
+    title: "🛠️ Skills Hub Configuration"
+    token_configured: "GitHub Token configured"
+    token_hint: "Token ending: ...{suffix}"
+    keep_token: "Keep existing GitHub Token?"
+    description: "Skills Hub allows installing and updating skills from GitHub"
+    requires_token: "Requires GitHub Personal Access Token"
+    get_token: "Get token at: https://github.com/settings/tokens"
+    token_permissions: "Token requires:"
+    permission_repo: "repo (full repository access) - for private skills"
+    permission_read_user: "read:user - read user info"
+    github_token: "GitHub Personal Access Token"
+    skipped: "Skipped Skills Hub configuration"
+
+  # Preferences
+  preferences:
+    explanation_depth:
+      title: "📝 Response Detail Level"
+      prompt: "Please select response detail level:"
+      options:
+        brief: "Brief - return key points only"
+        moderate: "Moderate - balanced detail"
+        detailed: "Detailed - complete explanation"
+    caching:
+      title: "⚡ Response Caching"
+      enable: "Enable response caching?"
+    intent:
+      title: "🎯 Intent Recognition Mode"
+      prompt: "Please select intent recognition mode:"
+      options:
+        llm: "LLM mode - use AI to understand intent, smart but needs API"
+        hybrid: "Hybrid mode - keyword first, use AI for low confidence"
+        keyword: "Keyword mode - keyword matching only, no API needed"
+
+  # Vision
+  vision:
+    title: "👁️ Vision & Image Analysis"
+    already_supported: "{provider} already supports vision, no additional config needed"
+    prompt: "Configure vision:"
+    options:
+      openrouter: "OpenRouter - uses Gemini (free tier)"
+      openai_compatible: "OpenAI-compatible endpoint"
+      skip: "Skip for now"
+    openrouter_key: "OpenRouter API key"
+    base_url: "Base URL"
+    api_key: "API key"
+    vision_model: "Vision model name"
+
+  # Gateway / Messaging Platforms
+  gateway:
+    title: "📱 Messaging Platforms"
+    description: "Connect your agent to messaging platforms"
+    guide: "Guide: {url}"
+    configured: "Currently configured: {platforms}"
+    select_platform: "Select platform:"
+
+  # Tools Configuration
+  tools:
+    title: "🛠️ Tools Configuration"
+    web_search:
+      prompt: "Configure Web search tool?"
+      select_provider: "Select Web search provider:"
+      providers:
+        exa: "Exa - AI-powered web search"
+        tavily: "Tavily - Search API for AI"
+        firecrawl: "Firecrawl - Extract content from websites"
+        searxng: "SearXNG - Self-hosted meta search engine"
+    browser_automation:
+      prompt: "Configure Browser tool?"
+      select_provider: "Select Browser provider:"
+      providers:
+        browserbase: "Browserbase - Cloud browser infrastructure"
+        camofox: "Camofox - Self-hosted browser"
+        local: "Local browser (requires npm install -g agent-browser)"
+    image_generation:
+      prompt: "Configure Image Generation?"
+      select_provider: "Select Image Generation provider:"
+      providers:
+        fal: "Fal - High-quality image generation"
+        openai: "OpenAI DALL-E - Via existing OpenAI API key"
+
+  # Summary
+  summary:
+    title: "📋 Configuration Summary"
+    configured: "Configured"
+    not_configured: "Not configured"
+    provider: "Provider: {provider}"
+    model: "Model: {model}"
+    backend: "Backend: {backend}"
+    memory: "Memory: {status}"
+    vector_store: "Vector Store: {store}"
+
+  # Quick Config
+  quick_config:
+    title: "🚀 Quick Configuration Wizard"
+    description: "Configure important options one by one"
+    remaining: "{count} options remaining"
+    continue_prompt: "Continue configuring next option?"
+    all_complete: "All important options configured!"
+
+  # Full Config
+  full_config:
+    title: "🔄 Full Configuration"
+    step: "Step {current}/{total}: {title}"
+    save_prompt: "Save current configuration?"
+    complete: "✅ Configuration complete!"
+
+# =============================================================================
+# CLI General Messages
+# =============================================================================
+
+cli:
+  welcome: "Welcome to Handsome Agent"
+  goodbye: "Goodbye!"
+  running: "Running..."
+  error: "Error: {message}"
+  warning: "Warning: {message}"
+  info: "Info: {message}"
+  success: "Success: {message}"
+
+# =============================================================================
+# Interactive Select
+# =============================================================================
+
+interactive:
+  select: "Please select:"
+  selected: "Selected: {option}"
+
+# =============================================================================
+# Banner Messages
+# =============================================================================
+
+banner:
+  setup_title: "◆ Handsome Agent Setup ◆"
+  setup_subtitle: "Your AI assistant for everything"
+  config_status: "Configuration Status"
+  run_commands: "Run commands:"
+
+# =============================================================================
+# Provider Display Names
+# =============================================================================
+
+providers:
+  openai: "OpenAI"
+  anthropic: "Anthropic Claude"
+  google: "Google Gemini"
+  deepseek: "DeepSeek"
+  minimax: "MiniMax"
+  moonshot: "Kimi (Moonshot)"
+  zhipu: "Zhipu AI"
+  dashscope: "Alibaba Tongyi Qianwen"
+  groq: "Groq"
+  siliconflow: "SiliconFlow"
+  openrouter: "OpenRouter"
+  custom: "Custom API"
+
+# =============================================================================
+# Utility
+# =============================================================================
+
+utils:
+  yes: "Yes"
+  no: "No"
+  ok: "OK"
+  cancel: "Cancel"
+  done: "Done"
+  skip: "Skip"
+  back: "Back"
+  continue: "Continue"
+  exit: "Exit"
+  quit: "Quit"
+
+# =============================================================================
+# Menu Navigation
+# =============================================================================
+
+menu:
+  # Submenu titles
+  quick_start:
+    title: "🚀 Quick Start"
+    hint: "Quick config or reset all settings"
+  ai:
+    title: "🤖 AI Settings"
+    hint: "LLM, Vision, Parameters, Intent"
+  communication:
+    title: "📱 Communication & Voice"
+    hint: "Messaging, TTS, STT"
+  system:
+    title: "⚙️ System Settings"
+    hint: "Agent, Terminal, Memory, Language"
+  tools:
+    title: "🛠️ Tools & Extensions"
+    hint: "Tools, Browser, Debug, Skills"
+  preferences:
+    title: "💡 System Preferences"
+    hint: "Response detail, Caching"
+  auxiliary:
+    title: "🔧 Auxiliary Functions"
+    hint: "View current configuration"
+
+  # Leaf node labels and hints (with emoji)
+  quick:
+    label: "🚀 Quick Setup Wizard"
+    hint: "Use recommended settings, quick setup"
+  reset_all:
+    label: "🔄 Reset All Configuration"
+    hint: "Clear config, start fresh"
+  llm:
+    label: "🤖 LLM Provider"
+    hint: "Select AI provider and model"
+  vision:
+    label: "👁️ Vision & Image Analysis"
+    hint: "Image understanding configuration"
+  model:
+    label: "🔧 Model Parameters"
+    hint: "max_tokens, temperature, etc."
+  intent:
+    label: "🎯 Intent Recognition Mode"
+    hint: "How to understand user intent"
+  gateway:
+    label: "📱 Messaging Platforms"
+    hint: "Telegram, Slack, etc."
+  tts:
+    label: "🔊 Text-to-Speech"
+    hint: "TTS voice synthesis"
+  stt:
+    label: "🎤 Speech-to-Text"
+    hint: "Voice recognition input"
+  agent:
+    label: "⚙️ Agent Settings"
+    hint: "Iterations, tool progress, etc."
+  terminal:
+    label: "💻 Terminal Backend"
+    hint: "Command execution environment"
+  memory:
+    label: "🧠 Memory System"
+    hint: "Vector database configuration"
+  language:
+    label: "🌐 Language Settings"
+    hint: "UI display language"
+  tools_config:
+    label: "🛠️ Tools Configuration"
+    hint: "Web search, browser, etc."
+  browser:
+    label: "🌐 Browser Automation"
+    hint: "Headless browser control"
+  debug:
+    label: "🐛 Debug Configuration"
+    hint: "Debug tools toggle"
+  skills_hub:
+    label: "🛠️ Skills Hub"
+    hint: "GitHub skills marketplace"
+  depth:
+    label: "📝 Response Detail Level"
+    hint: "AI response detail level"
+  caching:
+    label: "⚡ Response Caching"
+    hint: "Enable response caching"
+  view:
+    label: "📋 View Current Configuration"
+    hint: "Show all configuration items"
+  root:
+    title: "Main Menu"
+
+  # Common menu actions
+  back:
+    label: "↩ Back"
+  exit:
+    label: "❌ Exit Setup"
+  select:
+    prompt: "Please select:"

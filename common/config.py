@@ -29,6 +29,23 @@ def get_default_handsome_home() -> Path:
 HANDSOME_HOME = Path(os.environ.get("HANDSOME_HOME", get_default_handsome_home()))
 
 
+# =============================================================================
+# Provider 默认 Base URL
+# =============================================================================
+
+# Provider 默认 Base URL（可通过环境变量覆盖）
+DEFAULT_LLM_BASE_URLS = {
+    "minimax": "https://minimax-m2.com/api/v1",
+    "openai": "https://api.openai.com/v1",
+    "deepseek": "https://api.deepseek.com/chat",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "siliconflow": "https://api.siliconflow.cn/v1",
+    "dashscope": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "zhipu": "https://open.bigmodel.cn/api/paas/v4",
+}
+
+
 @dataclass
 class LLMProviderConfig:
     """LLM Provider 配置"""

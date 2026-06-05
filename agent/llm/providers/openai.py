@@ -3,12 +3,14 @@ OpenAI Provider 实现
 🧠 Decision - 🤖 LLM - OpenAI GPT 系列模型支持
 """
 
+import os
 import httpx
 import json
 import time
 from typing import Optional, List, Dict, Any, AsyncIterator
 from .base import BaseProvider, ProviderConfig, ProviderResponse, StreamChunk, Message
 from common.logging_manager import get_llm_logger
+from common.config import DEFAULT_LLM_BASE_URLS
 
 
 class OpenAIProvider(BaseProvider):
@@ -29,7 +31,12 @@ class OpenAIProvider(BaseProvider):
 
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
-        self.base_url = config.base_url or "https://api.openai.com/v1"
+        # 优先级: 配置 > 环境变量 > Provider默认URL
+        self.base_url = (
+            config.base_url
+            or os.getenv("OPENAI_BASE_URL")
+            or DEFAULT_LLM_BASE_URLS.get("openai")
+        )
         self.api_key = config.api_key
         self._client: Optional[httpx.AsyncClient] = None
         self.logger = get_llm_logger(self.__class__.__name__)
