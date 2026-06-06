@@ -84,7 +84,7 @@ class GeminiProvider(BaseProvider):
         """生成文本响应"""
         start_time = time.time()
 
-        self.logger.info(f"Gemini request started - model: {self.config.model}")
+        self._log_request_started()
 
         body = self._convert_to_gemini_format(prompt, messages, system_prompt)
 
@@ -96,6 +96,17 @@ class GeminiProvider(BaseProvider):
             "maxOutputTokens": kwargs.get("max_tokens", self.config.max_tokens),
             "topP": kwargs.get("top_p", self.config.top_p),
         }
+
+        # 记录输入内容（DEBUG级别）
+        if self.logger:
+            contents = body.get("contents", [])
+            self.logger.debug(f"{self.provider_display_name} Input Messages ({len(contents)} messages):")
+            for i, msg in enumerate(contents):
+                role = msg.get("role", "unknown")
+                parts = msg.get("parts", [])
+                content = parts[0].get("text", "") if parts else ""
+                preview = content[:30] + "..." if len(content) > 30 else content
+                self.logger.debug(f"  [{i}] {role}: {preview}")
 
         try:
             client = await self._get_client()
@@ -112,7 +123,7 @@ class GeminiProvider(BaseProvider):
             content = data["candidates"][0]["content"]["parts"][0]["text"]
             usage = data.get("usageMetadata", {})
 
-            self.logger.info(f"Gemini request completed - latency: {latency_ms:.2f}ms")
+            self._log_request_completed(latency_ms)
 
             return ProviderResponse(
                 content=content,
@@ -140,7 +151,7 @@ class GeminiProvider(BaseProvider):
         """生成流式响应"""
         start_time = time.time()
 
-        self.logger.info(f"Gemini streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         body = self._convert_to_gemini_format(prompt, messages, system_prompt)
 
@@ -152,6 +163,17 @@ class GeminiProvider(BaseProvider):
             "maxOutputTokens": kwargs.get("max_tokens", self.config.max_tokens),
             "topP": kwargs.get("top_p", self.config.top_p),
         }
+
+        # 记录输入内容（DEBUG级别）
+        if self.logger:
+            contents = body.get("contents", [])
+            self.logger.debug(f"{self.provider_display_name} Input Messages ({len(contents)} messages):")
+            for i, msg in enumerate(contents):
+                role = msg.get("role", "unknown")
+                parts = msg.get("parts", [])
+                content = parts[0].get("text", "") if parts else ""
+                preview = content[:30] + "..." if len(content) > 30 else content
+                self.logger.debug(f"  [{i}] {role}: {preview}")
 
         try:
             client = await self._get_client()
@@ -179,7 +201,7 @@ class GeminiProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                self.logger.info(f"Gemini streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_request_completed(latency_ms)
                 yield StreamChunk(finish=True)
 
         except Exception as e:

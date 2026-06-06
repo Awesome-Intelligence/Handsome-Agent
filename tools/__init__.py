@@ -38,6 +38,7 @@ from .definitions.code_tools import CODE_TOOLS
 from .definitions.browser_tools import BROWSER_TOOLS
 from .definitions.multimedia_tools import MULTIMEDIA_TOOLS
 from .definitions.task_tools import TASK_TOOLS
+from .definitions.app_tools import APP_TOOLS
 
 
 def get_all_tools():
@@ -64,6 +65,9 @@ def get_all_tools():
 
     for tool in TASK_TOOLS:
         all_tools[tool.name] = tool.model_dump()
+
+    for tool in APP_TOOLS:
+        all_tools[tool['name']] = tool
 
     return all_tools
 
@@ -101,6 +105,7 @@ __all__ = [
     "BROWSER_TOOLS",
     "MULTIMEDIA_TOOLS",
     "TASK_TOOLS",
+    "APP_TOOLS",
     # 工具获取函数
     "get_all_tools",
     "get_tool_by_name",

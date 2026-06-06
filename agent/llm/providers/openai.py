@@ -70,11 +70,13 @@ class OpenAIProvider(BaseProvider):
         """生成文本响应"""
         start_time = time.time()
 
-        self.logger.info(f"OpenAI request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
+
+        self._log_input_messages(msg_list)
 
         request_body = {
             "model": self.config.model,
@@ -101,7 +103,7 @@ class OpenAIProvider(BaseProvider):
             output_content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
 
-            self.logger.info(f"OpenAI request completed - latency: {latency_ms:.2f}ms")
+            self._log_request_completed(latency_ms)
 
             return ProviderResponse(
                 content=output_content,
@@ -125,11 +127,13 @@ class OpenAIProvider(BaseProvider):
         """生成流式响应"""
         start_time = time.time()
 
-        self.logger.info(f"OpenAI streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
+
+        self._log_input_messages(msg_list)
 
         request_body = {
             "model": self.config.model,
@@ -168,7 +172,7 @@ class OpenAIProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                self.logger.info(f"OpenAI streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_request_completed(latency_ms)
 
         except Exception as e:
             self.logger.error(f"OpenAI streaming failed - {e}")

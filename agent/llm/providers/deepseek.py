@@ -70,19 +70,13 @@ class DeepSeekProvider(BaseProvider):
         """生成文本响应"""
         start_time = time.time()
 
-        self.logger.debug(f"DeepSeek request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
 
-        # INFO: 记录输入消息
-        self.logger.info(f"LLM Input Messages ({len(msg_list)} messages):")
-        for i, msg in enumerate(msg_list):
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            preview = self._format_message_for_log(role, content)
-            self.logger.info(f"  [{i}] {role}: {preview}")
+        self._log_input_messages(msg_list)
 
         request_body = {
             "model": self.config.model,
@@ -106,17 +100,12 @@ class DeepSeekProvider(BaseProvider):
             content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
 
-            # INFO: 记录输出内容
-            output_preview = content[:500] + "..." if len(content) > 500 else content
-            # LLM 输出使用灰绿（与雾霾色调协调）
-            output_color = "\033[38;5;108m"
-            RESET = "\033[0m"
-            self.logger.info(f"LLM Output Content (preview): {output_color}{output_preview}{RESET}")
+            self._log_output_content(content)
             self.logger.debug(f"LLM Usage - prompt_tokens: {usage.get('prompt_tokens', 0)}, "
                               f"completion_tokens: {usage.get('completion_tokens', 0)}, "
                               f"total_tokens: {usage.get('total_tokens', 0)}")
 
-            self.logger.debug(f"DeepSeek request completed - latency: {latency_ms:.2f}ms")
+            self._log_request_completed(latency_ms)
 
             return ProviderResponse(
                 content=content,
@@ -140,7 +129,7 @@ class DeepSeekProvider(BaseProvider):
         """生成流式响应"""
         start_time = time.time()
 
-        self.logger.info(f"DeepSeek streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
@@ -161,8 +150,7 @@ class DeepSeekProvider(BaseProvider):
                     error_text = await response.aread()
                     raise Exception(f"DeepSeek API error: {response.status_code}")
 
-                # DEBUG: 记录流式输出开始
-                self.logger.debug(f"LLM Streaming Output started")
+                self._log_streaming_started()
 
                 accumulated_content = ""
                 async for line in response.aiter_lines():
@@ -186,10 +174,8 @@ class DeepSeekProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                # DEBUG: 记录流式输出完成
-                output_preview = accumulated_content[:500] + "..." if len(accumulated_content) > 500 else accumulated_content
-                self.logger.debug(f"LLM Streaming Output (preview): {output_preview}")
-                self.logger.info(f"DeepSeek streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_streaming_output(accumulated_content)
+                self._log_request_completed(latency_ms)
 
         except Exception as e:
             self.logger.error(f"DeepSeek streaming failed - {e}")

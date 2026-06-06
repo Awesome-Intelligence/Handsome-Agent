@@ -50,6 +50,8 @@ class GroqProvider(BaseProvider):
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
 
+        self._log_input_messages(msg_list)
+
         request_body = {
             "model": self.config.model or self.default_model,
             "messages": msg_list,
@@ -111,7 +113,7 @@ class GroqProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                self.logger.info(f"Groq streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_request_completed(latency_ms)
 
         except Exception as e:
             self.logger.error(f"Groq streaming failed - {e}")

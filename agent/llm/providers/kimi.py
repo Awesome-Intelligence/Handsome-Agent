@@ -63,11 +63,13 @@ class KimiProvider(BaseProvider):
         """生成文本响应"""
         start_time = time.time()
 
-        self.logger.info(f"Kimi request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
+
+        self._log_input_messages(msg_list)
 
         request_body = {
             "model": self.config.model,
@@ -91,7 +93,7 @@ class KimiProvider(BaseProvider):
             content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
 
-            self.logger.info(f"Kimi request completed - latency: {latency_ms:.2f}ms")
+            self._log_request_completed(latency_ms)
 
             return ProviderResponse(
                 content=content,
@@ -115,11 +117,13 @@ class KimiProvider(BaseProvider):
         """生成流式响应"""
         start_time = time.time()
 
-        self.logger.info(f"Kimi streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
+
+        self._log_input_messages(msg_list)
 
         request_body = {
             "model": self.config.model,

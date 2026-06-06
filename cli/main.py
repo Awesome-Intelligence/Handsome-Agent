@@ -191,7 +191,6 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
     ui.print_status_bar()
 
     print()
-    ui.print_header("交互模式", "Type '/help' for commands, 'quit' to exit.")
 
     # 显示压缩命令帮助
     if compression_integration:

@@ -17,6 +17,7 @@
 import json
 import logging
 import os
+import re
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -406,8 +407,11 @@ class LLMToolSelector:
 
             # 调用 LLM
             self.logger.info("LLM Tool Selector: Requesting tool selection")
+            # 添加决策格式说明（明确：需要工具时 action 为 use_tool）
+            decision_instruction = '\n\n重要：请以 JSON 格式返回你的决策：\n- 如果需要使用工具：{"action": "use_tool", "tool": "工具名", "parameters": {...}}\n- 如果不需要工具：{"action": "direct_response", "reasoning": "原因"}'
+            user_input_formatted = user_input + decision_instruction
             response = await self.llm_provider.generate(
-                user_input,
+                user_input_formatted,
                 system_prompt=system_prompt
             )
 
@@ -418,16 +422,68 @@ class LLMToolSelector:
                     content = response.content
                 else:
                     content = str(response)
-                result = json.loads(content.strip())
                 
-                # 兼容两种格式："selected_tool" 或 "tool"
+                # 先尝试提取 JSON（处理模型返回的思维链标签）
+                content_str = content.strip()
+                # 匹配完整的 JSON 对象（支持嵌套），找第一个 { 到最后一个 } 之间的内容
+                json_pattern = r'\{[\s\S]*"action"[\s\S]*\}'
+                json_match = re.search(json_pattern, content_str)
+                if json_match:
+                    # 找到了包含 action 的 JSON，尝试解析
+                    result = json.loads(json_match.group(0))
+                else:
+                    # 没有找到标准 JSON，尝试提取任何 JSON 对象
+                    json_pattern_any = r'\{[\s\S]*\}'
+                    json_match_any = re.search(json_pattern_any, content_str)
+                    if json_match_any:
+                        try:
+                            result = json.loads(json_match_any.group(0))
+                        except json.JSONDecodeError:
+                            # JSON 解析失败，跳过工具调用
+                            result = {}
+                    else:
+                        result = {}
+                
+                # 解析结果
+                action = result.get('action')
                 selected_tool = result.get('selected_tool') or result.get('tool')
+                parameters = result.get('parameters', {})
+                reasoning = result.get('reasoning', '')
+                
+                # 处理意外格式（如 {"decision": "allow", ...} 或 {"action": "finish", ...}）
+                if not action:
+                    # 没有 action 字段，检查是否有其他线索
+                    if selected_tool:
+                        action = "use_tool"
+                    elif '_response' in result or 'response' in result:
+                        # LLM 返回了回复内容但没有 action，说明不需要工具
+                        action = "direct_response"
+                        reasoning = result.get('reasoning') or result.get('reason', '')
+                    else:
+                        action = "direct_response"
+                
+                # 处理 "finish" 等非标准 action
+                if action in ("finish", "end", "stop", "done", "allow", "none"):
+                    action = "direct_response"
+                
+                # 如果 action 是 direct_response 且没有有效的 tool，使用关键词回退
+                if action == "direct_response" and (not selected_tool or selected_tool not in self.tools):
+                    self.logger.debug(f"LLM returned direct_response or unknown tool, using keyword fallback")
+                    fallback_result = self._keyword_fallback(user_input)
+                    return fallback_result
+                
+                # 验证工具是否存在
+                if selected_tool and selected_tool not in self.tools:
+                    self.logger.warning(f"LLM returned unknown tool: {selected_tool}, falling back to keyword matching")
+                    # 尝试用关键词回退
+                    fallback_result = self._keyword_fallback(user_input)
+                    return fallback_result
                 
                 return ToolSelectionResult(
                     selected_tool=selected_tool,
-                    action=result.get('action', 'direct_response'),
-                    reasoning=result.get('reasoning', ''),
-                    parameters=result.get('parameters', {}),
+                    action=action,
+                    reasoning=reasoning,
+                    parameters=parameters,
                     confidence=result.get('confidence', 0.5)
                 )
             except json.JSONDecodeError:
@@ -435,37 +491,44 @@ class LLMToolSelector:
                 content_str = content.strip() if isinstance(content, str) else str(content)
                 
                 # 🏃 Execution - 🛠️ ToolExec - 检测 XML 工具调用标签格式
-                import re
                 tool_call_pattern = r'<(\w+)>([^<]*)</\1>'
                 tool_matches = re.findall(tool_call_pattern, content_str)
                 
                 if tool_matches:
-                    # 检测到工具调用标签，解析第一个匹配的工具
-                    tool_name = tool_matches[0][0]
-                    # 参数解析（简单处理：如果有 command= 则提取）
-                    params = {}
-                    params_match = re.search(r'<parameters>(.*?)</parameters>', content_str, re.DOTALL)
-                    if params_match:
-                        try:
-                            params = json.loads(params_match.group(1))
-                        except:
-                            pass
-                    else:
-                        # 尝试从工具标签内容中提取参数
-                        tool_content = tool_matches[0][1].strip()
-                        if tool_name == 'execute_terminal':
-                            cmd_match = re.search(r'<command>(.*?)</command>', tool_content, re.DOTALL)
-                            if cmd_match:
-                                params['command'] = cmd_match.group(1).strip()
+                    # 过滤掉思维链标签（think, thought, reasoning 等）
+                    thinking_tags = {"think", "thought", "reasoning", "analysis", "internal_thought", "reflection"}
+                    valid_tool_matches = [(name, content) for name, content in tool_matches if name.lower() not in thinking_tags]
                     
-                    self.logger.info(f"Detected tool call XML tag: {tool_name}, params: {params}")
-                    return ToolSelectionResult(
-                        selected_tool=tool_name,
-                        action="use_tool",
-                        reasoning=f"Detected tool call from XML tag: {tool_name}",
-                        parameters=params,
-                        confidence=0.9
-                    )
+                    if not valid_tool_matches:
+                        self.logger.debug(f"Detected only thinking tags, skipping tool call detection")
+                        # 继续检查是否是闲聊
+                    else:
+                        # 检测到工具调用标签，解析第一个匹配的工具
+                        tool_name = valid_tool_matches[0][0]
+                        # 参数解析（简单处理：如果有 command= 则提取）
+                        params = {}
+                        params_match = re.search(r'<parameters>(.*?)</parameters>', content_str, re.DOTALL)
+                        if params_match:
+                            try:
+                                params = json.loads(params_match.group(1))
+                            except:
+                                pass
+                        else:
+                            # 尝试从工具标签内容中提取参数
+                            tool_content = valid_tool_matches[0][1].strip()
+                            if tool_name == 'execute_terminal':
+                                cmd_match = re.search(r'<command>(.*?)</command>', tool_content, re.DOTALL)
+                                if cmd_match:
+                                    params['command'] = cmd_match.group(1).strip()
+                        
+                        self.logger.info(f"Detected tool call XML tag: {tool_name}, params: {params}")
+                        return ToolSelectionResult(
+                            selected_tool=tool_name,
+                            action="use_tool",
+                            reasoning=f"Detected tool call from XML tag: {tool_name}",
+                            parameters=params,
+                            confidence=0.9
+                        )
                 
                 # 如果回复看起来像对话（短、以标点/表情开头、包含问候语等），视为闲聊
                 is_conversation = (
@@ -784,6 +847,14 @@ class LLMDrivenDecisionEngine:
                 'type': 'clarification_needed',
                 'selection': selection,
                 'requires_llm_response': True  # 需要 LLM 询问
+            }
+
+        elif selection.action in ("finish", "end", "stop", "done"):
+            # LLM 返回结束动作，应该视为 direct_response
+            return {
+                'type': 'direct_response',
+                'selection': selection,
+                'requires_llm_response': True
             }
 
         else:

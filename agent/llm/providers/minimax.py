@@ -68,9 +68,16 @@ class MiniMaxProvider(BaseProvider):
         **kwargs
     ) -> ProviderResponse:
         """生成文本响应"""
+        # 检查 API Key 是否配置
+        if not self.api_key:
+            raise Exception(
+                "MiniMax API Key 未配置。请设置环境变量 MINIMAX_API_KEY 或在配置中指定。\n"
+                "获取方式: https://platform.minimaxi.com/"
+            )
+
         start_time = time.time()
 
-        self.logger.info(f"MiniMax request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
@@ -85,10 +92,17 @@ class MiniMaxProvider(BaseProvider):
 
         try:
             client = await self._get_client()
+            self._log_request_body(request_body)
+            self._log_input_messages(msg_list)
             response = await client.post("/chat/completions", json=request_body)
 
             if response.status_code != 200:
                 self.logger.error(f"MiniMax API error - status: {response.status_code}")
+                if response.status_code == 401:
+                    raise Exception(
+                        "MiniMax API Key 无效或已过期。请检查环境变量 MINIMAX_API_KEY 是否正确。\n"
+                        "获取方式: https://platform.minimaxi.com/"
+                    )
                 raise Exception(f"MiniMax API error: {response.status_code}")
 
             data = response.json()
@@ -97,7 +111,7 @@ class MiniMaxProvider(BaseProvider):
             output_content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
 
-            self.logger.info(f"MiniMax request completed - latency: {latency_ms:.2f}ms")
+            self._log_request_completed(latency_ms)
 
             return ProviderResponse(
                 content=output_content,
@@ -119,8 +133,16 @@ class MiniMaxProvider(BaseProvider):
         **kwargs
     ) -> AsyncIterator[StreamChunk]:
         """生成流式响应"""
+        # 检查 API Key 是否配置
+        if not self.api_key:
+            yield StreamChunk(
+                content="MiniMax API Key 未配置。请设置环境变量 MINIMAX_API_KEY 或在配置中指定。\n获取方式: https://platform.minimaxi.com/",
+                finish=True
+            )
+            return
+
         start_time = time.time()
-        self.logger.info(f"MiniMax streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
@@ -138,7 +160,12 @@ class MiniMaxProvider(BaseProvider):
             client = await self._get_client()
             async with client.stream("POST", "/chat/completions", json=request_body) as response:
                 if response.status_code != 200:
-                    error_text = await response.aread()
+                    if response.status_code == 401:
+                        yield StreamChunk(
+                            content="MiniMax API Key 无效或已过期。请检查环境变量 MINIMAX_API_KEY 是否正确。\n获取方式: https://platform.minimaxi.com/",
+                            finish=True
+                        )
+                        return
                     raise Exception(f"MiniMax API error: {response.status_code}")
 
                 accumulated_content = ""
@@ -163,7 +190,7 @@ class MiniMaxProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                self.logger.info(f"MiniMax streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_request_completed(latency_ms)
 
         except Exception as e:
             self.logger.error(f"MiniMax streaming failed - {e}")

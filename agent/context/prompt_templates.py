@@ -280,33 +280,75 @@ OPENAI_MODEL_EXECUTION_GUIDANCE = """## 🤖 执行纪律 (DeepSeek/GPT 模型)
 # 工具调用格式约束
 TOOL_CALL_FORMAT = """## 🔧 工具调用格式约束 ⚠️ 重要
 
-当需要使用工具时，你**必须**返回以下 JSON 格式：
+**你必须严格遵循以下 JSON 格式返回决策，不得偏离！**
 
-**正确格式 ✅：**
+### 需要使用工具时 ✅
 ```json
-{"action": "use_tool", "tool": "open_folder", "parameters": {"path": "C:\\"}}
+{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "calculator"}}
 ```
 
-**错误格式 ❌：**
+### 不需要工具时 ✅
+```json
+{"action": "direct_response", "reasoning": "原因说明"}
+```
+
+### 禁止的格式 ❌
 - XML 标签格式（如 `<execute_terminal>...</execute_terminal>`）
 - 自然语言描述（如 "我会打开文件夹"）
+- 其他 JSON 字段名（如 `decision`, `_response` 等）
+- 缺少 `action` 字段
 
-**JSON 格式说明**：
-- `action`: 固定值 "use_tool"
-- `tool`: 工具的确切名称（必须匹配 schema 中的名称）
-- `parameters`: 包含该工具所需参数的对象
+### 格式字段说明
+| 字段 | 必须 | 说明 |
+|------|------|------|
+| `action` | ✅ | "use_tool" 或 "direct_response" |
+| `tool` | 当 action=use_tool 时 | 工具的确切名称（见 Available Tools） |
+| `parameters` | 当 action=use_tool 时 | 该工具的参数对象 |
+| `reasoning` | 当 action=direct_response 时 | 为什么不使用工具 |
 
-**错误示例**：
+### 工具名称参考（严格匹配）
+- 启动应用：`launch_app`（参数：`app_name`）
+- 打开文件夹：`open_folder`（参数：`path`）
+- 执行命令：`shell_execute`（参数：`command`）
+
+### 错误示例（不要这样做）
 ```json
-{"tool": "explorer", "command": "open C:\\"}  // 错误：工具名不对
-{"action": "use", "name": "open_folder"}     // 错误：字段名不对
+{"decision": "allow", "reasoning": "..."}              // ❌ 错误：字段名不对
+{"action": "open_app", "parameters": {...}}           // ❌ 错误：action 不是 use_tool
+{"response": "好的，我来打开计算器"}                  // ❌ 错误：没有 action 字段
 ```
+
+### 正确示例
+- 打开计算器：`{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "calculator"}}`
+- 打开记事本：`{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "notepad"}}`
+- 问候用户：`{"action": "direct_response", "reasoning": "用户问候，直接回复"}`
 """
 
 # 工具使用示例
 TOOL_EXAMPLES = """## 📚 工具使用示例
 
 以下是常用工具的正确调用方式，帮助你理解如何正确使用工具：
+
+### 打开应用（计算器、记事本、浏览器等）
+**场景**: 用户说"打开计算器"、"打开记事本"、"打开浏览器"、"启动 Chrome"
+
+**重要**: `launch_app` 是专门用于启动 GUI 应用程序的工具，不是终端命令！
+
+```json
+{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "calculator"}}
+{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "notepad"}}
+{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "chrome"}}
+{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "edge"}}
+{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "explorer"}}
+{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "cmd"}}
+```
+
+**支持的应用名称**：
+- 计算器/记事本/浏览器：calculator, notepad, chrome, edge, firefox, explorer, cmd, powershell
+- 办公软件：word, excel, powerpoint
+- 系统工具：taskmgr, control, paint
+
+**注意**：如果用户说"打开文件夹"而不是"打开应用"，应该用 `open_folder` 而不是 `launch_app`！
 
 ### 打开文件夹
 **场景**: 用户说"打开C盘"、"打开桌面文件夹"、"打开 D:\\Project"

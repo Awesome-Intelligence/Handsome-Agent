@@ -86,6 +86,8 @@ class ClaudeProvider(BaseProvider):
 
         msg_list.append({"role": "user", "content": prompt})
 
+        self._log_input_messages(msg_list)
+
         request_body = {
             "model": self.config.model,
             "messages": msg_list,
@@ -110,7 +112,7 @@ class ClaudeProvider(BaseProvider):
             content = data["content"][0]["text"]
             usage = data.get("usage", {})
 
-            self.logger.info(f"Claude request completed - latency: {latency_ms:.2f}ms")
+            self._log_request_completed(latency_ms)
 
             return ProviderResponse(
                 content=content,
@@ -137,7 +139,7 @@ class ClaudeProvider(BaseProvider):
         """生成流式响应"""
         start_time = time.time()
 
-        self.logger.info(f"Claude streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         msg_list = []
         system = system_prompt or ""
@@ -198,7 +200,7 @@ class ClaudeProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                self.logger.info(f"Claude streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_request_completed(latency_ms)
 
         except Exception as e:
             self.logger.error(f"Claude streaming failed - {e}")

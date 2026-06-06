@@ -64,11 +64,13 @@ class AzureProvider(BaseProvider):
         """生成文本响应"""
         start_time = time.time()
 
-        self.logger.info(f"Azure request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
+
+        self._log_input_messages(msg_list)
 
         request_body = {
             "messages": msg_list,
@@ -116,11 +118,13 @@ class AzureProvider(BaseProvider):
         """生成流式响应"""
         start_time = time.time()
 
-        self.logger.info(f"Azure streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
+
+        self._log_input_messages(msg_list)
 
         request_body = {
             "messages": msg_list,
@@ -158,7 +162,7 @@ class AzureProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                self.logger.info(f"Azure streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_request_completed(latency_ms)
 
         except Exception as e:
             self.logger.error(f"Azure streaming failed - {e}")

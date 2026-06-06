@@ -51,6 +51,8 @@ class SiliconFlowProvider(BaseProvider):
         if system:
             msg_list.insert(0, {"role": "system", "content": system})
 
+        self._log_input_messages(msg_list)
+
         request_body = {
             "model": self.config.model or self.default_model,
             "messages": msg_list,
@@ -69,7 +71,7 @@ class SiliconFlowProvider(BaseProvider):
     ) -> AsyncIterator[StreamChunk]:
         """生成流式响应"""
         start_time = time.time()
-        self.logger.info(f"SiliconFlow streaming request started - model: {self.config.model}")
+        self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
         if system:
@@ -112,7 +114,7 @@ class SiliconFlowProvider(BaseProvider):
                             continue
 
                 latency_ms = (time.time() - start_time) * 1000
-                self.logger.info(f"SiliconFlow streaming completed - latency: {latency_ms:.2f}ms")
+                self._log_request_completed(latency_ms)
 
         except Exception as e:
             self.logger.error(f"SiliconFlow streaming failed - {e}")

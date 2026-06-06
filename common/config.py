@@ -35,7 +35,7 @@ HANDSOME_HOME = Path(os.environ.get("HANDSOME_HOME", get_default_handsome_home()
 
 # Provider 默认 Base URL（可通过环境变量覆盖）
 DEFAULT_LLM_BASE_URLS = {
-    "minimax": "https://minimax-m2.com/api/v1",
+    "minimax": "https://api.minimaxi.com/v1",
     "openai": "https://api.openai.com/v1",
     "deepseek": "https://api.deepseek.com/chat",
     "openrouter": "https://openrouter.ai/api/v1",

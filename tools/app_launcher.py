@@ -24,7 +24,9 @@ logger = get_execution_logger("AppLauncher")
 
 # 常见 Windows 应用程序（可被 launch_app 直接使用）
 COMMON_APPS = {
+    # 英文名
     "calculator": ["calc.exe"],
+    "calc": ["calc.exe"],
     "notepad": ["notepad.exe"],
     "cmd": ["cmd.exe"],
     "powershell": ["powershell.exe"],
@@ -38,6 +40,17 @@ COMMON_APPS = {
     "chrome": ["chrome.exe"],
     "edge": ["msedge.exe"],
     "firefox": ["firefox.exe"],
+    # 中文名
+    "计算器": ["calc.exe"],
+    "计算": ["calc.exe"],
+    "记事本": ["notepad.exe"],
+    "写字板": ["write.exe"],
+    "画图": ["mspaint.exe"],
+    "截图": ["snippingtool.exe"],
+    "任务管理器": ["taskmgr.exe"],
+    "控制面板": ["control.exe"],
+    "资源管理器": ["explorer.exe"],
+    "浏览器": ["chrome.exe", "msedge.exe"],
 }
 
 
