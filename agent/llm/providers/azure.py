@@ -94,7 +94,8 @@ class AzureProvider(BaseProvider):
             content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
 
-            self.logger.info(f"Azure request completed - latency: {latency_ms:.2f}ms")
+            self._log_output_content(content)
+            self._log_request_completed(latency_ms)
 
             return ProviderResponse(
                 content=content,

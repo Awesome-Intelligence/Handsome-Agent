@@ -48,6 +48,7 @@ class ProviderResponse(BaseModel):
     usage: Dict[str, Any] = Field(default_factory=dict)
     latency_ms: float = 0.0
     timestamp: datetime = Field(default_factory=datetime.now)
+    function_call: Optional[Dict[str, Any]] = Field(default=None, description="函数调用信息 (用于 function calling)")
 
     class Config:
         extra = "allow"
@@ -84,27 +85,23 @@ class BaseProvider(ABC):
         self.logger = None  # 子类初始化时设置
 
     def _log_request_started(self, model: str = None):
-        """记录请求开始（DEBUG级别）"""
+        """记录请求开始（INFO级别）"""
         if self.logger:
             model = model or self.config.model or "unknown"
-            self.logger.debug(f"{self.provider_display_name} request started - model: {model}")
+            self.logger.info(f"▶️ {self.provider_display_name} request started - model: {model}")
 
     def _log_request_completed(self, latency_ms: float):
-        """记录请求完成（DEBUG级别）"""
+        """记录请求完成（INFO级别）"""
         if self.logger:
-            self.logger.debug(f"{self.provider_display_name} request completed - latency: {latency_ms:.2f}ms")
+            self.logger.info(f"⏹️ {self.provider_display_name} request completed - latency: {latency_ms:.2f}ms")
 
     def _log_request_body(self, body: Dict[str, Any]):
-        """记录请求体（INFO级别）- 精简 messages 内容"""
+        """记录请求体（DEBUG级别）- 只保留前50和后50字符"""
         if self.logger:
-            # 精简 body 中的 messages
-            body_copy = body.copy()
-            if "messages" in body_copy:
-                messages = body_copy["messages"]
-                for msg in messages:
-                    if "content" in msg and len(msg["content"]) > 70:
-                        msg["content"] = msg["content"][:30] + " ... " + msg["content"][-30:]
-            self.logger.info(f"{self.provider_display_name} request body: {body_copy}")
+            body_str = str(body)
+            if len(body_str) > 120:
+                body_str = body_str[:50] + " ... " + body_str[-50:]
+            self.logger.debug(f"{self.provider_display_name} request body: {body_str}")
 
     def _log_input_messages(self, messages: List[Dict[str, Any]]):
         """记录输入消息（DEBUG级别）"""
@@ -114,13 +111,13 @@ class BaseProvider(ABC):
                 role = msg.get("role", "unknown")
                 content = msg.get("content", "")
                 preview = self._format_message_for_log(role, content)
-                self.logger.debug(f"  [{i}] {role}: {preview}")
+                self.logger.info(f"⬆️  [{i}] {role}: {preview}")
 
     def _log_output_content(self, content: str):
-        """记录输出内容（DEBUG级别）"""
+        """记录输出内容（INFO级别）"""
         if self.logger:
             preview = self._format_message_for_log("assistant", content)
-            self.logger.debug(f"{self.provider_display_name} Output Content: {preview}")
+            self.logger.info(f"⬇️ {self.provider_display_name} Output Content: {preview}")
 
     def _log_streaming_started(self):
         """记录流式输出开始（DEBUG级别）"""
@@ -132,6 +129,44 @@ class BaseProvider(ABC):
         if self.logger:
             preview = self._format_message_for_log("assistant", content)
             self.logger.debug(f"{self.provider_display_name} Streaming Output: {preview}")
+
+    def _validate_api_key(self):
+        """验证 API Key 是否配置（子类可覆盖）
+
+        Returns:
+            tuple: (is_valid, error_message)
+        """
+        if not self.config.api_key:
+            return False, f"{self.provider_display_name} API Key 未配置。请设置环境变量或在配置中指定。"
+        return True, None
+
+    def _get_request_body_extra(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """获取额外的请求体参数（子类可覆盖）
+
+        用于添加 tools 等 Provider 特定参数。
+        默认返回空字典，子类可覆盖添加参数。
+        """
+        return {}
+
+    def _should_handle_function_call(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """检查并处理 function_call/tool_calls（子类可覆盖）
+
+        默认返回 None 表示不处理 function_call。
+        子类（如 MiniMax）可覆盖此方法检查 tool_calls。
+
+        Returns:
+            function_call 字典或 None
+        """
+        return None
+
+    def _log_response_debug(self, message: Dict[str, Any], function_call: Optional[Dict[str, Any]] = None):
+        """记录响应调试日志（子类可覆盖）
+
+        在 output content 日志之后调用，用于记录调试信息。
+        """
+        if self.logger:
+            self.logger.debug(f"{self.provider_display_name} message keys: {list(message.keys())}")
+            self.logger.debug(f"{self.provider_display_name} function_call: {function_call}")
 
     @abstractmethod
     async def generate(
@@ -213,7 +248,7 @@ class BaseProvider(ABC):
         return int(chinese_chars * 2 + english_chars * 0.25)
     
     def _format_message_for_log(self, role: str, content: str) -> str:
-        """格式化消息用于日志输出（开头30字符+省略+结尾30字符）"""
+        """格式化消息用于日志输出（开头100字符+省略+结尾100字符）"""
         # ANSI 256 色代码（低调配色方案：雾霾色调 - 低饱和度灰彩）
         COLORS = {
             "system": "\033[38;5;146m",    # 灰紫 - 系统提示词（信息说明）
@@ -221,12 +256,12 @@ class BaseProvider(ABC):
             "assistant": "\033[38;5;109m", # 灰绿 - AI 回复（生成内容）
         }
         RESET = "\033[0m"
-        
+
         color = COLORS.get(role, "")
-        
-        if len(content) > 70:
-            preview = content[:30] + " ... " + content[-30:]
+
+        if len(content) > 200:
+            preview = content[:100] + " ... " + content[-100:]
         else:
             preview = content
-        
+
         return f"{color}{preview}{RESET}"

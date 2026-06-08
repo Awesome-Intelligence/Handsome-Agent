@@ -103,6 +103,7 @@ class OpenAIProvider(BaseProvider):
             output_content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
 
+            self._log_output_content(output_content)
             self._log_request_completed(latency_ms)
 
             return ProviderResponse(

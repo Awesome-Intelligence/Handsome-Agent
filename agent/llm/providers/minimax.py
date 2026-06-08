@@ -60,6 +60,32 @@ class MiniMaxProvider(BaseProvider):
             await self._client.aclose()
             self._client = None
 
+    def _validate_api_key(self):
+        """验证 API Key 是否配置"""
+        if not self.api_key:
+            return False, (
+                "MiniMax API Key 未配置。请设置环境变量 MINIMAX_API_KEY 或在配置中指定。\n"
+                "获取方式: https://platform.minimaxi.com/"
+            )
+        return True, None
+
+    def _get_request_body_extra(self, kwargs):
+        """获取额外的请求体参数"""
+        tools = kwargs.get("tools")
+        if tools:
+            return {"tools": tools}
+        return {}
+
+    def _should_handle_function_call(self, message):
+        """检查是否有 tool_calls 或 function_call"""
+        return message.get("tool_calls") or message.get("function_call")
+
+    def _log_response_debug(self, message, function_call=None):
+        """记录响应调试日志"""
+        if self.logger:
+            self.logger.debug(f"MiniMax message keys: {list(message.keys())}")
+            self.logger.debug(f"MiniMax function_call: {function_call}")
+
     async def generate(
         self,
         prompt: str,
@@ -68,15 +94,11 @@ class MiniMaxProvider(BaseProvider):
         **kwargs
     ) -> ProviderResponse:
         """生成文本响应"""
-        # 检查 API Key 是否配置
-        if not self.api_key:
-            raise Exception(
-                "MiniMax API Key 未配置。请设置环境变量 MINIMAX_API_KEY 或在配置中指定。\n"
-                "获取方式: https://platform.minimaxi.com/"
-            )
+        is_valid, error_msg = self._validate_api_key()
+        if not is_valid:
+            raise Exception(error_msg)
 
         start_time = time.time()
-
         self._log_request_started()
 
         system, msg_list = self._build_messages(prompt, messages, system_prompt)
@@ -89,6 +111,7 @@ class MiniMaxProvider(BaseProvider):
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
         }
+        request_body.update(self._get_request_body_extra(kwargs))
 
         try:
             client = await self._get_client()
@@ -108,9 +131,26 @@ class MiniMaxProvider(BaseProvider):
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
 
-            output_content = data["choices"][0]["message"]["content"]
-            usage = data.get("usage", {})
+            message = data["choices"][0]["message"]
+            output_content = message.get("content", "")
 
+            function_call = self._should_handle_function_call(message)
+            if function_call:
+                self._log_output_content(json.dumps(function_call))
+                self._log_response_debug(message, function_call)
+                self._log_request_completed(latency_ms)
+                return ProviderResponse(
+                    content=json.dumps(function_call),
+                    model=data.get("model", self.config.model or self.default_model),
+                    finish_reason=data["choices"][0].get("finish_reason", "stop"),
+                    usage=data.get("usage", {}),
+                    latency_ms=latency_ms,
+                    function_call=function_call[0] if isinstance(function_call, list) else function_call,
+                )
+
+            usage = data.get("usage", {})
+            self._log_output_content(output_content)
+            self._log_response_debug(message, function_call)
             self._log_request_completed(latency_ms)
 
             return ProviderResponse(
@@ -133,12 +173,9 @@ class MiniMaxProvider(BaseProvider):
         **kwargs
     ) -> AsyncIterator[StreamChunk]:
         """生成流式响应"""
-        # 检查 API Key 是否配置
-        if not self.api_key:
-            yield StreamChunk(
-                content="MiniMax API Key 未配置。请设置环境变量 MINIMAX_API_KEY 或在配置中指定。\n获取方式: https://platform.minimaxi.com/",
-                finish=True
-            )
+        is_valid, error_msg = self._validate_api_key()
+        if not is_valid:
+            yield StreamChunk(content=error_msg, finish=True)
             return
 
         start_time = time.time()

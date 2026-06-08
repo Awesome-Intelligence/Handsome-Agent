@@ -245,122 +245,80 @@ class LLMToolSelector:
 
     def _keyword_fallback(self, user_input: str) -> ToolSelectionResult:
         """
-        关键词回退（当没有 LLM 时使用）
+        基于工具描述的相似度匹配（当 LLM 返回非 JSON 格式时使用）
 
-        简单的关键词匹配，不做复杂分类
+        使用文本相似度而非硬编码关键词来匹配工具
         """
-        user_lower = user_input.lower()
+        if not self.tools:
+            return ToolSelectionResult(
+                selected_tool=None,
+                action="direct_response",
+                reasoning="No tools available",
+                parameters={},
+                confidence=0.0
+            )
 
-        # 关键词到工具的映射
-        keyword_tool_mapping = {
-            # 计算器相关 - 统一使用 launch_app
-            '计算': 'launch_app',
-            '算一下': 'launch_app',
-            'calculator': 'launch_app',
-            '打开计算器': 'launch_app',
-            # 记事本相关 - 统一使用 launch_app
-            '记事本': 'launch_app',
-            '打开记事本': 'launch_app',
-            'notepad': 'launch_app',
-            # CMD相关 - 统一使用 launch_app
-            'cmd': 'launch_app',
-            '命令提示符': 'launch_app',
-            '终端': 'launch_app',
-            '打开终端': 'launch_app',
-            # 文件夹相关 - 使用 open_folder（有特殊处理）
-            '文件夹': 'open_folder',
-            '打开文件夹': 'open_folder',
-            '打开目录': 'open_folder',
-            # 浏览器相关
-            '浏览器': 'launch_app',
-            '打开浏览器': 'launch_app',
-            # 文件操作相关（优先于通用"打开"）
-            '打开文件': 'open_file',
-            '读取文件': 'read_file',
-            '查看文件': 'read_file',
-            '看看文件': 'read_file',
-            '读文件': 'read_file',
-            'open file': 'open_file',
-            'read file': 'read_file',
-            # 打开/启动相关（catch-all，放在最后）
-            '打开': 'launch_app',
-            '启动': 'launch_app',
-            'open': 'launch_app',
-            'launch': 'launch_app',
-        }
+        best_tool = None
+        best_score = 0.0
 
-        # 搜索匹配的关键词
-        for keyword, tool_name in keyword_tool_mapping.items():
-            if keyword in user_lower:
-                if tool_name in self.tools:
-                    # 为 open_folder 特殊处理参数
-                    if tool_name == 'open_folder':
-                        path = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('文件夹', '').replace('目录', '').strip()
-                        return ToolSelectionResult(
-                            selected_tool=tool_name,
-                            action="use_tool",
-                            reasoning=f"Keyword '{keyword}' matched {tool_name}",
-                            parameters={'path': path if path else None},
-                            confidence=0.8
-                        )
-                    # 为 read_file / open_file 特殊处理参数
-                    if tool_name in ('read_file', 'open_file'):
-                        path = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('读取', '').replace('查看', '').replace('看看', '').replace('读', '').replace('文件', '').replace('open', '').replace('read', '').replace('file', '').strip()
-                        return ToolSelectionResult(
-                            selected_tool=tool_name,
-                            action="use_tool",
-                            reasoning=f"Keyword '{keyword}' matched {tool_name}",
-                            parameters={'path': path if path else None},
-                            confidence=0.8
-                        )
-                    else:
-                        # launch_app：提取应用名称
-                        # 先尝试从用户输入中提取（去掉"帮我打开"等前缀）
-                        app_name = user_lower
-                        for prefix in ['帮我', '请', '打开', '启动', 'launch', 'open', 'start']:
-                            app_name = app_name.replace(prefix, '')
-                        app_name = app_name.strip()
-                        # 如果提取的为空或太短，使用 keyword
-                        if not app_name or len(app_name) < 2:
-                            app_name = keyword
-                        return ToolSelectionResult(
-                            selected_tool=tool_name,
-                            action="use_tool",
-                            reasoning=f"Keyword '{keyword}' matched {tool_name}",
-                            parameters={'app_name': app_name},
-                            confidence=0.7
-                        )
+        # 计算用户输入与每个工具描述的相似度
+        for tool_name, tool in self.tools.items():
+            # 使用 Jaccard 相似度：用户输入 vs 工具描述
+            score = self._calculate_similarity(user_input, tool.description)
 
-        # 如果没有关键词匹配，但用户明确说要打开应用，尝试使用 launch_app
-        if any(word in user_lower for word in ['打开', '启动', 'open', 'launch', 'start']):
-            raw_name = user_lower.replace('帮我', '').replace('请', '').replace('打开', '').replace('启动', '').strip()
-            # 如果提取的名称看起来像文件（有扩展名 或 被引号包裹），用 open_file
-            has_extension = '.' in raw_name.split()[-1] if raw_name else False
-            if has_extension and 'open_file' in self.tools:
-                return ToolSelectionResult(
-                    selected_tool='open_file',
-                    action="use_tool",
-                    reasoning="Detected open intent for file (has extension), using open_file",
-                    parameters={'path': raw_name},
-                    confidence=0.7
-                )
-            if 'launch_app' in self.tools:
-                return ToolSelectionResult(
-                    selected_tool='launch_app',
-                    action="use_tool",
-                    reasoning="Detected open/launch intent, using launch_app",
-                    parameters={'app_name': raw_name},
-                    confidence=0.6
-                )
+            # 额外检查工具名称的匹配
+            if tool_name.lower() in user_input.lower():
+                score += 0.3
 
-        # 默认直接回复
+            if score > best_score:
+                best_score = score
+                best_tool = tool_name
+
+        # 阈值判断
+        if best_score > 0.05:
+            # 相似度回退使用较高的最低 confidence，确保工具被执行
+            confidence = max(0.5, best_score * 1.5)
+            self.logger.info(f"Fallback matched {best_tool} with score {best_score:.2f}, confidence {confidence:.2f}")
+            return ToolSelectionResult(
+                selected_tool=best_tool,
+                action="use_tool",
+                reasoning=f"Similarity matched {best_tool} (score: {best_score:.2f})",
+                parameters={},
+                confidence=confidence
+            )
+
+        self.logger.info("No tool matched in similarity fallback")
         return ToolSelectionResult(
             selected_tool=None,
             action="direct_response",
-            reasoning="No tool keyword matched, will respond directly",
+            reasoning="No tool matched via similarity fallback",
             parameters={},
-            confidence=0.5
+            confidence=0.1
         )
+
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """
+        计算两个文本的相似度（Jaccard 系数）
+
+        Args:
+            text1: 用户输入
+            text2: 工具描述
+
+        Returns:
+            相似度分数 (0.0 - 1.0)
+        """
+        # 分词（简单按中英文分割）
+        import re
+        words1 = set(re.findall(r'[\w]+', text1.lower()))
+        words2 = set(re.findall(r'[\w]+', text2.lower()))
+
+        if not words1 or not words2:
+            return 0.0
+
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+
+        return len(intersection) / len(union) if union else 0.0
 
     async def select_tool(
         self,
@@ -548,14 +506,10 @@ class LLMToolSelector:
                     )
                 else:
                     self.logger.warning(f"Failed to parse LLM response as JSON: {content_str[:200]}")
-                    # 无法解析，返回直接回复
-                    return ToolSelectionResult(
-                        selected_tool=None,
-                        action="direct_response",
-                        reasoning="LLM response parsing failed, responding directly",
-                        parameters={},
-                        confidence=0.3
-                    )
+                    # 无法解析 JSON，尝试使用关键词回退
+                    self.logger.debug("Attempting keyword fallback for non-JSON response")
+                    fallback_result = self._keyword_fallback(user_input)
+                    return fallback_result
 
         except Exception as e:
             self.logger.error(f"Tool selection failed: {e}")

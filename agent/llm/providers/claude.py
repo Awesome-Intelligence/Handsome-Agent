@@ -112,6 +112,7 @@ class ClaudeProvider(BaseProvider):
             content = data["content"][0]["text"]
             usage = data.get("usage", {})
 
+            self._log_output_content(content)
             self._log_request_completed(latency_ms)
 
             return ProviderResponse(

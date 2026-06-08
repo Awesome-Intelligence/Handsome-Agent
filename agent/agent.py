@@ -180,38 +180,57 @@ class Agent:
         if not self.llm_provider:
             return False
         
-        prompt = f"""用户输入：{user_input}
+        prompt = f"""Task: {user_input}
 
-判断这个任务是否需要使用 ReAct 循环模式（多步骤任务规划）？
+Is this a complex task that needs ReAct mode? (multi-step planning, multiple tools)
 
-ReAct 模式特点：
-- 复杂任务（需要多个步骤）
-- 任务规划（需要拆解子任务）
-- 项目开发（需要创建文件、目录）
-- 多工具协作（需要调用多个工具）
-
-简单任务（不需要 ReAct）：
-- 简单问答
-- 单一操作
-- 信息查询
-
-返回 JSON：
-{{"use_react": true/false, "reasoning": "判断理由"}}
-
-Respond with ONLY the JSON object."""
+Answer ONLY with this exact JSON format (no other text):
+{{"use_react": true/false, "reasoning": "brief reason"}}"""
 
         try:
             import json
+            import re
             response = await self.llm_provider.generate(prompt)
             content = response.content if hasattr(response, 'content') else str(response)
-            result = json.loads(content)
+
+            # 尝试从内容中提取 JSON
+            result = None
+            try:
+                # 方法1：尝试直接解析整个内容
+                result = json.loads(content)
+            except:
+                # 方法2：找最后一个 { 到最后一个 } 之间的内容
+                last_brace = content.rfind('}')
+                if last_brace != -1:
+                    first_brace = -1
+                    brace_count = 0
+                    for i in range(last_brace, -1, -1):
+                        if content[i] == '}':
+                            brace_count += 1
+                        elif content[i] == '{':
+                            if brace_count > 0:
+                                brace_count -= 1
+                            else:
+                                first_brace = i
+                                break
+                    if first_brace != -1:
+                        try:
+                            result = json.loads(content[first_brace:last_brace+1])
+                        except:
+                            pass
+
+            # 如果没有找到有效的 JSON 或 JSON 中没有 use_react 字段，使用 ReAct
+            if result is None or "use_react" not in result:
+                self._decision_logger.info(f"ReAct 模式判断: 未找到有效 JSON，默认使用 ReAct")
+                return True
+
             use_react = result.get("use_react", False)
             reasoning = result.get("reasoning", "")
             self._decision_logger.info(f"ReAct 模式判断: {use_react} - {reasoning}")
             return use_react
         except Exception as e:
-            self._decision_logger.warning(f"ReAct 判断失败: {e}")
-            return False
+            self._decision_logger.warning(f"ReAct 判断失败: {e}，默认使用 ReAct 模式（更好的错误恢复）")
+            return True  # 默认使用 ReAct 模式（有更好的重试机制）
     
     async def _chat_react(
         self,
