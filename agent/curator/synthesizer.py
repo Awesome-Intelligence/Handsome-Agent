@@ -29,9 +29,18 @@ class SynthesizedSkill:
 class SkillSynthesizer:
     """技能合成器 - 支持 LLM 辅助"""
 
-    def __init__(self, llm_provider: Optional[Any] = None):
+    def __init__(
+        self,
+        llm_provider: Optional[Any] = None,
+        llm_client: Optional[Any] = None
+    ):
         self._patterns: Dict[str, List[str]] = {}
         self.llm_provider = llm_provider
+        self._llm_client = llm_client
+    
+    def set_llm_client(self, client: Any) -> None:
+        """设置 LLM 客户端"""
+        self._llm_client = client
 
     async def synthesize(
         self,
@@ -87,9 +96,8 @@ class SkillSynthesizer:
         trajectory: Dict[str, Any],
     ) -> Optional[SynthesizedSkill]:
         """使用 LLM 增强技能"""
-        if not self.llm_provider:
-            return None
-
+        from agent.llm import LLMTaskType
+        
         prompt = f"""分析以下轨迹，提取一个可复用的技能：
 
 用户输入: {trajectory.get('user_input', '')}
@@ -108,7 +116,18 @@ class SkillSynthesizer:
 """
 
         try:
-            response = await self.llm_provider.generate(prompt)
+            # 优先使用 LLMClient
+            if self._llm_client:
+                response = await self._llm_client.auxiliary_call(
+                    task=LLMTaskType.SKILL_SYNTHESIS,
+                    prompt=prompt
+                )
+            elif self.llm_provider:
+                # 降级：直接使用 provider
+                response = await self.llm_provider.generate(prompt)
+            else:
+                return None
+            
             import json
             data = json.loads(response)
 

@@ -5,6 +5,7 @@ LLM 模块
 
 from .base import LLMConfig, Message, LLMResponse, StreamChunk, BaseLLMProvider
 from .factory import LLMFactory
+from .llm_client import LLMClient, LLMTaskType, LLMAuxConfig
 from .providers import (
     BaseProvider,
     ProviderConfig,
@@ -35,6 +36,10 @@ __all__ = [
     "StreamChunk",
     # 工厂
     "LLMFactory",
+    # 统一客户端
+    "LLMClient",
+    "LLMTaskType",
+    "LLMAuxConfig",
     # Providers
     "OpenAIProvider",
     "ClaudeProvider",

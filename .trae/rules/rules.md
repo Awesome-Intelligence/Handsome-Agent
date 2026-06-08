@@ -94,12 +94,11 @@ description: |
 
 > 当需要参考 Hermes 或 OpenClaw 的实现时，查看以下项目代码
 >
-> 注：路径使用环境变量配置（`HERMES_PATH`、`OPENCLAW_PATH`），禁止硬编码绝对路径。
 
 | 项目 | 环境变量 |
 |------|----------|
-| Hermes (Hermes-Brain) | `HERMES_PATH` |
-| OpenClaw (OpenClaw-Body) | `OPENCLAW_PATH` |
+| Hermes  | E:/hermes-agent-study/ |
+| OpenClaw  | E:/openclaw-study |
 
 ---
 

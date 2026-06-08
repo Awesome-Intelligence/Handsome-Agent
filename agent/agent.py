@@ -109,6 +109,27 @@ class Agent:
         from agent.context_compressor import SummaryCompressor
         self._context_compressor = SummaryCompressor(recent_messages=10)
 
+        # 初始化统一的 ContextManager（所有 LLM 调用共用）
+        from agent.context import ContextManager
+        self._context_manager = ContextManager(
+            context_compressor=self._context_compressor,
+            context_builder=self._context_builder
+        )
+        
+        # 初始化统一的 LLMClient（所有 LLM 调用共用）
+        from agent.llm import LLMClient, LLMAuxConfig
+        self._llm_client = LLMClient(
+            llm_provider=llm_provider,
+            context_manager=self._context_manager,
+            aux_config=LLMAuxConfig()
+        )
+        
+        # 将 ContextManager 和 LLMClient 传递给 engine 的 tool_selector
+        self.engine._context_manager = self._context_manager
+        self.engine._llm_client = self._llm_client
+        self.engine.tool_selector._context_manager = self._context_manager
+        self.engine.tool_selector._llm_client = self._llm_client
+
         self._session: Optional[Session] = None
         if self.enable_session:
             if session_id == "last" or session_id is None and not force_new_session:
@@ -173,14 +194,46 @@ class Agent:
         self._trajectory_recorder.save_trajectory(metadata=trajectory_metadata)
         self._decision_logger.debug(f"Trajectory saved to {self._trajectory_recorder._save_path}")
     
-    async def _should_use_react(self, user_input: str) -> bool:
+    async def _should_use_react(
+        self,
+        user_input: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> bool:
         """
         判断是否使用 ReAct 模式
+
+        使用统一的 ContextManager 进行上下文构建。
         """
         if not self.llm_provider:
             return False
+
+        # 使用统一的 ContextManager 构建上下文
+        from agent.context import ContextPurpose
         
-        prompt = f"""Task: {user_input}
+        # MODE_DECISION 使用自己的压缩逻辑，所以这里传入 include_tools=False
+        result = await self._context_manager.build(
+            user_message=user_input,
+            conversation_history=conversation_history,
+            purpose=ContextPurpose.MODE_DECISION,
+            include_tools=False
+        )
+
+        # 构建带上下文的 prompt（使用 ContextManager 构建的系统提示）
+        system_prompt = result.system_prompt or ""
+        
+        # 添加任务特定的指导
+        if system_prompt:
+            prompt = f"""{system_prompt}
+
+## Current Task
+{user_input}
+
+Is this a complex task that needs ReAct mode? (multi-step planning, multiple tools, tool execution)
+
+Answer ONLY with this exact JSON format (no other text):
+{{"use_react": true/false, "reasoning": "brief reason"}}"""
+        else:
+            prompt = f"""Task: {user_input}
 
 Is this a complex task that needs ReAct mode? (multi-step planning, multiple tools)
 
@@ -338,9 +391,9 @@ Answer ONLY with this exact JSON format (no other text):
             AgentResponse
         """
         self._decision_logger.info(f"User input: {user_input[:50]}...")
-        
+
         if use_react is None:
-            use_react = await self._should_use_react(user_input)
+            use_react = await self._should_use_react(user_input, conversation_history)
         
         if use_react:
             return await self._chat_react(user_input, conversation_history)
@@ -474,78 +527,63 @@ Answer ONLY with this exact JSON format (no other text):
         tool_result: Any,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """使用 LLM 总结工具执行结果"""
+        """使用 LLM 总结工具执行结果（使用统一的 ContextManager）"""
         try:
+            from agent.context import ContextPurpose
+            
             result_str = json.dumps(tool_result, ensure_ascii=False)
             
-            messages = []
-            if conversation_history:
-                messages.extend(conversation_history)
-            messages.append({"role": "user", "content": user_input})
+            # 使用统一的 ContextManager 构建上下文
+            result = await self._context_manager.build(
+                user_message=f"{user_input}\n\nI executed tool: {tool_name}\nTool result: {result_str}\n\nPlease provide a natural language response to the user based on the tool result.",
+                conversation_history=conversation_history,
+                purpose=ContextPurpose.TOOL_RESULT_SUMMARY,
+                include_tools=False,
+                model=getattr(self.llm_provider, 'model', None)
+            )
             
-            prompt = f"""I executed tool: {tool_name}
-Tool result: {result_str}
-
-Please provide a natural language response to the user based on the tool result."""
+            self._decision_logger.info(
+                f"Context Manager: tool_result_summary - "
+                f"prompt chars={len(result.system_prompt)}"
+            )
             
-            messages.append({"role": "user", "content": prompt})
-            
-            response = await self.llm_provider.generate(prompt, messages=messages)
+            response = await self.llm_provider.generate(
+                result.user_message,
+                system_prompt=result.system_prompt
+            )
             return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
             logger.error(f"Failed to summarize with LLM: {e}")
-            try:
-                prompt = f"""User asked: {user_input}
-
-I executed tool: {tool_name}
-Tool result: {result_str}
-
-Please provide a natural language response to the user based on the tool result."""
-                response = await self.llm_provider.generate(prompt)
-                return response.content if hasattr(response, 'content') else str(response)
-            except:
-                return f"Tool {tool_name} executed. Result: {json.dumps(tool_result, ensure_ascii=False)}"
+            return f"Tool {tool_name} executed. Result: {json.dumps(tool_result, ensure_ascii=False)}"
     
     async def _generate_direct_response(
         self,
         user_input: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """使用对话历史生成直接回复（使用统一的 ContextBuilder + 压缩）"""
+        """使用对话历史生成直接回复（使用统一的 ContextManager）"""
         try:
-            # 如果有历史消息，先检查是否需要压缩
-            compressed_history = conversation_history
-            if conversation_history and len(conversation_history) > 10:
-                result = await self._context_compressor.compress(
-                    conversation_history,
-                    max_messages=10
-                )
-                compressed_history = result.compressed_messages
-                self._decision_logger.info(
-                    f"Context Compression: {result.original_count} -> {result.compressed_count} messages"
-                )
-
-            # 使用统一的 ContextBuilder 构建系统提示词（传入模型名称）
-            system_prompt = self._context_builder.build_system_prompt(
-                conversation_history=compressed_history,
+            from agent.context import ContextPurpose
+            
+            # 使用统一的 ContextManager 构建上下文
+            result = await self._context_manager.build(
+                user_message=user_input,
+                conversation_history=conversation_history,
+                purpose=ContextPurpose.DIRECT_RESPONSE,
                 include_tools=False,
                 model=getattr(self.llm_provider, 'model', None)
             )
 
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input}
-            ]
-
             self._decision_logger.info(
-                f"Context Assembly: direct_response - "
-                f"prompt chars={len(system_prompt)}, "
-                f"history msgs={len(compressed_history) if compressed_history else 0}"
+                f"Context Manager: direct_response - "
+                f"prompt chars={len(result.system_prompt)}, "
+                f"compressed={result.compressed}, "
+                f"history msgs={result.compressed_count}"
             )
 
             response = await self.llm_provider.generate(
-                user_input,
-                system_prompt=system_prompt
+                result.user_message,
+                system_prompt=result.system_prompt
             )
             return response
         except Exception as e:
@@ -559,29 +597,32 @@ Please provide a natural language response to the user based on the tool result.
         clarification: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """使用对话历史生成澄清回复"""
+        """使用对话历史生成澄清回复（使用统一的 ContextManager）"""
         try:
-            messages = []
-            if conversation_history:
-                messages.extend(conversation_history)
-            messages.append({"role": "user", "content": user_input})
+            from agent.context import ContextPurpose
             
-            prompt = f"""User asked: {user_input}
-
-You need to ask for clarification. Reason: {clarification}
-
-Please ask for more details in a natural way."""
+            # 使用统一的 ContextManager 构建上下文
+            result = await self._context_manager.build(
+                user_message=f"User asked: {user_input}\n\nYou need to ask for clarification. Reason: {clarification}\n\nPlease ask for more details in a natural way.",
+                conversation_history=conversation_history,
+                purpose=ContextPurpose.CLARIFICATION,
+                include_tools=False,
+                model=getattr(self.llm_provider, 'model', None)
+            )
             
-            messages.append({"role": "user", "content": prompt})
+            self._decision_logger.info(
+                f"Context Manager: clarification - "
+                f"prompt chars={len(result.system_prompt)}"
+            )
             
-            response = await self.llm_provider.generate(prompt, messages=messages)
+            response = await self.llm_provider.generate(
+                result.user_message,
+                system_prompt=result.system_prompt
+            )
             return response
         except Exception as e:
             logger.error(f"Failed to generate clarification: {e}")
-            response = await self.llm_provider.generate(
-                f"User asked: {user_input}. You need to ask for clarification. Reason: {clarification}"
-            )
-            return response
+            return f"You need to clarify: {clarification}"
     
     def _get_session_messages(self) -> List[Dict]:
         """从会话中获取消息列表"""

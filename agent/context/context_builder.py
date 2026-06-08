@@ -8,7 +8,7 @@ Context Builder - 独立的上下文构建器
 参考 Hermes 的 system_prompt.py 和 prompt_builder.py 实现。
 
 架构：
-- ContextBuilder: 专门负责构建完整的系统提示词
+- ContextBuilder: 专门负责构建完整的系统提示词（使用三层架构）
 - LLMToolSelector: 只负责工具选择 + 执行
 
 功能：
@@ -16,7 +16,7 @@ Context Builder - 独立的上下文构建器
 2. 构建工具 Schema
 3. 收集对话历史
 4. 自动 Prefetch 相关记忆（Hermes 风格）
-5. 组装完整的系统提示词
+5. 组装完整的系统提示词（三层架构）
 
 日志子层：💾 Context
 """
@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 from common.logging_manager import get_decision_logger
 from agent.workspace import get_workspace_manager
+from agent.context.system_prompt_builder import SystemPromptBuilder, LayerResult
 from agent.context.prompt_templates import (
     AGENT_IDENTITY,
     CAPABILITIES,
@@ -50,7 +51,7 @@ class ContextBuilder:
     2. 构建工具 Schema
     3. 收集对话历史
     4. 自动 Prefetch 相关记忆（Hermes 风格）
-    5. 组装完整的系统提示词
+    5. 组装完整的系统提示词（三层架构）
     
     日志子层：💾 Context
     """
@@ -59,18 +60,28 @@ class ContextBuilder:
         self,
         tools: Optional[Dict[str, Any]] = None,
         enable_guidance: bool = True,
-        enable_memory_prefetch: bool = True
+        enable_memory_prefetch: bool = True,
+        session_id: str = None
     ):
         """
         Args:
             tools: 工具字典 {name: ToolDefinition}
             enable_guidance: 是否添加工具使用指导（memory, skills 等）
             enable_memory_prefetch: 是否启用记忆预取（默认启用，Hermes 风格）
+            session_id: 会话 ID（用于缓存管理）
         """
         self.logger = get_decision_logger(self.__class__.__name__, sublayer="context")
         self.tools = tools or {}
         self.enable_guidance = enable_guidance
         self.enable_memory_prefetch = enable_memory_prefetch
+        
+        # 创建三层架构的 SystemPromptBuilder
+        self._system_prompt_builder = SystemPromptBuilder(
+            tools=self.tools,
+            enable_guidance=enable_guidance,
+            enable_memory_prefetch=enable_memory_prefetch,
+            session_id=session_id
+        )
         
         # 延迟加载 MemoryStore（避免循环导入）
         self._memory_store: Optional["MemoryStore"] = None
@@ -91,36 +102,42 @@ class ContextBuilder:
     def set_tools(self, tools: Dict[str, Any]) -> None:
         """设置工具字典"""
         self.tools = tools
+        self._system_prompt_builder.set_tools(tools)
         self.logger.debug(f"Tools set: {len(tools)} tools available")
     
     def get_tools_schema(self) -> List[Dict[str, Any]]:
         """获取工具 Schema（用于 LLM）"""
-        schema = []
-        for tool_name, tool in self.tools.items():
-            tool_name = tool.name if hasattr(tool, 'name') else tool_name
-            tool_desc = tool.description if hasattr(tool, 'description') else ''
-            tool_params = tool.parameters if hasattr(tool, 'parameters') else {}
+        return self._system_prompt_builder._build_tools_schema_list()
+    
+    def invalidate_caches(self) -> None:
+        """使所有缓存失效"""
+        self._system_prompt_builder.invalidate_all_caches()
+    
+    def build_with_layers(
+        self,
+        user_message: str = "",
+        conversation_history: Optional[List[Dict]] = None,
+        include_tools: bool = True,
+        model: str = None
+    ) -> LayerResult:
+        """
+        构建系统提示词（返回三层结构）
+        
+        Args:
+            user_message: 用户消息（用于记忆预取）
+            conversation_history: 对话历史
+            include_tools: 是否包含工具列表
+            model: 模型名称
             
-            # 构建完整的工具 schema（包含 name, description, parameters）
-            param_props = {}
-            if isinstance(tool_params, dict):
-                # 提取 parameters.properties
-                if 'properties' in tool_params:
-                    param_props = tool_params['properties']
-                elif 'type' not in tool_params:
-                    # 如果参数是简单 dict，转换为 schema
-                    param_props = tool_params
-            
-            schema.append({
-                'name': tool_name,
-                'description': tool_desc,
-                'parameters': {
-                    'type': 'object',
-                    'properties': param_props,
-                    'required': []  # 可根据工具定义添加
-                }
-            })
-        return schema
+        Returns:
+            LayerResult: 包含 stable/context/volatile 各层内容
+        """
+        return self._system_prompt_builder.build(
+            user_message=user_message,
+            conversation_history=conversation_history,
+            include_tools=include_tools,
+            model=model
+        )
     
     def build_system_prompt(
         self,
@@ -530,4 +547,4 @@ Respond with ONLY the JSON object, no other text."""
 - After completing task, provide concise summary"""
 
 
-__all__ = ["ContextBuilder"]
+__all__ = ["ContextBuilder", "LayerResult"]

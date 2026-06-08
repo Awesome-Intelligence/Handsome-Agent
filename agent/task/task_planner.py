@@ -81,12 +81,23 @@ class TaskPlanner:
     5. 执行并追踪
     """
 
-    def __init__(self, llm_provider, session_id: str, workspace_dir: Optional[str] = None):
+    def __init__(
+        self,
+        llm_provider,
+        session_id: str,
+        workspace_dir: Optional[str] = None,
+        llm_client: Optional[Any] = None
+    ):
         self.llm_provider = llm_provider
         self.session_id = session_id
         self.workspace_dir = workspace_dir
         self.adapter = get_todo_adapter(session_id, workspace_dir)
         self.current_plan: Optional[TaskPlan] = None
+        self._llm_client = llm_client
+    
+    def set_llm_client(self, client: Any) -> None:
+        """设置 LLM 客户端"""
+        self._llm_client = client
         
         self._complexity_check_prompt = """你是一个任务规划专家。分析用户的请求，判断任务复杂度。
 
@@ -156,9 +167,19 @@ class TaskPlanner:
 
     async def analyze_complexity(self, user_request: str) -> Dict[str, Any]:
         """LLM 分析任务复杂度"""
+        from agent.llm import LLMTaskType
+        
         try:
             prompt = self._complexity_check_prompt.format(task=user_request)
-            response = await self.llm_provider.generate(prompt)
+            
+            # 优先使用 LLMClient
+            if self._llm_client:
+                response = await self._llm_client.auxiliary_call(
+                    task=LLMTaskType.ANALYSIS,
+                    prompt=prompt
+                )
+            else:
+                response = await self.llm_provider.generate(prompt)
             
             response = response.strip()
             if response.startswith('```'):
@@ -190,12 +211,22 @@ class TaskPlanner:
 
     async def decompose_task(self, user_request: str, complexity: str) -> TaskPlan:
         """LLM 将任务拆解为子任务"""
+        from agent.llm import LLMTaskType
+        
         try:
             prompt = self._decomposition_prompt.format(
                 main_task=user_request,
                 complexity=complexity
             )
-            response = await self.llm_provider.generate(prompt)
+            
+            # 优先使用 LLMClient
+            if self._llm_client:
+                response = await self._llm_client.auxiliary_call(
+                    task=LLMTaskType.ANALYSIS,
+                    prompt=prompt
+                )
+            else:
+                response = await self.llm_provider.generate(prompt)
             
             response = response.strip()
             if response.startswith('```'):
@@ -265,8 +296,17 @@ class TaskPlanner:
             subtasks_status="\n".join(tasks_status)
         )
         
+        from agent.llm import LLMTaskType
+        
         try:
-            report = await self.llm_provider.generate(prompt)
+            # 优先使用 LLMClient
+            if self._llm_client:
+                report = await self._llm_client.auxiliary_call(
+                    task=LLMTaskType.ANALYSIS,
+                    prompt=prompt
+                )
+            else:
+                report = await self.llm_provider.generate(prompt)
             return report
         except Exception:
             completed = sum(1 for t in plan.subtasks if t.status == TaskStatus.COMPLETED)

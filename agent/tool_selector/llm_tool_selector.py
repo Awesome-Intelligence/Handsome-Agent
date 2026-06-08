@@ -192,13 +192,15 @@ class LLMToolSelector:
     注意：上下文构建已分离到 ContextBuilder
     """
 
-    def __init__(self, llm_provider=None):
+    def __init__(self, llm_provider=None, context_manager=None):
         """
         Args:
             llm_provider: LLM 提供者
+            context_manager: 统一的上下文管理器（可选）
         """
         self.llm_provider = llm_provider
         self.tools: Dict[str, ToolDefinition] = {}
+        self._context_manager = context_manager
         # 🧠 Decision - [/🔧ToolSelect] - 使用 tool_select 子层
         self.logger = get_decision_logger(self.__class__.__name__, sublayer="tool_select")
         
@@ -232,11 +234,26 @@ class LLMToolSelector:
     ) -> str:
         """构建系统提示词（包含 Agent 定义和自动预取的记忆）
         
-        注意：此方法已重定向到 ContextBuilder，会自动预取相关记忆（Hermes 风格）
+        优先使用 ContextManager 统一入口，否则降级到 ContextBuilder。
         """
         from agent.context.context_builder import ContextBuilder
+        from agent.context import ContextPurpose
         
-        # 🧠 Decision - [/🔧ToolSelect] - 委托给 ContextBuilder（传入 user_input 用于记忆预取）
+        # 优先使用 ContextManager 统一入口
+        if self._context_manager:
+            try:
+                result = self._context_manager.build(
+                    user_message=user_input,
+                    conversation_history=conversation_history,
+                    purpose=ContextPurpose.TOOL_SELECTION,
+                    tools=self.tools,
+                    include_tools=True
+                )
+                return result.system_prompt
+            except Exception as e:
+                self.logger.warning(f"ContextManager failed, falling back to ContextBuilder: {e}")
+        
+        # 降级到 ContextBuilder（传入 user_input 用于记忆预取）
         context_builder = ContextBuilder(tools=self.tools)
         return context_builder.build_system_prompt(
             conversation_history=conversation_history,
@@ -668,18 +685,21 @@ class LLMDrivenDecisionEngine:
     def __init__(
         self,
         llm_provider=None,
-        enable_llm_selection: bool = True
+        enable_llm_selection: bool = True,
+        context_manager=None
     ):
         """
         Args:
             llm_provider: LLM 提供者
             enable_llm_selection: 是否启用 LLM 工具选择
+            context_manager: 统一的上下文管理器（可选）
         """
         self._llm_provider = llm_provider
-        self.tool_selector = LLMToolSelector(llm_provider)
+        self.tool_selector = LLMToolSelector(llm_provider, context_manager)
         self.direct_router = DirectToolRouter()
         self.execution_engine = ToolExecutionEngine()
         self.enable_llm_selection = enable_llm_selection
+        self._context_manager = context_manager
         self.logger = get_decision_logger(self.__class__.__name__)
 
     @property

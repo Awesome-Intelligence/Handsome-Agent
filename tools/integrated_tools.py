@@ -181,13 +181,14 @@ def initialize_tools():
 _global_engine: Optional[Any] = None
 
 
-def get_integrated_engine(llm_provider=None, force_reinit: bool = False):
+def get_integrated_engine(llm_provider=None, force_reinit: bool = False, context_manager=None):
     """
     获取整合后的决策引擎（单例）
 
     Args:
         llm_provider: LLM 提供者
         force_reinit: 是否强制重新初始化
+        context_manager: 统一的上下文管理器（可选）
 
     Returns:
         LLMDrivenDecisionEngine: 已注册所有工具的决策引擎
@@ -199,12 +200,20 @@ def get_integrated_engine(llm_provider=None, force_reinit: bool = False):
 
     if _global_engine is None or force_reinit:
         initialize_tools()
-        _global_engine = LLMDrivenDecisionEngine(llm_provider=llm_provider)
+        _global_engine = LLMDrivenDecisionEngine(
+            llm_provider=llm_provider,
+            context_manager=context_manager
+        )
         register_integrated_tools(_global_engine)
     else:
         # 如果 engine 已存在但传入了新的 llm_provider，更新它
         if llm_provider is not None:
             _global_engine.llm_provider = llm_provider
+        
+        # 如果传入了新的 context_manager，更新 tool_selector
+        if context_manager is not None:
+            _global_engine._context_manager = context_manager
+            _global_engine.tool_selector._context_manager = context_manager
 
     return _global_engine
 
