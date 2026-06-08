@@ -208,9 +208,8 @@ Answer ONLY with this exact JSON format (no other text):
                         if content[i] == '}':
                             brace_count += 1
                         elif content[i] == '{':
-                            if brace_count > 0:
-                                brace_count -= 1
-                            else:
+                            brace_count -= 1
+                            if brace_count == 0:
                                 first_brace = i
                                 break
                     if first_brace != -1:
