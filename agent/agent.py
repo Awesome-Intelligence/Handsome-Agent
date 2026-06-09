@@ -142,7 +142,67 @@ class Agent:
                 self._session = session_manager.create_session(session_id)
                 self._decision_logger.info(f"Resumed session: {session_id}")
         
+        # 流式输出相关
+        self._stream_callback = None
+        self._stream_emitter = None
+        
+        # 中断机制
+        self._interrupt_requested = False
+        
         self._init_trajectory_and_curator()
+    
+    def interrupt(self):
+        """请求中断当前处理
+        
+        可以在另一个线程中调用此方法来中断正在进行的操作。
+        """
+        self._decision_logger.warning("中断请求已触发")
+        self._interrupt_requested = True
+        
+        # 通知流式发射器
+        if self._stream_emitter:
+            from common.streaming import ErrorEvent
+            self._stream_emitter.emit_error("用户请求中断", "InterruptedError")
+            self._stream_emitter.interrupt()  # 触发 StreamEmitter 的中断
+    
+    def is_interrupted(self) -> bool:
+        """检查是否请求了中断"""
+        return self._interrupt_requested
+    
+    def clear_interrupt(self):
+        """清除中断标志"""
+        self._interrupt_requested = False
+        if self._stream_emitter:
+            self._stream_emitter.clear_interrupt()
+    
+    def set_stream_callback(self, callback):
+        """设置流式输出回调
+        
+        Args:
+            callback: 回调函数，签名为 on_delta(text: str)
+        """
+        self._stream_callback = callback
+    
+    def set_stream_emitter(self, emitter):
+        """设置流式发射器
+        
+        Args:
+            emitter: StreamEmitter 实例
+        """
+        self._stream_emitter = emitter
+    
+    def _emit_stream(self, text: str):
+        """发射流式文本到所有消费者"""
+        if text:
+            if self._stream_callback:
+                self._stream_callback(text)
+            if self._stream_emitter:
+                self._stream_emitter.emit_delta(text)
+    
+    def _emit_stream_complete(self, text: str = ""):
+        """发射流式完成信号"""
+        if self._stream_emitter:
+            self._stream_emitter.emit_complete(text)
     
     def _init_trajectory_and_curator(self):
         """初始化 TrajectoryRecorder 和 Curator"""
@@ -324,7 +384,8 @@ Answer ONLY with this exact JSON format (no other text):
             llm_provider=self.llm_provider,
             session_id=session_id,
             rails=rails,
-            tools=self._context_builder.tools
+            tools=self._context_builder.tools,
+            stream_emitter=self._stream_emitter
         )
 
         # 如果有历史消息，先检查是否需要压缩
@@ -373,7 +434,9 @@ Answer ONLY with this exact JSON format (no other text):
         self,
         user_input: str,
         conversation_history: Optional[List[Dict]] = None,
-        use_react: Optional[bool] = None
+        use_react: Optional[bool] = None,
+        enable_stream: bool = False,
+        stream_callback = None
     ) -> AgentResponse:
         """
         处理用户输入（主要接口
@@ -386,11 +449,21 @@ Answer ONLY with this exact JSON format (no other text):
             user_input: 用户输入
             conversation_history: 可选的对话历史
             use_react: 强制指定模式，None 则自动判断
+            enable_stream: 是否启用流式输出
+            stream_callback: 流式输出回调函数，签名为 on_delta(text: str)
             
         Returns:
             AgentResponse
         """
         self._decision_logger.info(f"User input: {user_input[:50]}...")
+
+        # 设置流式回调
+        if stream_callback:
+            self.set_stream_callback(stream_callback)
+        
+        # 如果启用流式，设置默认的控制台输出
+        if enable_stream and not stream_callback:
+            self._setup_default_stream()
 
         if use_react is None:
             use_react = await self._should_use_react(user_input, conversation_history)
@@ -399,6 +472,22 @@ Answer ONLY with this exact JSON format (no other text):
             return await self._chat_react(user_input, conversation_history)
         
         return await self._chat_simple(user_input, conversation_history)
+    
+    def _setup_default_stream(self):
+        """设置默认的流式输出（控制台）"""
+        from common.streaming import ConsoleConsumer, StreamEmitter, ConsumerRegistry
+        
+        registry = ConsumerRegistry()
+        registry.register(ConsoleConsumer())
+        
+        self._stream_emitter = StreamEmitter(registry)
+        self._stream_emitter.start()
+    
+    def _cleanup_stream(self):
+        """清理流式输出"""
+        if self._stream_emitter:
+            self._stream_emitter.stop()
+            self._stream_emitter = None
     
     async def _chat_simple(
         self,
@@ -470,7 +559,18 @@ Answer ONLY with this exact JSON format (no other text):
             )
         
         elif result['type'] == 'direct_response':
-            if self.llm_provider:
+            # 检查是否启用流式输出
+            has_stream = self._stream_callback is not None or self._stream_emitter is not None
+            if has_stream and self.llm_provider:
+                try:
+                    final_response = await self._generate_direct_response_stream(user_input, conversation_history=history)
+                    if isinstance(final_response, str) and hasattr(response, 'content'):
+                        pass  # 流式已经返回字符串
+                except Exception as e:
+                    self._decision_logger.warning(f"Stream failed, fallback to non-stream: {e}")
+                    response = await self._generate_direct_response(user_input, conversation_history=history)
+                    final_response = response.content if hasattr(response, 'content') else str(response)
+            elif self.llm_provider:
                 response = await self._generate_direct_response(user_input, conversation_history=history)
                 final_response = response.content if hasattr(response, 'content') else str(response)
             else:
@@ -590,6 +690,49 @@ Answer ONLY with this exact JSON format (no other text):
             logger.error(f"Failed to generate with history: {e}")
             response = await self.llm_provider.generate(user_input)
             return response
+    
+    async def _generate_direct_response_stream(
+        self,
+        user_input: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> str:
+        """使用对话历史生成直接回复（流式版本）"""
+        try:
+            from agent.context import ContextPurpose
+            
+            # 使用统一的 ContextManager 构建上下文
+            result = await self._context_manager.build(
+                user_message=user_input,
+                conversation_history=conversation_history,
+                purpose=ContextPurpose.DIRECT_RESPONSE,
+                include_tools=False,
+                model=getattr(self.llm_provider, 'model', None)
+            )
+
+            self._decision_logger.info(
+                f"Context Manager: direct_response (stream) - "
+                f"prompt chars={len(result.system_prompt)}, "
+                f"compressed={result.compressed}, "
+                f"history msgs={result.compressed_count}"
+            )
+
+            # 使用流式调用
+            accumulated = ""
+            async for chunk in self.llm_provider.generate_stream(
+                result.user_message,
+                system_prompt=result.system_prompt
+            ):
+                delta = chunk.delta if hasattr(chunk, 'delta') else (chunk.content if hasattr(chunk, 'content') else str(chunk))
+                if delta:
+                    self._emit_stream(delta)
+                    accumulated += delta
+            
+            self._emit_stream_complete(accumulated)
+            return accumulated
+        except Exception as e:
+            logger.error(f"Failed to generate stream: {e}")
+            # 降级到非流式
+            return await self._generate_direct_response(user_input, conversation_history)
 
     async def _generate_clarification_response(
         self,

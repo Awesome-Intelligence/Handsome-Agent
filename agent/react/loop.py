@@ -62,6 +62,11 @@ class Decision:
     questions: List[str] = field(default_factory=list)
 
 
+class ReActInterruptedError(Exception):
+    """用户请求中断异常"""
+    pass
+
+
 class ReActLoop:
     """
     ReAct 循环引擎
@@ -90,13 +95,15 @@ class ReActLoop:
         session_id: str,
         rails: Optional[List["Rail"]] = None,
         max_iterations: int = 20,
-        tools: Optional[Dict[str, Any]] = None
+        tools: Optional[Dict[str, Any]] = None,
+        stream_emitter=None
     ):
         self.llm = llm_provider
         self.session_id = session_id
         self.rails = rails or []
         self.max_iterations = max_iterations
         self.tools = tools or {}
+        self._stream_emitter = stream_emitter
 
         self.logger = get_task_logger("ReActLoop", sublayer="task")
         self._state = LoopState.RUNNING
@@ -105,6 +112,31 @@ class ReActLoop:
         # 初始化统一的 ContextBuilder（复用上下文拼装逻辑）
         from agent.context import ContextBuilder
         self._context_builder = ContextBuilder(tools=self.tools)
+    
+    def set_stream_emitter(self, emitter):
+        """设置流式发射器"""
+        self._stream_emitter = emitter
+    
+    def _emit_tool_start(self, tool_name: str, parameters: Dict[str, Any]):
+        """发射工具开始事件"""
+        if self._stream_emitter:
+            self._stream_emitter.emit_tool_start(tool_name, parameters)
+    
+    def _emit_tool_end(self, tool_name: str, result: Any):
+        """发射工具结束事件"""
+        if self._stream_emitter:
+            # 格式化结果
+            if isinstance(result, dict):
+                tool_output = result
+            elif isinstance(result, str):
+                try:
+                    import json
+                    tool_output = json.loads(result)
+                except:
+                    tool_output = {"result": result}
+            else:
+                tool_output = {"result": str(result)}
+            self._stream_emitter.emit_tool_end(tool_name, tool_output)
     
     @property
     def state(self) -> LoopState:
@@ -132,6 +164,16 @@ class ReActLoop:
         self._steps.clear()
         
         while self._state == LoopState.RUNNING:
+            # 检查中断请求
+            if self._check_interrupt():
+                self._state = LoopState.ABORTED
+                self._steps.append(StepResult(
+                    step=context.current_iteration,
+                    action="interrupted",
+                    result={"message": "用户请求中断"}
+                ))
+                break
+            
             context.increment_iteration()
             
             if context.remaining_iterations <= 0:
@@ -145,6 +187,16 @@ class ReActLoop:
             try:
                 step_result = await self._execute_step(context)
                 self._steps.append(step_result)
+                
+                # 检查中断请求（步骤执行后）
+                if self._check_interrupt():
+                    self._state = LoopState.ABORTED
+                    self._steps.append(StepResult(
+                        step=context.current_iteration,
+                        action="interrupted",
+                        result={"message": "用户请求中断"}
+                    ))
+                    break
                 
                 if step_result.action in ("direct_response", "ask_clarification"):
                     self._state = LoopState.COMPLETED
@@ -164,6 +216,19 @@ class ReActLoop:
                 break
         
         return self._build_result(context)
+    
+    def _check_interrupt(self) -> bool:
+        """检查是否有中断请求
+        
+        Returns:
+            True if interrupted, False otherwise
+        """
+        # 如果有 stream_emitter，检查它的中断状态
+        if self._stream_emitter and hasattr(self._stream_emitter, '_interrupt_requested'):
+            if self._stream_emitter._interrupt_requested:
+                self.logger.warning("检测到中断请求")
+                return True
+        return False
     
     async def _execute_step(self, context: "ReActContext") -> StepResult:
         """执行单个步骤"""
@@ -583,9 +648,14 @@ class ReActLoop:
         """执行工具"""
         self.logger.info(f"执行工具: {tool_name}")
         
+        # 发射工具开始事件
+        self._emit_tool_start(tool_name, parameters)
+        
         handler = context.tool_handlers.get(tool_name)
         if not handler:
-            return {"error": f"Tool '{tool_name}' not found"}
+            result = {"error": f"Tool '{tool_name}' not found"}
+            self._emit_tool_end(tool_name, result)
+            return result
         
         try:
             import inspect
@@ -600,11 +670,16 @@ class ReActLoop:
                 except:
                     result = {"result": result}
             
+            # 发射工具结束事件
+            self._emit_tool_end(tool_name, result)
+            
             return result
             
         except Exception as e:
             self.logger.error(f"工具执行错误: {e}")
-            return {"success": False, "error": str(e)}
+            result = {"success": False, "error": str(e)}
+            self._emit_tool_end(tool_name, result)
+            return result
     
     async def _trigger_before_tool(
         self,
