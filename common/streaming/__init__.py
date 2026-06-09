@@ -54,6 +54,9 @@ from .events import (
     ToolEvent,
     CompleteEvent,
     ErrorEvent,
+    PlanStartEvent,
+    PlanProgressEvent,
+    PlanCompleteEvent,
 )
 
 from .consumer import (
@@ -108,6 +111,9 @@ __all__ = [
     "ToolEvent",
     "CompleteEvent",
     "ErrorEvent",
+    "PlanStartEvent",
+    "PlanProgressEvent",
+    "PlanCompleteEvent",
     # 消费者
     "StreamConsumer",
     "ConsoleConsumer",

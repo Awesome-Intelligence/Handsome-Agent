@@ -401,7 +401,12 @@ class ReActLoop:
             response = await self.llm.generate(user_message, system_prompt=system_prompt, tools=tools if tools else None)
             content = response.content if hasattr(response, 'content') else str(response)
 
-            self.logger.debug(f"LLM response content (first 500): {repr(content[:500])}")
+            # 截断显示：头部30字符 + 中间省略 + 尾部30字符
+            if len(content) > 90:
+                truncated = f"{content[:30]}...{content[-30:]}"
+            else:
+                truncated = content
+            self.logger.debug(f"LLM response content: {repr(truncated)}")
 
             # 检查是否有有效的 function_call
             function_call = getattr(response, 'function_call', None)

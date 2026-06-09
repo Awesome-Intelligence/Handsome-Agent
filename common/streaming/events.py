@@ -4,7 +4,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from enum import Enum
 
 
@@ -16,6 +16,10 @@ class StreamEventType(Enum):
     TOOL_END = "stream.tool_end"      # 工具结束
     COMPLETE = "stream.complete"     # 完成
     ERROR = "stream.error"            # 错误
+    # 任务规划事件
+    PLAN_START = "stream.plan_start"  # 任务规划开始
+    PLAN_PROGRESS = "stream.plan_progress"  # 任务规划进度更新
+    PLAN_COMPLETE = "stream.plan_complete"  # 任务规划完成
 
 
 @dataclass
@@ -130,3 +134,66 @@ class ErrorEvent(StreamEvent):
     @property
     def error_type(self) -> str:
         return self.data.get("error_type", "UnknownError")
+
+
+@dataclass
+class PlanStartEvent(StreamEvent):
+    """任务规划开始事件"""
+    def __init__(
+        self,
+        main_task: str,
+        complexity: Optional[str] = None,
+    ):
+        super().__init__(
+            type=StreamEventType.PLAN_START,
+            data={
+                "main_task": main_task,
+                "complexity": complexity or "unknown",
+            }
+        )
+
+
+@dataclass
+class PlanProgressEvent(StreamEvent):
+    """任务规划进度事件"""
+    def __init__(
+        self,
+        subtasks: List[Dict[str, Any]],
+        completed: int,
+        total: int,
+        current_task: Optional[str] = None,
+        progress_percent: int = 0,
+    ):
+        super().__init__(
+            type=StreamEventType.PLAN_PROGRESS,
+            data={
+                "subtasks": subtasks,
+                "completed": completed,
+                "total": total,
+                "current_task": current_task or "",
+                "progress_percent": progress_percent,
+            }
+        )
+
+
+@dataclass
+class PlanCompleteEvent(StreamEvent):
+    """任务规划完成事件"""
+    def __init__(
+        self,
+        subtasks: List[Dict[str, Any]],
+        completed: int,
+        total: int,
+        success: bool = True,
+        summary: Optional[str] = None,
+    ):
+        super().__init__(
+            type=StreamEventType.PLAN_COMPLETE,
+            data={
+                "subtasks": subtasks,
+                "completed": completed,
+                "total": total,
+                "success": success,
+                "summary": summary or "",
+            }
+        )

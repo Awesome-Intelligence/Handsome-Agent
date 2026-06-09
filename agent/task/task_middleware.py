@@ -54,7 +54,8 @@ class TaskPlanningMiddleware:
         complexity_threshold: int = 2,
         enable_logging: bool = True,
         advanced_reasoning=None,
-        enable_collaboration: bool = True
+        enable_collaboration: bool = True,
+        stream_emitter=None
     ):
         self.llm_provider = llm_provider
         self.session_id = session_id
@@ -64,6 +65,7 @@ class TaskPlanningMiddleware:
         self.enable_logging = enable_logging
         self.enable_collaboration = enable_collaboration
         self.advanced_reasoning = advanced_reasoning
+        self._stream_emitter = stream_emitter
         
         self.planner = get_task_planner(session_id, llm_provider, workspace_dir)
         self.adapter = get_todo_adapter(session_id, workspace_dir)
@@ -119,6 +121,41 @@ class TaskPlanningMiddleware:
 
 只返回 JSON。"""
 
+    def set_stream_emitter(self, emitter):
+        """设置流式发射器"""
+        self._stream_emitter = emitter
+
+    def _emit_plan_event(self, event_type: str, **kwargs):
+        """发射任务规划事件到流"""
+        if not self._stream_emitter:
+            return
+        
+        try:
+            if event_type == "start":
+                self._stream_emitter.emit_plan_start(
+                    kwargs.get('main_task', ''),
+                    kwargs.get('complexity', '')
+                )
+            elif event_type == "progress":
+                self._stream_emitter.emit_plan_progress(
+                    kwargs.get('subtasks', []),
+                    kwargs.get('completed', 0),
+                    kwargs.get('total', 0),
+                    kwargs.get('current_task', ''),
+                    kwargs.get('progress_percent', 0)
+                )
+            elif event_type == "complete":
+                self._stream_emitter.emit_plan_complete(
+                    kwargs.get('subtasks', []),
+                    kwargs.get('completed', 0),
+                    kwargs.get('total', 0),
+                    kwargs.get('success', True),
+                    kwargs.get('summary', '')
+                )
+        except Exception as e:
+            # 静默处理，避免影响主流程
+            pass
+
     async def process(self, user_request: str) -> PlanningResult:
         """
         处理请求，判断复杂度并决定是否需要规划
@@ -144,6 +181,9 @@ class TaskPlanningMiddleware:
                 reasoning=complexity_result['reasoning']
             )
         
+        # 发射任务规划开始事件
+        self._emit_plan_event("start", main_task=user_request, complexity=complexity_result['complexity'])
+        
         # 尝试使用协作式规划（TaskPlanning + AdvancedReasoning）
         if self._collaborative_planner:
             try:
@@ -161,18 +201,29 @@ class TaskPlanningMiddleware:
                     
                     # 使用协作式计划
                     initial_plan = collaborative_result.get('plan', '')
+                    subtasks = collaborative_result.get('subtasks', [])
                     
                     if self.logger:
                         self._log += self.logger.plan_complete(
                             complexity_result['complexity'],
-                            collaborative_result.get('subtasks', []),
+                            subtasks,
                             collaborative_result.get('technical_reasoning', {})
                         )
+                    
+                    # 发射任务规划完成事件
+                    self._emit_plan_event(
+                        "complete",
+                        subtasks=subtasks,
+                        completed=0,
+                        total=len(subtasks),
+                        success=True,
+                        summary=initial_plan
+                    )
                     
                     return PlanningResult(
                         is_complex=True,
                         complexity=complexity_result['complexity'],
-                        subtasks=collaborative_result.get('subtasks', []),
+                        subtasks=subtasks,
                         reasoning=collaborative_result.get('technical_reasoning', {}),
                         initial_plan=initial_plan
                     )
@@ -202,17 +253,28 @@ class TaskPlanningMiddleware:
                 decomposition.get('overall_plan', '')
             )
         
+        subtasks = decomposition['subtasks']
         initial_plan = self._format_initial_plan(
             user_request,
             complexity_result['complexity'],
-            decomposition['subtasks'],
+            subtasks,
             decomposition['overall_plan']
+        )
+        
+        # 发射任务规划完成事件
+        self._emit_plan_event(
+            "complete",
+            subtasks=subtasks,
+            completed=0,
+            total=len(subtasks),
+            success=True,
+            summary=initial_plan
         )
         
         return PlanningResult(
             is_complex=True,
             complexity=complexity_result['complexity'],
-            subtasks=decomposition['subtasks'],
+            subtasks=subtasks,
             reasoning=decomposition['overall_plan'],
             initial_plan=initial_plan
         )
@@ -369,7 +431,8 @@ class IntelligentTaskAgent:
         llm_provider,
         session_id: str,
         workspace_dir: Optional[str] = None,
-        complexity_threshold: int = 2
+        complexity_threshold: int = 2,
+        stream_emitter=None
     ):
         self.llm_provider = llm_provider
         self.session_id = session_id
@@ -379,8 +442,13 @@ class IntelligentTaskAgent:
             llm_provider=llm_provider,
             session_id=session_id,
             workspace_dir=workspace_dir,
-            complexity_threshold=complexity_threshold
+            complexity_threshold=complexity_threshold,
+            stream_emitter=stream_emitter
         )
+
+    def set_stream_emitter(self, emitter):
+        """设置流式发射器"""
+        self.middleware.set_stream_emitter(emitter)
 
     async def respond(self, user_request: str) -> Dict[str, Any]:
         """

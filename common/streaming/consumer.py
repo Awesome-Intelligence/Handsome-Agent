@@ -147,6 +147,98 @@ class ConsoleConsumer(StreamConsumer):
             else:
                 print(f"\n{self.C_RED}[error] {event.message}{self.C_RESET}")
 
+        elif event.type == StreamEventType.PLAN_START:
+            main_task = event.data.get('main_task', '')
+            complexity = event.data.get('complexity', 'unknown')
+            if self._show_icons:
+                print(f"\n{self.C_CYAN}🎯 开始任务规划...{self.C_RESET}")
+                print(f"{self.C_GRAY}   主任务: {main_task[:50]}{'...' if len(main_task) > 50 else ''}{self.C_RESET}")
+                print(f"{self.C_GRAY}   复杂度: {complexity}{self.C_RESET}")
+            else:
+                print(f"\n{self.C_CYAN}[plan] Starting task planning{self.C_RESET}")
+                print(f"{self.C_GRAY}   Task: {main_task[:50]}{'...' if len(main_task) > 50 else ''}{self.C_RESET}")
+
+        elif event.type == StreamEventType.PLAN_PROGRESS:
+            subtasks = event.data.get('subtasks', [])
+            completed = event.data.get('completed', 0)
+            total = event.data.get('total', 0)
+            current_task = event.data.get('current_task', '')
+            progress_percent = event.data.get('progress_percent', 0)
+
+            if self._compact:
+                if self._show_icons:
+                    print(f" {self.C_CYAN}📋 {completed}/{total}{self.C_RESET}", end="", flush=True)
+                else:
+                    print(f" {self.C_CYAN}[plan] {completed}/{total}{self.C_RESET}", end="", flush=True)
+            else:
+                if self._show_icons:
+                    print(f"\n{self.C_CYAN}📋 任务规划进度{self.C_RESET}")
+                    print(f"{self.C_GRAY}   进度: {completed}/{total} ({progress_percent}%){self.C_RESET}")
+                    if current_task:
+                        print(f"{self.C_GRAY}   当前: {current_task}{self.C_RESET}")
+                else:
+                    print(f"\n{self.C_CYAN}[plan] Progress: {completed}/{total}{self.C_RESET}")
+                    if current_task:
+                        print(f"{self.C_GRAY}   Current: {current_task}{self.C_RESET}")
+
+                # 显示子任务列表
+                if subtasks:
+                    print(f"\n{self.C_GRAY}   子任务列表:{self.C_RESET}")
+                    for i, task in enumerate(subtasks[:5], 1):  # 最多显示5个
+                        task_title = task.get('title', task.get('name', 'Unknown'))
+                        task_status = task.get('status', 'pending')
+                        status_icon = {
+                            'pending': '⏳',
+                            'running': '🔄',
+                            'completed': '✅',
+                            'failed': '❌',
+                            'cancelled': '➖'
+                        }.get(task_status, '❓')
+                        if self._show_icons:
+                            print(f"{self.C_GRAY}   {i}. {status_icon} {task_title}{self.C_RESET}")
+                        else:
+                            print(f"{self.C_GRAY}   {i}. [{task_status}] {task_title}{self.C_RESET}")
+                    if len(subtasks) > 5:
+                        print(f"{self.C_GRAY}   ... 还有 {len(subtasks) - 5} 个任务{self.C_RESET}")
+
+        elif event.type == StreamEventType.PLAN_COMPLETE:
+            subtasks = event.data.get('subtasks', [])
+            completed = event.data.get('completed', 0)
+            total = event.data.get('total', 0)
+            success = event.data.get('success', True)
+            summary = event.data.get('summary', '')
+
+            if self._show_icons:
+                status_icon = "✅" if success else "⚠️"
+                status_text = "任务规划完成" if success else "任务规划部分完成"
+                print(f"\n{self.C_GREEN}{status_icon} {status_text}{self.C_RESET}")
+                print(f"{self.C_GRAY}   完成: {completed}/{total}{self.C_RESET}")
+            else:
+                status_text = "Plan complete" if success else "Plan partial"
+                print(f"\n{self.C_GREEN}[plan] {status_text}{self.C_RESET}")
+                print(f"{self.C_GRAY}   Completed: {completed}/{total}{self.C_RESET}")
+
+            # 显示所有子任务及其最终状态
+            if subtasks:
+                print(f"\n{self.C_GRAY}   📋 子任务完成状态:{self.C_RESET}")
+                for i, task in enumerate(subtasks, 1):
+                    task_title = task.get('title', task.get('name', 'Unknown'))
+                    task_status = task.get('status', 'pending')
+                    status_icon = {
+                        'pending': '⏳',
+                        'running': '🔄',
+                        'completed': '✅',
+                        'failed': '❌',
+                        'cancelled': '➖'
+                    }.get(task_status, '❓')
+                    if self._show_icons:
+                        print(f"{self.C_GRAY}   {i}. {status_icon} {task_title}{self.C_RESET}")
+                    else:
+                        print(f"{self.C_GRAY}   {i}. [{task_status}] {task_title}{self.C_RESET}")
+
+            if summary:
+                print(f"{self.C_GRAY}   总结: {summary[:50]}{'...' if len(summary) > 50 else ''}{self.C_RESET}")
+
     def _format_params(self, params: dict) -> str:
         """格式化参数显示"""
         if not params:

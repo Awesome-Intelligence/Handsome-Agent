@@ -7,7 +7,7 @@ import time
 import asyncio
 from queue import Queue, Empty
 from threading import Thread
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, List, Dict
 
 from .events import (
     StreamEvent,
@@ -17,6 +17,9 @@ from .events import (
     CompleteEvent,
     ErrorEvent,
     ToolEvent,
+    PlanStartEvent,
+    PlanProgressEvent,
+    PlanCompleteEvent,
 )
 from .registry import ConsumerRegistry
 
@@ -168,6 +171,53 @@ class StreamEmitter:
         """
         self.emit(ErrorEvent(message, error_type))
 
+    def emit_plan_start(self, main_task: str, complexity: Optional[str] = None) -> None:
+        """发射任务规划开始事件
+
+        Args:
+            main_task: 主任务描述
+            complexity: 任务复杂度
+        """
+        self.emit(PlanStartEvent(main_task, complexity))
+
+    def emit_plan_progress(
+        self,
+        subtasks: List[Dict],
+        completed: int,
+        total: int,
+        current_task: Optional[str] = None,
+        progress_percent: int = 0
+    ) -> None:
+        """发射任务规划进度事件
+
+        Args:
+            subtasks: 子任务列表
+            completed: 已完成数量
+            total: 总数
+            current_task: 当前任务
+            progress_percent: 进度百分比
+        """
+        self.emit(PlanProgressEvent(subtasks, completed, total, current_task, progress_percent))
+
+    def emit_plan_complete(
+        self,
+        subtasks: List[Dict],
+        completed: int,
+        total: int,
+        success: bool = True,
+        summary: Optional[str] = None
+    ) -> None:
+        """发射任务规划完成事件
+
+        Args:
+            subtasks: 子任务列表
+            completed: 已完成数量
+            total: 总数
+            success: 是否成功
+            summary: 总结信息
+        """
+        self.emit(PlanCompleteEvent(subtasks, completed, total, success, summary))
+
     def start(self) -> None:
         """启动异步广播线程"""
         if self._running:
@@ -274,6 +324,32 @@ class AsyncStreamEmitter:
 
     async def emit_error(self, message: str, error_type: Optional[str] = None) -> None:
         await self.emit(ErrorEvent(message, error_type))
+
+    async def emit_plan_start(self, main_task: str, complexity: Optional[str] = None) -> None:
+        """异步发射任务规划开始事件"""
+        await self.emit(PlanStartEvent(main_task, complexity))
+
+    async def emit_plan_progress(
+        self,
+        subtasks: List[Dict],
+        completed: int,
+        total: int,
+        current_task: Optional[str] = None,
+        progress_percent: int = 0
+    ) -> None:
+        """异步发射任务规划进度事件"""
+        await self.emit(PlanProgressEvent(subtasks, completed, total, current_task, progress_percent))
+
+    async def emit_plan_complete(
+        self,
+        subtasks: List[Dict],
+        completed: int,
+        total: int,
+        success: bool = True,
+        summary: Optional[str] = None
+    ) -> None:
+        """异步发射任务规划完成事件"""
+        await self.emit(PlanCompleteEvent(subtasks, completed, total, success, summary))
 
     async def run(self) -> None:
         """事件消费循环"""
