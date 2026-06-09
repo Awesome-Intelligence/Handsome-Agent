@@ -94,7 +94,7 @@ class SessionManager:
         if storage_path is None:
             # Try to find a suitable storage location
             home = Path.home()
-            storage_path = home / ".handsome-agent" / "acp_sessions.json"
+            storage_path = home / ".handsome_agent" / "acp_sessions.json"
 
         self._storage_path = storage_path
         self._sessions: Dict[str, SessionState] = {}

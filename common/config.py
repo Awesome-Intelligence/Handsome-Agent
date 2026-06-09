@@ -156,6 +156,15 @@ class DebugConfig:
     image_tools: bool = False
 
 
+@dataclass
+class LoggingConfig:
+    """文件日志配置"""
+    file_enabled: bool = False
+    max_file_size: int = 10 * 1024 * 1024
+    backup_count: int = 5
+    rotation: str = "daily"
+
+
 class Settings(BaseSettings):
     """应用配置"""
     
@@ -237,6 +246,13 @@ class Settings(BaseSettings):
     debug_tools: Dict[str, Any] = Field(default_factory=lambda: {
         "web_tools": False,
         "vision_tools": False,
+    })
+    
+    logging: Dict[str, Any] = Field(default_factory=lambda: {
+        "file_enabled": False,
+        "max_file_size": 50 * 1024 * 1024,
+        "backup_count": 30,  # 保留30天
+        "rotation": "daily",
     })
     
     class Config:
@@ -424,4 +440,15 @@ def get_model_config() -> ModelConfig:
         max_tokens=config.get("max_tokens", 4096),
         temperature=config.get("temperature", 0.7),
         context_window=config.get("context_window", 128000),
+    )
+
+
+def get_logging_config() -> LoggingConfig:
+    """获取日志配置"""
+    config = get_settings().logging
+    return LoggingConfig(
+        file_enabled=config.get("file_enabled", False),
+        max_file_size=config.get("max_file_size", 10 * 1024 * 1024),
+        backup_count=config.get("backup_count", 5),
+        rotation=config.get("rotation", "daily"),
     )

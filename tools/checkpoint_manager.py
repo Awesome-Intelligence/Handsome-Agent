@@ -42,7 +42,7 @@ from common.logging_manager import get_execution_logger
 
 logger = get_execution_logger(__name__, sublayer="checkpoint")
 
-CHECKPOINT_BASE = Path.home() / ".handsome-agent" / "checkpoints"
+CHECKPOINT_BASE = Path.home() / ".handsome_agent" / "checkpoints"
 
 _STORE_DIRNAME = "store"
 _REFS_PREFIX = "refs/handsome"

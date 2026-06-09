@@ -33,7 +33,7 @@ def _get_session_db_path() -> Optional[Path]:
         
         # 尝试常见位置
         default_paths = [
-            Path.home() / ".handsome-agent" / "sessions.db",
+            Path.home() / ".handsome_agent" / "sessions.db",
             Path.home() / ".hermes" / "sessions.db",
         ]
         for p in default_paths:

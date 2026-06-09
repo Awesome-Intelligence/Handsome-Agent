@@ -118,8 +118,8 @@ def run_setup_if_needed():
 
 def get_workspace_manager():
     """Get workspace manager instance."""
-    from agent.session import session_manager
-    return session_manager
+    from agent.workspace import get_workspace_manager as _get_workspace_manager
+    return _get_workspace_manager()
 
 
 # ============================================================================
@@ -623,8 +623,32 @@ def main():
 
     # 在创建 agent 之前，先配置日志级别
     if not _logging_already_configured:
-        from common.logging_manager import set_log_level
-        set_log_level(explanation_depth)
+        from common.logging_manager import configure_logging
+        from common.config import get_logs_dir
+        
+        # 从 config.json 读取日志配置（兼容 preferences 和 logging 两种格式）
+        saved_config = load_saved_config()
+        logging_cfg = saved_config.get('logging', {})
+        # 兼容旧格式：preferences 中也有 file_enabled
+        if not logging_cfg:
+            prefs = saved_config.get('preferences', {})
+            logging_cfg = {
+                'file_enabled': prefs.get('file_enabled', False),
+                'max_file_size': prefs.get('max_file_size', 10 * 1024 * 1024),
+                'backup_count': prefs.get('backup_count', 5),
+                'rotation': prefs.get('rotation', 'daily'),
+            }
+        
+        configure_logging({
+            "log_level": explanation_depth,
+            "file_enabled": logging_cfg.get('file_enabled', False),
+            "file_path": str(get_logs_dir() / "handsome-agent.log"),
+            "max_file_size": logging_cfg.get('max_file_size', 50 * 1024 * 1024),
+            "backup_count": logging_cfg.get('backup_count', 30),
+            "rotation": logging_cfg.get('rotation', 'daily'),
+            # 启用文件日志时，控制台不显示时间（文件日志已有完整时间戳）
+            "console_show_time": not logging_cfg.get('file_enabled', False),
+        })
 
     # Create Agent!
     print()

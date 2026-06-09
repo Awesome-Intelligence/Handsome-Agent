@@ -470,6 +470,12 @@ def show_current_config(config: dict):
         else:
             ui.print_config_item("🐛 Debug Mode", t("setup.summary.not_configured"))
     
+    # Logging Config
+    logging_cfg = config.get('logging', {})
+    if logging_cfg:
+        file_enabled = logging_cfg.get('file_enabled', False)
+        ui.print_config_item("📄 文件日志", t("setup.summary.configured") if file_enabled else t("setup.summary.not_configured"))
+    
     # Preferences
     prefs = config.get('preferences', {})
     depth = prefs.get('explanation_depth', 'detailed')
@@ -1749,6 +1755,34 @@ def setup_skills_hub(config: dict) -> dict | None:
         return {"enabled": False}
 
 
+# =============================================================================
+# Section 11c: Logging Configuration
+# =============================================================================
+
+def setup_logging(config: dict) -> dict | None:
+    """配置日志设置."""
+    ui.print_step(1, 1, "📄 日志设置")
+    
+    logging_cfg = config.get('logging', {})
+    
+    enabled = ask_yes_no_options("是否启用文件日志保存?", default=logging_cfg.get('file_enabled', False))
+    if enabled is None:
+        return None
+    
+    new_config = {"file_enabled": enabled, "rotation": "daily"}
+    
+    if enabled:
+        backup_count = ask_input(
+            "保留日志文件天数",
+            default=str(logging_cfg.get('backup_count', 30))
+        )
+        if backup_count is None:
+            return None
+        new_config["backup_count"] = int(backup_count) if backup_count.isdigit() else 30
+    
+    return new_config
+
+
 def _save_env_value(key: str, value: str) -> None:
     """保存环境变量到 .env 文件."""
     import os
@@ -2644,6 +2678,7 @@ def _build_menu_tree() -> MenuNode:
         "workspace": MenuNode("workspace", "📁 工作空间", hint="配置工作空间目录", action="workspace"),
         "memory": MenuNode("memory", "记忆系统", hint="向量数据库配置", action="memory"),
         "language": MenuNode("language", "语言设置", hint="界面显示语言", action="language"),
+        "logging": MenuNode("logging", "📄 日志设置", hint="启用文件日志保存", action="logging"),
         
         # 工具与扩展
         "tools": MenuNode("tools", t("menu.tools_config.label"), hint=t("menu.tools_config.hint"), action="tools"),
@@ -2686,6 +2721,7 @@ def _build_menu_tree() -> MenuNode:
             leaf_nodes["workspace"],
             leaf_nodes["memory"],
             leaf_nodes["language"],
+            leaf_nodes["logging"],
         ]),
         # 工具与扩展
         MenuNode("tools_menu", "🛠️ 工具与扩展", hint="工具配置、浏览器、调试、Skills", children=[
@@ -2884,6 +2920,7 @@ def _execute_menu_action(action_id: str, config: dict) -> bool:
             "skills_hub": setup_skills_hub,
             "browser": setup_browser,
             "debug_tools": setup_debug,
+            "logging": setup_logging,
             "depth": setup_depth,
             "caching": setup_caching,
             "intent": setup_intent,
@@ -2896,9 +2933,11 @@ def _execute_menu_action(action_id: str, config: dict) -> bool:
                 result = setup_func(config)
                 if result is not None:
                     if isinstance(result, dict):
-                        # LLM 配置保存到 llm 键，其他保存到对应键
+                        # LLM 配置保存到 llm 键，日志配置保存到 logging 键，其他保存到 preferences
                         if action_id == "llm":
                             config.setdefault('llm', {}).update(result)
+                        elif action_id == "logging":
+                            config.setdefault('logging', {}).update(result)
                         else:
                             config.setdefault('preferences', {}).update(result)
                     else:

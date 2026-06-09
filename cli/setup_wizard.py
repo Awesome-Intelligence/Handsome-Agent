@@ -287,6 +287,12 @@ def show_current_config(config: dict):
         else:
             ui.print_config_item("🐛 Debug 模式", "已禁用")
     
+    # Logging Config
+    logging_cfg = config.get('logging', {})
+    if logging_cfg:
+        file_enabled = logging_cfg.get('file_enabled', False)
+        ui.print_config_item("📄 文件日志", "已启用" if file_enabled else "已禁用")
+    
     # Preferences
     prefs = config.get('preferences', {})
     depth = prefs.get('explanation_depth', 'detailed')
@@ -919,6 +925,46 @@ def setup_debug(config: dict) -> dict | None:
 
 
 # =============================================================================
+# Section 14: Logging Config
+# =============================================================================
+
+def setup_logging(config: dict) -> dict | None:
+    """配置日志设置."""
+    ui.print_step(1, 1, "📄 日志设置")
+    
+    logging_cfg = config.get('logging', {})
+    
+    enabled = ask_yes_no("是否启用文件日志保存?", default=logging_cfg.get('file_enabled', False))
+    if enabled is None:
+        return None
+    
+    new_config = {"file_enabled": enabled}
+    
+    if enabled:
+        max_size = ask_input(
+            "单个日志文件最大大小 (MB)",
+            default=str(logging_cfg.get('max_file_size', 10 * 1024 * 1024) // (1024 * 1024))
+        )
+        if max_size is None:
+            return None
+        try:
+            size_mb = int(max_size)
+            new_config["max_file_size"] = size_mb * 1024 * 1024
+        except ValueError:
+            new_config["max_file_size"] = 10 * 1024 * 1024
+        
+        backup_count = ask_input(
+            "保留备份文件数量",
+            default=str(logging_cfg.get('backup_count', 5))
+        )
+        if backup_count is None:
+            return None
+        new_config["backup_count"] = int(backup_count) if backup_count.isdigit() else 5
+    
+    return new_config
+
+
+# =============================================================================
 # Section 13: Preferences
 # =============================================================================
 
@@ -1000,6 +1046,7 @@ def run_full_setup_wizard():
         ("tts", "🔊 TTS 配置", setup_tts),
         ("browser", "🌐 Browser 工具", setup_browser),
         ("debug_tools", "🐛 Debug 配置", setup_debug),
+        ("logging", "📄 日志设置", setup_logging),
         ("depth", "📝 响应详细程度", setup_depth),
         ("caching", "⚡ 响应缓存", setup_caching),
         ("intent", "🎯 意图识别模式", setup_intent),
@@ -1168,6 +1215,7 @@ def run_setup_wizard():
             ("tts", "🔊 TTS 配置"),
             ("browser", "🌐 Browser 工具"),
             ("debug_tools", "🐛 Debug 配置"),
+            ("logging", "📄 日志设置"),
             ("depth", "📝 响应详细程度"),
             ("caching", "⚡ 响应缓存"),
             ("intent", "🎯 意图识别模式"),
@@ -1208,6 +1256,7 @@ def run_setup_wizard():
                 "tts": setup_tts,
                 "browser": setup_browser,
                 "debug_tools": setup_debug,
+                "logging": setup_logging,
                 "depth": setup_depth,
                 "caching": setup_caching,
                 "intent": setup_intent,

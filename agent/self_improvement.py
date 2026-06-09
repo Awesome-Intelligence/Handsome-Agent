@@ -262,7 +262,7 @@ class SelfImprovementEngine:
             "timestamp": time.time()
         }
 
-    def generate_training_data(self, output_dir: str = "~/.handsome-agent/training_data") -> str:
+    def generate_training_data(self, output_dir: str = "~/.handsome_agent/training_data") -> str:
         """生成训练数据（用于微调模型）"""
         output_path = os.path.expanduser(output_dir)
         os.makedirs(output_path, exist_ok=True)

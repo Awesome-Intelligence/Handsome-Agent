@@ -78,8 +78,10 @@ class LogConfig:
         self.file_enabled: bool = False
         self.file_path: str = str(get_logs_dir() / "handsome-agent.log")
         self.console_style: str = ConsoleStyle.PRETTY
-        self.max_file_size: int = 10 * 1024 * 1024
-        self.backup_count: int = 5
+        self.console_show_time: bool = True  # 控制台是否显示时间
+        self.max_file_size: int = 50 * 1024 * 1024  # 50MB per file
+        self.backup_count: int = 30  # Keep 30 days of logs
+        self.rotation: str = "daily"  # "daily"
         self.module_levels: Dict[str, int] = {}
         self.date_format: str = "%Y-%m-%d %H:%M:%S"
 
@@ -130,10 +132,11 @@ def _get_ansi_color(r: int, g: int, b: int) -> str:
 class ColoredFormatter(logging.Formatter):
     """Colorful log formatter"""
     
-    def __init__(self, style: str = ConsoleStyle.PRETTY, date_format: str = "%Y-%m-%d %H:%M:%S"):
+    def __init__(self, style: str = ConsoleStyle.PRETTY, date_format: str = "%Y-%m-%d %H:%M:%S", show_time: bool = True):
         super().__init__(datefmt=date_format)
         self.style = style
         self.date_format = date_format
+        self.show_time = show_time
         
         # ANSI 颜色代码
         self.COLORS = {
@@ -156,8 +159,11 @@ class ColoredFormatter(logging.Formatter):
         return f"{color}{text}{self.COLORS['reset']}"
     
     def _format_pretty(self, record: logging.LogRecord) -> str:
-        """Pretty 格式：带时间戳、层级，根据级别着色"""
-        timestamp = datetime.fromtimestamp(record.created).strftime(self.date_format)
+        """Pretty 格式：带/不带时间戳、层级，根据级别着色"""
+        if self.show_time:
+            timestamp = datetime.fromtimestamp(record.created).strftime(self.date_format) + " - "
+        else:
+            timestamp = ""
         
         # 获取 subsystem（logger name）
         subsystem = record.name if record.name else "root"
@@ -171,7 +177,7 @@ class ColoredFormatter(logging.Formatter):
             # DEBUG 整行灰色（dim）- 在任何背景上都清晰
             dim = self.COLORS['dim']
             reset = self.COLORS['reset']
-            return f"{dim}{timestamp} - {level} - {subsystem} - {record.getMessage()}{reset}"
+            return f"{dim}{timestamp}{level} - {subsystem} - {record.getMessage()}{reset}"
         elif record.levelno == logging.ERROR:
             # 红色 - 在任何背景上都清晰
             level_colored = f"{self.COLORS['red']}{level}{self.COLORS['reset']}"
@@ -183,7 +189,7 @@ class ColoredFormatter(logging.Formatter):
         # 格式化消息
         message = record.getMessage()
         
-        return f"{timestamp} - {level_colored} - {subsystem} - {message}"
+        return f"{timestamp}{level_colored} - {subsystem} - {message}"
     
     def _format_compact(self, record: logging.LogRecord) -> str:
         """Compact 格式：无时间戳，紧凑"""
@@ -222,32 +228,61 @@ class ColoredFormatter(logging.Formatter):
 
 
 class JSONLFileHandler(logging.Handler):
-    """JSONL file handler"""
+    """JSONL file handler with daily rotation and automatic splitting if too large"""
     
-    def __init__(self, filename: str, max_bytes: int = 10 * 1024 * 1024, backup_count: int = 5):
+    def __init__(self, filename: str, max_bytes: int = 50 * 1024 * 1024, backup_count: int = 30, rotation: str = "daily"):
         super().__init__()
         
-        self.filename = Path(filename)
+        self.base_filename = Path(filename)
         self.max_bytes = max_bytes
         self.backup_count = backup_count
+        self.rotation = rotation
+        
+        # Current date for daily rotation
+        self._current_date = datetime.now().strftime("%Y-%m-%d")
+        self._daily_index = 0  # Index for files within same day
         
         # Ensure directory exists
-        self.filename.parent.mkdir(parents=True, exist_ok=True)
+        self.base_filename.parent.mkdir(parents=True, exist_ok=True)
         
         # File lock (for thread safety)
         self._lock = threading.Lock()
         
-        # Open file
+        # Get current filename and open file
+        self.filename = self._get_filename()
         self._file = open(self.filename, 'a', encoding='utf-8')
+    
+    def _get_filename(self) -> Path:
+        """Get current log filename based on rotation mode"""
+        if self.rotation == "daily":
+            if self._daily_index == 0:
+                return self.base_filename.parent / f"{self.base_filename.stem}-{self._current_date}{self.base_filename.suffix}"
+            else:
+                return self.base_filename.parent / f"{self.base_filename.stem}-{self._current_date}_{self._daily_index}{self.base_filename.suffix}"
+        return self.base_filename
     
     def emit(self, record: logging.LogRecord) -> None:
         """Emit log to file"""
         try:
             with self._lock:
-                # 检查文件大小
-                self._file.seek(0, 2)  # 移到文件末尾
-                if self._file.tell() >= self.max_bytes:
-                    self._rotate()
+                # Check daily rotation
+                if self.rotation == "daily":
+                    current_date = datetime.now().strftime("%Y-%m-%d")
+                    if current_date != self._current_date:
+                        # New day, reset
+                        self._rotate()
+                        self._current_date = current_date
+                        self._daily_index = 0
+                        self.filename = self._get_filename()
+                        self._file = open(self.filename, 'a', encoding='utf-8')
+                    else:
+                        # Check size within same day
+                        self._file.seek(0, 2)
+                        if self._file.tell() >= self.max_bytes:
+                            self._daily_index += 1
+                            self._rotate()
+                            self.filename = self._get_filename()
+                            self._file = open(self.filename, 'a', encoding='utf-8')
                 
                 # 构建 JSON 日志
                 log_entry = {
@@ -273,23 +308,25 @@ class JSONLFileHandler(logging.Handler):
             self.handleError(record)
     
     def _rotate(self) -> None:
-        """Rotate log file"""
+        """Rotate log file - close current file, cleanup old files"""
         self._file.close()
         
-        # Move old files
-        for i in range(self.backup_count - 1, 0, -1):
-            old_file = self.filename.with_suffix(f".{i}")
-            new_file = self.filename.with_suffix(f".{i + 1}")
-            if old_file.exists():
-                old_file.rename(new_file)
-        
-        # Rename current file
-        self._file = self.filename.with_suffix(".1")
-        if self._file.exists():
-            self._file.unlink()
-        
-        # Open new file
-        self._file = open(self.filename, 'a', encoding='utf-8')
+        # Cleanup old log files based on backup_count (days to keep)
+        if self.rotation == "daily":
+            self._cleanup_old_files()
+    
+    def _cleanup_old_files(self) -> None:
+        """Clean up log files older than backup_count days"""
+        try:
+            import time
+            pattern = f"{self.base_filename.stem}-*.log"
+            cutoff_time = time.time() - (self.backup_count * 24 * 60 * 60)
+            
+            for old_file in self.base_filename.parent.glob(pattern):
+                if old_file.stat().st_mtime < cutoff_time:
+                    old_file.unlink()
+        except Exception:
+            pass
     
     def close(self) -> None:
         """Close file"""
@@ -351,10 +388,14 @@ class LogManager:
             self._config.file_path = config["file_path"]
         if "console_style" in config:
             self._config.console_style = config["console_style"]
+        if "console_show_time" in config:
+            self._config.console_show_time = config["console_show_time"]
         if "max_file_size" in config:
             self._config.max_file_size = config["max_file_size"]
         if "backup_count" in config:
             self._config.backup_count = config["backup_count"]
+        if "rotation" in config:
+            self._config.rotation = config["rotation"]
         if "module_levels" in config:
             self._config.module_levels.update(config["module_levels"])
         
@@ -370,7 +411,8 @@ class LogManager:
         # Create console formatter
         console_formatter = ColoredFormatter(
             style=self._config.console_style,
-            date_format=self._config.date_format
+            date_format=self._config.date_format,
+            show_time=self._config.console_show_time
         )
         
         # Console handler
@@ -387,7 +429,8 @@ class LogManager:
             self._file_handler = JSONLFileHandler(
                 filename=self._config.file_path,
                 max_bytes=self._config.max_file_size,
-                backup_count=self._config.backup_count
+                backup_count=self._config.backup_count,
+                rotation=self._config.rotation
             )
             self._file_handler.setLevel(level)
             
