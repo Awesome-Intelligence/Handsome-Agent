@@ -84,7 +84,13 @@ class MiniMaxProvider(BaseProvider):
         """记录响应调试日志"""
         if self.logger:
             self.logger.debug(f"MiniMax message keys: {list(message.keys())}")
-            self.logger.debug(f"MiniMax function_call: {function_call}")
+            # 使用截断格式显示 function_call（头部100+省略+尾部100）
+            if function_call:
+                fc_str = json.dumps(function_call)
+                preview = self._format_message_for_log("assistant", fc_str)
+                self.logger.info(f"MiniMax function_call: {preview}")
+            else:
+                self.logger.info(f"MiniMax function_call: {function_call}")
 
     async def generate(
         self,
@@ -162,7 +168,7 @@ class MiniMaxProvider(BaseProvider):
             )
 
         except httpx.HTTPError as e:
-            self.logger.error(f"MiniMax request failed - {e}")
+            self._log_request_error(e, "request")
             raise Exception(f"Failed to call MiniMax API: {e}")
 
     async def generate_stream(

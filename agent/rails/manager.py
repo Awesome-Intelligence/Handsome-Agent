@@ -66,7 +66,7 @@ class RailManager:
         
         try:
             rail.on_register(agent)
-            self.logger.info(f"Registered rail: {rail.name} (priority: {rail.priority})")
+            self.logger.debug(f"Registered rail: {rail.name} (priority: {rail.priority})")
         except Exception as e:
             rail.on_error(e, "on_register")
     

@@ -456,6 +456,100 @@ def print_rich_table(data: list, headers: Optional[list] = None,
 
 
 # ============================================================================
+# Streaming Output
+# ============================================================================
+
+def print_stream_start(prefix: str = "🤖") -> None:
+    """Start streaming output with prefix.
+
+    Args:
+        prefix: Streaming indicator prefix (default: 🤖)
+    """
+    print()
+    print(color(f"  {prefix} ", Colors.AVOCADO_BRIGHT), end="", flush=True)
+
+
+def print_stream_chunk(chunk: str, flush: bool = True) -> None:
+    """Print a streaming chunk without newline.
+
+    Args:
+        chunk: Content chunk to print
+        flush: Whether to flush immediately
+    """
+    print(chunk, end="", flush=flush)
+
+
+def print_stream_end() -> None:
+    """End streaming output with newline."""
+    print()  # Newline after streaming content
+
+
+class StreamingPrinter:
+    """Streaming printer for progressive output.
+
+    Usage:
+        printer = StreamingPrinter(prefix="🤖")
+        await printer.start()
+        for chunk in stream:
+            printer.print(chunk)
+        await printer.finish()
+    """
+
+    def __init__(self, prefix: str = "🤖", color_code: str = Colors.AVOCADO_BRIGHT):
+        """Initialize streaming printer.
+
+        Args:
+            prefix: Streaming indicator prefix
+            color_code: Color code for the prefix
+        """
+        self.prefix = prefix
+        self.color_code = color_code
+        self.started = False
+        self._buffer = ""
+
+    def start(self) -> None:
+        """Start streaming output."""
+        print()
+        print(color(f"  {self.prefix} ", self.color_code), end="", flush=True)
+        self.started = True
+
+    def print(self, chunk: str, flush: bool = True) -> None:
+        """Print a chunk to streaming output.
+
+        Args:
+            chunk: Content chunk to print
+            flush: Whether to flush immediately
+        """
+        if not self.started:
+            self.start()
+        print(chunk, end="", flush=flush)
+        self._buffer += chunk
+
+    def finish(self, newline: bool = True) -> str:
+        """Finish streaming output.
+
+        Args:
+            newline: Whether to add newline at end
+
+        Returns:
+            Complete streamed content
+        """
+        if newline and self.started:
+            print(flush=True)
+        self.started = False
+        return self._buffer
+
+    def clear(self) -> None:
+        """Clear the streamed content buffer."""
+        self._buffer = ""
+
+    @property
+    def content(self) -> str:
+        """Get current buffered content."""
+        return self._buffer
+
+
+# ============================================================================
 # Export for backward compatibility
 # ============================================================================
 

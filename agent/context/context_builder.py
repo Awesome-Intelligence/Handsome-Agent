@@ -96,7 +96,7 @@ class ContextBuilder:
             from tools.memory_tool import MemoryStore
             self._memory_store = MemoryStore()
             self._memory_store.load_from_disk()
-            self.logger.info("MemoryStore loaded")
+            self.logger.debug("MemoryStore loaded")
         return self._memory_store
 
     def set_tools(self, tools: Dict[str, Any]) -> None:
@@ -161,14 +161,14 @@ class ContextBuilder:
             完整的系统提示词
         """
         # 🧠 Decision - 💾 Context - 开始构建上下文
-        self.logger.debug("Context Assembly: Starting prompt building")
+        self.logger.info("Context Assembly: Starting prompt building")
         
         # 使用代码常量定义 Agent 身份和能力（Hermes 风格）
         identity = AGENT_IDENTITY
         capabilities = CAPABILITIES
         
         # 🧠 Decision - 💾 Context - 记录各部分长度
-        self.logger.info(
+        self.logger.debug(
             f"Context Assembly: identity={len(identity)} chars, "
             f"capabilities={len(capabilities)} chars"
         )
@@ -197,7 +197,7 @@ class ContextBuilder:
             tools_schema = json.dumps(self.get_tools_schema(), ensure_ascii=False, indent=2)
             tools_schema_len = len(tools_schema)
         
-        self.logger.info(
+        self.logger.debug(
             f"Context Assembly: tools_schema={tools_schema_len} chars, "
             f"history={history_msg_count} messages, "
             f"memory_prefetch={len(memory_context)} chars"
@@ -237,7 +237,7 @@ class ContextBuilder:
         prompt = "\n\n".join(prompt_parts)
         
         # 🧠 Decision - 💾 Context - 上下文构建完成
-        self.logger.info(
+        self.logger.debug(
             f"Context Assembly complete: total={len(prompt)} chars, "
             f"tools_count={len(self.tools)}"
         )

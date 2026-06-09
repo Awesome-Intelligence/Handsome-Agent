@@ -130,6 +130,13 @@ class BaseProvider(ABC):
             preview = self._format_message_for_log("assistant", content)
             self.logger.debug(f"{self.provider_display_name} Streaming Output: {preview}")
 
+    def _log_request_error(self, error: Exception, context: str = "request"):
+        """记录请求错误（ERROR级别）- 包含完整错误信息"""
+        if self.logger:
+            error_type = type(error).__name__
+            error_msg = str(error)
+            self.logger.error(f"{self.provider_display_name} {context} failed - {error_type}: {error_msg}")
+
     def _validate_api_key(self):
         """验证 API Key 是否配置（子类可覆盖）
 

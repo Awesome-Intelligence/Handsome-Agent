@@ -138,7 +138,7 @@ class ReActLoop:
                 self.logger.warning(f"达到最大迭代次数 {self.max_iterations}")
                 break
             
-            self.logger.debug(
+            self.logger.info(
                 f"迭代 {context.current_iteration}/{self.max_iterations}"
             )
             

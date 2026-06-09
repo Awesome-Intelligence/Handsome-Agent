@@ -227,7 +227,7 @@ class LLMToolSelector:
             })
         return schema
 
-    def _build_system_prompt(
+    async def _build_system_prompt(
         self, 
         conversation_history: Optional[List[Dict]] = None,
         user_input: str = ""
@@ -242,7 +242,7 @@ class LLMToolSelector:
         # 优先使用 ContextManager 统一入口
         if self._context_manager:
             try:
-                result = self._context_manager.build(
+                result = await self._context_manager.build(
                     user_message=user_input,
                     conversation_history=conversation_history,
                     purpose=ContextPurpose.TOOL_SELECTION,
@@ -371,7 +371,7 @@ class LLMToolSelector:
 
         try:
             # 构建提示词（传入 user_input 用于记忆预取）
-            system_prompt = self._build_system_prompt(conversation_history, user_input)
+            system_prompt = await self._build_system_prompt(conversation_history, user_input)
 
             # 添加上下文（如果有）
             if context:
@@ -443,7 +443,7 @@ class LLMToolSelector:
                 
                 # 如果 action 是 direct_response 且没有有效的 tool，使用关键词回退
                 if action == "direct_response" and (not selected_tool or selected_tool not in self.tools):
-                    self.logger.debug(f"LLM returned direct_response or unknown tool, using keyword fallback")
+                    self.logger.info(f"LLM returned direct_response or unknown tool, using keyword fallback")
                     fallback_result = self._keyword_fallback(user_input)
                     return fallback_result
                 
