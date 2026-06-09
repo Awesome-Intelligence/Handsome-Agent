@@ -39,24 +39,49 @@ docs/
 │   ├── testing-summary.md       # 测试覆盖报告（277 测试，85%+ 覆盖率）
 │   └── intent-classification-config.md  # 意图识别配置（**已废弃**，仅供参考）
 │
-└── modules/                     # 模块文档
-    ├── agent/                   # Agent 模块（核心）
-    │   └── README.md
-    ├── skills/                   # 技能系统
-    │   └── README.md
-    ├── gateway/                 # Gateway 模块
-    │   └── README.md
-    ├── executor/                # 执行层
-    │   └── README.md
-    ├── tools/                   # 工具定义
-    │   └── README.md
-    ├── common/                  # 基础设施
-    │   └── README.md
-    ├── cli/                     # CLI 模块
-    │   └── README.md
-    └── tests/                   # 测试文档
-        └── README.md
-    └── context-compression.md    # 上下文压缩模块 ⭐
+├── modules/                     # 模块文档
+│   ├── agent/                   # Agent 模块（核心）
+│   │   └── README.md
+│   ├── skills/                   # 技能系统
+│   │   └── README.md
+│   ├── gateway/                 # Gateway 模块
+│   │   └── README.md
+│   ├── executor/                # 执行层
+│   │   └── README.md
+│   ├── tools/                   # 工具定义
+│   │   └── README.md
+│   ├── common/                  # 基础设施
+│   │   └── README.md
+│   ├── cli/                     # CLI 模块
+│   │   └── README.md
+│   └── tests/                   # 测试文档
+│       └── README.md
+│   └── context-compression.md    # 上下文压缩模块 ⭐
+│
+├── design/                      # 技术设计文档 ⭐
+│   ├── README.md                # 技术设计索引
+│   ├── technical/
+│   │   └── detailed-design.md   # 详细设计（类图、时序图、状态机）
+│   ├── database/
+│   │   └── database-design.md   # 数据库设计
+│   ├── api/
+│   │   └── api-spec.md          # API 规范
+│   └── discovery/
+│       └── agent-discovery.md    # Agent 发现机制
+│
+├── product/                     # 产品文档 ⭐
+│   ├── product-design.md        # 产品设计书
+│   └── user-stories.md          # 用户故事
+│
+├── test/                        # 测试文档 ⭐
+│   ├── test-plan.md             # 测试计划
+│   └── test-cases.md            # 测试用例
+│
+├── user/                        # 用户手册 ⭐
+│   └── user-manual.md           # 用户使用手册
+│
+└── ops/                         # 运维手册 ⭐
+    └── ops-manual.md            # 部署与运维指南
 ```
 
 ---
@@ -68,6 +93,7 @@ docs/
 |------|------|----------|
 | [Quick Start](guides/quick-start.md) | 5分钟快速上手 | 5min |
 | [System Design](guides/system-design.md) | 系统设计概览 | 10min |
+| [User Manual](user/user-manual.md) | 用户使用手册 | 15min |
 
 ### 核心架构
 | 文档 | 内容 |
@@ -76,6 +102,33 @@ docs/
 | [Architecture Overview](architecture/overview.md) | 架构概览 |
 | [Restructure Plan](architecture/restructure-plan.md) | 目录结构重构计划 |
 | [LLM Tool Selection](architecture/llm-tool-selection.md) | LLM 驱动的工具选择（已废弃） |
+
+### 技术设计
+| 文档 | 内容 |
+|------|------|
+| [Design Index](design/README.md) | 技术设计文档索引 |
+| [Detailed Design](design/technical/detailed-design.md) | 详细设计（类图、时序图、状态机） |
+| [Database Design](design/database/database-design.md) | 数据库设计 |
+| [API Spec](design/api/api-spec.md) | API 规范 |
+| [Agent Discovery](design/discovery/agent-discovery.md) | Agent 发现机制 |
+
+### 产品文档
+| 文档 | 内容 |
+|------|------|
+| [Product Design](product/product-design.md) | 产品设计书 |
+| [User Stories](product/user-stories.md) | 用户故事与用例 |
+
+### 测试文档
+| 文档 | 内容 |
+|------|------|
+| [Test Plan](test/test-plan.md) | 测试计划 |
+| [Test Cases](test/test-cases.md) | 测试用例 |
+| [Testing Summary](development/testing-summary.md) | 测试覆盖报告 |
+
+### 运维文档
+| 文档 | 内容 |
+|------|------|
+| [Ops Manual](ops/ops-manual.md) | 部署与运维指南 |
 
 ### 模块文档
 | 模块 | 文档 |
@@ -94,7 +147,6 @@ docs/
 |------|------|
 | [Quick Reference](guides/quick-reference.md) | 命令、API、最佳实践快速参考 |
 | [API Reference](guides/api-reference.md) | 完整 API 文档 |
-| [Testing Summary](development/testing-summary.md) | 测试覆盖报告 |
 | [Contributing](guides/contributing.md) | 贡献指南 |
 
 ### 参考资料
@@ -136,5 +188,5 @@ python -m pytest tests/unit/ --cov=. --cov-report=term-missing
 
 ---
 
-**最后更新**: 2026-06-01
-**版本**: v3.0.0 - 目录结构重构完成
+**最后更新**: 2026-06-09
+**版本**: v3.1.0 - 新增产品/技术设计/测试/运维文档
