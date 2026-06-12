@@ -166,8 +166,8 @@ class KimiProvider(BaseProvider):
                 self.logger.info(f"Kimi streaming completed - latency: {latency_ms:.2f}ms")
 
         except Exception as e:
-            self.logger.error(f"Kimi streaming failed - {e}")
-            yield StreamChunk(content=f"Error: {e}", finish=True)
+            detailed_error = self._log_request_error(e, "streaming")
+            yield StreamChunk(content=f"Error: {detailed_error}", finish=True)
 
     async def count_tokens(self, text: str) -> int:
         """估算 token 数量"""

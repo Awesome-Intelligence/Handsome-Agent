@@ -139,8 +139,8 @@ class GeminiProvider(BaseProvider):
             )
 
         except httpx.HTTPError as e:
-            self.logger.error(f"Gemini request failed - {e}")
-            raise Exception(f"Failed to call Gemini API: {e}")
+            detailed_error = self._log_request_error(e, "request")
+            raise Exception(f"Failed to call Gemini API: {detailed_error}")
 
     async def generate_stream(
         self,
@@ -206,8 +206,8 @@ class GeminiProvider(BaseProvider):
                 yield StreamChunk(finish=True)
 
         except Exception as e:
-            self.logger.error(f"Gemini streaming failed - {e}")
-            yield StreamChunk(content=f"Error: {e}", finish=True)
+            detailed_error = self._log_request_error(e, "streaming")
+            yield StreamChunk(content=f"Error: {detailed_error}", finish=True)
 
     async def count_tokens(self, text: str) -> int:
         """估算 token 数量"""

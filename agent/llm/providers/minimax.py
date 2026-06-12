@@ -168,8 +168,8 @@ class MiniMaxProvider(BaseProvider):
             )
 
         except httpx.HTTPError as e:
-            self._log_request_error(e, "request")
-            raise Exception(f"Failed to call MiniMax API: {e}")
+            detailed_error = self._log_request_error(e, "request")
+            raise Exception(f"Failed to call MiniMax API: {detailed_error}")
 
     async def generate_stream(
         self,
@@ -236,8 +236,8 @@ class MiniMaxProvider(BaseProvider):
                 self._log_request_completed(latency_ms)
 
         except Exception as e:
-            self.logger.error(f"MiniMax streaming failed - {e}")
-            yield StreamChunk(content=f"Error: {e}", finish=True)
+            detailed_error = self._log_request_error(e, "streaming")
+            yield StreamChunk(content=f"Error: {detailed_error}", finish=True)
 
     async def count_tokens(self, text: str) -> int:
         """估算 token 数量"""

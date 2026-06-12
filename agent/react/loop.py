@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from agent.rails import Rail, RailResult
 
 from common.logging_manager import get_task_logger
+from agent.error import classify_tool_error, ToolExecutionError
 
 
 class LoopState(Enum):
@@ -686,8 +687,18 @@ class ReActLoop:
             return result
             
         except Exception as e:
-            self.logger.error(f"工具执行错误: {e}")
-            result = {"success": False, "error": str(e)}
+            # 使用错误分类器进行结构化错误处理
+            error_info = classify_tool_error(e)
+            self.logger.error(
+                f"工具执行错误 - tool={tool_name} type={error_info['error_type']} "
+                f"retryable={error_info['retryable']} msg={str(e)[:200]}"
+            )
+            result = {
+                "success": False,
+                "error": str(e),
+                "error_type": error_info["error_type"],
+                "retryable": error_info["retryable"],
+            }
             self._emit_tool_end(tool_name, result)
             return result
     

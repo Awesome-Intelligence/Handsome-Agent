@@ -197,6 +197,9 @@ class RailManager:
                 elif result and result.modified_args:
                     args = result.modified_args
             except Exception as e:
+                self.logger.error(
+                    f"Rail '{rail.name}' before_tool_call({tool_name}) error - type={type(e).__name__} msg={str(e)[:200]}"
+                )
                 rail.on_error(e, f"before_tool_call({tool_name})")
         
         return combined_result if not combined_result.allowed else None
@@ -244,6 +247,9 @@ class RailManager:
             try:
                 await rail.on_checkpoint(checkpoint_name)
             except Exception as e:
+                self.logger.error(
+                    f"Rail '{rail.name}' checkpoint({checkpoint_name}) error - type={type(e).__name__} msg={str(e)[:200]}"
+                )
                 rail.on_error(e, f"checkpoint({checkpoint_name})")
     
     def pause(self) -> None:

@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import time
 
+from agent.error import classify_api_error, FailoverReason
+
 
 @dataclass
 class ProviderConfig:
@@ -142,11 +144,87 @@ class BaseProvider(ABC):
             self.logger.debug(f"{self.provider_display_name} Streaming Output: {preview}")
 
     def _log_request_error(self, error: Exception, context: str = "request"):
-        """记录请求错误（ERROR级别）- 包含完整错误信息"""
+        """记录请求错误（ERROR级别）- 包含完整错误信息和分类结果
+        
+        使用 error_classifier 对错误进行结构化分类，并输出详细的恢复建议。
+        """
         if self.logger:
             error_type = type(error).__name__
             error_msg = str(error)
-            self.logger.error(f"{self.provider_display_name} {context} failed - {error_type}: {error_msg}")
+            
+            # 当 error_msg 包含类型名或为空时，尝试获取更详细的信息
+            if not error_msg or error_msg == error_type:
+                # 尝试从 error.args 获取消息
+                if hasattr(error, 'args') and error.args:
+                    error_msg = " ".join(str(arg) for arg in error.args if arg)
+                # 尝试从 error.message 获取
+                if not error_msg and hasattr(error, 'message'):
+                    error_msg = str(error.message)
+                # 尝试从 error.request 获取 URL
+                if not error_msg:
+                    request = getattr(error, 'request', None)
+                    if request:
+                        error_msg = f"Request to {getattr(request, 'url', 'unknown')} failed"
+            
+            # 如果仍然没有有用的消息，提供默认描述
+            if not error_msg or error_msg == error_type:
+                error_msg = f"{error_type} occurred"
+            
+            # 获取状态码
+            status_code = getattr(error, "status_code", None)
+            if status_code is None:
+                current = error
+                for _ in range(5):
+                    code = getattr(current, "status_code", None)
+                    if isinstance(code, int):
+                        status_code = code
+                        break
+                    cause = getattr(current, "__cause__", None) or getattr(current, "__context__", None)
+                    if cause is None or cause is current:
+                        break
+                    current = cause
+            
+            # 使用错误分类器
+            classified = classify_api_error(
+                error,
+                provider=self.provider_display_name,
+                model=self.config.model or "",
+            )
+            
+            # 构建详细日志消息
+            log_parts = [
+                f"{self.provider_display_name} {context} failed",
+                f"reason={classified.reason.value}",
+            ]
+            
+            if status_code:
+                log_parts.append(f"status={status_code}")
+            
+            log_parts.append(f"type={error_type}")
+            
+            # 添加恢复建议
+            recovery = []
+            if classified.should_compress:
+                recovery.append("compress")
+            if classified.should_rotate_credential:
+                recovery.append("rotate_credential")
+            if classified.should_fallback:
+                recovery.append("fallback")
+            
+            if recovery:
+                log_parts.append(f"recovery=[{', '.join(recovery)}]")
+            
+            # 使用更有信息量的消息
+            display_msg = error_msg if error_msg else classified.message
+            if display_msg:
+                # 截断长消息
+                msg = display_msg[:200] + "..." if len(display_msg) > 200 else display_msg
+                log_parts.append(f"msg={msg}")
+            
+            self.logger.error(" | ".join(log_parts))
+            
+            # 返回详细的错误消息，供调用者使用
+            return f"{error_type}: {error_msg}"
 
     def _validate_api_key(self):
         """验证 API Key 是否配置（子类可覆盖）
