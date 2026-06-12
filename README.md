@@ -1,5 +1,7 @@
 # Handsome Agent
 
+![Logo](docs/images/logo.png)
+
 > Hermes-Brain + OpenClaw-Body 双核驱动的模块化 AI 智能助手
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
