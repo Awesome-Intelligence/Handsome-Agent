@@ -1,11 +1,11 @@
 """
-TUI 侧边栏组件 - 提供文件树、任务、Agent、上下文面板
+TUI 侧边栏组件 - 提供文件树、任务、Agent、日志面板
 """
 
 from pathlib import Path
 from textual.app import ComposeResult
 from textual.widget import Widget
-from textual.widgets import Static, Button
+from textual.widgets import Static, Button, RichLog
 from textual.containers import Container, Vertical, Horizontal
 from textual import on
 
@@ -37,10 +37,10 @@ class SidebarContainer(Container):
                 yield Static("🤖 Agent", classes="panel-title")
                 yield Static("[green]🟢 空闲[/green]", id="agent-content")
             
-            # 上下文面板
-            with Vertical(id="panel-context", classes="sidebar-panel hidden"):
-                yield Static("📊 上下文", classes="panel-title")
-                yield Static("Token: 0\n消息: 0\n占用: 0%", id="context-content")
+            # 日志面板
+            with Vertical(id="panel-logs", classes="sidebar-panel hidden"):
+                yield Static("📜 日志", classes="panel-title")
+                yield RichLog(id="log-output", auto_scroll=True, max_lines=1000)
     
     def _build_file_tree(self) -> str:
         """构建文件树."""
@@ -70,7 +70,7 @@ class SidebarContainer(Container):
         self._active_panel = panel_type
         
         # 切换面板显示
-        for panel_id in ["panel-file_tree", "panel-tasks", "panel-agent", "panel-context"]:
+        for panel_id in ["panel-file_tree", "panel-tasks", "panel-agent", "panel-logs"]:
             panel = self.query_one(f"#{panel_id}")
             if panel_id == f"panel-{panel_type}":
                 panel.remove_class("hidden")
@@ -78,7 +78,7 @@ class SidebarContainer(Container):
                 panel.add_class("hidden")
         
         # 切换标签样式
-        for tab_id in ["btn-file_tree", "btn-tasks", "btn-agent", "btn-context"]:
+        for tab_id in ["btn-file_tree", "btn-tasks", "btn-agent", "btn-logs"]:
             btn = self.query_one(f"#{tab_id}")
             if tab_id == f"btn-{panel_type}":
                 btn.add_class("active")
@@ -99,7 +99,7 @@ class SidebarTabBar(Container):
             yield Button("📁", id="btn-file_tree", classes="sidebar-tab active", variant="primary")
             yield Button("📋", id="btn-tasks", classes="sidebar-tab")
             yield Button("🤖", id="btn-agent", classes="sidebar-tab")
-            yield Button("📊", id="btn-context", classes="sidebar-tab")
+            yield Button("📜", id="btn-logs", classes="sidebar-tab")
     
     @on(Button.Pressed, "#btn-file_tree")
     def _on_file_tree(self) -> None:
@@ -113,14 +113,14 @@ class SidebarTabBar(Container):
     def _on_agent(self) -> None:
         self._switch("agent")
     
-    @on(Button.Pressed, "#btn-context")
-    def _on_context(self) -> None:
-        self._switch("context")
+    @on(Button.Pressed, "#btn-logs")
+    def _on_logs(self) -> None:
+        self._switch("logs")
     
     def _switch(self, panel_type: str) -> None:
         """切换面板."""
         # 更新按钮样式
-        for btn_id in ["btn-file_tree", "btn-tasks", "btn-agent", "btn-context"]:
+        for btn_id in ["btn-file_tree", "btn-tasks", "btn-agent", "btn-logs"]:
             btn = self.query_one(f"#{btn_id}")
             if btn_id == f"btn-{panel_type}":
                 btn.add_class("active")

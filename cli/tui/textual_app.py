@@ -22,6 +22,9 @@ Textual TUI Application for Handsome Agent
 
 from __future__ import annotations
 
+import logging
+from rich.console import Console as RichConsole
+from rich.text import Text as RichText
 import os
 import sys
 from typing import TYPE_CHECKING, Optional
@@ -163,6 +166,56 @@ GRAY_DIM = "#888888"
 GOLD = "#FFD700"
 
 # ============================================================================
+# TuiLogHandler - 后端日志路由到 TUI 日志面板
+# ============================================================================
+
+class TuiLogHandler(logging.Handler):
+    """将后端日志输出重定向到 Textual RichLog 组件的日志处理器。
+
+    线程安全：通过 App.call_from_thread() 将日志从任意线程路由到 UI 线程。
+    组件就绪前自动缓冲日志，就绪后一次性刷新。
+    """
+
+    def __init__(self, app, buffer_size: int = 500):
+        super().__init__()
+        self._app = app
+        self._widget = None  # type: RichLog | None
+        self._buffer: list[logging.LogRecord] = []
+        self._buffer_size = buffer_size
+        self._console = RichConsole(force_terminal=True, width=120, no_color=True)
+    
+    def set_widget(self, widget) -> None:
+        """设置目标 RichLog 组件并刷新缓冲区。"""
+        self._widget = widget
+        if self._buffer:
+            for record in self._buffer:
+                self._write_log(record)
+            self._buffer.clear()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """接收日志记录（任意线程），路由到 UI 线程写入。"""
+        if self._widget is None:
+            if len(self._buffer) < self._buffer_size:
+                self._buffer.append(record)
+            return
+        try:
+            self._app.call_from_thread(self._write_log, record)
+        except Exception:
+            pass
+
+    def _write_log(self, record: logging.LogRecord) -> None:
+        """在 UI 线程中写入 RichLog 组件，支持自动换行。"""
+        if self._widget is None:
+            return
+        msg = self.format(record)
+        # 按 RichLog 组件当前宽度自动换行，保留 Rich 标记
+        width = max(self._widget.size.width, 20)
+        text = RichText.from_markup(msg)
+        wrapped = text.wrap(self._console, width)
+        self._widget.write(wrapped)
+
+
+# ============================================================================
 # HandsomeAgentApp 主类
 # ============================================================================
 
@@ -244,7 +297,7 @@ class HandsomeAgentApp(App):
         ("ctrl+1", "switch_to_file_tree", "File Tree"),
         ("ctrl+2", "switch_to_tasks", "Tasks"),
         ("ctrl+3", "switch_to_agent", "Agent"),
-        ("ctrl+4", "switch_to_context", "Context"),
+        ("ctrl+4", "switch_to_logs", "Logs"),
         ("f1", "open_help", "Help"),
         ("ctrl+/", "open_help", "Help"),
         ("ctrl+r", "open_session_selector", "Session Selector"),
@@ -282,10 +335,31 @@ class HandsomeAgentApp(App):
         # 先 patch Textual logger 以修复兼容性问题
         _patch_textual_logger()
         
-        # 禁用后端控制台日志，防止日志输出闪现在 TUI 屏幕上
+        # 将后端控制台日志路由到 TUI 日志面板
+        self._tui_log_handler: TuiLogHandler | None = None
+        self._saved_console_handler: logging.Handler | None = None
         if LogManager is not None:
             try:
-                LogManager.get_instance().disable_console()
+                lm = LogManager.get_instance()
+                if lm._console_handler is not None:
+                    # 创建 TUI 日志处理器并设置与控制台相同的格式
+                    self._tui_log_handler = TuiLogHandler(self)
+                    if hasattr(lm._console_handler, 'formatter'):
+                        self._tui_log_handler.setFormatter(lm._console_handler.formatter)
+                    self._tui_log_handler.setLevel(lm._console_handler.level)
+                    
+                    # 从 root logger 移除控制台 handler，添加 TUI handler
+                    if lm._console_handler in logging.root.handlers:
+                        logging.root.removeHandler(lm._console_handler)
+                        self._saved_console_handler = lm._console_handler
+                    logging.root.addHandler(self._tui_log_handler)
+                    
+                    # 从所有子 logger 移除控制台 handler
+                    for logger_name in logging.Logger.manager.loggerDict:
+                        logger = logging.getLogger(logger_name)
+                        if lm._console_handler in logger.handlers:
+                            logger.removeHandler(lm._console_handler)
+                            logger.addHandler(self._tui_log_handler)
             except Exception:
                 pass
         
@@ -549,6 +623,12 @@ Button:hover {
     margin-bottom: 1;
 }
 
+#log-output {
+    height: 100%;
+    background: #0d1117;
+    color: #8b949e;
+}
+
 /* === 主区域布局 === */
 #main-area {
     height: 1fr;
@@ -635,7 +715,7 @@ Button:hover {
             elif event.key == '3':
                 self.action_switch_to_agent()
             elif event.key == '4':
-                self.action_switch_to_context()
+                self.action_switch_to_logs()
             event.prevent_default()
             event.stop()
             return
@@ -699,6 +779,14 @@ Button:hover {
         
         # 注册事件监听器
         self._register_event_listeners()
+        
+        # 将 TUI 日志处理器绑定到日志面板的 RichLog 组件
+        if self._tui_log_handler is not None:
+            try:
+                log_widget = self.query_one("#log-output", RichLog)
+                self._tui_log_handler.set_widget(log_widget)
+            except Exception:
+                pass
         
         # 聚焦到输入框（TextArea）
         self.set_focus(self.query_one("#user-input", TextArea))
@@ -1171,10 +1259,24 @@ Button:hover {
         # 注意：这里不调用 super().on_unmount()，因为 Textual App 可能没有这个方法
         self._logger.debug("Application unmounted, data saved")
         
-        # 恢复后端控制台日志
-        if LogManager is not None:
+        # 恢复原始控制台日志处理器
+        self._restore_console_handler()
+    
+    def _restore_console_handler(self) -> None:
+        """恢复原始控制台日志处理器（TUI 退出时调用）。"""
+        if self._tui_log_handler is not None and self._saved_console_handler is not None:
             try:
-                LogManager.get_instance().enable_console()
+                # 移除 TUI handler
+                if self._tui_log_handler in logging.root.handlers:
+                    logging.root.removeHandler(self._tui_log_handler)
+                for logger_name in logging.Logger.manager.loggerDict:
+                    logger = logging.getLogger(logger_name)
+                    if self._tui_log_handler in logger.handlers:
+                        logger.removeHandler(self._tui_log_handler)
+                
+                # 恢复原始控制台 handler
+                if self._saved_console_handler not in logging.root.handlers:
+                    logging.root.addHandler(self._saved_console_handler)
             except Exception:
                 pass
     
@@ -1205,7 +1307,7 @@ Button:hover {
         """获取侧边栏并切换面板.
         
         Args:
-            panel_type: 面板类型 (file_tree, tasks, agent, context)
+            panel_type: 面板类型 (file_tree, tasks, agent, logs)
         """
         # 确保侧边栏显示
         try:
@@ -1230,9 +1332,9 @@ Button:hover {
         """切换到 Agent 面板 (Ctrl+3)."""
         self._get_sidebar_and_switch("agent")
     
-    def action_switch_to_context(self) -> None:
-        """切换到上下文面板 (Ctrl+4)."""
-        self._get_sidebar_and_switch("context")
+    def action_switch_to_logs(self) -> None:
+        """切换到日志面板 (Ctrl+4)."""
+        self._get_sidebar_and_switch("logs")
     
     def action_toggle_help(self) -> None:
         """切换帮助面板显示."""
@@ -1823,11 +1925,7 @@ def run_textual_app(
         return app.run()
     finally:
         # 确保控制台日志在退出时恢复（兜底机制）
-        if LogManager is not None:
-            try:
-                LogManager.get_instance().enable_console()
-            except Exception:
-                pass
+        app._restore_console_handler()
 
 
 # ============================================================================
