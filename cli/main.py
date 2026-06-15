@@ -726,12 +726,13 @@ def run_textual_mode(args: argparse.Namespace, agent: Agent, model_name: str) ->
         print(get_textual_install_hint())
         return 1
     
-    # 检查环境兼容性
-    compatible, reason = is_textual_compatible()
-    if not compatible:
-        print(f"\n⚠ 无法启动 Textual TUI: {reason}")
-        print("自动回退到传统 CLI 模式...\n")
-        return 1
+    # 检查环境兼容性（显式指定 --textual 时跳过检查）
+    if not getattr(args, 'textual', False):
+        compatible, reason = is_textual_compatible()
+        if not compatible:
+            print(f"\n⚠ 无法启动 Textual TUI: {reason}")
+            print("自动回退到传统 CLI 模式...\n")
+            return 1
     
     # Get session info
     session_id = None

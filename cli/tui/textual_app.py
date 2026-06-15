@@ -36,7 +36,9 @@ try:
     from textual.containers import Container, VerticalScroll, Horizontal
     from textual.message import Message
     from textual import on
-    from textual.events import Key as TextAreaKey
+    from textual.events import Key
+    # Textual 8.x 中使用 Key 事件而不是 KeyEvent
+    KeyEvent = Key
 except ImportError as e:
     TEXTUAL_AVAILABLE = False
     _TEXTUAL_IMPORT_ERROR = str(e)
@@ -68,9 +70,16 @@ except ImportError:
 
 # 会话选择器组件
 try:
-    from .views.session_picker import SessionPickerScreen
+    from .widgets.session_picker import SessionPickerScreen
 except ImportError:
     SessionPickerScreen = None
+
+# 侧边栏组件
+try:
+    from .sidebar import SidebarContainer, SidebarTabBar
+except ImportError:
+    SidebarContainer = None
+    SidebarTabBar = None
 
 # 审批对话框组件
 try:
@@ -223,6 +232,7 @@ class HandsomeAgentApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("ctrl+q", "quit", "Quit"),
+        ("ctrl+c", "cancel_current", "Cancel"),
         ("ctrl+b", "toggle_sidebar", "Sidebar"),
         ("ctrl+h", "toggle_help", "Help"),
         ("ctrl+t", "new_tab", "New Tab"),
@@ -230,6 +240,10 @@ class HandsomeAgentApp(App):
         ("ctrl+tab", "next_tab", "Next Tab"),
         ("ctrl+shift+tab", "prev_tab", "Previous Tab"),
         ("ctrl+k", "open_command_palette", "Command Palette"),
+        ("ctrl+1", "switch_to_file_tree", "File Tree"),
+        ("ctrl+2", "switch_to_tasks", "Tasks"),
+        ("ctrl+3", "switch_to_agent", "Agent"),
+        ("ctrl+4", "switch_to_context", "Context"),
         ("f1", "open_help", "Help"),
         ("ctrl+/", "open_help", "Help"),
         ("ctrl+r", "open_session_selector", "Session Selector"),
@@ -238,12 +252,6 @@ class HandsomeAgentApp(App):
         ("k", "scroll_up", "Scroll Up"),
         ("ctrl+shift+t", "change_theme", "Change Theme"),
     ]
-    
-    # 事件处理装饰器
-    @on(Button.Pressed)
-    def handle_button_pressed(self, event: Button.Pressed) -> None:
-        """处理按钮点击事件."""
-        self._on_button_pressed(event)
     
     def __init__(
         self,
@@ -464,17 +472,6 @@ Screen {
     border: solid #58a6ff;
 }
 
-.send-button {
-    background: #238636;
-    color: #ffffff;
-    padding: 0 2;
-    margin-left: 1;
-}
-
-.send-button:hover {
-    background: #2ea043;
-}
-
 /* 按钮通用样式 */
 Button {
     background: #21262d;
@@ -485,14 +482,94 @@ Button {
 Button:hover {
     background: #30363d;
 }
+
+/* === 侧边栏样式 === */
+#sidebar-container {
+    width: 20%;
+    height: 100%;
+    background: #161b22;
+    border-left: solid #30363d;
+}
+
+#sidebar-tabs {
+    height: 3;
+    background: #0d1117;
+    border-bottom: solid #30363d;
+}
+
+#tab-bar {
+    height: 100%;
+    layout: horizontal;
+}
+
+.sidebar-tab {
+    background: #21262d;
+    color: #8b949e;
+    border: none;
+    padding: 0 1;
+    margin: 1;
+    min-width: 3;
+}
+
+.sidebar-tab.active {
+    background: #30363d;
+    color: #c9d1d9;
+}
+
+.sidebar-tab:hover {
+    background: #30363d;
+    color: #c9d1d9;
+}
+
+#sidebar-content-inner {
+    height: 1fr;
+    padding: 1;
+}
+
+.sidebar-panel {
+    height: 100%;
+    display: block;
+}
+
+.sidebar-panel.hidden {
+    display: none;
+}
+
+.panel-title {
+    color: #c9d1d9;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* === 主区域布局 === */
+#main-area {
+    height: 1fr;
+    width: 100%;
+}
+
+#chat-area {
+    width: 1fr;
+    height: 100%;
+}
+
+#file-tree-title,
+#tasks-title,
+#agent-title,
+#context-title {
+    color: #c9d1d9;
+    text-style: bold;
+    margin-bottom: 1;
+}
 """
     
     def compose(self) -> ComposeResult:
         """组合应用布局组件.
         
-        布局结构（从上到下）：
+        布局结构：
         - 自定义 Header（模型信息、上下文占用）
-        - 聊天区域（欢迎横幅 + 聊天历史）
+        - 主区域
+          - 左侧：聊天区域（欢迎横幅 + 聊天历史）
+          - 右侧：侧边栏（文件树、任务、Agent、上下文）
         - 自定义 Footer（状态信息、快捷键提示）
         - 输入区域（固定在底部）
         
@@ -508,33 +585,54 @@ Button:hover {
                 cwd_short = self.cwd[-30:] if self.cwd and len(self.cwd) > 30 else (self.cwd or "")
                 yield Static(cwd_short, classes="header-cwd")
         
-        # 主聊天区域（弹性高度）
-        with VerticalScroll(id="chat-area"):
-            yield Static("", id="welcome-banner")
-            yield RichLog(id="chat-log", auto_scroll=True)
+        # 主区域 - 左侧聊天 + 右侧侧边栏
+        with Horizontal(id="main-area"):
+            # 左侧聊天区域（弹性高度）
+            with VerticalScroll(id="chat-area"):
+                yield Static("", id="welcome-banner")
+                yield RichLog(id="chat-log", auto_scroll=True)
+            
+            # 右侧侧边栏
+            if SidebarContainer and SidebarTabBar:
+                with Container(id="sidebar-container"):
+                    yield SidebarTabBar(on_switch=self._on_sidebar_panel_switch)
+                    yield SidebarContainer(cwd=self.cwd, agent=self._agent)
         
         # 自定义 Footer - 显示状态信息
         with Container(id="app-footer"):
             with Horizontal(id="footer-content"):
                 yield Static("tokens: 0", classes="footer-token")
-                yield Static("Ctrl+K: 命令 | Ctrl+L: 清屏", classes="footer-hint")
+                yield Static("Ctrl+B: 侧边栏 | Ctrl+K: 命令 | Ctrl+L: 清屏", classes="footer-hint")
         
-        # 输入区域（固定在底部）- Composer 多行编辑器
+        # 输入区域（固定在底部）
         with Container(id="input-area"):
-            with Horizontal(id="input-row"):
-                yield TextArea(
-                    id="user-input",
-                    classes="input-field",
-                    placeholder="输入消息... (Ctrl+Enter 换行, Enter 发送)",
-                )
-                yield Button("发送", id="send-btn", classes="send-button")
+            yield TextArea(
+                id="user-input",
+                classes="input-field",
+                placeholder="输入消息... (Ctrl+Enter 换行, Enter 发送)",
+            )
     
-    def _on_button_pressed(self, event: Button.Pressed) -> None:
-        """处理发送按钮点击."""
-        if event.button.id == "send-btn":
-            self._submit_from_history()
+    def on_key(self, event: KeyEvent) -> None:
+        """处理全局键盘事件.
+        
+        - Ctrl+1/2/3/4: 侧边栏面板切换
+        """
+        # 检查 Ctrl 键是否按下
+        if event.control and event.key in ['1', '2', '3', '4']:
+            # 直接调用面板切换方法
+            if event.key == '1':
+                self.action_switch_to_file_tree()
+            elif event.key == '2':
+                self.action_switch_to_tasks()
+            elif event.key == '3':
+                self.action_switch_to_agent()
+            elif event.key == '4':
+                self.action_switch_to_context()
+            event.prevent_default()
+            event.stop()
+            return
     
-    def _on_text_area_key_down(self, event: TextAreaKey) -> None:
+    def _on_text_area_key_down(self, event: Key) -> None:
         """处理 TextArea 按键事件.
         
         - Enter: 发送消息
@@ -544,6 +642,15 @@ Button:hover {
         
         # 获取按下的键
         key = event.key
+        
+        # 检查 Ctrl 键是否按下
+        is_ctrl = False
+        if hasattr(event, 'control') and event.control:
+            is_ctrl = True
+        
+        # Ctrl+数字键已经在全局事件中处理
+        if is_ctrl and key in ['1', '2', '3', '4']:
+            return
         
         # 处理 Enter 键 - 发送消息
         if str(key) == 'enter':
@@ -1056,11 +1163,61 @@ Button:hover {
         # 注意：这里不调用 super().on_unmount()，因为 Textual App 可能没有这个方法
         self._logger.debug("Application unmounted, data saved")
     
+    def _on_sidebar_panel_switch(self, panel_type: str) -> None:
+        """处理侧边栏面板切换回调."""
+        try:
+            sidebar = self.query_one("#sidebar-container-inner")
+            if sidebar:
+                sidebar.switch_panel(panel_type)
+        except Exception as e:
+            self._logger.debug(f"Failed to switch sidebar panel: {e}")
+    
     def action_toggle_sidebar(self) -> None:
         """切换侧边栏显示."""
-        sidebar = self.query_one("#sidebar")
-        if sidebar:
-            sidebar.toggle_class("-hidden")
+        try:
+            sidebar = self.query_one("#sidebar-container")
+            if sidebar:
+                # Textual 只支持 block 或 none
+                if sidebar.styles.display == "none":
+                    sidebar.styles.display = "block"
+                else:
+                    sidebar.styles.display = "none"
+                self._logger.debug(f"Sidebar toggled, display: {sidebar.styles.display}")
+        except Exception as e:
+            self._logger.debug(f"Sidebar toggle failed: {e}")
+    
+    def _get_sidebar_and_switch(self, panel_type: str) -> None:
+        """获取侧边栏并切换面板.
+        
+        Args:
+            panel_type: 面板类型 (file_tree, tasks, agent, context)
+        """
+        # 确保侧边栏显示
+        try:
+            sidebar = self.query_one("#sidebar-container")
+            if sidebar.styles.display == "none":
+                sidebar.styles.display = "block"
+        except:
+            pass
+        
+        # 调用面板切换
+        self._on_sidebar_panel_switch(panel_type)
+    
+    def action_switch_to_file_tree(self) -> None:
+        """切换到文件树面板 (Ctrl+1)."""
+        self._get_sidebar_and_switch("file_tree")
+    
+    def action_switch_to_tasks(self) -> None:
+        """切换到任务面板 (Ctrl+2)."""
+        self._get_sidebar_and_switch("tasks")
+    
+    def action_switch_to_agent(self) -> None:
+        """切换到 Agent 面板 (Ctrl+3)."""
+        self._get_sidebar_and_switch("agent")
+    
+    def action_switch_to_context(self) -> None:
+        """切换到上下文面板 (Ctrl+4)."""
+        self._get_sidebar_and_switch("context")
     
     def action_toggle_help(self) -> None:
         """切换帮助面板显示."""
@@ -1316,6 +1473,18 @@ Button:hover {
         if log:
             log.clear()
         self._logger.debug("Screen cleared")
+    
+    def action_cancel_current(self) -> None:
+        """取消当前操作 (Ctrl+C)."""
+        self._logger.info("User requested cancel current operation")
+        # 清空输入框
+        try:
+            input_field = self.query_one("#user-input", TextArea)
+            input_field.text = ""
+            self.set_focus(input_field)
+        except:
+            pass
+        self.notify("已取消当前操作")
     
     def action_quit(self) -> None:
         """退出应用 (Ctrl+Q / q)."""
