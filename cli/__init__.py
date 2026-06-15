@@ -21,6 +21,21 @@ Directory Structure:
     └── compat.py           # 向后兼容导入
 """
 
+# Patch Textual's LayerLogger before any imports
+def _early_textual_patch():
+    try:
+        from textual._log import LayerLogger
+        LayerLogger.system = lambda *args, **kwargs: None
+        LayerLogger.info = lambda *args, **kwargs: None
+        LayerLogger.debug = lambda *args, **kwargs: None
+        LayerLogger.warning = lambda *args, **kwargs: None
+        LayerLogger.error = lambda *args, **kwargs: None
+        LayerLogger.critical = lambda *args, **kwargs: None
+    except ImportError:
+        pass
+
+_early_textual_patch()
+
 # Re-export from compat layer for backward compatibility
 from . import compat
 

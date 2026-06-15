@@ -24,6 +24,9 @@ windows-curses>=2.3.0; platform_system == "Windows"
 # Rich library for enhanced terminal output (可选)
 rich>=13.0.0
 
+# Textual framework for modern TUI (可选)
+textual>=0.50.0
+
 # Database
 # sqlite3 (built-in)
 

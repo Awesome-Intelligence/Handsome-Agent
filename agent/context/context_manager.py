@@ -43,6 +43,8 @@ class ContextPurpose(Enum):
     TOOL_RESULT_SUMMARY = "tool_result_summary"
     # ReAct 循环：ReAct 模式的推理循环
     REACT_LOOP = "react_loop"
+    # 消息列表构建：构建标准消息列表格式
+    MESSAGES_BUILD = "messages_build"
 
 
 @dataclass
@@ -55,6 +57,16 @@ class BuildResult:
     compressed_count: int       # 压缩后消息数
     memory_prefetch: bool       # 是否进行了记忆预取
     purpose: ContextPurpose     # 构建目的
+
+
+@dataclass
+class BuildMessagesResult:
+    """消息列表构建结果"""
+    messages: List[Dict[str, Any]]  # 标准消息列表
+    compressed: bool                 # 是否进行了压缩
+    original_count: int             # 原始消息数
+    compressed_count: int           # 压缩后消息数
+    purpose: ContextPurpose          # 构建目的
 
 
 class ContextManager:
@@ -162,11 +174,10 @@ class ContextManager:
         
         if should_compress and self._context_compressor:
             try:
-                result = await self._context_compressor.compress(
-                    conversation_history,
-                    max_messages=self._compression_threshold
+                # compress() 是同步方法，直接调用
+                processed_history = self._context_compressor.compress(
+                    conversation_history
                 )
-                processed_history = result.compressed_messages
                 compressed_count = len(processed_history) if processed_history else 0
                 compressed = True
                 
@@ -324,5 +335,188 @@ class ContextManager:
             {"role": "system", "content": result.system_prompt},
             {"role": "user", "content": result.user_message}
         ]
+        
+        return messages
+    
+    async def build_messages(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        purpose: ContextPurpose = ContextPurpose.MESSAGES_BUILD,
+        tools: Optional[Dict[str, Any]] = None,
+        include_tools: bool = None,
+        model: str = None
+    ) -> BuildMessagesResult:
+        """
+        构建标准消息列表格式的上下文（统一入口）
+        
+        集成 ContextBuilder 的 build_messages() 方法，支持上下文压缩。
+        压缩后的历史以消息列表格式返回，摘要作为消息列表的一部分。
+        
+        Args:
+            user_message: 用户消息
+            conversation_history: 对话历史
+            purpose: 上下文构建目的（默认 MESSAGES_BUILD）
+            tools: 工具字典（用于工具选择场景）
+            include_tools: 是否包含工具列表（默认根据 purpose 自动判断）
+            model: 模型名称（用于模型特定指导）
+            
+        Returns:
+            BuildMessagesResult: 包含消息列表和元数据
+        """
+        self.logger.debug(
+            f"ContextManager.build_messages() called with purpose={purpose.value}"
+        )
+        
+        # 1. 自动上下文压缩（如果需要）
+        processed_history = conversation_history
+        compressed = False
+        original_count = len(conversation_history) if conversation_history else 0
+        compressed_count = original_count
+        
+        # 根据 purpose 和历史长度决定是否压缩
+        should_compress = self._should_compress(conversation_history, purpose)
+        
+        if should_compress and self._context_compressor:
+            try:
+                # compress() 是同步方法，直接调用
+                processed_history = self._context_compressor.compress(
+                    conversation_history
+                )
+                compressed_count = len(processed_history) if processed_history else 0
+                compressed = True
+                
+                self.logger.info(
+                    f"Context compressed: {original_count} -> {compressed_count} messages "
+                    f"(purpose={purpose.value})"
+                )
+            except Exception as e:
+                self.logger.warning(f"Context compression failed, using original: {e}")
+                processed_history = conversation_history
+                compressed_count = original_count
+        
+        # 2. 根据 purpose 确定是否包含工具
+        if include_tools is None:
+            include_tools = self._should_include_tools(purpose)
+        
+        # 3. 使用 ContextBuilder 构建消息列表
+        messages: List[Dict[str, Any]] = []
+        
+        if self._context_builder:
+            # 设置工具（如果需要）
+            if tools and include_tools:
+                self._context_builder.set_tools(tools)
+            
+            try:
+                # 集成 ContextBuilder 的 build_messages() 方法
+                messages = self._context_builder.build_messages(
+                    conversation_history=processed_history,
+                    include_tools=include_tools and bool(tools),
+                    user_message=user_message,
+                    model=model
+                )
+                
+                # 如果进行了压缩，需要将摘要注入到消息中
+                if compressed and self._context_compressor:
+                    messages = self._inject_compression_summary(messages, original_count, compressed_count)
+                
+                self.logger.info(
+                    f"Message list built: {len(messages)} messages, "
+                    f"include_tools={include_tools}, compressed={compressed}"
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to build message list: {e}")
+                messages = self._build_fallback_messages(user_message, processed_history, include_tools, tools)
+        else:
+            # 降级：使用简单的消息列表构建
+            messages = self._build_fallback_messages(user_message, processed_history, include_tools, tools)
+        
+        return BuildMessagesResult(
+            messages=messages,
+            compressed=compressed,
+            original_count=original_count,
+            compressed_count=compressed_count,
+            purpose=purpose
+        )
+    
+    def _inject_compression_summary(
+        self,
+        messages: List[Dict[str, Any]],
+        original_count: int,
+        compressed_count: int
+    ) -> List[Dict[str, Any]]:
+        """
+        将压缩摘要注入到消息列表中
+        
+        摘要作为独立消息注入到 system 消息之后，体现上下文压缩的效果。
+        注意：ContextCompressor.compress() 已经将摘要作为消息列表的一部分，
+        此方法用于添加压缩统计信息。
+        
+        Args:
+            messages: 原始消息列表
+            original_count: 原始消息数
+            compressed_count: 压缩后消息数
+            
+        Returns:
+            包含压缩摘要消息的消息列表
+        """
+        if not messages:
+            return messages
+        
+        # 构建压缩统计消息
+        compression_info = (
+            f"[Context Compression: {original_count} messages compressed to "
+            f"{compressed_count} messages. Earlier conversation is summarized above.]"
+        )
+        
+        # 找到 system 消息的位置，在其后插入压缩统计消息
+        insert_idx = 0
+        if messages and messages[0].get("role") == "system":
+            insert_idx = 1
+        
+        # 构建压缩统计消息
+        compression_msg = {"role": "system", "content": compression_info}
+        
+        # 插入到 system 消息之后
+        messages.insert(insert_idx, compression_msg)
+        
+        return messages
+    
+    def _build_fallback_messages(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict]],
+        include_tools: bool,
+        tools: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        构建降级消息列表（当 ContextBuilder 不可用时）
+        """
+        messages: List[Dict[str, Any]] = []
+        
+        # 系统消息
+        system_parts = ["You are a helpful AI assistant."]
+        
+        # 工具列表
+        if include_tools and tools:
+            import json
+            tools_schema = []
+            for tool_name, tool in tools.items():
+                tools_schema.append({
+                    "name": tool_name,
+                    "description": getattr(tool, "description", ""),
+                    "parameters": getattr(tool, "parameters", {})
+                })
+            system_parts.append(f"Available tools:\n{json.dumps(tools_schema, ensure_ascii=False, indent=2)}")
+        
+        messages.append({"role": "system", "content": "\n\n".join(system_parts)})
+        
+        # 对话历史
+        if conversation_history:
+            for msg in conversation_history[-6:]:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")[:200]
+                if role in ("user", "assistant", "system"):
+                    messages.append({"role": role, "content": content})
         
         return messages

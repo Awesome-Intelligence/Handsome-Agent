@@ -493,3 +493,66 @@ menu:
     label: "❌ 設定を終了"
   select:
     prompt: "選択してください:"
+
+# =============================================================================
+# Onboarding / Welcome Screen (Textual TUI)
+# =============================================================================
+
+onboarding:
+  welcome:
+    title: "Handsome Agent へようこそ"
+    subtitle: "あなたの万能AIアシスタント"
+    description: "いくつかのステップでAIアシスタントを設定しましょう"
+    steps_preview: "ステップ：プロバイダー → API Key → 言語 → ディレクトリ"
+    feature:
+      ai: "AI駆動の意図認識"
+      chat: "自然な会話インターフェース"
+      tools: "拡張可能なツールシステム"
+      memory: "長期メモリとコンテキスト"
+    api_key:
+      configured: "API Key が設定されています"
+      not_configured: "⚠ API Key が未設定です"
+    button:
+      start: "▶ 開始"
+      skip: "スキップ"
+    skip_hint: "設定後で設定できます"
+
+  provider:
+    title: "🤖 LLM プロバイダーを選択"
+    description: "AI モデルプロバイダーを選択"
+  
+  api_key:
+    title: "🔑 API Key 設定"
+    selected_provider: "選択したプロバイダー"
+    get_key: "API Key を取得"
+    input_prompt: "API Key を入力してください："
+    placeholder: "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+  
+  language:
+    title: "🌐 言語を選択"
+    description: "優先する表示言語を選択"
+  
+  directory:
+    title: "📁 ワークスペースディレクトリを信頼"
+    description: "Handsome Agent の作業ディレクトリを設定"
+    current: "現在のワークスペース"
+    info: "このディレクトリは設定、セッション、メモリファイルを保存します。"
+  
+  complete:
+    title: "✅ セットアップ完了！"
+    message: "Handsome Agent を使用する準備ができました！"
+    provider: "プロバイダー"
+    language: "言語"
+    directory: "ワークスペース"
+    button:
+      start_using: "▶ 使い始める"
+      configure_more: "⚙ 詳細設定"
+
+  button:
+    start: "▶ 開始"
+    skip: "スキップ"
+    next: "次へ →"
+    back: "← 戻る"
+    finish: "✓ 完了"
+    start_using: "▶ 使い始める"
+    configure_more: "⚙ 詳細設定"

@@ -573,7 +573,13 @@ class LayerLogger:
         else:
             return f"({self._name}) {msg}"
     
-    def debug(self, msg: str, **kwargs):
+    def debug(self, *args, **kwargs):
+        """Debug log - displayed in detailed mode only."""
+        # 格式化消息（支持多个参数）
+        if len(args) == 1:
+            msg = str(args[0])
+        else:
+            msg = " ".join(str(arg) for arg in args)
         extra = kwargs.pop('extra', {})
         extra['layer'] = self._layer
         self._logger.debug(self._format_msg(msg), extra=extra, **kwargs)

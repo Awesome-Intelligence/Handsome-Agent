@@ -493,3 +493,66 @@ menu:
     label: "❌ 설정 종료"
   select:
     prompt: "선택하세요:"
+
+# =============================================================================
+# Onboarding / Welcome Screen (Textual TUI)
+# =============================================================================
+
+onboarding:
+  welcome:
+    title: "Handsome Agent에 오신 것을 환영합니다"
+    subtitle: "당신의 만능 AI 어시스턴트"
+    description: "몇 단계에서 AI 어시스턴트를 설정해 보겠습니다"
+    steps_preview: "단계: 프로바이더 → API Key → 언어 → 디렉토리"
+    feature:
+      ai: "AI 기반 의도 인식"
+      chat: "자연스러운 대화 인터페이스"
+      tools: "확장 가능한 도구 시스템"
+      memory: "장기 메모리 및 컨텍스트"
+    api_key:
+      configured: "API Key가 설정되었습니다"
+      not_configured: "⚠ API Key가 설정되지 않았습니다"
+    button:
+      start: "▶ 시작"
+      skip: "건너뛰기"
+    skip_hint: "나중에 설정에서 구성할 수 있습니다"
+
+  provider:
+    title: "🤖 LLM 프로바이더 선택"
+    description: "AI 모델 프로바이더를 선택하세요"
+  
+  api_key:
+    title: "🔑 API Key 구성"
+    selected_provider: "선택한 프로바이더"
+    get_key: "API Key 가져오기"
+    input_prompt: "API Key를 입력하세요:"
+    placeholder: "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+  
+  language:
+    title: "🌐 언어 선택"
+    description: "선호하는 표시 언어를 선택하세요"
+  
+  directory:
+    title: "📁 작업 디렉토리 신뢰"
+    description: "Handsome Agent의 작업 디렉토리 설정"
+    current: "현재 작업 공간"
+    info: "이 디렉토리는 구성, 세션 및 메모리 파일을 저장합니다."
+  
+  complete:
+    title: "✅ 설정 완료!"
+    message: "Handsome Agent를 사용할 준비가 되었습니다!"
+    provider: "프로바이더"
+    language: "언어"
+    directory: "작업 공간"
+    button:
+      start_using: "▶ 사용 시작"
+      configure_more: "⚙ 추가 구성"
+
+  button:
+    start: "▶ 시작"
+    skip: "건너뛰기"
+    next: "다음 →"
+    back: "← 돌아가기"
+    finish: "✓ 완료"
+    start_using: "▶ 사용 시작"
+    configure_more: "⚙ 추가 구성"

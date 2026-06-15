@@ -122,10 +122,10 @@ class SystemPromptBuilder:
     
     def set_tools(self, tools: Dict[str, Any]) -> None:
         """设置工具字典"""
-        self.tools = tools
+        self.tools = tools or {}
         # 工具变化时使上下文层缓存失效
         self._invalidate_context_cache()
-        self.logger.debug(f"Tools updated: {len(tools)} tools")
+        self.logger.debug(f"Tools updated: {len(self.tools)} tools")
     
     def _invalidate_stable_cache(self) -> None:
         """使稳定层缓存失效"""

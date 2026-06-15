@@ -11,6 +11,22 @@ Updated to use the new _parser.py and commands.py modules.
 参考 Hermes 的 main.py 设计，使用统一的参数解析器。
 """
 
+# 首先 patch Textual 的 LayerLogger（在任何导入之前）
+def _patch_textual_logger():
+    """Patch Textual's LayerLogger for compatibility."""
+    try:
+        from textual._log import LayerLogger
+        LayerLogger.system = lambda *args, **kwargs: None
+        LayerLogger.info = lambda *args, **kwargs: None
+        LayerLogger.debug = lambda *args, **kwargs: None
+        LayerLogger.warning = lambda *args, **kwargs: None
+        LayerLogger.error = lambda *args, **kwargs: None
+        LayerLogger.critical = lambda *args, **kwargs: None
+    except ImportError:
+        pass
+
+_patch_textual_logger()
+
 import asyncio
 import argparse
 import sys
@@ -644,6 +660,107 @@ def cmd_auth(args: argparse.Namespace):
         auth_cli.list_credentials()
 
 
+def should_use_textual(args: argparse.Namespace) -> bool:
+    """Determine if Textual UI should be used.
+    
+    Args:
+        args: Parsed command line arguments
+        
+    Returns:
+        True if Textual UI should be used, False otherwise
+    """
+    # Check if textual is available
+    try:
+        from cli.tui import TEXTUAL_AVAILABLE
+        if not TEXTUAL_AVAILABLE:
+            return False
+    except ImportError:
+        return False
+    
+    # Explicit --no-textual disables it
+    if getattr(args, 'no_textual', False):
+        return False
+    
+    # Explicit --textual flag takes precedence
+    if getattr(args, 'textual', False):
+        return True
+    
+    # Non-TTY environment check (pipes, redirects, cron, etc.)
+    if not sys.stdout.isatty():
+        return False
+    
+    # Terminal size check
+    try:
+        import shutil
+        terminal_size = shutil.get_terminal_size()
+        if terminal_size.columns < 40:
+            return False
+    except Exception:
+        return False
+    
+    # Default: use traditional CLI
+    return False
+
+
+def run_textual_mode(args: argparse.Namespace, agent: Agent, model_name: str) -> int:
+    """Run the agent in Textual TUI mode.
+    
+    Args:
+        args: Parsed command line arguments
+        agent: The Agent instance
+        model_name: Model name for display
+        
+    Returns:
+        Exit code
+    """
+    from cli.tui import (
+        run_textual_app, 
+        TEXTUAL_AVAILABLE,
+        get_textual_import_error,
+        get_textual_install_hint,
+        is_textual_compatible,
+    )
+    
+    if not TEXTUAL_AVAILABLE:
+        # 显示友好的安装提示
+        print(get_textual_install_hint())
+        return 1
+    
+    # 检查环境兼容性
+    compatible, reason = is_textual_compatible()
+    if not compatible:
+        print(f"\n⚠ 无法启动 Textual TUI: {reason}")
+        print("自动回退到传统 CLI 模式...\n")
+        return 1
+    
+    # Get session info
+    session_id = None
+    if agent._session:
+        session_id = agent._session.session_id
+    
+    # Get model info
+    provider = None
+    context_length = None
+    try:
+        from common.config import load_config
+        cfg = load_config()
+        if cfg.get('llm', {}).get('provider'):
+            provider = cfg.get('llm', {}).get('provider')
+        if cfg.get('model', {}).get('context_window'):
+            context_length = cfg.get('model', {}).get('context_window')
+    except Exception:
+        pass
+    
+    return run_textual_app(
+        model_name=model_name,
+        provider=provider,
+        cwd=os.getcwd(),
+        session_id=session_id,
+        context_length=context_length,
+        agent=agent,  # 传递 Agent 实例给 TUI
+    )
+
+
 # ============================================================================
 # Main Entry Point
 # ============================================================================
@@ -898,6 +1015,10 @@ def main():
             print(f"   Messages: {len(agent._session.messages)}")
 
     # Run in appropriate mode
+    if should_use_textual(args):
+        exit_code = run_textual_mode(args, agent, model_name)
+        return exit_code
+    
     if args.interactive:
         asyncio.run(interactive_mode(agent, model_name))
     elif args.query:

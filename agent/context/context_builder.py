@@ -101,9 +101,9 @@ class ContextBuilder:
 
     def set_tools(self, tools: Dict[str, Any]) -> None:
         """设置工具字典"""
-        self.tools = tools
-        self._system_prompt_builder.set_tools(tools)
-        self.logger.debug(f"Tools set: {len(tools)} tools available")
+        self.tools = tools or {}
+        self._system_prompt_builder.set_tools(self.tools)
+        self.logger.debug(f"Tools set: {len(self.tools)} tools available")
     
     def get_tools_schema(self) -> List[Dict[str, Any]]:
         """获取工具 Schema（用于 LLM）"""
@@ -243,6 +243,211 @@ class ContextBuilder:
         )
         
         return prompt
+    
+    def build_messages(
+        self,
+        conversation_history: Optional[List[Dict]] = None,
+        include_tools: bool = True,
+        user_message: str = "",
+        model: str = None
+    ) -> List[Dict[str, Any]]:
+        """
+        构建消息列表格式的上下文（Hermes 风格）
+        
+        返回标准消息列表格式，用于需要消息列表的场景（如 OpenAI API）。
+        
+        格式示例：
+        [
+            {"role": "system", "content": "..."},
+            {"role": "user", "content": "..."},
+            {"role": "assistant", "tool_calls": [...]},
+            {"role": "tool", "tool_call_id": "...", "content": "..."},
+            ...
+        ]
+        
+        Args:
+            conversation_history: 对话历史
+            include_tools: 是否包含工具列表
+            user_message: 用户消息（用于检索相关记忆）
+            model: 模型名称（用于注入模型特定指导）
+            
+        Returns:
+            标准消息列表
+        """
+        # 🧠 Decision - 💾 Context - 开始构建消息列表
+        self.logger.info("Context Assembly: Building message list format")
+        
+        messages: List[Dict[str, Any]] = []
+        
+        # 1. 构建系统消息
+        system_content = self._build_system_content(
+            include_tools=include_tools,
+            user_message=user_message,
+            model=model
+        )
+        messages.append({"role": "system", "content": system_content})
+        
+        # 2. 处理对话历史
+        if conversation_history:
+            history_messages = self._convert_history_to_messages(conversation_history)
+            messages.extend(history_messages)
+        
+        # 🧠 Decision - 💾 Context - 消息列表构建完成
+        self.logger.debug(
+            f"Context Assembly: Message list built with {len(messages)} messages, "
+            f"tools_count={len(self.tools)}"
+        )
+        
+        return messages
+    
+    def _build_system_content(
+        self,
+        include_tools: bool = True,
+        user_message: str = "",
+        model: str = None
+    ) -> str:
+        """
+        构建系统消息内容（三层架构）
+        
+        Args:
+            include_tools: 是否包含工具列表
+            user_message: 用户消息（用于记忆预取）
+            model: 模型名称
+            
+        Returns:
+            系统消息内容
+        """
+        prompt_parts = []
+        
+        # 1. 身份定义（使用代码常量）
+        prompt_parts.append(AGENT_IDENTITY)
+        
+        # 2. 能力摘要（使用代码常量）
+        prompt_parts.append(CAPABILITIES)
+        
+        # 3. 用户信息（使用代码常量或从文件加载）
+        prompt_parts.append(self._get_user_profile())
+        
+        # 4. 自动注入相关记忆（Hermes 风格）
+        if self.enable_memory_prefetch and user_message:
+            memory_context = self._prefetch_memories(user_message)
+            if memory_context:
+                prompt_parts.append(memory_context)
+        
+        # 5. 工具使用指导（使用代码常量，含模型特定指导）
+        if self.enable_guidance:
+            guidance = self._build_guidance(model)
+            if guidance:
+                prompt_parts.append(guidance)
+        
+        # 6. 工具列表
+        if include_tools and self.tools:
+            tools_schema = json.dumps(self.get_tools_schema(), ensure_ascii=False, indent=2)
+            prompt_parts.append(f"Available tools:\n{tools_schema}")
+            prompt_parts.append(TOOL_USAGE_GUIDANCE)
+        
+        return "\n\n".join(prompt_parts)
+    
+    def _convert_history_to_messages(
+        self,
+        conversation_history: List[Dict]
+    ) -> List[Dict[str, Any]]:
+        """
+        将对话历史转换为标准消息列表格式
+        
+        处理各种消息格式：
+        - 普通文本消息：{"role": "user/assistant", "content": "..."}
+        - 工具调用消息：{"role": "assistant", "tool_calls": [...]}
+        - 工具结果消息：{"role": "tool", "tool_call_id": "...", "content": "..."}
+        
+        Args:
+            conversation_history: 对话历史
+            
+        Returns:
+            标准消息列表
+        """
+        messages = []
+        
+        for msg in conversation_history:
+            role = msg.get('role', 'unknown')
+            content = msg.get('content', '')
+            tool_calls = msg.get('tool_calls')
+            tool_call_id = msg.get('tool_call_id')
+            name = msg.get('name')  # 工具名
+            
+            # 处理工具调用消息
+            if tool_calls:
+                # assistant 消息可以同时有 content 和 tool_calls
+                assistant_msg = {"role": "assistant"}
+                if content:
+                    assistant_msg["content"] = content
+                # 添加 tool_calls
+                assistant_msg["tool_calls"] = self._normalize_tool_calls(tool_calls)
+                messages.append(assistant_msg)
+            # 处理工具结果消息
+            elif role == 'tool' and tool_call_id:
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": content,
+                    "name": name  # 保留工具名
+                })
+            # 处理普通消息
+            elif role in ('user', 'assistant', 'system'):
+                msg_dict = {"role": role}
+                if content:
+                    msg_dict["content"] = content
+                messages.append(msg_dict)
+            else:
+                # 未知角色，作为 assistant 处理
+                self.logger.warning(f"Unknown message role: {role}, treating as assistant")
+                msg_dict = {"role": "assistant"}
+                if content:
+                    msg_dict["content"] = content
+                messages.append(msg_dict)
+        
+        return messages
+    
+    def _normalize_tool_calls(self, tool_calls: Any) -> List[Dict[str, Any]]:
+        """
+        标准化工具调用格式
+        
+        支持多种格式的 tool_calls：
+        - OpenAI 格式：[{"id": "...", "type": "function", "function": {...}}]
+        - 简化格式：[{"name": "...", "arguments": {...}}]
+        
+        Args:
+            tool_calls: 原始工具调用数据
+            
+        Returns:
+            标准化的工具调用列表
+        """
+        if not tool_calls:
+            return []
+        
+        normalized = []
+        # 处理列表格式
+        if isinstance(tool_calls, list):
+            for tc in tool_calls:
+                if isinstance(tc, dict):
+                    # OpenAI 格式已有 id 和 function
+                    if "function" in tc:
+                        normalized.append(tc)
+                    # 简化格式需要转换为标准格式
+                    else:
+                        normalized_tc = {
+                            "id": tc.get("id", f"call_{len(normalized)}"),
+                            "type": "function",
+                            "function": {
+                                "name": tc.get("name", ""),
+                                "arguments": json.dumps(tc.get("arguments", {})) if isinstance(tc.get("arguments"), dict) else str(tc.get("arguments", "{}"))
+                            }
+                        }
+                        normalized.append(normalized_tc)
+                else:
+                    self.logger.warning(f"Skipping non-dict tool call: {type(tc)}")
+        
+        return normalized
     
     def _get_user_profile(self) -> str:
         """

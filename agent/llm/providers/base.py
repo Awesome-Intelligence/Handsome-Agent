@@ -355,6 +355,10 @@ class BaseProvider(ABC):
 
         color = COLORS.get(role, "")
 
+        # 防御性检查：确保 content 不是 None
+        if content is None:
+            content = ""
+        
         if len(content) > 200:
             preview = content[:100] + " ... " + content[-100:]
         else:

@@ -7,20 +7,57 @@ Inspired by Hermes Agent's elegant design.
 🚪 Access - 💬 CLI - Banner 组件
 
 支持皮肤系统，通过 cli.skin_engine 获取主题颜色和品牌文案。
+
+降级机制：
+- Rich 不可用时使用纯文本模式
+- 所有 Rich 功能都有 fallback
 """
 
 import os
 import shutil
 from typing import List, Optional
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
+# Rich 降级机制
+HAS_RICH = True
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+except ImportError:
+    HAS_RICH = False
+    # 提供降级类型
+    class Console:
+        """降级的 Console 类"""
+        def print(self, *args, **kwargs):
+            # 直接打印第一个参数
+            for arg in args:
+                print(str(arg))
+    
+    class Panel:
+        """降级的 Panel 类"""
+        def __init__(self, *args, **kwargs):
+            self.content = args[0] if args else ""
+    
+    class Table:
+        """降级的 Table 类"""
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def add_column(self, *args, **kwargs):
+            pass
+        
+        def add_row(self, *args, **kwargs):
+            pass
+    
+    class Text:
+        """降级的 Text 类"""
+        def __init__(self, *args, **kwargs):
+            self.content = args[0] if args else ""
 
 from common.i18n import get_i18n
 
-console = Console()
+console = Console() if HAS_RICH else None
 
 # ============================================================================
 # Default colors (fallback when skin_engine not available)
@@ -299,14 +336,18 @@ def print_simple_banner() -> None:
     """Print a simple text banner without rich dependencies."""
     i18n = get_i18n()
 
+    # 清理 Rich 标记
+    clean_logo = HANDSOME_LOGO.replace('[bold #8B9A46]', '').replace('[/]', '')
+    
     print()
-    print(f"{AVOCADO_BRIGHT}╔{'═' * 56}╗{WHITE}")
-    print(f"{AVOCADO_BRIGHT}║{WHITE}{' ' * 56}{AVOCADO_BRIGHT}║{WHITE}")
-    print(f"{AVOCADO_BRIGHT}║{WHITE}   {HANDSOME_LOGO.replace('[bold #8B9A46]', '').replace('[/]', '')}{WHITE}")
-    print(f"{AVOCADO_BRIGHT}║{WHITE}{' ' * 56}{AVOCADO_BRIGHT}║{WHITE}")
-    print(f"{AVOCADO_BRIGHT}║{WHITE}{' ' * 20}{AVOCADO_DIM}{i18n.t('subtitle')}{WHITE}{' ' * (36 - len(i18n.t('subtitle')))}{AVOCADO_BRIGHT}║{WHITE}")
-    print(f"{AVOCADO_BRIGHT}║{WHITE}{' ' * 56}{AVOCADO_BRIGHT}║{WHITE}")
-    print(f"{AVOCADO_BRIGHT}╚{'═' * 56}╝{WHITE}")
+    print(f"╔{'═' * 56}╗")
+    print(f"║{' ' * 56}║")
+    print(f"║{' ' * 56}║")
+    print(f"║   {clean_logo}{' ' * (56 - len(clean_logo.split(chr(10))[0]))}║")
+    print(f"║{' ' * 56}║")
+    print(f"║{' ' * 20}{i18n.t('subtitle')}{' ' * (36 - len(i18n.t('subtitle')))}║")
+    print(f"║{' ' * 56}║")
+    print(f"╚{'═' * 56}╝")
     print()
 
 
@@ -317,6 +358,14 @@ def print_setup_banner(config: dict = None) -> None:
         config: Current configuration dict to display status.
     """
     i18n = get_i18n()
+
+    if not HAS_RICH:
+        # 降级到纯文本模式
+        print_simple_banner()
+        print(f"  ⚡ Setup Wizard")
+        print(f"  {i18n.t('subtitle')}")
+        print()
+        return
 
     console.print()
 
@@ -429,6 +478,44 @@ def _load_current_config() -> dict:
 
 def print_setup_summary(config_status: dict) -> None:
     """Print setup completion summary with rich styling."""
+    
+    if not HAS_RICH:
+        # 降级到纯文本模式
+        print()
+        print("Configuration Summary")
+        print("-" * 40)
+        
+        # LLM Config
+        llm = config_status.get("llm", {})
+        if llm.get("configured"):
+            provider = llm.get("provider", "unknown")
+            model = llm.get("model", "unknown")
+            print(f"  ✓ LLM Provider: {provider} / {model}")
+        else:
+            print("  ○ LLM Provider: Not configured (basic mode)")
+        
+        # Terminal Config
+        terminal = config_status.get("terminal", {})
+        backend = terminal.get("backend", "local")
+        print(f"  ✓ Terminal Backend: {backend}")
+        
+        # Memory
+        memory = config_status.get("memory", {})
+        if memory.get("enabled"):
+            print(f"  ✓ Memory System: Vector {memory.get('vector_store', 'sqlite')}")
+        else:
+            print("  ○ Memory System: Disabled")
+        
+        # Tools
+        tools = config_status.get("tools", {})
+        tools_enabled = tools.get("count", 0)
+        if tools_enabled > 0:
+            print(f"  ✓ Tools Available: {tools_enabled} tools")
+        else:
+            print("  ○ Tools: None configured")
+        
+        print()
+        return
 
     table = Table(title="[bold]Configuration Summary[/]", border_style=AVOCADO_DIM)
     table.add_column("Status", style=AVOCADO, width=10)
@@ -499,6 +586,25 @@ def print_setup_summary(config_status: dict) -> None:
 
 def print_tool_status(tools_status: List[dict]) -> None:
     """Print tool availability status."""
+    
+    if not HAS_RICH:
+        # 降级到纯文本模式
+        print()
+        print("Tool Status")
+        print("-" * 40)
+        
+        for tool in tools_status:
+            name = tool.get("name", "unknown")
+            available = tool.get("available", False)
+            hint = tool.get("hint", "")
+            
+            status = "✓" if available else "✗"
+            hint_text = f" - {hint}" if hint else ""
+            
+            print(f"  {status} {name}{hint_text}")
+        
+        print()
+        return
 
     table = Table(title="[bold]Tool Status[/]", border_style=AVOCADO_DIM)
     table.add_column("Tool", style=WHITE)
@@ -549,3 +655,25 @@ if __name__ == "__main__":
             "tools_configured": True,
         }
     )
+
+
+# ============================================================================
+# 模块导出
+# ============================================================================
+
+__all__ = [
+    "build_welcome_banner",
+    "print_simple_banner",
+    "print_setup_banner",
+    "print_setup_summary",
+    "print_tool_status",
+    "HAS_RICH",
+    # 常量
+    "AVOCADO",
+    "AVOCADO_BRIGHT",
+    "AVOCADO_DIM",
+    "AVOCADO_DARK",
+    "WHITE",
+    "GRAY_DIM",
+    "GOLD",
+]

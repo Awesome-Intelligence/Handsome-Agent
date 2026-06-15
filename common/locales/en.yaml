@@ -513,3 +513,81 @@ menu:
     label: "❌ Exit Setup"
   select:
     prompt: "Please select:"
+
+# =============================================================================
+# Chat Tabs (Textual TUI)
+# =============================================================================
+
+chat:
+  tab:
+    title: "Chat"
+    default: "Chat"
+    new: "New Tab"
+    cannot_close_last: "Cannot close the last tab"
+  input:
+    placeholder: "Type your message..."
+  button:
+    send: "Send"
+
+# =============================================================================
+# Onboarding / Welcome Screen (Textual TUI)
+# =============================================================================
+
+onboarding:
+  welcome:
+    title: "Welcome to Handsome Agent"
+    subtitle: "Your AI assistant for everything"
+    description: "Let's set up your AI assistant in a few steps"
+    steps_preview: "Steps: Provider → API Key → Language → Directory"
+    feature:
+      ai: "AI-powered intent recognition"
+      chat: "Natural conversation interface"
+      tools: "Extensible tool system"
+      memory: "Long-term memory & context"
+    api_key:
+      configured: "API Key configured"
+      not_configured: "⚠ API Key not configured"
+    button:
+      start: "▶ Start"
+      skip: "Skip"
+    skip_hint: "You can configure later in Settings"
+
+  provider:
+    title: "🤖 Select LLM Provider"
+    description: "Choose your AI model provider"
+  
+  api_key:
+    title: "🔑 API Key Configuration"
+    selected_provider: "Selected provider"
+    get_key: "Get API key"
+    input_prompt: "Enter your API Key:"
+    placeholder: "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+  
+  language:
+    title: "🌐 Select Language"
+    description: "Choose your preferred display language"
+  
+  directory:
+    title: "📁 Trust Workspace Directory"
+    description: "Set the working directory for Handsome Agent"
+    current: "Current workspace"
+    info: "This directory stores config, sessions, and memory files."
+  
+  complete:
+    title: "✅ Setup Complete!"
+    message: "Your Handsome Agent is ready to use!"
+    provider: "Provider"
+    language: "Language"
+    directory: "Workspace"
+    button:
+      start_using: "▶ Start Using"
+      configure_more: "⚙ Configure More"
+
+  button:
+    start: "▶ Start"
+    skip: "Skip"
+    next: "Next →"
+    back: "← Back"
+    finish: "✓ Finish"
+    start_using: "▶ Start Using"
+    configure_more: "⚙ Configure More"

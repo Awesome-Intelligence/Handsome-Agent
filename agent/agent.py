@@ -152,6 +152,11 @@ class Agent:
         # 中断机制
         self._interrupt_requested = False
         
+        # 系统提示词缓存
+        self._cached_system_prompt: Optional[str] = None
+        self._cached_system_prompt_timestamp: float = 0.0
+        self._cached_tools_hash: Optional[str] = None  # 用于检测工具列表变化
+        
         self._init_trajectory_and_curator()
     
     def interrupt(self):
@@ -177,6 +182,101 @@ class Agent:
         self._interrupt_requested = False
         if self._stream_emitter:
             self._stream_emitter.clear_interrupt()
+    
+    def _compute_tools_hash(self) -> str:
+        """计算当前工具列表的哈希值，用于检测工具变化"""
+        import hashlib
+        if not self._context_builder.tools:
+            return "no_tools"
+        tool_names = sorted(self._context_builder.tools.keys())
+        content = "|".join(tool_names)
+        return hashlib.md5(content.encode()).hexdigest()[:8]
+    
+    def _build_system_prompt(self, system_message: Optional[str] = None) -> str:
+        """构建系统提示词（由 ContextBuilder 实际构建）
+        
+        Returns:
+            完整的系统提示词字符串
+        """
+        from agent.context import ContextPurpose
+        
+        # 使用 ContextBuilder 构建系统提示词
+        result = self._context_builder.build_with_layers(
+            user_message="",
+            conversation_history=None,
+            include_tools=True,
+            model=getattr(self.llm_provider, 'model', None)
+        )
+        
+        # 组装完整提示词（stable + context + volatile）
+        parts = [result.stable]
+        if result.context:
+            parts.append(result.context)
+        if result.volatile:
+            parts.append(result.volatile)
+        
+        return "\n\n".join(parts)
+    
+    def _restore_or_build_system_prompt(
+        self,
+        system_message: Optional[str] = None,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> None:
+        """恢复或构建系统提示词缓存
+        
+        检查是否有缓存的系统提示词，如果没有则构建并缓存。
+        缓存应该在会话开始时构建一次，之后复用。
+        
+        Args:
+            system_message: 可选的系统消息（暂未使用，预留接口）
+            conversation_history: 对话历史（用于判断是否是首次构建）
+        """
+        current_tools_hash = self._compute_tools_hash()
+        
+        # 检查缓存是否存在且工具列表未变化
+        if self._cached_system_prompt is not None:
+            # 工具列表未变化，使用缓存
+            if self._cached_tools_hash == current_tools_hash:
+                self._decision_logger.debug(
+                    f"Using cached system prompt (hash={current_tools_hash}, "
+                    f"age={self._cached_system_prompt_timestamp:.1f}s)"
+                )
+                return
+            
+            # 工具列表变化，使缓存失效
+            self._decision_logger.info(
+                f"Tool list changed ({self._cached_tools_hash} -> {current_tools_hash}), "
+                "invalidating system prompt cache"
+            )
+            self._cached_system_prompt = None
+        
+        # 构建新的系统提示词
+        self._decision_logger.info("Building new system prompt")
+        self._cached_system_prompt = self._build_system_prompt(system_message)
+        self._cached_system_prompt_timestamp = __import__("time").time()
+        self._cached_tools_hash = current_tools_hash
+        
+        self._decision_logger.debug(
+            f"System prompt cached (hash={current_tools_hash}, "
+            f"length={len(self._cached_system_prompt)} chars)"
+        )
+    
+    def invalidate_system_prompt(self) -> None:
+        """使系统提示词缓存失效
+        
+        当工具列表变化或其他配置变化时调用此方法强制重建。
+        """
+        self._cached_system_prompt = None
+        self._cached_tools_hash = None
+        self._decision_logger.info("System prompt cache invalidated")
+    
+    def get_cached_system_prompt(self) -> Optional[str]:
+        """获取缓存的系统提示词
+        
+        Returns:
+            缓存的系统提示词，如果不存在则返回 None
+        """
+        return self._cached_system_prompt
     
     def set_stream_callback(self, callback):
         """设置流式输出回调
@@ -265,49 +365,43 @@ class Agent:
         """
         判断是否使用 ReAct 模式
 
-        使用统一的 ContextManager 进行上下文构建。
+        使用消息列表模式进行上下文构建。
         """
         if not self.llm_provider:
             return False
 
-        # 使用统一的 ContextManager 构建上下文
+        # 使用消息列表模式构建上下文
         from agent.context import ContextPurpose
         
         # MODE_DECISION 使用自己的压缩逻辑，所以这里传入 include_tools=False
-        result = await self._context_manager.build(
+        messages_result = await self._context_manager.build_messages(
             user_message=user_input,
             conversation_history=conversation_history,
             purpose=ContextPurpose.MODE_DECISION,
             include_tools=False
         )
 
-        # 构建带上下文的 prompt（使用 ContextManager 构建的系统提示）
-        system_prompt = result.system_prompt or ""
+        # 构建消息列表（系统消息 + 用户消息）
+        messages = messages_result.messages.copy()
         
         # 添加任务特定的指导
-        if system_prompt:
-            prompt = f"""{system_prompt}
-
-## Current Task
+        messages.append({
+            "role": "user",
+            "content": f"""## Current Task
 {user_input}
 
 Is this a complex task that needs ReAct mode? (multi-step planning, multiple tools, tool execution)
 
 Answer ONLY with this exact JSON format (no other text):
 {{"use_react": true/false, "reasoning": "brief reason"}}"""
-        else:
-            prompt = f"""Task: {user_input}
-
-Is this a complex task that needs ReAct mode? (multi-step planning, multiple tools)
-
-Answer ONLY with this exact JSON format (no other text):
-{{"use_react": true/false, "reasoning": "brief reason"}}"""
+        })
 
         try:
             import json
             import re
-            response = await self.llm_provider.generate(prompt)
-            content = response.content if hasattr(response, 'content') else str(response)
+            # 使用空 prompt，因为消息列表已包含用户消息
+            response = await self.llm_provider.generate(prompt="", messages=messages)
+            content = response.content if hasattr(response, 'content') else str(content)
 
             # 尝试从内容中提取 JSON
             result = None
@@ -680,14 +774,14 @@ Answer ONLY with this exact JSON format (no other text):
         tool_result: Any,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """使用 LLM 总结工具执行结果（使用统一的 ContextManager）"""
+        """使用 LLM 总结工具执行结果（使用消息列表模式）"""
         try:
             from agent.context import ContextPurpose
             
             result_str = json.dumps(tool_result, ensure_ascii=False)
             
-            # 使用统一的 ContextManager 构建上下文
-            result = await self._context_manager.build(
+            # 使用消息列表模式构建上下文
+            messages_result = await self._context_manager.build_messages(
                 user_message=f"{user_input}\n\nI executed tool: {tool_name}\nTool result: {result_str}\n\nPlease provide a natural language response to the user based on the tool result.",
                 conversation_history=conversation_history,
                 purpose=ContextPurpose.TOOL_RESULT_SUMMARY,
@@ -697,12 +791,14 @@ Answer ONLY with this exact JSON format (no other text):
             
             self._decision_logger.info(
                 f"Context Manager: tool_result_summary - "
-                f"prompt chars={len(result.system_prompt)}"
+                f"messages={len(messages_result.messages)}, "
+                f"compressed={messages_result.compressed}"
             )
             
+            # 使用空 prompt，因为消息列表已包含用户消息
             response = await self.llm_provider.generate(
-                result.user_message,
-                system_prompt=result.system_prompt
+                prompt="",
+                messages=messages_result.messages
             )
             return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
@@ -714,12 +810,12 @@ Answer ONLY with this exact JSON format (no other text):
         user_input: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """使用对话历史生成直接回复（使用统一的 ContextManager）"""
+        """使用对话历史生成直接回复（使用消息列表模式）"""
         try:
             from agent.context import ContextPurpose
             
-            # 使用统一的 ContextManager 构建上下文
-            result = await self._context_manager.build(
+            # 使用消息列表模式构建上下文
+            messages_result = await self._context_manager.build_messages(
                 user_message=user_input,
                 conversation_history=conversation_history,
                 purpose=ContextPurpose.DIRECT_RESPONSE,
@@ -729,19 +825,24 @@ Answer ONLY with this exact JSON format (no other text):
 
             self._decision_logger.info(
                 f"Context Manager: direct_response - "
-                f"prompt chars={len(result.system_prompt)}, "
-                f"compressed={result.compressed}, "
-                f"history msgs={result.compressed_count}"
+                f"messages={len(messages_result.messages)}, "
+                f"compressed={messages_result.compressed}, "
+                f"history msgs={messages_result.compressed_count}"
             )
 
+            # 使用空 prompt，因为消息列表已包含用户消息
             response = await self.llm_provider.generate(
-                result.user_message,
-                system_prompt=result.system_prompt
+                prompt="",
+                messages=messages_result.messages
             )
             return response
         except Exception as e:
             logger.error(f"Failed to generate with history: {e}")
-            response = await self.llm_provider.generate(user_input)
+            # 降级：直接使用用户输入（消息列表模式）
+            response = await self.llm_provider.generate(
+                prompt="",
+                messages=[{"role": "user", "content": user_input}]
+            )
             return response
     
     async def _generate_direct_response_stream(
@@ -749,12 +850,12 @@ Answer ONLY with this exact JSON format (no other text):
         user_input: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """使用对话历史生成直接回复（流式版本）"""
+        """使用对话历史生成直接回复（流式版本，使用消息列表模式）"""
         try:
             from agent.context import ContextPurpose
             
-            # 使用统一的 ContextManager 构建上下文
-            result = await self._context_manager.build(
+            # 使用消息列表模式构建上下文
+            messages_result = await self._context_manager.build_messages(
                 user_message=user_input,
                 conversation_history=conversation_history,
                 purpose=ContextPurpose.DIRECT_RESPONSE,
@@ -764,16 +865,16 @@ Answer ONLY with this exact JSON format (no other text):
 
             self._decision_logger.info(
                 f"Context Manager: direct_response (stream) - "
-                f"prompt chars={len(result.system_prompt)}, "
-                f"compressed={result.compressed}, "
-                f"history msgs={result.compressed_count}"
+                f"messages={len(messages_result.messages)}, "
+                f"compressed={messages_result.compressed}, "
+                f"history msgs={messages_result.compressed_count}"
             )
 
-            # 使用流式调用
+            # 使用流式调用（传递消息列表，使用空 prompt）
             accumulated = ""
             async for chunk in self.llm_provider.generate_stream(
-                result.user_message,
-                system_prompt=result.system_prompt
+                prompt="",
+                messages=messages_result.messages
             ):
                 delta = chunk.delta if hasattr(chunk, 'delta') else (chunk.content if hasattr(chunk, 'content') else str(chunk))
                 if delta:
@@ -793,12 +894,12 @@ Answer ONLY with this exact JSON format (no other text):
         clarification: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """使用对话历史生成澄清回复（使用统一的 ContextManager）"""
+        """使用对话历史生成澄清回复（使用消息列表模式）"""
         try:
             from agent.context import ContextPurpose
             
-            # 使用统一的 ContextManager 构建上下文
-            result = await self._context_manager.build(
+            # 使用消息列表模式构建上下文
+            messages_result = await self._context_manager.build_messages(
                 user_message=f"User asked: {user_input}\n\nYou need to ask for clarification. Reason: {clarification}\n\nPlease ask for more details in a natural way.",
                 conversation_history=conversation_history,
                 purpose=ContextPurpose.CLARIFICATION,
@@ -808,12 +909,13 @@ Answer ONLY with this exact JSON format (no other text):
             
             self._decision_logger.info(
                 f"Context Manager: clarification - "
-                f"prompt chars={len(result.system_prompt)}"
+                f"messages={len(messages_result.messages)}"
             )
             
+            # 使用空 prompt，因为消息列表已包含用户消息
             response = await self.llm_provider.generate(
-                result.user_message,
-                system_prompt=result.system_prompt
+                prompt="",
+                messages=messages_result.messages
             )
             return response
         except Exception as e:
