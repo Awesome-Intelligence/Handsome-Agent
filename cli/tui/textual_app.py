@@ -45,6 +45,16 @@ except ImportError as e:
     TEXTUAL_AVAILABLE = False
     _TEXTUAL_IMPORT_ERROR = str(e)
 
+# Rich 库导入（用于消息渲染）
+try:
+    from rich.text import Text as RichText
+    from rich.console import NewLine
+    from rich.style import Style
+except ImportError:
+    RichText = None
+    NewLine = None
+    Style = None
+
 # 条件导入 typing 工具
 if TYPE_CHECKING:
     from textual.widget import Widget
@@ -163,6 +173,11 @@ AVOCADO_DARK = "#465A1E"
 WHITE = "white"
 GRAY_DIM = "#888888"
 GOLD = "#FFD700"
+
+# 状态指示器颜色
+STATUS_ONLINE = "#3fb950"    # 绿色 - 空闲
+STATUS_BUSY = "#f0883e"      # 橙色 - 处理中
+STATUS_ERROR = "#f85149"     # 红色 - 错误
 
 # ============================================================================
 # TuiLogHandler - 后端日志路由到 TUI 日志面板
@@ -301,6 +316,27 @@ class SubmitTextArea(TextArea):
         
         # 其他键保持默认行为
         await super()._on_key(event)
+
+
+# ============================================================================
+# ClickableStatic - 可点击的 Static 组件（用于替代 Button 避免样式问题）
+# ============================================================================
+
+class ClickableStatic(Static):
+    """可点击的 Static 组件。
+    
+    用于替代 Button 以避免 Textual 默认样式中的边框问题。
+    支持 on_click 事件处理。
+    """
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.can_focus = True
+    
+    def on_click(self) -> None:
+        """处理点击事件。"""
+        # 通知父组件（通过冒泡到 App）
+        self.app._toggle_sidebar()
 
 
 # ============================================================================
@@ -443,6 +479,12 @@ class HandsomeAgentApp(App):
         self.context_length = context_length
         self._logger = get_access_logger("TextualUI", sublayer="tui")
         
+        # 加载动画相关
+        self._is_loading: bool = False
+        self._loading_timer: Optional[callable] = None
+        self._loading_frames: list = ["◐", "◓", "◑", "◒"]  # 旋转动画帧
+        self._loading_frame_index: int = 0
+        
         # 保存 Agent 实例
         self._agent = agent
         
@@ -483,6 +525,9 @@ class HandsomeAgentApp(App):
         
         # 初始化审批管理器
         self._init_approval_manager(approval_mode)
+        
+        # Agent 状态指示器
+        self._agent_status = "online"  # online/busy/error
     
     # 类级别 CSS 属性（默认主题 - 参考 CodeWhale 深色主题）
     CSS = """
@@ -497,6 +542,7 @@ Screen {
     height: 1fr;
     width: 100%;
     background: #0d1117;
+    overflow-y: hidden;
 }
 
 #chat-log {
@@ -557,6 +603,16 @@ Screen {
     color: #6e7681;
 }
 
+.header-status {
+    color: #3fb950;
+    margin-right: 1;
+}
+
+/* 流式输出指示器 - Textual CSS 不支持动画，使用静态样式 */
+.streaming-indicator {
+    color: #8b949e;
+}
+
 /* 自定义 Footer - 状态信息 */
 #app-footer {
     height: 1;
@@ -580,13 +636,109 @@ Screen {
     color: #6e7681;
 }
 
-/* 输入区域 - 固定在底部 */
+/* === 状态栏样式 === */
+#status-bar {
+    height: 1;
+    width: 100%;
+    background: #21262d;
+}
+
+#status-content {
+    height: 100%;
+    layout: horizontal;
+    padding: 0 2;
+}
+
+.status-icon {
+    width: 1;
+    color: #3fb950;  /* 绿色在线状态 */
+}
+
+.status-model {
+    color: #58a6ff;
+}
+
+.status-sep {
+    width: 1;
+    color: #30363d;
+}
+
+.status-tokens {
+    color: #8b949e;
+}
+
+.status-progress {
+    color: #8b949e;
+}
+
+.status-time {
+    color: #8b949e;
+    width: 8;
+}
+
+.status-tools {
+    color: #8b949e;
+}
+
+/* 聊天日志样式 */
+#chat-log {
+    padding: 1 2;
+}
+
+/* 消息样式 - 用户消息浅蓝气泡 */
+#chat-log .user-message {
+    background: #1f2937;
+    color: #e5e7eb;
+    padding: 0 1;
+    margin: 0;
+}
+
+/* 消息样式 - 助手消息透明 */
+#chat-log .assistant-message {
+    color: #c9d1d9;
+    padding: 0 1;
+    margin: 0;
+}
+
+/* 消息样式 - 系统消息灰色 */
+#chat-log .system-message {
+    color: #8b949e;
+    padding: 0 1;
+    margin: 0;
+}
+
+/* 滚动条样式 - 美化为细线 */
+#chat-area {
+    overflow-y: auto;
+}
+
+/* 输入区域样式 */
 #input-area {
     height: 5;
     width: 100%;
     background: #161b22;
     dock: bottom;
-    border-top: solid #30363d;
+}
+
+#input-field {
+    border: solid #30363d;
+    background: #0d1117;
+    padding: 1 2;
+}
+
+#input-field:focus {
+    border: solid #58a6ff;
+}
+
+/* 发送按钮样式 */
+#send-button {
+    width: 5;
+    background: #238636;
+    color: #ffffff;
+}
+
+#send-button:hover {
+    background: #2ea043;
 }
 
 #input-row {
@@ -634,16 +786,42 @@ Button:hover {
 
 /* === 侧边栏样式 === */
 #sidebar-container {
-    width: 20%;
+    width: 15%;
+    min-width: 20;
+    max-width: 25;
     height: 100%;
     background: #161b22;
     border-left: solid #30363d;
 }
 
+/* 侧边栏折叠状态 - 完全隐藏 */
+#sidebar-container.collapsed {
+    display: none;
+}
+
+/* 折叠按钮样式 - 固定在边缘 (使用 ClickableStatic 避免 Button 默认样式) */
+ClickableStatic#sidebar-toggle {
+    width: 2;
+    height: 100%;
+    min-width: 2;
+    max-width: 2;
+    background: #21262d;
+    color: #8b949e;
+    content-align: center middle;
+    padding: 0;
+    margin: 0;
+}
+
+ClickableStatic#sidebar-toggle:hover {
+    background: #30363d;
+    color: #c9d1d9;
+}
+
 #sidebar-tabs {
     height: 3;
-    background: #0d1117;
+    background: #161b22;
     border-bottom: solid #30363d;
+    content-align: left bottom;
 }
 
 #tab-bar {
@@ -652,17 +830,18 @@ Button:hover {
 }
 
 .sidebar-tab {
-    background: #21262d;
+    background: #161b22;
     color: #8b949e;
     border: none;
     padding: 0 1;
-    margin: 1;
+    margin: 0;
     min-width: 3;
 }
 
 .sidebar-tab.active {
-    background: #30363d;
-    color: #c9d1d9;
+    background: #1f3a5f;
+    color: #58a6ff;
+    text-style: bold;
 }
 
 .sidebar-tab:hover {
@@ -734,18 +913,23 @@ Button:hover {
         # 自定义 Header - 显示模型信息
         with Container(id="app-header"):
             with Horizontal(id="header-content"):
+                yield Static("🟢", id="status-indicator", classes="header-status")
                 yield Static(self.model_name or "Handsome Agent", classes="header-model")
                 ctx_str = f"[{self._format_context(self.context_length)}]" if self.context_length else ""
                 yield Static(ctx_str, classes="header-context")
                 cwd_short = self.cwd[-30:] if self.cwd and len(self.cwd) > 30 else (self.cwd or "")
                 yield Static(cwd_short, classes="header-cwd")
         
-        # 主区域 - 左侧聊天 + 右侧侧边栏
+        # 主区域 - 左侧聊天 + 折叠按钮 + 右侧侧边栏
         with Horizontal(id="main-area"):
             # 左侧聊天区域（弹性高度）
             with VerticalScroll(id="chat-area"):
                 yield Static("", id="welcome-banner")
                 yield RichLog(id="chat-log", auto_scroll=True)
+            
+            # 折叠按钮 - 使用 ClickableStatic 避免 Button 默认样式问题
+            if SidebarContainer and SidebarTabBar:
+                yield ClickableStatic("◀", id="sidebar-toggle", markup=False)
             
             # 右侧侧边栏
             if SidebarContainer and SidebarTabBar:
@@ -753,11 +937,30 @@ Button:hover {
                     yield SidebarTabBar(on_switch=self._on_sidebar_panel_switch)
                     yield SidebarContainer(cwd=self.cwd, agent=self._agent)
         
-        # 自定义 Footer - 显示状态信息
+        # 状态栏 - 显示模型、Token、工具等信息
+        with Container(id="status-bar"):
+            with Horizontal(id="status-content"):
+                yield Static("●", id="status-icon", classes="status-icon")
+                yield Static(self.model_name or "Handsome Agent", id="status-model", classes="status-model")
+                yield Static("│", id="status-sep1", classes="status-sep")
+                tokens_init = f"0/{self._format_context(self.context_length)}" if self.context_length else "n/a"
+                yield Static(tokens_init, id="status-tokens", classes="status-tokens")
+                yield Static("│", id="status-sep2", classes="status-sep")
+                yield Static("░░░░░░░░░░░░", id="status-progress", classes="status-progress")
+                yield Static("│", id="status-sep3", classes="status-sep")
+                yield Static("0m 0s", id="status-time", classes="status-time")
+                yield Static("│", id="status-sep4", classes="status-sep")
+                yield Static("🔧", id="status-tools", classes="status-tools")
+        
+        # 自定义 Footer - 显示快捷键提示
         with Container(id="app-footer"):
             with Horizontal(id="footer-content"):
-                yield Static("tokens: 0", classes="footer-token")
-                yield Static("Ctrl+B: 侧边栏 | Ctrl+K: 命令 | Ctrl+L: 清屏", classes="footer-hint")
+                yield Static(
+                    "[#c9d1d9][[/][#30363d]Ctrl+B[/][#c9d1d9]][/] 侧边栏 [#6e7681]|[/] "
+                    "[#c9d1d9][[/][#30363d]Ctrl+K[/][#c9d1d9]][/] 命令 [#6e7681]|[/] "
+                    "[#c9d1d9][[/][#30363d]Ctrl+L[/][#c9d1d9]][/] 清屏",
+                    classes="footer-hint"
+                )
         
         # 输入区域（固定在底部）
         with Container(id="input-area"):
@@ -770,9 +973,17 @@ Button:hover {
     def on_key(self, event: KeyEvent) -> None:
         """处理全局键盘事件.
         
+        - Ctrl+B: 折叠/展开侧边栏
         - Ctrl+1/2/3/4: 侧边栏面板切换
         """
-        # 检查 Ctrl 键是否按下
+        # Ctrl+B 折叠/展开侧边栏
+        if event.key == "b" and event.control:
+            self._toggle_sidebar()
+            event.prevent_default()
+            event.stop()
+            return
+        
+        # 检查 Ctrl 键是否按下 - 面板切换
         if event.control and event.key in ['1', '2', '3', '4']:
             # 直接调用面板切换方法
             if event.key == '1':
@@ -785,12 +996,14 @@ Button:hover {
                 self.action_switch_to_logs()
             event.prevent_default()
             event.stop()
-            return
     
     def on_mount(self) -> None:
         """应用挂载时初始化."""
         self._logger.info("Textual UI mounted")
         self._render_welcome_banner()
+        
+        # 初始化状态栏
+        self._update_status_bar()
         
         # 注册事件监听器
         self._register_event_listeners()
@@ -805,6 +1018,38 @@ Button:hover {
         
         # 聚焦到输入框（TextArea）
         self.set_focus(self.query_one("#user-input", TextArea))
+    
+    def _update_status_bar(self) -> None:
+        """更新状态栏显示."""
+        try:
+            # 状态指示器图标
+            icon_widget = self.query_one("#status-indicator-icon", Static)
+            icon_widget.update("●")
+            
+            # 模型名称
+            model_widget = self.query_one("#status-model", Static)
+            model_widget.update(f" {self.model_name or 'Handsome Agent'} ")
+            
+            # Token 使用情况
+            tokens_widget = self.query_one("#status-tokens", Static)
+            if self.context_length:
+                tokens_widget.update(f"│ 0/{self._format_context(self.context_length)} ")
+            else:
+                tokens_widget.update("│ n/a ")
+            
+            # 进度条
+            progress_widget = self.query_one("#status-progress", Static)
+            progress_widget.update("░░░░░░░░░░░░")
+            
+            # 时间
+            time_widget = self.query_one("#status-time", Static)
+            time_widget.update("│ 0m 0s ")
+            
+            # 工具数量
+            tools_widget = self.query_one("#status-tools", Static)
+            tools_widget.update("🔧")
+        except Exception as e:
+            self._logger.debug(f"Failed to update status bar: {e}")
     
     @on(SubmitTextArea.InputSubmitted)
     def _on_input_submitted(self, event: SubmitTextArea.InputSubmitted) -> None:
@@ -857,20 +1102,64 @@ Button:hover {
         # def on_approval_confirmed(self, event):
         #     pass
     
+    def _start_loading_animation(self) -> None:
+        """启动加载动画."""
+        if self._is_loading:
+            return
+        self._is_loading = True
+        self._loading_frame_index = 0
+        self._update_loading_frame()
+    
+    def _stop_loading_animation(self) -> None:
+        """停止加载动画."""
+        self._is_loading = False
+        # 恢复状态图标
+        status_icon = self.query_one("#status-icon", Static)
+        status_icon.update("●")
+    
+    def _toggle_sidebar(self) -> None:
+        """切换侧边栏折叠状态."""
+        sidebar = self.query_one("#sidebar-container", Container)
+        toggle_btn = self.query_one("#sidebar-toggle", ClickableStatic)
+        
+        if sidebar.has_class("collapsed"):
+            # 展开侧边栏
+            sidebar.remove_class("collapsed")
+            toggle_btn.remove_class("collapsed")
+            toggle_btn.update("▶")  # 向左箭头 - 侧边栏已展开，点击收起
+        else:
+            # 折叠侧边栏
+            sidebar.add_class("collapsed")
+            toggle_btn.add_class("collapsed")
+            toggle_btn.update("◀")  # 向右箭头 - 侧边栏已收起，点击展开
+    
+    def _update_loading_frame(self) -> None:
+        """更新加载动画帧."""
+        if not self._is_loading:
+            return
+        # 更新状态图标为当前帧
+        status_icon = self.query_one("#status-icon", Static)
+        status_icon.update(self._loading_frames[self._loading_frame_index])
+        # 更新帧索引
+        self._loading_frame_index = (self._loading_frame_index + 1) % len(self._loading_frames)
+        # 设置下一个定时器（约 200ms 一帧）
+        self.set_timer(0.2, self._update_loading_frame)
+    
     def _render_welcome_banner(self) -> None:
         """渲染简洁的欢迎横幅."""
-        i18n = get_i18n()
-        
-        # 简洁的欢迎横幅（参考 CodeWhale 风格）
+        # ASCII 艺术横幅（来自 CLI 模式）
         welcome_lines = [
-            f"[bold #58a6ff]Welcome to Handsome Agent[/]",
-            f"[dim]Ask questions or give instructions below...[/]",
+            "[bold #8B9A46]░█░█░█▀█░█▀█░█▀▄░█▀▀░█▀█░█▄█░█▀▀[/]",
+            "[bold #8B9A46]░█▀█░█▀█░█░█░█░█░▀▀█░█░█░█░█░█▀▀[/]",
+            "[bold #8B9A46]░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀▀▀░▀░▀░▀▀▀[/]",
         ]
         
         # 设置横幅内容
         welcome_widget = self.query_one("#welcome-banner")
         if welcome_widget:
-            welcome_widget.update("\n".join(welcome_lines))
+            from rich.text import Text as RichText
+            welcome_text = RichText.from_markup("\n".join(welcome_lines))
+            welcome_widget.update(welcome_text)
     
     def _format_context(self, tokens: int | None) -> str:
         """格式化 token 数量.
@@ -1380,6 +1669,25 @@ Button:hover {
         """切换到日志面板 (Ctrl+4)."""
         self._get_sidebar_and_switch("logs")
     
+    def set_agent_status(self, status: str) -> None:
+        """设置 Agent 状态指示器
+        
+        Args:
+            status: 状态类型 (online/busy/error)
+        """
+        self._agent_status = status
+        indicator = self.query_one("#status-indicator", Static)
+        
+        if status == "busy":
+            indicator.update("🟡")
+            indicator.styles.color = STATUS_BUSY
+        elif status == "error":
+            indicator.update("🔴")
+            indicator.styles.color = STATUS_ERROR
+        else:
+            indicator.update("🟢")
+            indicator.styles.color = STATUS_ONLINE
+    
     def action_toggle_help(self) -> None:
         """切换帮助面板显示."""
         self.action_open_help()
@@ -1428,37 +1736,40 @@ Button:hover {
             content: 消息内容
         """
         log = self.query_one("#chat-log", RichLog)
-        from rich.panel import Panel
-        from rich.text import Text
-        from datetime import datetime
         
-        # 根据角色选择样式
-        if role == "user":
-            panel = Panel(
-                content,
-                title="[cyan]You[/]",
-                style="cyan",
-                border_style="cyan",
-                padding=(0, 1)
-            )
-        elif role == "assistant":
-            panel = Panel(
-                content,
-                title="[green]Agent[/]",
-                style="green",
-                border_style="green",
-                padding=(0, 1)
-            )
-        else:  # system
-            panel = Panel(
-                content,
-                title="[yellow]System[/]",
-                style="yellow",
-                border_style="yellow",
-                padding=(0, 1)
-            )
-        
-        log.write(panel)
+        # 使用 RichText.from_markup() 正确解析 Rich 标记
+        if RichText:
+            if role == "user":
+                # 用户消息：深灰蓝背景 + 蓝色文字
+                title = RichText.from_markup("[bold #58a6ff]**You**[/]")
+                body = RichText.from_markup(content)
+                # 使用 Style 设置背景色，使用 stylize() 应用样式
+                if Style:
+                    bg_style = Style(bgcolor="#21262d")
+                    body.stylize(bg_style, 0, len(body))
+                formatted = title + RichText("\n\n") + body
+            elif role == "assistant":
+                # 助手消息：无背景
+                formatted = RichText.from_markup(f"[bold #3fb950]**Assistant**[/]\n\n{content}")
+            elif role == "tool":
+                formatted = RichText.from_markup(f"[dim]🛠️ **Tool**[/]\n{content}")
+            else:
+                formatted = RichText.from_markup(f"[dim]**System**[/]\n\n{content}")
+            # 消息之间添加空行分隔
+            log.write(NewLine(1))
+            log.write(formatted)
+        else:
+            # 降级：直接写入文本
+            if role == "user":
+                label = "You"
+            elif role == "assistant":
+                label = "Assistant"
+            elif role == "tool":
+                label = "Tool"
+            else:
+                label = "System"
+            log.write(NewLine(1))
+            log.write(f"{label}: {content}")
     
     def _history_prev(self) -> None:
         """显示上一条历史记录."""
@@ -1561,6 +1872,12 @@ Button:hover {
         from concurrent.futures import ThreadPoolExecutor
         from textual.timer import Timer
         
+        # 更新状态为忙碌
+        self.set_agent_status("busy")
+        
+        # 启动加载动画
+        self._start_loading_animation()
+        
         # 显示加载状态
         self._append_message("system", "🤔 正在思考...")
         
@@ -1610,6 +1927,12 @@ Button:hover {
             self._poll_timer.stop()
             self._poll_timer = None
             
+            # 停止加载动画
+            self._stop_loading_animation()
+            
+            # 恢复状态为空闲
+            self.set_agent_status("online")
+            
             try:
                 response = future.result()
                 if response:
@@ -1620,6 +1943,9 @@ Button:hover {
                 else:
                     self._append_message("assistant", "（无回复）")
             except Exception as e:
+                # 停止加载动画
+                self._stop_loading_animation()
+                self.set_agent_status("error")
                 self._append_message("system", f"❌ 处理失败: {str(e)}")
             
             self._agent_future = None

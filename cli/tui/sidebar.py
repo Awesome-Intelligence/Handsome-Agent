@@ -22,22 +22,22 @@ class SidebarContainer(Container):
     
     def compose(self) -> ComposeResult:
         with Vertical(id="sidebar-content-inner"):
-            # 文件树面板
-            with Vertical(id="panel-file_tree", classes="sidebar-panel"):
-                yield Static("📁 文件", classes="panel-title")
-                yield Static(self._build_file_tree(), id="file-tree-content")
-            
-            # 任务面板
-            with Vertical(id="panel-tasks", classes="sidebar-panel hidden"):
+            # 任务面板 - 第一个
+            with Vertical(id="panel-tasks", classes="sidebar-panel"):
                 yield Static("📋 任务", classes="panel-title")
                 yield Static("[dim]暂无任务[/dim]", id="tasks-content")
+            
+            # 文件树面板 - 第二个
+            with Vertical(id="panel-file_tree", classes="sidebar-panel hidden"):
+                yield Static("📁 文件", classes="panel-title")
+                yield Static(self._build_file_tree(), id="file-tree-content")
             
             # Agent 面板
             with Vertical(id="panel-agent", classes="sidebar-panel hidden"):
                 yield Static("🤖 Agent", classes="panel-title")
                 yield Static("[green]🟢 空闲[/green]", id="agent-content")
             
-            # 日志面板
+            # 日志面板 - 第三个
             with Vertical(id="panel-logs", classes="sidebar-panel hidden"):
                 yield Static("📜 日志", classes="panel-title")
                 yield RichLog(id="log-output", auto_scroll=True, max_lines=1000, wrap=True, min_width=1)
