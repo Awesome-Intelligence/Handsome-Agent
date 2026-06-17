@@ -742,7 +742,7 @@ Screen {
     height: 1fr;
     width: 100%;
     background: #0d1117;
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 
 #chat-log {
@@ -750,6 +750,7 @@ Screen {
     width: 100%;
     background: #0d1117;
     padding: 1 2;
+    overflow-x: hidden;
 }
 
 /* 欢迎横幅：简洁设计 */
@@ -1235,10 +1236,9 @@ ClickableStatic#sidebar-toggle:hover {
 
 /* 打字机输出组件样式 */
 .typewriter-output {
-    width: 100%;
+    width: 1fr;
     height: auto;
     max-width: 100%;
-    overflow-x: auto;
     padding: 0 2;
     background: #0d1117;
 }
