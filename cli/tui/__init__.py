@@ -34,7 +34,8 @@ def _patch_textual_logger_early():
 
 _patch_textual_logger_early()
 
-from .curses_ui import (
+# Curses UI - 从 core 子包导入
+from cli.tui.core.curses_ui import (
     has_curses,
     curses_radiolist,
     curses_checklist,
@@ -43,8 +44,8 @@ from .curses_ui import (
     flush_stdin,
 )
 
-# Textual TUI 支持（可选）
-from .textual_app import (
+# Textual TUI 支持（可选）- 从 textual_app 子包导入
+from cli.tui.textual_app import (
     TEXTUAL_AVAILABLE,
     HandsomeAgentApp,
     run_textual_app,
@@ -59,17 +60,21 @@ from .textual_app import (
     AVOCADO_DARK,
 )
 
-# 主题系统
-from .themes import Theme, ThemeManager, get_theme_manager
+# 主题系统 - 从 themes 子包导入
+from cli.tui.themes import (
+    Theme,
+    ThemeManager,
+    get_theme_manager,
+)
 
 # Textual UI 组件
-from .widgets import StatusBar, CommandPaletteScreen, Command
+from cli.tui.widgets import StatusBar, CommandPaletteScreen, Command
 
 # Textual UI Views
-from .views import ChatView, ChatMessageSubmitted, HelpScreen
+from cli.tui.views import ChatView, ChatMessageSubmitted, HelpScreen
 
-# 快捷键管理
-from .keybindings import (
+# 快捷键管理 - 从 core 子包导入
+from cli.tui.core.keybindings import (
     KeyBinding,
     KeyBindingManager,
     KeyBindingCategory,
@@ -77,7 +82,7 @@ from .keybindings import (
 )
 
 # 审批对话框组件
-from .widgets import (
+from cli.tui.widgets import (
     ApprovalDialog,
     ApprovalMode,
     RiskLevel,

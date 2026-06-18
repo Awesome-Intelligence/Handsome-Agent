@@ -93,8 +93,26 @@ Tabs Tab:hover {
 
 Tabs Tab.active {
     background: transparent;
-    color: var(--accent);
+    color: var(--tab-active-color);
     text-style: bold;
+    border-bottom: solid var(--tab-indicator);
+}
+
+/* 侧边栏 Tab 样式 - 使用更具体的选择器 */
+SidebarContainer Tabs Tab {
+    color: var(--text-muted) !important;
+}
+
+SidebarContainer Tabs Tab:hover {
+    background: transparent !important;
+    color: var(--text) !important;
+}
+
+SidebarContainer Tabs Tab.active {
+    background: transparent !important;
+    color: var(--tab-active-color) !important;
+    text-style: bold !important;
+    border-bottom: solid var(--tab-indicator) !important;
 }
 
 Tabs Tab.active:hover {
@@ -172,13 +190,13 @@ Input:focus {
 #user-input {
     background: var(--surface) !important;
     color: var(--text) !important;
-    border: solid var(--accent-dim) !important;
+    border: solid var(--input-border) !important;
     margin: 0 !important;
     height: 5 !important;
 }
 
 #user-input:focus {
-    border: heavy var(--accent) !important;
+    border: heavy var(--input-border-focus) !important;
 }
 
 /* ========== 消息样式 ========== */

@@ -54,6 +54,17 @@
     --status-busy: #f0883e;
     --status-error: #f85149;
     
+    /* Banner 颜色 */
+    --banner-color: $accent;
+    
+    /* 输入框颜色 */
+    --input-border: $border;
+    --input-border-focus: $accent;
+    
+    /* Tab 页签颜色 */
+    --tab-indicator: $accent;
+    --tab-active-color: $accent;
+    
     /* 间距系统 */
     --space-xs: 2;
     --space-sm: 4;
@@ -85,13 +96,18 @@
 
 /* 默认主题 - Avocado Green */
 .theme-default {
-    --accent: #8B9A46;
-    --accent-bright: #A0B45A;
-    --accent-dim: #647030;
-    --accent-dark: #465A1E;
-    --accent-10: rgba(139, 154, 70, 0.1);
-    --accent-25: rgba(139, 154, 70, 0.25);
-    --accent-50: rgba(139, 154, 70, 0.5);
+    --accent: #a371f7;
+    --accent-bright: #a371f7;
+    --accent-dim: #8b5acd;
+    --accent-dark: #6b4ea8;
+    --accent-10: rgba(163, 113, 247, 0.1);
+    --accent-25: rgba(163, 113, 247, 0.25);
+    --accent-50: rgba(163, 113, 247, 0.5);
+    --banner-color: #a371f7;
+    --input-border: #c9a0dc;
+    --input-border-focus: #a371f7;
+    --tab-indicator: #a371f7;
+    --tab-active-color: #a371f7;
 }
 
 /* 战争之神主题 - Ares (Crimson/Bronze) */
@@ -103,6 +119,11 @@
     --accent-10: rgba(205, 127, 50, 0.1);
     --accent-25: rgba(205, 127, 50, 0.25);
     --accent-50: rgba(205, 127, 50, 0.5);
+    --banner-color: #E8A060;
+    --input-border: #A06028;
+    --input-border-focus: #CD7F32;
+    --tab-indicator: #CD7F32;
+    --tab-active-color: #CD7F32;
 }
 
 /* 单色主题 - Monochrome */
@@ -114,6 +135,11 @@
     --accent-10: rgba(128, 128, 128, 0.1);
     --accent-25: rgba(128, 128, 128, 0.25);
     --accent-50: rgba(128, 128, 128, 0.5);
+    --banner-color: #A0A0A0;
+    --input-border: #606060;
+    --input-border-focus: #808080;
+    --tab-indicator: #808080;
+    --tab-active-color: #808080;
 }
 
 /* 酷蓝主题 - Slate (Cool Blue) */
@@ -125,6 +151,11 @@
     --accent-10: rgba(96, 125, 139, 0.1);
     --accent-25: rgba(96, 125, 139, 0.25);
     --accent-50: rgba(96, 125, 139, 0.5);
+    --banner-color: #78909C;
+    --input-border: #455A64;
+    --input-border-focus: #607D8B;
+    --tab-indicator: #607D8B;
+    --tab-active-color: #607D8B;
 }
 
 /* ============================================================================

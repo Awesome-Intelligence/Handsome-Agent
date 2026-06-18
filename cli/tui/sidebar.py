@@ -179,6 +179,22 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         dock: top;
     }
 
+    SidebarContainer Tabs Tab {
+        color: $text-muted;
+    }
+
+    SidebarContainer Tabs Tab:hover {
+        background: transparent;
+        color: $text;
+    }
+
+    SidebarContainer Tabs Tab.active {
+        background: transparent;
+        color: $accent;
+        text-style: bold;
+        border-bottom: solid $accent;
+    }
+
     SidebarContainer ContentSwitcher {
         height: 1fr;
     }
