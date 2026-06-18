@@ -6,7 +6,7 @@ Color definitions and utilities for Handsome Agent CLI.
 🚪 Access - 💬 CLI - 颜色系统
 
 参考 Hermes 的 colors.py 设计，支持：
-- 牛油果绿主题色
+- 高雅紫主题色
 - ANSI 颜色码
 - Rich 格式颜色 (rgb, hex)
 - 皮肤/主题系统
@@ -83,7 +83,7 @@ def enable_ansi_support():
 # ============================================================================
 
 class Colors:
-    """ANSI color codes - 牛油果绿主题."""
+    """ANSI color codes - 高雅紫主题."""
 
     RESET = "\033[0m"
 
@@ -118,12 +118,12 @@ class Colors:
     GRAY = "\033[38;5;245m"
     GRAY_DIM = "\033[38;5;245m\033[2m"
 
-    # 牛油果绿主题色 (Avocado Green)
-    # RGB: 139, 154, 70 / #8B9A46
-    AVOCADO = "\033[38;2;139;154;70m"
-    AVOCADO_BRIGHT = "\033[38;2;160;180;90m"
-    AVOCADO_DIM = "\033[38;2;100;120;50m"
-    AVOCADO_DARK = "\033[38;2;70;90;30m"
+    # 高雅紫主题色 (Elegant Purple)
+    # RGB: 177, 128, 215 / #B180D7
+    AVOCADO = "\033[38;2;177;128;215m"
+    AVOCADO_BRIGHT = "\033[38;2;201;160;224m"
+    AVOCADO_DIM = "\033[38;2;139;92;172m"
+    AVOCADO_DARK = "\033[38;2;107;78;168m"
 
     # Background colors
     BG_BLACK = "\033[40m"
@@ -134,7 +134,7 @@ class Colors:
     BG_MAGENTA = "\033[45m"
     BG_CYAN = "\033[46m"
     BG_WHITE = "\033[47m"
-    BG_AVOCADO = "\033[48;2;139;154;70m"
+    BG_AVOCADO = "\033[48;2;177;128;215m"
 
 
 # ============================================================================
@@ -202,7 +202,7 @@ def strip_color(text: str) -> str:
 # ============================================================================
 
 class Theme:
-    """Theme colors - 牛油果绿主题的统一配色."""
+    """Theme colors - 高雅紫主题的统一配色."""
 
     # Border colors
     BORDER = Colors.AVOCADO

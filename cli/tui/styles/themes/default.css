@@ -1,0 +1,81 @@
+/*
+ * 默认主题 - Avocado Purple
+ * 主题变量和组件覆盖样式
+ */
+
+/* ============================================================================
+   主题变量覆盖
+   ============================================================================ */
+
+.theme-default {
+    --accent: #B180D7;
+    --accent-bright: #B180D7;
+    --accent-dim: #9a6bc2;
+    --accent-dark: #7a4da8;
+    --accent-10: rgba(177, 128, 215, 0.1);
+    --accent-25: rgba(177, 128, 215, 0.25);
+    --accent-50: rgba(177, 128, 215, 0.5);
+    --border: #B180D7;
+    --banner-color: #B180D7;
+    --input-border: #B180D7;
+    --input-border-focus: #a371f7;
+    --tab-indicator: #B180D7;
+    --tab-active-color: #B180D7;
+    --sidebar-focus-border: #B180D7;
+    --frame-border: #B180D7;
+}
+
+/* ============================================================================
+   组件样式覆盖
+   ============================================================================ */
+
+/* Screen 外边框 */
+.theme-default Screen {
+    border: solid #B180D7;
+}
+
+/* Header 下边框 */
+.theme-default #app-header {
+    border-bottom: solid #B180D7;
+}
+
+/* 侧边栏聚焦边框 */
+.theme-default #sidebar-container:hover,
+.theme-default #sidebar-container:focus-within {
+    border: solid #B180D7 !important;
+}
+
+/* 输入框边框 */
+.theme-default #user-input {
+    border: solid #C9A0E0 !important;
+}
+
+.theme-default #user-input:focus,
+.theme-default #user-input:hover {
+    border: solid #B180D7 !important;
+}
+
+/* 聊天区域边框 */
+.theme-default #chat-area:hover,
+.theme-default #chat-area:focus-within {
+    border: solid #B180D7 !important;
+}
+
+/* 侧边栏 Tab 选中样式 - 最高优先级 */
+.theme-default #sidebar-container-inner SidebarContainer Tabs Tab.active,
+.theme-default #sidebar-container-inner SidebarContainer Tabs .active {
+    color: #B180D7 !important;
+    border-bottom: solid #B180D7 !important;
+}
+
+.theme-default #sidebar-tabs Tab.active,
+.theme-default #sidebar-tabs .active {
+    color: #B180D7 !important;
+    border-bottom: solid #B180D7 !important;
+}
+
+.theme-default [id="sidebar-container-inner"] Tabs Tab.active,
+.theme-default [id="sidebar-container-inner"] Tabs .active {
+    color: #B180D7 !important;
+    border-bottom: solid #B180D7 !important;
+}

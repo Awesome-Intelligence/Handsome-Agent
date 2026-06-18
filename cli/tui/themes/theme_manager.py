@@ -64,6 +64,7 @@ class ThemeManager:
         self._logger = get_access_logger("ThemeManager", sublayer="tui")
         self._transparency_enabled: bool = False  # 透明度开关
         self._transparency_level: float = 0.85  # 透明度级别 (0.0-1.0)
+        self._theme_change_callback: Optional[callable] = None  # 主题变更回调
         
         # 从配置文件加载用户偏好
         self._load_preference()
@@ -146,7 +147,44 @@ class ThemeManager:
         # 保存用户偏好
         self._save_preference()
         
+        # 调用主题变更回调
+        if self._theme_change_callback:
+            try:
+                self._theme_change_callback(theme_id)
+            except Exception as e:
+                self._logger.error(f"Theme change callback failed: {e}")
+        
         return True
+
+    def register_theme_change_callback(self, callback: callable) -> None:
+        """注册主题变更回调.
+        
+        Args:
+            callback: 主题变更时调用的回调函数，接收 theme_id 参数
+        """
+        self._theme_change_callback = callback
+
+    def get_theme_css_path(self, theme_id: str) -> Optional[Path]:
+        """获取主题 CSS 文件路径.
+        
+        Args:
+            theme_id: 主题 ID
+            
+        Returns:
+            主题 CSS 文件路径，如果不存在则返回 None
+        """
+        # 检查是否是皮肤主题（skin_ 开头）
+        if theme_id.startswith("skin_"):
+            return None  # 皮肤主题使用动态生成的 CSS
+        
+        # 检查是否是预设主题
+        if theme_id in _PRESET_THEMES:
+            themes_dir = Path(__file__).parent.parent / "styles" / "themes"
+            css_path = themes_dir / f"{theme_id}.css"
+            if css_path.exists():
+                return css_path
+        
+        return None
 
     # ============================================================================
     # 透明度控制方法
@@ -631,25 +669,39 @@ ChatView {{
             True 如果应用成功
         """
         try:
+            # 获取皮肤强调色
+            skin_accent = skin_config.get_color("ui_accent", "#A0B45A")
+            skin_border = skin_config.get_color("banner_border", "#8B9A46")
+            
             # 构建自定义主题颜色映射
             css_colors = {
                 # 基础颜色
-                "--primary": skin_config.get_color("banner_border", "#8B9A46"),
+                "--primary": skin_border,
                 "--primary-bright": skin_config.get_color("banner_title", "#A0B45A"),
                 "--primary-dim": skin_config.get_color("banner_dim", "#647030"),
                 "--primary-dark": skin_config.get_color("banner_border", "#465A1E"),
+                # 强调色 - 不再由皮肤控制，保持主题独立
+                # $accent 和 --accent 由各主题 CSS 文件控制
+                "$primary": skin_border,
+                "--accent-bright": skin_accent,
+                "--accent-dim": skin_config.get_color("ui_label", "#8B9A46"),
+                "--accent-dark": skin_config.get_color("banner_dim", "#647030"),
                 # 文字颜色
+                "$text": skin_config.get_color("banner_text", "#FFFFFF"),
                 "--text": skin_config.get_color("banner_text", "#FFFFFF"),
                 "--text-dim": skin_config.get_color("banner_dim", "#888888"),
-                "--text-accent": skin_config.get_color("ui_accent", "#A0B45A"),
+                # --text-accent 和 --border-accent 由主题 CSS 控制
                 # 背景颜色
+                "$background": skin_config.get_color("status_bar_bg", "#465A1E"),
+                "$surface": "#1a1a1a",
                 "--background": skin_config.get_color("status_bar_bg", "#465A1E"),
                 "--surface": "#1a1a1a",
                 "--surface-light": "#2a2a2a",
                 # 边框颜色
+                "$border": skin_config.get_color("banner_dim", "#647030"),
                 "--border": skin_config.get_color("banner_dim", "#647030"),
                 "--border-light": skin_config.get_color("banner_border", "#8B9A46"),
-                "--border-accent": skin_config.get_color("ui_accent", "#A0B45A"),
+                # --border-accent 由主题 CSS 控制
                 # UI 状态颜色
                 "--success": skin_config.get_color("ui_ok", "#4CAF50"),
                 "--warning": skin_config.get_color("ui_warn", "#FF9800"),

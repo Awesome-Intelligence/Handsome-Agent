@@ -1,15 +1,15 @@
 /*
  * TUI 基础样式 - 设计令牌
- * 包含语义化颜色变量、主题覆盖类、间距、圆角等基础变量
+ * 包含语义化颜色变量、间距、圆角等基础变量
  * 
  * 设计原则：
  * - 使用 Textual 内置语义化颜色变量（$panel, $accent, $surface 等）
- * - 主题色通过 CSS 类覆盖 --accent 系列变量实现
+ * - 主题色通过独立的主题 CSS 文件实现（themes/ 目录下）
  * - 业务颜色（消息颜色、状态颜色）保持固定值
  */
 
 /* ============================================================================
-   语义化颜色变量 - 默认值（继承 Textual 内置变量）
+   设计令牌 - 合并的颜色、字体、间距等变量
    ============================================================================ */
 :root {
     /* 面板和容器 */
@@ -65,6 +65,9 @@
     --tab-indicator: $accent;
     --tab-active-color: $accent;
     
+    /* 侧边栏边框颜色 */
+    --sidebar-focus-border: $accent;
+    
     /* 间距系统 */
     --space-xs: 2;
     --space-sm: 4;
@@ -88,74 +91,31 @@
     --opacity-subtle: 0.1;
     --opacity-muted: 0.25;
     --opacity-medium: 0.5;
-}
-
-/* ============================================================================
-   主题覆盖类 - 覆盖 --accent 系列变量
-   ============================================================================ */
-
-/* 默认主题 - Avocado Green */
-.theme-default {
-    --accent: #a371f7;
-    --accent-bright: #a371f7;
-    --accent-dim: #8b5acd;
-    --accent-dark: #6b4ea8;
-    --accent-10: rgba(163, 113, 247, 0.1);
-    --accent-25: rgba(163, 113, 247, 0.25);
-    --accent-50: rgba(163, 113, 247, 0.5);
-    --banner-color: #a371f7;
-    --input-border: #c9a0dc;
-    --input-border-focus: #a371f7;
-    --tab-indicator: #a371f7;
-    --tab-active-color: #a371f7;
-}
-
-/* 战争之神主题 - Ares (Crimson/Bronze) */
-.theme-ares {
-    --accent: #CD7F32;
-    --accent-bright: #E8A060;
-    --accent-dim: #A06028;
-    --accent-dark: #7A4520;
-    --accent-10: rgba(205, 127, 50, 0.1);
-    --accent-25: rgba(205, 127, 50, 0.25);
-    --accent-50: rgba(205, 127, 50, 0.5);
-    --banner-color: #E8A060;
-    --input-border: #A06028;
-    --input-border-focus: #CD7F32;
-    --tab-indicator: #CD7F32;
-    --tab-active-color: #CD7F32;
-}
-
-/* 单色主题 - Monochrome */
-.theme-mono {
-    --accent: #808080;
-    --accent-bright: #A0A0A0;
-    --accent-dim: #606060;
-    --accent-dark: #404040;
-    --accent-10: rgba(128, 128, 128, 0.1);
-    --accent-25: rgba(128, 128, 128, 0.25);
-    --accent-50: rgba(128, 128, 128, 0.5);
-    --banner-color: #A0A0A0;
-    --input-border: #606060;
-    --input-border-focus: #808080;
-    --tab-indicator: #808080;
-    --tab-active-color: #808080;
-}
-
-/* 酷蓝主题 - Slate (Cool Blue) */
-.theme-slate {
-    --accent: #607D8B;
-    --accent-bright: #78909C;
-    --accent-dim: #455A64;
-    --accent-dark: #37474F;
-    --accent-10: rgba(96, 125, 139, 0.1);
-    --accent-25: rgba(96, 125, 139, 0.25);
-    --accent-50: rgba(96, 125, 139, 0.5);
-    --banner-color: #78909C;
-    --input-border: #455A64;
-    --input-border-focus: #607D8B;
-    --tab-indicator: #607D8B;
-    --tab-active-color: #607D8B;
+    
+    /* ========== 字体大小层级 ========== */
+    --font-xxs: 9;
+    --font-xs: 10;
+    --font-sm: 12;
+    --font-md: 14;
+    --font-lg: 16;
+    --font-xl: 18;
+    --font-xxl: 22;
+    
+    /* 元素字体大小 */
+    --font-banner: var(--font-xl);
+    --font-title: var(--font-lg);
+    --font-subtitle: var(--font-md);
+    --font-body: var(--font-md);
+    --font-caption: var(--font-sm);
+    --font-status: var(--font-sm);
+    --font-input: var(--font-md);
+    --font-button: var(--font-md);
+    --font-tooltip: var(--font-xs);
+    
+    /* 行高 */
+    --line-height: 1.4;
+    --line-height-tight: 1.2;
+    --line-height-loose: 1.6;
 }
 
 /* ============================================================================
@@ -168,5 +128,5 @@
 /* 全局字体设置 */
 Screen {
     font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
-    font-size: 14;
+    font-size: var(--font-md);
 }

@@ -67,6 +67,7 @@ class ThemeConfig:
     input_border_focus: str  # 输入框聚焦边框颜色
     tab_indicator: str  # Tab 页签下划线颜色
     tab_active_color: str  # Tab 激活时文字颜色
+    frame_border: str  # 外边框颜色
 
 
 # 预设主题配置
@@ -77,11 +78,12 @@ THEME_CONFIGS: Dict[str, ThemeConfig] = {
         accent_bright="#a371f7",
         accent_dim="#8b5acd",
         accent_dark="#6b4ea8",
-        banner_color="#a371f7",
-        input_border="#c9a0dc",
+        banner_color="#B180D7",
+        input_border="#B180D7",
         input_border_focus="#a371f7",
         tab_indicator="#a371f7",
         tab_active_color="#a371f7",
+        frame_border="#B180D7",
     ),
     "ares": ThemeConfig(
         name="War God",
@@ -94,6 +96,7 @@ THEME_CONFIGS: Dict[str, ThemeConfig] = {
         input_border_focus="#CD7F32",  # 主题色
         tab_indicator="#CD7F32",  # 主题橙色
         tab_active_color="#CD7F32",  # 主题橙色
+        frame_border="#E8A060",  # 亮橙色边框
     ),
     "mono": ThemeConfig(
         name="Monochrome",
@@ -106,6 +109,7 @@ THEME_CONFIGS: Dict[str, ThemeConfig] = {
         input_border_focus="#808080",  # 主题色
         tab_indicator="#808080",  # 主题灰色
         tab_active_color="#808080",  # 主题灰色
+        frame_border="#A0A0A0",  # 亮灰色边框
     ),
     "slate": ThemeConfig(
         name="Cool Blue",
@@ -118,6 +122,7 @@ THEME_CONFIGS: Dict[str, ThemeConfig] = {
         input_border_focus="#607D8B",  # 主题色
         tab_indicator="#607D8B",  # 主题蓝色
         tab_active_color="#607D8B",  # 主题蓝色
+        frame_border="#78909C",  # 亮蓝色边框
     ),
 }
 
@@ -143,7 +148,7 @@ def generate_theme_css(theme_id: str) -> str:
     """生成主题覆盖类 CSS 字符串.
     
     Args:
-        theme_id: 主题 ID (default/ares/mono/slate)
+        theme_id: 主题 ID (default/awesome)
         
     Returns:
         主题 CSS 类定义字符串

@@ -9,7 +9,7 @@
 
 特性：
 - ✅ 跨平台：Windows/macOS/Linux
-- ✅ 牛油果绿主题
+- ✅ 高雅紫主题
 """
 
 import sys
@@ -71,19 +71,19 @@ def _show_cursor():
 
 # ============ 1. inquirer 主实现（跨平台） ============
 
-# 牛油果绿主题 - 匹配 Handsome Agent 品牌色 #A0B45A
+# 高雅紫主题 - 匹配 Handsome Agent 品牌色 #B180D7
 AVOCADO_THEME = None  # 延迟初始化
 
 def _get_avocado_theme():
-    """获取牛油果绿主题（延迟初始化）"""
+    """获取高雅紫主题（延迟初始化）"""
     global AVOCADO_THEME
     if AVOCADO_THEME is None:
         try:
             from inquirer.themes import GreenPassion
             AVOCADO_THEME = GreenPassion()
-            # 自定义牛油果绿颜色 #A0B45A
-            AVOCADO_COLOR = "\033[38;2;160;180;90m"  # 牛油果绿
-            AVOCADO_BOLD = "\033[1m\033[38;2;160;180;90m"  # 加粗牛油果绿
+            # 自定义高雅紫颜色 #B180D7
+            AVOCADO_COLOR = "\033[38;2;177;128;215m"  # 高雅紫
+            AVOCADO_BOLD = "\033[1m\033[38;2;177;128;215m"  # 加粗高雅紫
             # 设置 List 选中项颜色
             AVOCADO_THEME.List.selection_color = AVOCADO_COLOR
             AVOCADO_THEME.List.selection_cursor = "▸ "
@@ -95,7 +95,7 @@ def _get_avocado_theme():
             AVOCADO_THEME.Checkbox.selected_color = AVOCADO_COLOR
             AVOCADO_THEME.Checkbox.selected_cursor = "◉"
             AVOCADO_THEME.Checkbox.unselected_cursor = "◯"
-            # 设置问题颜色 - 统一为牛油果绿
+            # 设置问题颜色 - 统一为高雅紫
             AVOCADO_THEME.Question.default_color = AVOCADO_COLOR
             AVOCADO_THEME.Question.brackets_color = AVOCADO_COLOR
             AVOCADO_THEME.Question.mark_color = AVOCADO_COLOR
@@ -112,7 +112,7 @@ def _select_with_inquirer(
     """
     使用 inquirer 库（首选，跨平台）
     Ctrl+C 直接返回 None（退出选择），不降级到其他菜单
-    使用牛油果绿主题
+    使用高雅紫主题
     """
     try:
         import inquirer

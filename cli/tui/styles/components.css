@@ -4,6 +4,11 @@
  * 主题色通过 CSS 类覆盖实现
  */
 
+/* ========== Header 组件 ========== */
+#app-header {
+    border-bottom: solid #B180D7 !important;
+}
+
 /* ========== 按钮组件 ========== */
 Button {
     background: var(--surface-raised);
@@ -115,6 +120,35 @@ SidebarContainer Tabs Tab.active {
     border-bottom: solid var(--tab-indicator) !important;
 }
 
+/* 强制覆盖侧边栏 Tab 选中样式 */
+.theme-default SidebarContainer Tabs Tab.active,
+.theme-default SidebarContainer Tabs .active {
+    background: transparent !important;
+    color: #B180D7 !important;
+    border-bottom: solid #B180D7 !important;
+}
+
+.theme-ares SidebarContainer Tabs Tab.active,
+.theme-ares SidebarContainer Tabs .active {
+    background: transparent !important;
+    color: #E8A060 !important;
+    border-bottom: solid #E8A060 !important;
+}
+
+.theme-slate SidebarContainer Tabs Tab.active,
+.theme-slate SidebarContainer Tabs .active {
+    background: transparent !important;
+    color: #78909C !important;
+    border-bottom: solid #78909C !important;
+}
+
+.theme-mono SidebarContainer Tabs Tab.active,
+.theme-mono SidebarContainer Tabs .active {
+    background: transparent !important;
+    color: #A0A0A0 !important;
+    border-bottom: solid #A0A0A0 !important;
+}
+
 Tabs Tab.active:hover {
     background: transparent;
 }
@@ -190,9 +224,10 @@ Input:focus {
 #user-input {
     background: var(--surface) !important;
     color: var(--text) !important;
-    border: solid var(--input-border) !important;
+    border: double var(--input-border) !important;
     margin: 0 !important;
-    height: 5 !important;
+    height: 7 !important;
+    padding: 0 1 !important;
 }
 
 #user-input:focus {

@@ -19,7 +19,7 @@ from .theme_config import Theme
 
 
 def _create_default_theme() -> Theme:
-    """创建牛油果绿主题 (Avocado Green)."""
+    """创建高雅紫主题 (Elegant Purple)."""
     return Theme(
         theme_id="default",
         display_name_key="tui.theme.default.name",
@@ -38,7 +38,8 @@ def _create_default_theme() -> Theme:
             "--surface": "#1a1a1a",
             "--surface-light": "#2a2a2a",
             # 边框颜色
-            "--border": "#647030",
+            "$border": "#B180D7",
+            "--border": "#B180D7",
             "--border-light": "#8B9A46",
             "--border-accent": "#A0B45A",
             # UI 状态颜色
@@ -51,100 +52,35 @@ def _create_default_theme() -> Theme:
     )
 
 
-def _create_ares_theme() -> Theme:
-    """创建战争之神主题 (Ares - Crimson/Bronze)."""
+def _create_awesome_theme() -> Theme:
+    """创建 Awesome 主题 (Vibrant Green)."""
     return Theme(
-        theme_id="ares",
-        display_name_key="tui.theme.ares.name",
+        theme_id="awesome",
+        display_name_key="tui.theme.awesome.name",
         colors={
             # 基础颜色
-            "--primary": "#CD7F32",
-            "--primary-bright": "#FFD700",
-            "--primary-dim": "#B8860B",
-            "--primary-dark": "#8B4513",
+            "--primary": "#A9FC6E",
+            "--primary-bright": "#C5FF9E",
+            "--primary-dim": "#7FD94A",
+            "--primary-dark": "#5FA832",
             # 文字颜色
-            "--text": "#FFF8DC",
-            "--text-dim": "#B8860B",
-            "--text-accent": "#FFD700",
+            "--text": "#FFFFFF",
+            "--text-dim": "#A0C47A",
+            "--text-accent": "#C5FF9E",
             # 背景颜色
-            "--background": "#8B4513",
+            "--background": "#1A2E0A",
             "--surface": "#1a1a1a",
             "--surface-light": "#2a2a2a",
             # 边框颜色
-            "--border": "#B8860B",
-            "--border-light": "#CD7F32",
-            "--border-accent": "#FFD700",
+            "$border": "#A9FC6E",
+            "--border": "#A9FC6E",
+            "--border-light": "#7FD94A",
+            "--border-accent": "#C5FF9E",
             # UI 状态颜色
             "--success": "#4CAF50",
-            "--warning": "#FFA726",
-            "--error": "#EF5350",
-            "--info": "#64B5F6",
-        },
-        transparency=1.0,
-    )
-
-
-def _create_mono_theme() -> Theme:
-    """创建灰度单色主题 (Monochrome)."""
-    return Theme(
-        theme_id="mono",
-        display_name_key="tui.theme.mono.name",
-        colors={
-            # 基础颜色
-            "--primary": "#808080",
-            "--primary-bright": "#FFFFFF",
-            "--primary-dim": "#666666",
-            "--primary-dark": "#404040",
-            # 文字颜色
-            "--text": "#CCCCCC",
-            "--text-dim": "#666666",
-            "--text-accent": "#FFFFFF",
-            # 背景颜色
-            "--background": "#1a1a1a",
-            "--surface": "#1a1a1a",
-            "--surface-light": "#2a2a2a",
-            # 边框颜色
-            "--border": "#404040",
-            "--border-light": "#666666",
-            "--border-accent": "#808080",
-            # UI 状态颜色
-            "--success": "#888888",
-            "--warning": "#AAAAAA",
-            "--error": "#CCCCCC",
-            "--info": "#999999",
-        },
-        transparency=1.0,
-    )
-
-
-def _create_slate_theme() -> Theme:
-    """创建酷蓝开发者主题 (Slate - Cool Blue)."""
-    return Theme(
-        theme_id="slate",
-        display_name_key="tui.theme.slate.name",
-        colors={
-            # 基础颜色
-            "--primary": "#607D8B",
-            "--primary-bright": "#90CAF9",
-            "--primary-dim": "#455A64",
-            "--primary-dark": "#37474F",
-            # 文字颜色
-            "--text": "#E0E7FF",
-            "--text-dim": "#94A3B8",
-            "--text-accent": "#60A5FA",
-            # 背景颜色
-            "--background": "#37474F",
-            "--surface": "#0F172A",
-            "--surface-light": "#1E293B",
-            # 边框颜色
-            "--border": "#475569",
-            "--border-light": "#607D8B",
-            "--border-accent": "#90CAF9",
-            # UI 状态颜色
-            "--success": "#4ADE80",
-            "--warning": "#FBBF24",
-            "--error": "#F87171",
-            "--info": "#38BDF8",
+            "--warning": "#FF9800",
+            "--error": "#F44336",
+            "--info": "#2196F3",
         },
         transparency=1.0,
     )
@@ -153,16 +89,12 @@ def _create_slate_theme() -> Theme:
 # 预设主题注册表
 _PRESET_THEMES: Dict[str, Theme] = {
     "default": _create_default_theme(),
-    "ares": _create_ares_theme(),
-    "mono": _create_mono_theme(),
-    "slate": _create_slate_theme(),
+    "awesome": _create_awesome_theme(),
 }
 
 
 __all__ = [
     "_create_default_theme",
-    "_create_ares_theme",
-    "_create_mono_theme",
-    "_create_slate_theme",
+    "_create_awesome_theme",
     "_PRESET_THEMES",
 ]

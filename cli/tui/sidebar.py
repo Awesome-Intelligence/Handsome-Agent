@@ -9,8 +9,10 @@ from typing_extensions import Self
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
+from textual.message import Message
 from textual.widgets import Static, RichLog, TabbedContent, TabPane
 from textual.widgets import Tabs
+from textual import on
 
 # 图标系统
 try:
@@ -254,6 +256,22 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         if panel_id in ["tasks", "file_tree", "agent", "logs"]:
             tabs.active = panel_id
 
+    @on(Tabs.TabActivated)
+    def on_tab_activated(self, event: Tabs.TabActivated) -> None:
+        """Tab 切换时更新颜色."""
+        # 获取当前主题颜色（从父组件或默认值）
+        active_color = getattr(self, '_active_tab_color', '#B180D7')
+        self.update_tab_colors(active_color)
+
+    def set_active_color(self, color: str) -> None:
+        """设置激活 Tab 的颜色.
+        
+        Args:
+            color: 颜色值（十六进制）
+        """
+        self._active_tab_color = color
+        self.update_tab_colors(color)
+
     def action_previous_tab(self) -> None:
         """切换到上一个 Tab."""
         tabs = self.query_one(Tabs)
@@ -270,6 +288,21 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         """聚焦当前激活的 Tab 内容."""
         if active := self.query_one(Tabs).active:
             self.query_one(f"SidebarPane#{active}", SidebarPane).set_focus_within()
+
+    def update_tab_colors(self, active_color: str) -> None:
+        """更新侧边栏 Tab 颜色.
+        
+        Args:
+            active_color: 激活状态的 Tab 颜色（十六进制）
+        """
+        tabs = self.query_one(Tabs)
+        for tab in tabs.query("Tab"):
+            if tab.id == tabs.active:
+                tab.styles.color = active_color
+                tab.styles.border_bottom = f"solid {active_color}"
+            else:
+                tab.styles.color = ""
+                tab.styles.border_bottom = ""
 
 
 # ============================================================================

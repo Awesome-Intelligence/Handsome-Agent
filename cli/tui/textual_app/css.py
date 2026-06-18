@@ -40,8 +40,14 @@ Screen {
     background: #0d1117;
     margin: 0;
     padding: 0;
-    border: blank;
+    border: blank !important;
     overflow: hidden;
+}
+
+/* 默认边框样式 - 主题 CSS 会覆盖 */
+#chat-area:hover,
+#chat-area:focus-within {
+    border: solid #B180D7 !important;
 }
 
 /* RichLog 自动换行 - 禁止横向滚动 */
@@ -55,7 +61,6 @@ Screen {
 #chat-area RichLog > * {
     max-width: 100%;
     overflow-x: hidden;
-    text-wrap: wrap;
 }
 
 /* 聊天日志内所有文本自动换行 */
@@ -75,12 +80,19 @@ Screen {
     height: auto;
     width: 100%;
     dock: top;
-    background: #161b22;
+    background: transparent;
+    border-bottom: solid #B180D7 !important;
 }
 
 #header-content {
     height: auto;
     width: 100%;
+    layout: horizontal;
+}
+
+#banner-left {
+    height: auto;
+    width: auto;
 }
 
 #welcome-banner {
@@ -88,6 +100,20 @@ Screen {
     width: auto;
     padding: 0 2;
     background: transparent;
+}
+
+#header-info-right {
+    height: 100%;
+    width: 1fr;
+    align: right middle;
+}
+
+.header-info-text {
+    height: auto;
+    width: 100%;
+    padding: 0 2;
+    background: transparent;
+    align: right middle;
 }
 
 .header-content {
@@ -125,7 +151,7 @@ Screen {
 #status-bar {
     height: 1;
     width: 100%;
-    background: #21262d;
+    background: #B180D7;
 }
 
 #status-content {
@@ -133,50 +159,42 @@ Screen {
     layout: horizontal;
     padding: 0 2;
     align: left middle;
+    color: #1a1a1a;
 }
 
 .status-icon {
     width: 1;
-    color: #3fb950;
+    color: #1a1a1a;
 }
 
 .status-model {
     width: auto;
-    color: $accent;
+    color: #1a1a1a;
 }
 
 .status-sep {
     width: 1;
-    color: #30363d;
+    color: #1a1a1a;
 }
 
 .status-tokens {
     width: auto;
-    color: #8b949e;
+    color: #1a1a1a;
 }
 
 .status-progress {
     width: auto;
-    color: #8b949e;
+    color: #1a1a1a;
 }
 
 .status-time {
     width: auto;
-    color: #8b949e;
+    color: #1a1a1a;
 }
 
 .status-tools {
     width: auto;
-    color: #8b949e;
-}
-
-.status-time {
-    color: #8b949e;
-    width: 8;
-}
-
-.status-tools {
-    color: #8b949e;
+    color: #1a1a1a;
 }
 
 /* 聊天日志样式 */
@@ -220,16 +238,39 @@ Screen {
 #input-area {
     height: auto;
     width: 100%;
-    margin-bottom: 1;
-    padding: 0;
-    background: #161b22;
     dock: bottom;
+    layout: vertical;
+}
+
+#input-area #status-bar {
+    height: 1;
+    width: 100%;
+    background: #B180D7;
+    margin: 0;
+    border: none;
+}
+
+#input-area #status-content {
+    height: 100%;
+    layout: horizontal;
+    padding: 0 2;
+    align: left middle;
+    color: #1a1a1a;
+}
+
+#input-area #user-input {
+    margin: 0;
+}
+
+#input-area Footer {
+    dock: none;
+    height: 1;
 }
 
 #input-field {
     border: blank;
     background: #0d1117;
-    padding: 1 2;
+    padding: 0;
 }
 
 #input-field:focus {
@@ -273,15 +314,21 @@ Screen {
 
 /* TextArea (Composer) specific styles */
 #user-input {
-    background: $surface;
+    background: transparent;
     color: $text;
-    border: solid #c9a0dc;
     margin: 0;
-    height: 5;
+    height: 7;
+    padding: 0 1;
 }
 
-#user-input:focus {
-    border: heavy #a371f7;
+/* 默认边框样式 - 主题 CSS 会覆盖 */
+#user-input {
+    border: thick #C9A0E0 !important;
+}
+
+#user-input:focus,
+#user-input:hover {
+    border: thick #B180D7 !important;
 }
 
 /* 按钮通用样式 */
@@ -304,14 +351,16 @@ Button:focus {
 #sidebar-container {
     width: 30;
     height: 100%;
-    background: #161b22;
-    border-left: blank;
+    background: transparent;
+    border: blank;
     margin: 0;
     padding: 0;
 }
 
-#sidebar-container:focus {
-    border-left: heavy $accent;
+/* 默认边框样式 - 主题 CSS 会覆盖 */
+#sidebar-container:hover,
+#sidebar-container:focus-within {
+    border: solid #B180D7 !important;
 }
 
 #sidebar-container-inner {
@@ -321,7 +370,7 @@ Button:focus {
 
 #sidebar-tabs {
     height: 3;
-    background: #161b22;
+    background: transparent;
     border-bottom: solid #30363d;
     content-align: left bottom;
 }

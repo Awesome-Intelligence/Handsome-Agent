@@ -50,8 +50,22 @@ from . import curses_ui
 from . import status
 from . import setup_wizard
 
-__version__ = "0.0.1"
-__author__ = "Handsome Agent Team"
+# 从项目根目录的 _version.py 导入版本信息
+import sys
+from pathlib import Path
+
+_version_path = Path(__file__).resolve().parent.parent / "_version.py"
+if _version_path.exists():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_version", _version_path)
+    _version_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_version_module)
+    __version__ = _version_module.__version__
+    __release_date__ = _version_module.__release_date__
+else:
+    # 降级：如果找不到 _version.py，使用默认值
+    __version__ = "0.0.1"
+    __release_date__ = "2026.06.18"
 
 # Expose key components at package level
 __all__ = [

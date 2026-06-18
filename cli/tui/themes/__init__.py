@@ -6,7 +6,7 @@ Textual Theme System for Handsome Agent.
 🚪 Access - 💬 CLI - Textual UI - 主题系统
 
 基于 Textual CSS 的主题系统，支持：
-- 四套预设主题（default/ares/mono/slate）
+- 两套预设主题（default/awesome）
 - 动态主题切换
 - 与皮肤引擎（skin_engine.py）保持兼容
 - i18n 主题名称
@@ -16,17 +16,15 @@ Textual Theme System for Handsome Agent.
 
 | 主题 ID | 名称 | 主色 |
 |---------|------|------|
-| default | 牛油果绿 | #8B9A46 |
-| ares | 战争之神 | #8B4513 |
-| mono | 灰度单色 | #666666 |
-| slate | 酷蓝开发者 | #607D8B |
+| default | 高雅紫 | #B180D7 |
+| awesome | Awesome | #A9FC6E |
 
 Usage::
 
     from cli.tui.themes import ThemeManager, get_theme_manager
 
     manager = get_theme_manager()
-    manager.set_theme("slate")
+    manager.set_theme("awesome")
     css = manager.get_current_css()
 
 向后兼容：
@@ -80,6 +78,29 @@ from .theme_manager import (
     get_theme_manager,
 )
 
+# 排版系统
+from .typography import (
+    # 字体大小常量
+    FONT_SIZE_XXS,
+    FONT_SIZE_XS,
+    FONT_SIZE_SM,
+    FONT_SIZE_MD,
+    FONT_SIZE_LG,
+    FONT_SIZE_XL,
+    FONT_SIZE_XXL,
+    # 配置
+    TypographyConfig,
+    DEFAULT_TYPOGRAPHY,
+    COMPACT_TYPOGRAPHY,
+    LARGE_TYPOGRAPHY,
+    TYPOGRAPHY_PRESETS,
+    ELEMENT_FONT_CLASSES,
+    # 函数
+    get_typography_preset,
+    generate_typography_css,
+    generate_element_font_css,
+)
+
 # 计算半透明颜色（需要从 theme_config 导入 THEME_CONFIGS）
 AVOCADO_ACCENT_10 = transparent(THEME_CONFIGS["default"].accent, TRANSPARENCY_LEVELS["sm"])
 AVOCADO_ACCENT_25 = transparent(THEME_CONFIGS["default"].accent, TRANSPARENCY_LEVELS["lg"])
@@ -104,6 +125,23 @@ __all__ = [
     # 管理器
     "ThemeManager",
     "get_theme_manager",
+    # 排版系统
+    "FONT_SIZE_XXS",
+    "FONT_SIZE_XS",
+    "FONT_SIZE_SM",
+    "FONT_SIZE_MD",
+    "FONT_SIZE_LG",
+    "FONT_SIZE_XL",
+    "FONT_SIZE_XXL",
+    "TypographyConfig",
+    "DEFAULT_TYPOGRAPHY",
+    "COMPACT_TYPOGRAPHY",
+    "LARGE_TYPOGRAPHY",
+    "TYPOGRAPHY_PRESETS",
+    "ELEMENT_FONT_CLASSES",
+    "get_typography_preset",
+    "generate_typography_css",
+    "generate_element_font_css",
     # 透明度系统
     "TRANSPARENCY_LEVELS",
     "transparent",

@@ -24,7 +24,7 @@ try:
     from textual.app import App, ComposeResult
     from textual.widgets import Header, Footer, Static, RichLog, Tabs, Tab, TextArea, Button
     from textual.binding import Binding
-    from textual.containers import Container, VerticalScroll, Horizontal
+    from textual.containers import Container, Vertical, VerticalScroll, Horizontal
     from textual.message import Message
     from textual import on
     from textual.events import Key
@@ -289,9 +289,12 @@ class HandsomeAgentApp(App):
             self._theme_manager = get_theme_manager()
             if initial_theme:
                 self._theme_manager.set_theme(initial_theme)
+            # 注册主题变更回调
+            self._theme_manager.register_theme_change_callback(self._on_theme_changed)
 
         self.theme_id: str = "default"
         self._theme_css_loaded: bool = False
+        self._theme_css_paths: list[str] = []  # 已加载的主题 CSS 文件路径
         self._session_store: Optional[SessionStore] = None
         self._pending_message_count: int = 0
         self._auto_save_interval: int = 5
@@ -325,7 +328,14 @@ class HandsomeAgentApp(App):
     def compose(self) -> ComposeResult:
         with Container(id="app-header"):
             with Horizontal(id="header-content"):
-                yield Static("", id="welcome-banner")
+                # 左侧：ASCII Banner
+                with Vertical(id="banner-left"):
+                    yield Static("", id="welcome-banner")
+                # 右侧：版本、skills、工具信息
+                with Vertical(id="header-info-right"):
+                    yield Static("", id="version-info", classes="header-info-text")
+                    yield Static("", id="skills-info", classes="header-info-text")
+                    yield Static("", id="tools-info", classes="header-info-text")
 
         with Horizontal(id="main-area"):
             yield RichLog(id="chat-area", auto_scroll=True, markup=True)
@@ -333,28 +343,27 @@ class HandsomeAgentApp(App):
                 with Container(id="sidebar-container"):
                     yield SidebarContainer(cwd=self.cwd, agent=self._agent)
 
-        with Container(id="status-bar"):
-            with Horizontal(id="status-content"):
-                yield Static("●", id="status-icon", classes="status-icon")
-                yield Static(self.model_name or "Handsome Agent", id="status-model", classes="status-model")
-                yield Static("│", id="status-sep1", classes="status-sep")
-                tokens_init = f"0/{self._format_context(self.context_length)}" if self.context_length else "n/a"
-                yield Static(tokens_init, id="status-tokens", classes="status-tokens")
-                yield Static("│", id="status-sep2", classes="status-sep")
-                yield Static("░░░░░░░░░░░░", id="status-progress", classes="status-progress")
-                yield Static("│", id="status-sep3", classes="status-sep")
-                yield Static("0m 0s", id="status-time", classes="status-time")
-                yield Static("│", id="status-sep4", classes="status-sep")
-                yield Static("🔧", id="status-tools", classes="status-tools")
-
         with Container(id="input-area"):
+            with Container(id="status-bar"):
+                with Horizontal(id="status-content"):
+                    yield Static("●", id="status-icon", classes="status-icon")
+                    yield Static(self.model_name or "Handsome Agent", id="status-model", classes="status-model")
+                    yield Static("│", id="status-sep1", classes="status-sep")
+                    tokens_init = f"0/{self._format_context(self.context_length)}" if self.context_length else "n/a"
+                    yield Static(tokens_init, id="status-tokens", classes="status-tokens")
+                    yield Static("│", id="status-sep2", classes="status-sep")
+                    yield Static("░░░░░░░░░░░░", id="status-progress", classes="status-progress")
+                    yield Static("│", id="status-sep4", classes="status-sep")
+                    yield Static("0m 0s", id="status-time", classes="status-time")
+                    yield Static("│", id="status-sep5", classes="status-sep")
+                    yield Static("│", id="status-sep6", classes="status-sep")
+                    yield Static("🔧", id="status-tools", classes="status-tools")
             yield SubmitTextArea(
                 id="user-input",
                 classes="input-field",
-                placeholder="输入消息... (Ctrl+Enter 换行, Enter 发送)",
+                placeholder="输入消息...Enter 发送",
             )
-
-        yield Footer()
+            yield Footer()
 
     def on_key(self, event: KeyEvent) -> None:
         if event.key == "b" and event.control:
@@ -412,6 +421,12 @@ class HandsomeAgentApp(App):
 
             self._apply_theme_class()
             self._theme_css_loaded = True
+            
+            # 加载初始主题的 CSS
+            await self._load_theme_css(self.theme_id)
+            
+            # 加载完成后更新侧边栏 Tab 颜色
+            self._update_sidebar_tab_colors()
         except Exception as e:
             self._logger.debug(f"Failed to load stylesheets: {e}")
 
@@ -427,6 +442,51 @@ class HandsomeAgentApp(App):
 
         self.add_class(f"theme-{self.theme_id}")
         self._logger.info(f"Applied theme class: theme-{self.theme_id}")
+
+    async def _load_theme_css(self, theme_id: str) -> None:
+        """加载主题 CSS 文件."""
+        if not self._theme_manager:
+            return
+
+        try:
+            # 卸载之前的主题 CSS
+            for css_path in self._theme_css_paths:
+                try:
+                    await self.remove_stylesheet(css_path)
+                except Exception:
+                    pass
+            self._theme_css_paths.clear()
+
+            # 加载新的主题 CSS
+            theme_css_path = self._theme_manager.get_theme_css_path(theme_id)
+            if theme_css_path and theme_css_path.exists():
+                await self.add_stylesheet(str(theme_css_path))
+                self._theme_css_paths.append(str(theme_css_path))
+                self._logger.debug(f"Loaded theme CSS: {theme_css_path.name}")
+        except Exception as e:
+            self._logger.debug(f"Failed to load theme CSS: {e}")
+
+    def _on_theme_changed(self, theme_id: str) -> None:
+        """主题变更回调."""
+        self.theme_id = theme_id
+        self._apply_theme_class()
+        # 异步加载主题 CSS
+        self.call_later(lambda: self._load_theme_css(theme_id))
+        # 更新侧边栏 Tab 颜色
+        self.call_later(self._update_sidebar_tab_colors)
+
+    def _update_sidebar_tab_colors(self) -> None:
+        """更新侧边栏 Tab 颜色."""
+        theme_config = THEME_CONFIGS.get(self.theme_id)
+        if not theme_config:
+            return
+        
+        try:
+            sidebar = self.query_one("#sidebar-container-inner")
+            if hasattr(sidebar, 'set_active_color'):
+                sidebar.set_active_color(theme_config.frame_border)
+        except Exception as e:
+            self._logger.debug(f"Failed to update sidebar tab colors: {e}")
 
     def update_theme_css(self) -> None:
         self._apply_theme_class()
@@ -644,7 +704,9 @@ class HandsomeAgentApp(App):
     def _render_welcome_banner(self) -> None:
         theme_config = THEME_CONFIGS.get(self.theme_id)
         banner_color = theme_config.banner_color if theme_config else "#A0B45A"
+        secondary_color = "#8b949e"
 
+        # 渲染左侧 ASCII Banner
         welcome_lines = [
             f"[bold {banner_color}]░█░█░█▀█░█▀█░█▀▄░█▀▀░█▀█░█▄█░█▀▀[/]",
             f"[bold {banner_color}]░█▀█░█▀█░█░█░█░█░▀▀█░█░█░█░█░█▀▀[/]",
@@ -656,6 +718,78 @@ class HandsomeAgentApp(App):
             from rich.text import Text as RichText
             welcome_text = RichText.from_markup("\n".join(welcome_lines))
             welcome_widget.update(welcome_text)
+
+        # 渲染右侧信息栏
+        from rich.text import Text as RichText
+
+        # 版本信息 + 项目路径
+        version_widget = self.query_one("#version-info")
+        if version_widget:
+            from cli import __version__ as app_version
+            project_path = self._get_project_path()
+            version_text = RichText.from_markup(f"[dim]{app_version}[/] [bright_black]@[/] [bright_black]{project_path}[/]")
+            version_widget.update(version_text)
+
+        # Skill 数量 + 路径
+        skills_widget = self.query_one("#skills-info")
+        if skills_widget:
+            skills_count = self._get_skills_count()
+            skills_path = self._get_skills_path()
+            skills_text = RichText.from_markup(f"[bold #f0c040]⭐[/] [dim]{skills_count}[/] [bright_black]@[/] [bright_black]{skills_path}[/]")
+            skills_widget.update(skills_text)
+
+        # 工具数量 + 路径
+        tools_widget = self.query_one("#tools-info")
+        if tools_widget:
+            tools_count = self._get_tools_count()
+            tools_path = self._get_tools_path()
+            tools_text = RichText.from_markup(f"[bold #58a6ff]🔧[/] [dim]{tools_count}[/] [bright_black]@[/] [bright_black]{tools_path}[/]")
+            tools_widget.update(tools_text)
+
+    def _get_tools_count(self) -> int:
+        """获取已注册的工具数量"""
+        try:
+            from tools.tool_registry import get_tool_registry
+            registry = get_tool_registry()
+            if registry:
+                return len(registry._tools) if hasattr(registry, '_tools') else 0
+        except ImportError:
+            pass
+        return 0
+
+    def _get_skills_count(self) -> int:
+        """获取已加载的 Skill 数量"""
+        try:
+            from skills.skill_loader import get_skill_loader
+            loader = get_skill_loader()
+            if loader:
+                return len(loader._skills) if hasattr(loader, '_skills') else 0
+        except ImportError:
+            pass
+        return 0
+
+    def _get_project_path(self) -> str:
+        """获取项目根目录（Handsome Agent 所在目录）"""
+        from pathlib import Path
+        # 获取当前文件所在目录，然后取上级目录
+        current_file = Path(__file__).resolve()
+        # cli/tui/textual_app/app.py -> cli/tui -> cli -> 项目根目录
+        project_root = current_file.parent.parent.parent.parent
+        return str(project_root)
+
+    def _get_skills_path(self) -> str:
+        """获取 skills 目录路径"""
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        skills_dir = project_root / "skills"
+        return str(skills_dir)
+
+    def _get_tools_path(self) -> str:
+        """获取 tools 目录路径"""
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        tools_dir = project_root / "tools"
+        return str(tools_dir)
 
     def _format_context(self, tokens: int | None) -> str:
         if not tokens:
