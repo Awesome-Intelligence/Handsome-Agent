@@ -1,34 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Textual Theme System for Handsome Agent.
+TUI Theming System for Handsome Agent.
 
-🚪 Access - 💬 CLI - Textual UI - 主题系统
+🚪 Access - 💬 CLI - Theming - 统一的样式和主题管理
 
-基于 Textual CSS 的主题系统，支持：
-- 两套预设主题（default/awesome）
-- 动态主题切换
-- 与皮肤引擎（skin_engine.py）保持兼容
-- i18n 主题名称
-- 用户主题偏好持久化
-
-预设主题：
-
-| 主题 ID | 名称 | 主色 |
-|---------|------|------|
-| default | 高雅紫 | #B180D7 |
-| awesome | Awesome | #A9FC6E |
+提供：
+- 主题配置管理 (ThemeManager)
+- 颜色常量 (STATUS_ONLINE, STATUS_ERROR 等)
+- 图标映射 (MESSAGE_ICONS, FILE_TYPE_ICONS 等)
+- 透明度工具 (transparent 函数)
+- 排版系统 (TypographyConfig)
 
 Usage::
 
-    from cli.tui.themes import ThemeManager, get_theme_manager
+    from cli.tui.theming import ThemeManager, get_theme_manager
 
     manager = get_theme_manager()
-    manager.set_theme("awesome")
+    manager.set_theme("default")
     css = manager.get_current_css()
 
-向后兼容：
-    所有从 cli.tui.themes 导入的代码仍然有效。
+CSS 模块::
+
+    from cli.tui.theming.css import get_stylesheets
+
+    stylesheets = get_stylesheets()  # 返回 CSS 文件路径列表
 """
 
 from __future__ import annotations
@@ -54,10 +50,6 @@ from .colors import (
     STATUS_SUCCESS,
     STATUS_WARNING,
     STATUS_INFO,
-)
-
-from .preset_themes import (
-    _PRESET_THEMES,
 )
 
 from .icons import (
@@ -101,6 +93,10 @@ from .typography import (
     generate_element_font_css,
 )
 
+from .preset_themes import (
+    _PRESET_THEMES,
+)
+
 # 计算半透明颜色（需要从 theme_config 导入 THEME_CONFIGS）
 AVOCADO_ACCENT_10 = transparent(THEME_CONFIGS["default"].accent, TRANSPARENCY_LEVELS["sm"])
 AVOCADO_ACCENT_25 = transparent(THEME_CONFIGS["default"].accent, TRANSPARENCY_LEVELS["lg"])
@@ -113,10 +109,20 @@ STATUS_ERROR_15 = transparent(STATUS_ERROR, TRANSPARENCY_LEVELS["md"])
 STATUS_WARNING_15 = transparent(STATUS_WARNING, TRANSPARENCY_LEVELS["md"])
 STATUS_INFO_15 = transparent(STATUS_INFO, TRANSPARENCY_LEVELS["md"])
 
+# 主题颜色常量
+AVOCADO_PRIMARY = "#8B9A46"
+AVOCADO_BRIGHT = "#A0B45A"
+AVOCADO_DIM = "#647030"
+AVOCADO_DARK = "#465A1E"
+WHITE = "#FFFFFF"
+GRAY_DIM = "#888888"
+GOLD = "#B180D7"
+
 __all__ = [
     # 数据类
     "Theme",
     "ThemeConfig",
+    "TypographyConfig",
     # 主题配置
     "THEME_CONFIGS",
     "generate_semantic_colors",
@@ -133,7 +139,6 @@ __all__ = [
     "FONT_SIZE_LG",
     "FONT_SIZE_XL",
     "FONT_SIZE_XXL",
-    "TypographyConfig",
     "DEFAULT_TYPOGRAPHY",
     "COMPACT_TYPOGRAPHY",
     "LARGE_TYPOGRAPHY",
@@ -163,6 +168,14 @@ __all__ = [
     "STATUS_ERROR_15",
     "STATUS_WARNING_15",
     "STATUS_INFO_15",
+    # 主题颜色常量
+    "AVOCADO_PRIMARY",
+    "AVOCADO_BRIGHT",
+    "AVOCADO_DIM",
+    "AVOCADO_DARK",
+    "WHITE",
+    "GRAY_DIM",
+    "GOLD",
     # 预设主题
     "_PRESET_THEMES",
     # 消息类型

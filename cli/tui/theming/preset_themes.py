@@ -3,7 +3,7 @@
 """
 Preset Theme Definitions.
 
-🚪 Access - 💬 CLI - Textual UI - 预设主题定义
+🚪 Access - 💬 CLI - Theming - 预设主题定义
 """
 
 from __future__ import annotations

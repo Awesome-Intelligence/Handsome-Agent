@@ -3,7 +3,7 @@
 """
 Theme Manager for Textual UI.
 
-🚪 Access - 💬 CLI - Textual UI - 主题管理器
+🚪 Access - 💬 CLI - Theming - 主题管理器
 """
 
 from __future__ import annotations
@@ -179,7 +179,7 @@ class ThemeManager:
         
         # 检查是否是预设主题
         if theme_id in _PRESET_THEMES:
-            themes_dir = Path(__file__).parent.parent / "styles" / "themes"
+            themes_dir = Path(__file__).parent / "css" / "themes"
             css_path = themes_dir / f"{theme_id}.css"
             if css_path.exists():
                 return css_path

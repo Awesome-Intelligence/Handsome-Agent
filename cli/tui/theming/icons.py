@@ -3,7 +3,7 @@
 """
 Icon Mappings for UI Elements.
 
-🚪 Access - 💬 CLI - Textual UI - 图标映射
+🚪 Access - 💬 CLI - Theming - 图标映射
 """
 
 from __future__ import annotations

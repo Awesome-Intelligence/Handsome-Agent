@@ -53,7 +53,7 @@ except ImportError:
 
 # 主题图标和颜色
 try:
-    from cli.tui.themes import MESSAGE_ICONS, MESSAGE_COLORS
+    from cli.tui.theming import MESSAGE_ICONS, MESSAGE_COLORS
 except ImportError:
     # 降级：使用内置默认值
     MESSAGE_ICONS = {
@@ -97,7 +97,7 @@ except ImportError:
 
 # 图标系统
 try:
-    from cli.tui.themes import MESSAGE_ICONS, MESSAGE_COLORS
+    from cli.tui.theming import MESSAGE_ICONS, MESSAGE_COLORS
 except ImportError:
     # 降级：内联默认值
     MESSAGE_ICONS = {

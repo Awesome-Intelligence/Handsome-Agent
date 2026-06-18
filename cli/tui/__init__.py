@@ -60,8 +60,8 @@ from cli.tui.textual_app import (
     AVOCADO_DARK,
 )
 
-# 主题系统 - 从 themes 子包导入
-from cli.tui.themes import (
+# 主题系统 - 从 theming 模块导入
+from cli.tui.theming import (
     Theme,
     ThemeManager,
     get_theme_manager,

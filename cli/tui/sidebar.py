@@ -16,7 +16,7 @@ from textual import on
 
 # 图标系统
 try:
-    from cli.tui.themes import (
+    from cli.tui.theming import (
         FILE_TYPE_ICONS,
         get_file_icon,
         TASK_STATUS_ICONS,

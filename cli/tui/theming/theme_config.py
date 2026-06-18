@@ -3,7 +3,7 @@
 """
 Theme Configuration Data Classes.
 
-🚪 Access - 💬 CLI - Textual UI - 主题配置数据类
+🚪 Access - 💬 CLI - Theming - 主题配置数据类
 """
 
 from __future__ import annotations

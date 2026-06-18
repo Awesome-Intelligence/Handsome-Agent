@@ -3,7 +3,7 @@
 """
 Color Constants and Transparency Utilities.
 
-🚪 Access - 💬 CLI - Textual UI - 颜色和透明度工具
+🚪 Access - 💬 CLI - Theming - 颜色和透明度工具
 """
 
 from __future__ import annotations
