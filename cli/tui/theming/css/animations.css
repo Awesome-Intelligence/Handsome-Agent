@@ -39,7 +39,7 @@
 
 /* 流式输出闪烁动画 */
 .streaming-indicator {
-    color: var(--text-secondary);
+    color: $text-muted;
     animation: blink 1s infinite;
 }
 
@@ -59,7 +59,7 @@
 
 /* 思考内容旋转动画 */
 .thinking-indicator {
-    color: var(--status-busy);
+    color: #f0883e;
     animation: spin 2s linear infinite;
 }
 
@@ -82,7 +82,7 @@
 
 /* 加载指示器 */
 .loading-indicator {
-    color: var(--status-online);
+    color: #3fb950;
 }
 
 .loading-frame {
@@ -90,7 +90,7 @@
 }
 
 .loading-text {
-    color: var(--text-secondary);
+    color: $text-muted;
 }
 
 /* ========== 通知动画 ========== */
@@ -144,7 +144,7 @@
 /* ========== 打字机效果 ========== */
 
 .typewriter-complete {
-    color: var(--text-primary);
+    color: $text;
 }
 
 .typewriter-fast {
@@ -164,9 +164,9 @@
 .progress-bar-animated {
     background: linear-gradient(
         90deg,
-        var(--accent) 0%,
-        var(--accent-bright) 50%,
-        var(--accent) 100%
+        $accent 0%,
+        $accent 50%,
+        $accent 100%
     );
     background-size: 20px 100%;
     animation: progress-shine 2s linear infinite;

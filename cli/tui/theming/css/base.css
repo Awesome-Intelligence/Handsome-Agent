@@ -1,7 +1,7 @@
 /*
  * TUI 基础样式 - 设计令牌
  * 包含语义化颜色变量、间距、圆角等基础变量
- * 
+ *
  * 设计原则：
  * - 使用 Textual 内置语义化颜色变量（$panel, $accent, $surface 等）
  * - 主题色通过独立的主题 CSS 文件实现（themes/ 目录下）
@@ -14,11 +14,11 @@
 :root {
     /* 面板和容器 */
     --panel: $panel;
-    
+
     /* 表面背景 */
     --surface: $surface;
     --surface-raised: $boost;
-    
+
     /* 强调色 - 默认使用 Textual 内置强调色 */
     --accent: $accent;
     --accent-bright: $accent;
@@ -27,47 +27,47 @@
     --accent-10: rgba(0, 0, 0, 0.1);
     --accent-25: rgba(0, 0, 0, 0.25);
     --accent-50: rgba(0, 0, 0, 0.5);
-    
+
     /* 边框颜色 */
     --border: $border;
     --border-muted: $border-muted;
-    
+
     /* 文字颜色 */
     --text: $text;
     --text-muted: $text-muted;
     --text-primary: $text;
     --text-secondary: $text-muted;
-    
+
     /* 主色调 */
     --primary: $primary;
-    
+
     /* 错误色 */
     --error: $error;
-    
+
     /* 背景色 */
     --bg-primary: $background;
     --bg-surface: $surface;
     --bg-surface-light: $boost;
-    
+
     /* 状态色 */
     --status-online: #3fb950;
     --status-busy: #f0883e;
     --status-error: #f85149;
-    
+
     /* Banner 颜色 */
     --banner-color: $accent;
-    
+
     /* 输入框颜色 */
     --input-border: $border;
     --input-border-focus: $accent;
-    
+
     /* Tab 页签颜色 */
     --tab-indicator: $accent;
     --tab-active-color: $accent;
-    
+
     /* 侧边栏边框颜色 */
     --sidebar-focus-border: $accent;
-    
+
     /* 间距系统 */
     --space-xs: 2;
     --space-sm: 4;
@@ -75,23 +75,23 @@
     --space-lg: 16;
     --space-xl: 24;
     --space-xxl: 32;
-    
+
     /* 圆角系统 */
     --radius-sm: 2;
     --radius-md: 4;
     --radius-lg: 8;
     --radius-round: 9999;
-    
+
     /* 边框宽度 */
     --border-width: 1;
     --border-width-thick: 2;
     --border-width-heavy: 3;
-    
+
     /* 透明度系统 */
     --opacity-subtle: 0.1;
     --opacity-muted: 0.25;
     --opacity-medium: 0.5;
-    
+
     /* ========== 字体大小层级 ========== */
     --font-xxs: 9;
     --font-xs: 10;
@@ -100,18 +100,18 @@
     --font-lg: 16;
     --font-xl: 18;
     --font-xxl: 22;
-    
+
     /* 元素字体大小 */
-    --font-banner: var(--font-xl);
-    --font-title: var(--font-lg);
-    --font-subtitle: var(--font-md);
-    --font-body: var(--font-md);
-    --font-caption: var(--font-sm);
-    --font-status: var(--font-sm);
-    --font-input: var(--font-md);
-    --font-button: var(--font-md);
-    --font-tooltip: var(--font-xs);
-    
+    --font-banner: 18;
+    --font-title: 16;
+    --font-subtitle: 14;
+    --font-body: 14;
+    --font-caption: 12;
+    --font-status: 12;
+    --font-input: 14;
+    --font-button: 14;
+    --font-tooltip: 10;
+
     /* 行高 */
     --line-height: 1.4;
     --line-height-tight: 1.2;
@@ -128,5 +128,5 @@
 /* 全局字体设置 */
 Screen {
     font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
-    font-size: var(--font-md);
+    font-size: 14;
 }

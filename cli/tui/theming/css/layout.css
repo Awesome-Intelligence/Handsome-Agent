@@ -11,15 +11,15 @@
 
 /* 滚动条样式 - Frogmouth 风格 */
 ScrollbarThumb {
-    background: var(--accent-50);
+    background: rgba(0, 0, 0, 0.5);
 }
 
 ScrollbarThumb:hover {
-    background: var(--accent);
+    background: $accent;
 }
 
 ScrollbarTrack {
-    background: var(--bg-surface);
+    background: $surface;
 }
 
 /* 主聊天区域 */

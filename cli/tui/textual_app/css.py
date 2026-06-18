@@ -10,15 +10,15 @@ from __future__ import annotations
 
 # 类级别 CSS 属性（默认主题 - 参考 CodeWhale 深色主题）
 APP_CSS = """
-/* 
+/*
  * Handsome Agent TUI 主样式表
- * 
+ *
  * CSS 架构说明：
- * - 基础变量和设计令牌: cli/tui/styles/base.css
- * - 布局规则和滚动条: cli/tui/styles/layout.css
- * - 组件样式: cli/tui/styles/components.css
- * - 动画定义: cli/tui/styles/animations.css
- * 
+ * - 基础变量和设计令牌: cli/tui/theming/css/base.css
+ * - 布局规则和滚动条: cli/tui/theming/css/layout.css
+ * - 组件样式: cli/tui/theming/css/components.css
+ * - 动画定义: cli/tui/theming/css/animations.css
+ *
  * 主样式表包含：
  * - 整体布局结构
  * - 自定义组件样式
@@ -40,14 +40,14 @@ Screen {
     background: #0d1117;
     margin: 0;
     padding: 0;
-    border: blank !important;
+    border: blank;
     overflow: hidden;
 }
 
-/* 默认边框样式 - 主题 CSS 会覆盖 */
+/* 默认边框样式 */
 #chat-area:hover,
 #chat-area:focus-within {
-    border: solid #B180D7 !important;
+    border: solid #B180D7;
 }
 
 /* RichLog 自动换行 - 禁止横向滚动 */
@@ -81,7 +81,7 @@ Screen {
     width: 100%;
     dock: top;
     background: transparent;
-    border-bottom: solid #B180D7 !important;
+    border-bottom: solid #B180D7;
 }
 
 #header-content {
@@ -227,7 +227,7 @@ Screen {
 /* 滚动条样式 - 美化为细线 */
 
 /* ========== 焦点样式说明 ========== */
-/* 
+/*
  * Frogmouth 风格焦点指示器设计：
  * - 默认状态：border: blank（无边框，保持简洁）
  * - 焦点状态：border: heavy $accent（粗边框强调色）
@@ -321,14 +321,14 @@ Screen {
     padding: 0 1;
 }
 
-/* 默认边框样式 - 主题 CSS 会覆盖 */
+/* 默认边框样式 */
 #user-input {
-    border: thick #C9A0E0 !important;
+    border: thick #C9A0E0;
 }
 
 #user-input:focus,
 #user-input:hover {
-    border: thick #B180D7 !important;
+    border: thick #B180D7;
 }
 
 /* 按钮通用样式 */
@@ -357,10 +357,10 @@ Button:focus {
     padding: 0;
 }
 
-/* 默认边框样式 - 主题 CSS 会覆盖 */
+/* 默认边框样式 */
 #sidebar-container:hover,
 #sidebar-container:focus-within {
-    border: solid #B180D7 !important;
+    border: solid #B180D7;
 }
 
 #sidebar-container-inner {
@@ -491,7 +491,6 @@ Button:focus {
 
 /* ============================================================================
    通知样式 (Notification Styles)
-   注意: Textual CSS 不支持 @keyframes 动画和细粒度边框属性
    ============================================================================ */
 
 /* 通知样式 - 基础 */

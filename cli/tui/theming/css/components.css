@@ -6,45 +6,45 @@
 
 /* ========== Header 组件 ========== */
 #app-header {
-    border-bottom: solid #B180D7 !important;
+    border-bottom: solid $accent;
 }
 
 /* ========== 按钮组件 ========== */
 Button {
-    background: var(--surface-raised);
-    color: var(--text);
+    background: $boost;
+    color: $text;
     border: blank;
 }
 
 Button:hover {
-    background: var(--accent-10);
+    background: rgba(0, 0, 0, 0.1);
 }
 
 Button:focus {
-    border: heavy var(--accent);
-    background: var(--accent-10);
+    border: heavy $accent;
+    background: rgba(0, 0, 0, 0.1);
 }
 
 /* 发送按钮 */
 #send-button {
     width: 5;
-    background: var(--accent);
-    color: var(--text);
+    background: $accent;
+    color: $text;
     border: blank;
 }
 
 #send-button:hover {
-    background: var(--accent-bright);
+    background: $accent;
 }
 
 #send-button:focus {
-    border: heavy var(--accent);
+    border: heavy $accent;
 }
 
 /* ========== 面板组件 ========== */
 Panel {
-    border: solid var(--border);
-    background: var(--surface);
+    border: solid $border;
+    background: $surface;
 }
 
 /* 侧边栏面板 */
@@ -58,7 +58,7 @@ Panel {
 }
 
 .panel-title {
-    color: var(--text);
+    color: $text;
     text-style: bold;
     margin-bottom: 1;
 }
@@ -81,72 +81,43 @@ TabbedContent > ContentSwitcher {
 /* Tabs 标签栏 - Frogmouth 风格：无背景色 */
 Tabs {
     background: transparent;
-    border-bottom: solid var(--border);
+    border-bottom: solid $border;
 }
 
 Tabs Tab {
     width: 1fr;
     padding: 0 1;
     background: transparent;
-    color: var(--text-muted);
+    color: $text-muted;
 }
 
 Tabs Tab:hover {
     background: transparent;
-    color: var(--text);
+    color: $text;
 }
 
 Tabs Tab.active {
     background: transparent;
-    color: var(--tab-active-color);
+    color: $accent;
     text-style: bold;
-    border-bottom: solid var(--tab-indicator);
+    border-bottom: solid $accent;
 }
 
-/* 侧边栏 Tab 样式 - 使用更具体的选择器 */
+/* 侧边栏 Tab 样式 */
 SidebarContainer Tabs Tab {
-    color: var(--text-muted) !important;
+    color: $text-muted;
 }
 
 SidebarContainer Tabs Tab:hover {
-    background: transparent !important;
-    color: var(--text) !important;
+    background: transparent;
+    color: $text;
 }
 
 SidebarContainer Tabs Tab.active {
-    background: transparent !important;
-    color: var(--tab-active-color) !important;
-    text-style: bold !important;
-    border-bottom: solid var(--tab-indicator) !important;
-}
-
-/* 强制覆盖侧边栏 Tab 选中样式 */
-.theme-default SidebarContainer Tabs Tab.active,
-.theme-default SidebarContainer Tabs .active {
-    background: transparent !important;
-    color: #B180D7 !important;
-    border-bottom: solid #B180D7 !important;
-}
-
-.theme-ares SidebarContainer Tabs Tab.active,
-.theme-ares SidebarContainer Tabs .active {
-    background: transparent !important;
-    color: #E8A060 !important;
-    border-bottom: solid #E8A060 !important;
-}
-
-.theme-slate SidebarContainer Tabs Tab.active,
-.theme-slate SidebarContainer Tabs .active {
-    background: transparent !important;
-    color: #78909C !important;
-    border-bottom: solid #78909C !important;
-}
-
-.theme-mono SidebarContainer Tabs Tab.active,
-.theme-mono SidebarContainer Tabs .active {
-    background: transparent !important;
-    color: #A0A0A0 !important;
-    border-bottom: solid #A0A0A0 !important;
+    background: transparent;
+    color: $accent;
+    text-style: bold;
+    border-bottom: solid $accent;
 }
 
 Tabs Tab.active:hover {
@@ -165,7 +136,7 @@ TabPane {
 }
 
 TabPane:focus-within {
-    border-left: heavy var(--accent);
+    border-left: heavy $accent;
 }
 
 /* SidebarPane 内部内容 */
@@ -184,15 +155,15 @@ SidebarPane RichLog {
 
 /* 面板标题样式 */
 .pane-title {
-    color: var(--text);
+    color: $text;
     text-style: bold;
     margin-bottom: 1;
 }
 
 /* ========== 选项列表组件 ========== */
 OptionList {
-    background: var(--surface);
-    border: solid var(--border);
+    background: $surface;
+    border: solid $border;
 }
 
 OptionList > .option-list--option {
@@ -200,127 +171,104 @@ OptionList > .option-list--option {
 }
 
 OptionList > .option-list--option:hover {
-    background: var(--accent-10);
+    background: rgba(0, 0, 0, 0.1);
 }
 
 OptionList > .option-list--cursor {
-    background: var(--accent-25);
-    color: var(--text);
+    background: rgba(0, 0, 0, 0.25);
+    color: $text;
 }
 
 /* ========== 输入框组件 ========== */
 TextArea,
 Input {
-    background: var(--surface);
-    color: var(--text);
+    background: $surface;
+    color: $text;
 }
 
 TextArea:focus,
 Input:focus {
-    border: heavy var(--accent);
-}
-
-/* TextArea 特定样式 */
-#user-input {
-    background: var(--surface) !important;
-    color: var(--text) !important;
-    border: double var(--input-border) !important;
-    margin: 0 !important;
-    height: 7 !important;
-    padding: 0 1 !important;
-}
-
-#user-input:focus {
-    border: heavy var(--input-border-focus) !important;
+    border: heavy $accent;
 }
 
 /* ========== 消息样式 ========== */
 .user-message {
-    background: var(--surface-raised);
-    color: var(--text);
+    background: $boost;
+    color: $text;
     padding: 0 1;
     margin: 0;
 }
 
 .assistant-message {
-    color: var(--text);
+    color: $text;
     padding: 0 1;
     margin: 0;
 }
 
 .system-message {
-    color: var(--text-muted);
+    color: $text-muted;
     padding: 0 1;
     margin: 0;
 }
 
 /* ========== 通知组件 ========== */
 .notification-toast {
-    background: var(--surface-raised);
-    border: solid var(--accent);
+    background: $boost;
+    border: solid $accent;
     padding: 1 2;
 }
 
 .notification-icon {
-    color: var(--accent);
+    color: $accent;
 }
 
 .notification-icon.success {
-    color: var(--status-online);
+    color: #3fb950;
 }
 
 .notification-icon.warning {
-    color: var(--status-busy);
+    color: #f0883e;
 }
 
 .notification-icon.error {
-    color: var(--status-error);
+    color: #f85149;
 }
 
 .notification-icon.info {
-    color: var(--accent);
+    color: $accent;
 }
 
 /* ========== 进度条组件 ========== */
 .progress-bar {
     height: 1;
-    background: var(--surface-raised);
+    background: $boost;
 }
 
 .progress-bar-fill {
     height: 100%;
-    background: var(--accent);
-}
-
-.progress-bar-animated {
-    animation: progress-shine 2s linear infinite;
-}
-
-@keyframes progress-shine {
-    from { background-position: 0 0; }
-    to { background-position: 20px 0; }
+    background: $accent;
 }
 
 /* ========== 对话框样式 (Frogmouth 风格) ========== */
 ApprovalDialog > Vertical {
-    background: var(--surface-raised);
-    border: round var(--primary);
+    background: $boost;
+    border: round $primary;
 }
 
 ErrorDialog > Vertical {
-    background: var(--error) 15%;
-    border: thick var(--error) 50%;
+    background: $error 15%;
+    border: thick $error 50%;
 }
 
 /* ========== 滚动条样式 (Frogmouth 风格) ========== */
 ScrollbarThumb {
-    background: var(--accent) 50%;
+    background: rgba(0, 0, 0, 0.5);
 }
 
 ScrollbarThumb:hover {
-    background: var(--accent);
+    background: $accent;
 }
 
 ScrollbarTrack {
-    background: var(--surface);
+    background: $surface;
 }
