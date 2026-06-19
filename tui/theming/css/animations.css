@@ -1,0 +1,185 @@
+/*
+ * TUI 动画样式
+ * 包含流式输出、思考动画、通知动画等
+ */
+
+/* ========== 基础动画 ========== */
+
+/* 淡入动画 */
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* 滑入动画 - 从右侧 */
+.slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* 滑入动画 - 从底部 */
+.slide-in-bottom {
+    animation: slideInBottom 0.3s ease-out;
+}
+
+@keyframes slideInBottom {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* ========== 流式输出动画 ========== */
+
+/* 流式输出闪烁动画 */
+.streaming-indicator {
+    color: $text-muted;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* 打字机光标闪烁 */
+.typewriter-cursor {
+    color: #58a6ff;
+    text-style: bold;
+    animation: blink 0.8s infinite;
+}
+
+/* ========== 思考/加载动画 ========== */
+
+/* 思考内容旋转动画 */
+.thinking-indicator {
+    color: #f0883e;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 加载动画 */
+.loading-dots::after {
+    content: "";
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { content: "."; }
+    33% { content: ".."; }
+    66% { content: "..."; }
+}
+
+/* 加载指示器 */
+.loading-indicator {
+    color: #3fb950;
+}
+
+.loading-frame {
+    text-style: bold;
+}
+
+.loading-text {
+    color: $text-muted;
+}
+
+/* ========== 通知动画 ========== */
+
+/* 通知滑入 (slide) */
+.anim-slide,
+.notification-slide {
+    animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* 通知弹跳 (bounce) */
+.anim-bounce,
+.notification-bounce {
+    animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* 通知抖动 (shake) */
+.anim-shake,
+.notification-shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+/* 通知脉冲 (pulse) */
+.anim-pulse,
+.notification-pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.02); }
+}
+
+/* ========== 打字机效果 ========== */
+
+.typewriter-complete {
+    color: $text;
+}
+
+.typewriter-fast {
+    color: #58a6ff;
+}
+
+.typewriter-normal {
+    color: #58a6ff;
+}
+
+.typewriter-slow {
+    color: #58a6ff;
+}
+
+/* ========== 进度条动画 ========== */
+
+.progress-bar-animated {
+    background: linear-gradient(
+        90deg,
+        $accent 0%,
+        $accent 50%,
+        $accent 100%
+    );
+    background-size: 20px 100%;
+    animation: progress-shine 2s linear infinite;
+}
+
+@keyframes progress-shine {
+    from { background-position: 0 0; }
+    to { background-position: 20px 0; }
+}
+
+/* ========== 透明度切换动画 ========== */
+
+.transparency-indicator {
+    color: #58a6ff;
+    text-style: bold;
+}

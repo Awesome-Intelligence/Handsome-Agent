@@ -72,7 +72,7 @@ from cli.components.banner import (
 # TUI Components (向后兼容)
 # ============================================================================
 
-from cli.tui.core.curses_ui import (
+from tui.core.curses_ui import (
     has_curses,
     curses_radiolist,
     curses_checklist,

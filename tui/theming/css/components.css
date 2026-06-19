@@ -1,0 +1,274 @@
+/*
+ * TUI 组件样式
+ * 使用语义化颜色变量（$panel, $accent, $surface 等）
+ * 主题色通过 CSS 类覆盖实现
+ */
+
+/* ========== Header 组件 ========== */
+#app-header {
+    border-bottom: solid $accent;
+}
+
+/* ========== 按钮组件 ========== */
+Button {
+    background: $boost;
+    color: $text;
+    border: blank;
+}
+
+Button:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+Button:focus {
+    border: heavy $accent;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* 发送按钮 */
+#send-button {
+    width: 5;
+    background: $accent;
+    color: $text;
+    border: blank;
+}
+
+#send-button:hover {
+    background: $accent;
+}
+
+#send-button:focus {
+    border: heavy $accent;
+}
+
+/* ========== 面板组件 ========== */
+Panel {
+    border: solid $border;
+    background: $surface;
+}
+
+/* 侧边栏面板 */
+.sidebar-panel {
+    height: 100%;
+    display: block;
+}
+
+.sidebar-panel.hidden {
+    display: none;
+}
+
+.panel-title {
+    color: $text;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* ========== TabbedContent 组件 (Frogmouth 风格 - 无背景色) ========== */
+
+/* TabbedContent 容器 */
+TabbedContent {
+    height: 100%;
+}
+
+TabbedContent > Tabs {
+    dock: top;
+}
+
+TabbedContent > ContentSwitcher {
+    height: 1fr;
+}
+
+/* Tabs 标签栏 - Frogmouth 风格：无背景色 */
+Tabs {
+    background: transparent;
+    border-bottom: solid $border;
+}
+
+Tabs Tab {
+    width: 1fr;
+    padding: 0 1;
+    background: transparent;
+    color: $text-muted;
+}
+
+Tabs Tab:hover {
+    background: transparent;
+    color: $text;
+}
+
+Tabs Tab.active {
+    background: transparent;
+    color: $accent;
+    text-style: bold;
+    border-bottom: solid $accent;
+}
+
+/* 侧边栏 Tab 样式 */
+SidebarContainer Tabs Tab {
+    color: $text-muted;
+}
+
+SidebarContainer Tabs Tab:hover {
+    background: transparent;
+    color: $text;
+}
+
+SidebarContainer Tabs Tab.active {
+    background: transparent;
+    color: $accent;
+    text-style: bold;
+    border-bottom: solid $accent;
+}
+
+Tabs Tab.active:hover {
+    background: transparent;
+}
+
+/* TabPane 内容面板 */
+ContentSwitcher {
+    height: 1fr;
+}
+
+TabPane {
+    height: 100%;
+    padding: 1;
+    border: blank;
+}
+
+TabPane:focus-within {
+    border-left: heavy $accent;
+}
+
+/* SidebarPane 内部内容 */
+SidebarPane {
+    height: 100%;
+}
+
+SidebarPane Static {
+    width: 100%;
+}
+
+SidebarPane RichLog {
+    width: 100%;
+    height: 100%;
+}
+
+/* 面板标题样式 */
+.pane-title {
+    color: $text;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* ========== 选项列表组件 ========== */
+OptionList {
+    background: $surface;
+    border: solid $border;
+}
+
+OptionList > .option-list--option {
+    padding: 0 1;
+}
+
+OptionList > .option-list--option:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+OptionList > .option-list--cursor {
+    background: rgba(0, 0, 0, 0.25);
+    color: $text;
+}
+
+/* ========== 输入框组件 ========== */
+TextArea,
+Input {
+    background: $surface;
+    color: $text;
+}
+
+TextArea:focus,
+Input:focus {
+    border: heavy $accent;
+}
+
+/* ========== 消息样式 ========== */
+.user-message {
+    background: $boost;
+    color: $text;
+    padding: 0 1;
+    margin: 0;
+}
+
+.assistant-message {
+    color: $text;
+    padding: 0 1;
+    margin: 0;
+}
+
+.system-message {
+    color: $text-muted;
+    padding: 0 1;
+    margin: 0;
+}
+
+/* ========== 通知组件 ========== */
+.notification-toast {
+    background: $boost;
+    border: solid $accent;
+    padding: 1 2;
+}
+
+.notification-icon {
+    color: $accent;
+}
+
+.notification-icon.success {
+    color: #3fb950;
+}
+
+.notification-icon.warning {
+    color: #f0883e;
+}
+
+.notification-icon.error {
+    color: #f85149;
+}
+
+.notification-icon.info {
+    color: $accent;
+}
+
+/* ========== 进度条组件 ========== */
+.progress-bar {
+    height: 1;
+    background: $boost;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: $accent;
+}
+
+/* ========== 对话框样式 (Frogmouth 风格) ========== */
+ApprovalDialog > Vertical {
+    background: $boost;
+    border: round $primary;
+}
+
+ErrorDialog > Vertical {
+    background: $error 15%;
+    border: thick $error 50%;
+}
+
+/* ========== 滚动条样式 (Frogmouth 风格) ========== */
+ScrollbarThumb {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+ScrollbarThumb:hover {
+    background: $accent;
+}
+
+ScrollbarTrack {
+    background: $surface;
+}

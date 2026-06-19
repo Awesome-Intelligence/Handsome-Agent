@@ -5,9 +5,6 @@ Core Module - TUI 基础设施模块
 
 🚪 Access - 💬 CLI - TUI - Core
 
-⚠️ 已弃用：此模块内容已迁移到 `tui/core/` 目录
-   请使用 `from tui.core import ...` 代替 `from cli.tui.core import ...`
-
 包含 TUI 的核心基础设施组件：
 - keybindings: 快捷键映射系统
 - markdown_renderer: Markdown 渲染器
@@ -16,7 +13,7 @@ Core Module - TUI 基础设施模块
 
 from __future__ import annotations
 
-# 重新导出（向后兼容）
+# 导出快捷键模块
 from tui.core.keybindings import (
     KeyBinding,
     KeyBindingGroup,
@@ -25,6 +22,7 @@ from tui.core.keybindings import (
     create_default_keybindings,
 )
 
+# 导出 Markdown 渲染模块
 from tui.core.markdown_renderer import (
     MarkdownRenderer,
     HandsomeAgentRenderer,
@@ -37,6 +35,7 @@ from tui.core.markdown_renderer import (
     PYGMENTS_AVAILABLE,
 )
 
+# 导出 Curses UI 模块
 from tui.core.curses_ui import (
     has_curses,
     flush_stdin,
@@ -47,11 +46,6 @@ from tui.core.curses_ui import (
     IS_WINDOWS,
     IS_TTY,
 )
-
-# 重新导出模块本身
-from tui.core import keybindings
-from tui.core import markdown_renderer
-from tui.core import curses_ui
 
 __all__ = [
     # keybindings
@@ -79,8 +73,4 @@ __all__ = [
     "multi_select",
     "IS_WINDOWS",
     "IS_TTY",
-    # 模块
-    "keybindings",
-    "markdown_renderer",
-    "curses_ui",
 ]

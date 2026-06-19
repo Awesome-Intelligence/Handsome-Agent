@@ -671,7 +671,7 @@ def should_use_textual(args: argparse.Namespace) -> bool:
     """
     # Check if textual is available
     try:
-        from cli.tui import TEXTUAL_AVAILABLE
+        from tui import TEXTUAL_AVAILABLE
         if not TEXTUAL_AVAILABLE:
             return False
     except ImportError:

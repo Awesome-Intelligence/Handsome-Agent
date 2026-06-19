@@ -265,7 +265,7 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
 
     def set_active_color(self, color: str) -> None:
         """设置激活 Tab 的颜色.
-        
+
         Args:
             color: 颜色值（十六进制）
         """
@@ -291,7 +291,7 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
 
     def update_tab_colors(self, active_color: str) -> None:
         """更新侧边栏 Tab 颜色.
-        
+
         Args:
             active_color: 激活状态的 Tab 颜色（十六进制）
         """

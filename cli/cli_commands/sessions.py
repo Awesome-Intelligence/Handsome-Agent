@@ -78,7 +78,7 @@ def browse_sessions(tui: bool = False) -> Optional[str]:
     if tui:
         # Try to use TUI picker
         try:
-            from cli.tui.core.curses_ui import curses_radiolist
+            from tui.core.curses_ui import curses_radiolist
             index = curses_radiolist(
                 question="Select a session:",
                 choices=[(s[:50], s) for s in sessions],
