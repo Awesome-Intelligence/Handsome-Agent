@@ -121,7 +121,7 @@ def _run_check() -> None:
 def _run_setup() -> None:
     """Run interactive setup."""
     try:
-        from cli.setup import run_setup_wizard
+        from cli.setup.setup_wizard import run_setup_wizard
         run_setup_wizard()
     except Exception as e:
         print(f"Setup failed: {e}")

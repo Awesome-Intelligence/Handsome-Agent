@@ -226,9 +226,11 @@ def list_skills(only_installed: bool = False) -> List[Dict[str, Any]]:
     Returns:
         List of skill info dicts
     """
-    from tools.skills_tool import list_skills as _list_tools
-
-    skills = _list_tools()
+    try:
+        from tools.skills_tool import list_skills as _list_tools
+        skills = _list_tools()
+    except ImportError:
+        skills = []
 
     if only_installed:
         enabled = get_enabled_skills()

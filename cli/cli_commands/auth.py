@@ -62,7 +62,7 @@ class AuthManager:
     
     def list_credentials(self) -> List[Dict]:
         """列出所有已存储的认证"""
-        from cli.providers import PROVIDERS
+        from cli.cli_commands.providers import PROVIDERS
         
         credentials = []
         for key, value in self._secrets.items():

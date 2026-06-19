@@ -13,8 +13,8 @@ Profiles CLI - Multiple configuration profiles.
 
 This module provides:
 - handsome profile list       - List all profiles
-- handsome profile create     - Create a new profile
-- handsome profile delete     - Delete a profile
+- handsome profile create    - Create a new profile
+- handsome profile delete   - Delete a profile
 - handsome profile use <name>  - Switch to a profile
 - handsome profile rename       - Rename a profile
 - handsome profile export <name> - Export profile to tar.gz
@@ -181,17 +181,17 @@ def create_profile(name: str, copy_from: str = "default", description: str = "")
     Returns:
         True if successful
     """
-    from cli import ui
+    from common.terminal.ui import print_error, print_success
 
     if profile_exists(name):
-        ui.print_error(f"Profile '{name}' already exists")
+        print_error(f"Profile '{name}' already exists")
         return False
 
     # Source directory
     source_dir = get_profile_dir(copy_from)
 
     if not source_dir.exists():
-        ui.print_error(f"Source profile '{copy_from}' not found")
+        print_error(f"Source profile '{copy_from}' not found")
         return False
 
     # Target directory
@@ -219,7 +219,7 @@ def create_profile(name: str, copy_from: str = "default", description: str = "")
         metadata["description"] = description
     save_metadata(name, metadata)
 
-    ui.print_success(f"Profile '{name}' created (copied from '{copy_from}')")
+    print_success(f"Profile '{name}' created (copied from '{copy_from}')")
     return True
 
 
@@ -233,26 +233,27 @@ def delete_profile(name: str, force: bool = False) -> bool:
     Returns:
         True if successful
     """
-    from cli import ui
+    from common.terminal.ui import print_error, print_info
 
     if name == "default":
-        ui.print_error("Cannot delete the 'default' profile")
+        print_error("Cannot delete the 'default' profile")
         return False
 
     profile_dir = get_profiles_dir() / name
     if not profile_dir.exists():
-        ui.print_error(f"Profile '{name}' not found")
+        print_error(f"Profile '{name}' not found")
         return False
 
     # Confirm deletion
     if not force:
         response = input(f"Delete profile '{name}'? (yes/no): ")
         if response.lower() not in ("yes", "y"):
-            ui.print_info("Deletion cancelled")
+            print_info("Deletion cancelled")
             return False
 
     shutil.rmtree(profile_dir)
-    ui.print_success(f"Profile '{name}' deleted")
+    from common.terminal.ui import print_success
+    print_success(f"Profile '{name}' deleted")
     return True
 
 
@@ -266,19 +267,19 @@ def rename_profile(old_name: str, new_name: str) -> bool:
     Returns:
         True if successful
     """
-    from cli import ui
+    from common.terminal.ui import print_error, print_success
 
     if old_name == "default":
-        ui.print_error("Cannot rename the 'default' profile")
+        print_error("Cannot rename the 'default' profile")
         return False
 
     if profile_exists(new_name):
-        ui.print_error(f"Profile '{new_name}' already exists")
+        print_error(f"Profile '{new_name}' already exists")
         return False
 
     source_dir = get_profile_dir(old_name)
     if not source_dir.exists():
-        ui.print_error(f"Profile '{old_name}' not found")
+        print_error(f"Profile '{old_name}' not found")
         return False
 
     # Update metadata
@@ -293,7 +294,7 @@ def rename_profile(old_name: str, new_name: str) -> bool:
     # Update metadata in new location
     save_metadata(new_name, metadata)
 
-    ui.print_success(f"Profile '{old_name}' renamed to '{new_name}'")
+    print_success(f"Profile '{old_name}' renamed to '{new_name}'")
     return True
 
 
@@ -306,18 +307,18 @@ def switch_profile(name: str) -> bool:
     Returns:
         True if successful
     """
-    from cli import ui
+    from common.terminal.ui import print_error, print_success
 
     if name == "default":
         # Remove symlink if exists
         link = get_profiles_dir() / "current"
         if link.is_symlink() or link.exists():
             link.unlink()
-        ui.print_success("Switched to 'default' profile")
+        print_success("Switched to 'default' profile")
         return True
 
     if not profile_exists(name):
-        ui.print_error(f"Profile '{name}' not found")
+        print_error(f"Profile '{name}' not found")
         return False
 
     profiles_dir = get_profiles_dir()
@@ -331,7 +332,7 @@ def switch_profile(name: str) -> bool:
     profile_dir = profiles_dir / name
     link.symlink_to(profile_dir, target_is_directory=True)
 
-    ui.print_success(f"Switched to '{name}' profile")
+    print_success(f"Switched to '{name}' profile")
     return True
 
 
@@ -364,10 +365,10 @@ def export_profile(name: str, output_file: str = None) -> str:
     Returns:
         Export file path
     """
-    from cli import ui
+    from common.terminal.ui import print_error, print_info, print_success
 
     if not profile_exists(name):
-        ui.print_error(f"Profile '{name}' not found")
+        print_error(f"Profile '{name}' not found")
         return None
 
     # Generate filename if not provided
@@ -377,7 +378,7 @@ def export_profile(name: str, output_file: str = None) -> str:
 
     profile_dir = get_profile_dir(name)
 
-    ui.print_info(f"Exporting profile '{name}'...")
+    print_info(f"Exporting profile '{name}'...")
 
     # Create tar.gz archive
     try:
@@ -389,10 +390,10 @@ def export_profile(name: str, output_file: str = None) -> str:
                 elif item.is_dir() and item.name not in (".", ".."):
                     tar.add(item, arcname=item.name)
 
-        ui.print_success(f"Profile exported to: {output_file}")
+        print_success(f"Profile exported to: {output_file}")
         return output_file
     except Exception as e:
-        ui.print_error(f"Export failed: {e}")
+        print_error(f"Export failed: {e}")
         return None
 
 
@@ -406,11 +407,11 @@ def import_profile(input_file: str, name: str = None) -> bool:
     Returns:
         True if successful
     """
-    from cli import ui
+    from common.terminal.ui import print_error, print_info, print_warning
 
     input_path = Path(input_file)
     if not input_path.exists():
-        ui.print_error(f"Archive not found: {input_file}")
+        print_error(f"Archive not found: {input_file}")
         return False
 
     # Extract name from archive if not provided
@@ -419,10 +420,10 @@ def import_profile(input_file: str, name: str = None) -> bool:
 
     # Check if profile already exists
     if profile_exists(name):
-        ui.print_warning(f"Profile '{name}' already exists")
+        print_warning(f"Profile '{name}' already exists")
         response = input("Overwrite? (yes/no): ")
         if response.lower() not in ("yes", "y"):
-            ui.print_info("Import cancelled")
+            print_info("Import cancelled")
             return False
         # Remove existing profile
         if name != "default":
@@ -432,7 +433,7 @@ def import_profile(input_file: str, name: str = None) -> bool:
     target_dir = get_profile_dir(name)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    ui.print_info(f"Importing profile '{name}'...")
+    print_info(f"Importing profile '{name}'...")
 
     try:
         with tarfile.open(input_path, "r:gz") as tar:
@@ -445,10 +446,11 @@ def import_profile(input_file: str, name: str = None) -> bool:
         metadata["imported_from"] = str(input_path)
         save_metadata(name, metadata)
 
-        ui.print_success(f"Profile '{name}' imported from: {input_file}")
+        from common.terminal.ui import print_success
+        print_success(f"Profile '{name}' imported from: {input_file}")
         return True
     except Exception as e:
-        ui.print_error(f"Import failed: {e}")
+        print_error(f"Import failed: {e}")
         if name != "default":
             shutil.rmtree(target_dir)
         return False
@@ -463,8 +465,6 @@ def backup_profile(name: str) -> str:
     Returns:
         Backup file path
     """
-    from cli import ui
-
     # Create backup with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_name = f"{name}_{timestamp}.tar.gz"
@@ -483,8 +483,6 @@ def restore_backup(backup_file: str, name: str = None) -> bool:
     Returns:
         True if successful
     """
-    from cli import ui
-
     if not name:
         # Extract name from backup filename
         backup_path = Path(backup_file)
@@ -497,24 +495,24 @@ def restore_backup(backup_file: str, name: str = None) -> bool:
 # CLI Commands
 # =============================================================================
 
-def profile_list():
+def list_profiles_cli():
     """List all profiles with details."""
-    from cli import ui
+    from common.terminal.ui import print_header
 
     profiles = list_profiles()
     current = get_current_profile()
 
-    ui.print_header("Available Profiles")
+    print_header("Available Profiles")
 
     for profile in profiles:
         name = profile["name"]
         metadata = profile.get("metadata", {})
 
-        marker = " ← current" if name == current else ""
+        marker = " <- current" if name == current else ""
         description = metadata.get("description", "")
         tags = metadata.get("tags", [])
 
-        print(f"\n  • {name}{marker}")
+        print(f"\n  * {name}{marker}")
         if description:
             print(f"    {description}")
         if tags:
@@ -527,16 +525,16 @@ def profile_info(name: str):
     Args:
         name: Profile name
     """
-    from cli import ui
+    from common.terminal.ui import print_error, print_header
 
     if not profile_exists(name):
-        ui.print_error(f"Profile '{name}' not found")
+        print_error(f"Profile '{name}' not found")
         return
 
     profile_dir = get_profile_dir(name)
     metadata = load_metadata(name)
 
-    ui.print_header(f"Profile: {name}")
+    print_header(f"Profile: {name}")
 
     print(f"\n  Path: {profile_dir}")
     print(f"  Created: {metadata.get('created_at', 'unknown')}")
@@ -563,9 +561,11 @@ def profile_info(name: str):
             print(f"    - {item.name}")
 
 
-# =============================================================================
-# Main
-# =============================================================================
+# Alias for CLI usage
+def list_profiles_():
+    """Alias for list_profiles_cli for CLI main.py compatibility."""
+    list_profiles_cli()
+
 
 if __name__ == "__main__":
     import sys
@@ -574,7 +574,7 @@ if __name__ == "__main__":
         command = sys.argv[1]
 
         if command == "list":
-            profile_list()
+            list_profiles_cli()
 
         elif command == "info" and len(sys.argv) > 2:
             profile_info(sys.argv[2])

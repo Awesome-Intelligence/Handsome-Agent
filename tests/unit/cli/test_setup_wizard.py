@@ -39,7 +39,7 @@ class TestSetupWizard:
     
     def test_should_quit(self):
         """测试退出命令检测"""
-        from cli.setup_wizard import should_quit
+        from cli.setup.setup_wizard import should_quit
         
         assert should_quit('quit') == True
         assert should_quit('exit') == True
@@ -52,7 +52,7 @@ class TestSetupWizard:
     
     def test_load_config_empty(self, isolated_config):
         """测试加载空配置"""
-        from cli.setup_wizard import load_config
+        from cli.setup.setup_wizard import load_config
         
         config = load_config()
         
@@ -61,7 +61,7 @@ class TestSetupWizard:
     
     def test_load_config_json(self, isolated_config):
         """测试加载 JSON 配置文件"""
-        from cli.setup_wizard import load_config
+        from cli.setup.setup_wizard import load_config
         
         config_file = isolated_config / "config.json"
         test_config = {
@@ -81,7 +81,7 @@ class TestSetupWizard:
     
     def test_save_config(self, isolated_config):
         """测试保存配置"""
-        from cli.setup_wizard import save_config, load_config
+        from cli.setup.setup_wizard import save_config, load_config
         
         test_config = {
             "language": "zh",
@@ -101,13 +101,13 @@ class TestSetupWizard:
     
     def test_has_existing_config_false(self, isolated_config):
         """测试配置文件不存在"""
-        from cli.setup_wizard import has_existing_config
+        from cli.setup.setup_wizard import has_existing_config
         
         assert has_existing_config() == False
     
     def test_has_existing_config_json(self, isolated_config):
         """测试 JSON 配置文件存在"""
-        from cli.setup_wizard import has_existing_config
+        from cli.setup.setup_wizard import has_existing_config
         
         config_file = isolated_config / "config.json"
         config_file.write_text("{}")
@@ -116,7 +116,7 @@ class TestSetupWizard:
     
     def test_show_current_config_empty(self, capsys):
         """测试显示空配置"""
-        from cli.setup_wizard import show_current_config
+        from cli.setup.setup_wizard import show_current_config
         
         config = {}
         show_current_config(config)
@@ -126,7 +126,7 @@ class TestSetupWizard:
     
     def test_show_current_config_full(self, capsys):
         """测试显示完整配置"""
-        from cli.setup_wizard import show_current_config
+        from cli.setup.setup_wizard import show_current_config
         
         config = {
             "language": "zh",
@@ -164,7 +164,7 @@ class TestSetupWizard:
     
     def test_show_current_config_invalid(self, capsys):
         """测试传入无效配置"""
-        from cli.setup_wizard import show_current_config
+        from cli.setup.setup_wizard import show_current_config
         
         # 不应该崩溃
         show_current_config(None)
@@ -177,9 +177,9 @@ class TestSetupWizard:
         def mock_ask_choice(question, options, default=0, current_value=None):
             return 0  # 选择第一个选项
         
-        monkeypatch.setattr('cli.setup_wizard.ask_choice', mock_ask_choice)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_choice', mock_ask_choice)
         
-        from cli.setup_wizard import setup_language
+        from cli.setup.setup_wizard import setup_language
         
         config = {}
         result = setup_language(config)
@@ -192,9 +192,9 @@ class TestSetupWizard:
         def mock_ask_choice(question, options, default=0, current_value=None):
             return None
         
-        monkeypatch.setattr('cli.setup_wizard.ask_choice', mock_ask_choice)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_choice', mock_ask_choice)
         
-        from cli.setup_wizard import setup_language
+        from cli.setup.setup_wizard import setup_language
         
         config = {}
         result = setup_language(config)
@@ -207,9 +207,9 @@ class TestSetupWizard:
         def mock_ask_input(question, default=None, password=False, required=True):
             return next(inputs)
         
-        monkeypatch.setattr('cli.setup_wizard.ask_input', mock_ask_input)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_input', mock_ask_input)
         
-        from cli.setup_wizard import setup_model_config
+        from cli.setup.setup_wizard import setup_model_config
         
         config = {}
         result = setup_model_config(config)
@@ -224,9 +224,9 @@ class TestSetupWizard:
         def mock_ask_input(question, default=None, password=False, required=True):
             return ""  # 空输入使用默认值
         
-        monkeypatch.setattr('cli.setup_wizard.ask_input', mock_ask_input)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_input', mock_ask_input)
         
-        from cli.setup_wizard import setup_model_config
+        from cli.setup.setup_wizard import setup_model_config
         
         config = {}
         result = setup_model_config(config)
@@ -241,9 +241,9 @@ class TestSetupWizard:
         def mock_ask_choice(question, options, default=0, current_value=None):
             return 0  # local
         
-        monkeypatch.setattr('cli.setup_wizard.ask_choice', mock_ask_choice)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_choice', mock_ask_choice)
         
-        from cli.setup_wizard import setup_terminal
+        from cli.setup.setup_wizard import setup_terminal
         
         config = {}
         result = setup_terminal(config)
@@ -257,9 +257,9 @@ class TestSetupWizard:
         def mock_ask_input(question, default=None, password=False, required=True):
             return inputs.pop(0) if inputs else default
         
-        monkeypatch.setattr('cli.setup_wizard.ask_input', mock_ask_input)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_input', mock_ask_input)
         
-        from cli.setup_wizard import setup_agent_settings
+        from cli.setup.setup_wizard import setup_agent_settings
         
         config = {}
         result = setup_agent_settings(config)
@@ -284,11 +284,11 @@ class TestSetupWizard:
         def mock_ask_yes_no(question, default=True):
             return True
         
-        monkeypatch.setattr('cli.setup_wizard.ask_choice', mock_ask_choice)
-        monkeypatch.setattr('cli.setup_wizard.ask_input', mock_ask_input_fixed)
-        monkeypatch.setattr('cli.setup_wizard.ask_yes_no', mock_ask_yes_no)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_choice', mock_ask_choice)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_input', mock_ask_input_fixed)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_yes_no', mock_ask_yes_no)
         
-        from cli.setup_wizard import setup_session_reset
+        from cli.setup.setup_wizard import setup_session_reset
         
         config = {}
         result = setup_session_reset(config)
@@ -308,11 +308,11 @@ class TestSetupWizard:
         def mock_ask_input(question, default=None, password=False, required=True):
             return inputs.pop(0) if inputs else default
         
-        monkeypatch.setattr('cli.setup_wizard.ask_yes_no', mock_ask_yes_no)
-        monkeypatch.setattr('cli.setup_wizard.ask_choice', mock_ask_choice)
-        monkeypatch.setattr('cli.setup_wizard.ask_input', mock_ask_input)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_yes_no', mock_ask_yes_no)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_choice', mock_ask_choice)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_input', mock_ask_input)
         
-        from cli.setup_wizard import setup_memory
+        from cli.setup.setup_wizard import setup_memory
         
         config = {}
         result = setup_memory(config)
@@ -330,10 +330,10 @@ class TestSetupWizard:
         def mock_ask_input(question, default=None, password=False, required=True):
             return inputs.pop(0) if inputs else default
         
-        monkeypatch.setattr('cli.setup_wizard.ask_yes_no', mock_ask_yes_no)
-        monkeypatch.setattr('cli.setup_wizard.ask_input', mock_ask_input)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_yes_no', mock_ask_yes_no)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_input', mock_ask_input)
         
-        from cli.setup_wizard import setup_compression
+        from cli.setup.setup_wizard import setup_compression
         
         config = {}
         result = setup_compression(config)
@@ -347,9 +347,9 @@ class TestSetupWizard:
         def mock_ask_yes_no(question, default=True):
             return True
         
-        monkeypatch.setattr('cli.setup_wizard.ask_yes_no', mock_ask_yes_no)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_yes_no', mock_ask_yes_no)
         
-        from cli.setup_wizard import setup_debug
+        from cli.setup.setup_wizard import setup_debug
         
         config = {}
         result = setup_debug(config)
@@ -365,9 +365,9 @@ class TestSetupWizard:
         def mock_ask_choice(question, options, default=0, current_value=None):
             return 0  # brief
         
-        monkeypatch.setattr('cli.setup_wizard.ask_choice', mock_ask_choice)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_choice', mock_ask_choice)
         
-        from cli.setup_wizard import setup_depth
+        from cli.setup.setup_wizard import setup_depth
         
         config = {}
         result = setup_depth(config)
@@ -380,9 +380,9 @@ class TestSetupWizard:
         def mock_ask_yes_no(question, default=True):
             return False
         
-        monkeypatch.setattr('cli.setup_wizard.ask_yes_no', mock_ask_yes_no)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_yes_no', mock_ask_yes_no)
         
-        from cli.setup_wizard import setup_caching
+        from cli.setup.setup_wizard import setup_caching
         
         config = {}
         result = setup_caching(config)
@@ -395,9 +395,9 @@ class TestSetupWizard:
         def mock_ask_choice(question, options, default=0, current_value=None):
             return 2  # keyword
         
-        monkeypatch.setattr('cli.setup_wizard.ask_choice', mock_ask_choice)
+        monkeypatch.setattr('cli.setup.setup_wizard.ask_choice', mock_ask_choice)
         
-        from cli.setup_wizard import setup_intent
+        from cli.setup.setup_wizard import setup_intent
         
         config = {}
         result = setup_intent(config)

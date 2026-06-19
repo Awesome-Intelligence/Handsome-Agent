@@ -103,7 +103,7 @@ def has_existing_config() -> bool:
 
 def run_setup_if_needed():
     """Run setup wizard if no configuration exists."""
-    from cli import ui
+    from common.terminal.ui import ui
 
     # 初始化工作空间
     from agent.session import session_manager
@@ -153,8 +153,8 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
     logger = get_access_logger("CLI", sublayer="cli")
     logger.info("Interactive mode started")
     
-    from cli import ui
-    from cli.banner import build_welcome_banner, print_simple_banner
+    from common.terminal.ui import ui
+    from common.terminal.banner import build_welcome_banner, print_simple_banner
     from cli.commands import execute_command
 
     # 初始化压缩集成器
@@ -345,8 +345,8 @@ async def single_query_mode(agent: Agent, query: str, model_name: str = "Agent")
     logger = get_access_logger("CLI", sublayer="cli")
     logger.info(f"Single query mode started: {query[:50]}...")
     
-    from cli import ui
-    from cli.banner import print_simple_banner
+    from common.terminal.ui import ui
+    from common.terminal.banner import print_simple_banner
 
     print_simple_banner()
 
@@ -405,7 +405,7 @@ def list_sessions():
 
 def cmd_setup(args: argparse.Namespace):
     """Handle setup command."""
-    from cli.setup import run_setup_wizard, run_quick_config_wizard
+    from cli.setup.setup_wizard import run_setup_wizard, run_quick_config_wizard
 
     if args.quick:
         run_quick_config_wizard()
@@ -415,63 +415,63 @@ def cmd_setup(args: argparse.Namespace):
 
 def cmd_status(args: argparse.Namespace):
     """Handle status command."""
-    from cli.status import show_status
+    from cli.cli_commands.status import show_status
 
     show_status(verbose=args.verbose, json_output=args.json)
 
 
 def cmd_model_list(args: argparse.Namespace):
     """Handle 'model list' command."""
-    from cli.model_cli import list_models
+    from cli.config.model_cli import list_models
 
     list_models(provider=args.provider, json_output=args.json)
 
 
 def cmd_model_set(args: argparse.Namespace):
     """Handle 'model set' command."""
-    from cli.model_cli import set_default_model
+    from cli.config.model_cli import set_default_model
 
     set_default_model(args.model_name, provider=args.provider)
 
 
 def cmd_skills_list(args: argparse.Namespace):
     """Handle 'skills list' command."""
-    from cli.skills_cli import list_skills
+    from cli.cli_commands.skills import list_skills
 
     list_skills(only_installed=args.installed, json_output=args.json)
 
 
 def cmd_skills_search(args: argparse.Namespace):
     """Handle 'skills search' command."""
-    from cli.skills_cli import search_skills
+    from cli.cli_commands.skills import search_skills
 
     search_skills(args.query)
 
 
 def cmd_config_show(args: argparse.Namespace):
     """Handle 'config show' command."""
-    from cli.config_cli import show_config
+    from cli.cli_commands.config import show_config
 
     show_config(json_output=args.json)
 
 
 def cmd_config_edit(args: argparse.Namespace):
     """Handle 'config edit' command."""
-    from cli.config_cli import edit_config
+    from cli.cli_commands.config import edit_config
 
     edit_config()
 
 
 def cmd_config_set(args: argparse.Namespace):
     """Handle 'config set' command."""
-    from cli.config_cli import set_config
+    from cli.cli_commands.config import set_config
 
     set_config(args.key, args.value)
 
 
 def cmd_config_get(args: argparse.Namespace):
     """Handle 'config get' command."""
-    from cli.config_cli import get_config
+    from cli.cli_commands.config import get_config
 
     get_config(args.key)
 
@@ -586,7 +586,7 @@ def cmd_doctor(args: argparse.Namespace):
 
 def cmd_providers(args: argparse.Namespace):
     """Handle 'providers' command."""
-    from cli.providers import list_providers, get_provider_info, check_provider_status
+    from cli.cli_commands.providers import list_providers, get_provider_info, check_provider_status
 
     if args.providers_command == "list":
         list_providers(json_output=args.json)
@@ -600,7 +600,7 @@ def cmd_providers(args: argparse.Namespace):
 
 def cmd_models(args: argparse.Namespace):
     """Handle 'models' command."""
-    from cli.models import list_models, get_model_info, compare_models
+    from cli.cli_commands.models import list_models, get_model_info, compare_models
 
     if args.models_command == "list":
         list_models(provider=args.provider, json_output=args.json)
@@ -614,7 +614,7 @@ def cmd_models(args: argparse.Namespace):
 
 def cmd_profiles(args: argparse.Namespace):
     """Handle 'profiles' command."""
-    from cli import profiles
+    from cli.config import profiles
 
     if args.profiles_command == "list":
         profiles.list_profiles()
@@ -630,7 +630,7 @@ def cmd_profiles(args: argparse.Namespace):
 
 def cmd_backup(args: argparse.Namespace):
     """Handle 'backup' command."""
-    from cli import backup
+    from cli.system import backup
 
     if args.backup_command == "create":
         backup.backup_config(args.name)
@@ -646,18 +646,18 @@ def cmd_backup(args: argparse.Namespace):
 
 def cmd_auth(args: argparse.Namespace):
     """Handle 'auth' command."""
-    from cli import auth_cli
+    from cli.cli_commands import auth
 
     if args.auth_command == "add":
-        auth_cli.add_credential(args.provider, args.api_key)
+        auth.add_credential(args.provider, args.api_key)
     elif args.auth_command == "list":
-        auth_cli.list_credentials()
+        auth.list_credentials()
     elif args.auth_command == "delete":
-        auth_cli.delete_credential(args.provider)
+        auth.delete_credential(args.provider)
     elif args.auth_command == "test":
-        auth_cli.test_connection(args.provider)
+        auth.test_connection(args.provider)
     else:
-        auth_cli.list_credentials()
+        auth.list_credentials()
 
 
 def should_use_textual(args: argparse.Namespace) -> bool:
@@ -769,7 +769,7 @@ def run_textual_mode(args: argparse.Namespace, agent: Agent, model_name: str) ->
 def main():
     """Main function to handle command line arguments."""
 
-    # 使用新的参数解析器
+    # 使用参数解析器
     from cli._parser import build_top_level_parser
 
     parser, subparsers, chat_parser = build_top_level_parser()
@@ -809,7 +809,7 @@ def main():
 
     # Add LLM arguments if available
     if LLM_AVAILABLE:
-        from cli.llm_cli import add_llm_arguments
+        from cli.cli_commands.llm import add_llm_arguments
         add_llm_arguments(parser)
 
     args = parser.parse_args()
@@ -888,7 +888,7 @@ def main():
     if args.setup or args.reset_config:
         if args.reset_config and os.path.exists(CONFIG_FILE):
             os.remove(CONFIG_FILE)
-        from cli.setup import run_setup_wizard
+        from cli.setup.setup_wizard import run_setup_wizard
         run_setup_wizard()
         return
 
@@ -1005,7 +1005,7 @@ def main():
     )
 
     # 注册 LLM 调用回调
-    from cli import ui
+    from common.terminal.ui import ui
     if agent.llm_provider:
         agent.llm_provider.register_llm_call_callback(ui.status_bar.increment_llm_call)
 

@@ -40,7 +40,7 @@ USAGE
 
 .. code-block:: python
 
-    from cli.skin_engine import get_active_skin, list_skins, set_active_skin
+    from cli.ui.skin_engine import get_active_skin, list_skins, set_active_skin
 
     skin = get_active_skin()
     print(skin.colors.get("banner_title"))
@@ -53,7 +53,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cli.colors import (
+from common.terminal.colors import (
     HEX_AVOCADO,
     HEX_AVOCADO_BRIGHT,
     HEX_AVOCADO_DIM,

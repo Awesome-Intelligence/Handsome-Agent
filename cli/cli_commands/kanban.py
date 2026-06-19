@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Kanban CLI Module
+
+🚪 Access - 💬 CLI - Kanban 命令
 
 Command-line interface for Kanban task management:
 - kanban init      - Initialize board
@@ -14,15 +17,15 @@ Command-line interface for Kanban task management:
 - kanban daemon    - Start scheduler
 
 Usage:
-    python -m hermes_cli.kanban init
-    python -m hermes_cli.kanban create "Task Title" --assignee developer
-    python -m hermes_cli.kanban list --status running
+    python -m cli.cli_commands.kanban init
+    python -m cli.cli_commands.kanban create "Task Title" --assignee developer
+    python -m cli.cli_commands.kanban list --status running
 """
 
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # ANSI color codes
 GREEN = "\033[92m"
@@ -397,14 +400,14 @@ def cmd_daemon(args: argparse.Namespace) -> None:
     else:
         scheduler.start(background=True)
         print_success("Scheduler running in background")
-        print_info("Use 'python -m hermes_cli.kanban daemon --foreground' to run in foreground")
+        print_info("Use 'python -m cli.cli_commands.kanban daemon --foreground' to run in foreground")
 
 
 def main() -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Kanban task management CLI",
-        prog="python -m hermes_cli.kanban",
+        prog="python -m cli.cli_commands.kanban",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

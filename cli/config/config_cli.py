@@ -40,18 +40,18 @@ def _save_config(config: dict):
 
 def show_config(json_output: bool = False):
     """Show current configuration."""
+    from common.terminal.ui import print_header, print_warning
+
     config = _load_config()
 
     if json_output:
         print(json.dumps(config, indent=2))
         return
 
-    from cli import ui
-
-    ui.print_header("当前配置")
+    print_header("当前配置")
 
     if not config:
-        ui.print_warning("配置文件为空或不存在")
+        print_warning("配置文件为空或不存在")
         print("运行 'handsome setup' 进行配置")
         return
 
@@ -67,6 +67,8 @@ def show_config(json_output: bool = False):
 
 def edit_config():
     """Edit configuration in $EDITOR."""
+    from common.terminal.ui import print_error
+
     config_file = _get_config_file()
 
     # Create default config if not exists
@@ -86,7 +88,7 @@ def edit_config():
     try:
         subprocess.run([editor, str(config_file)], check=True)
     except Exception as e:
-        print(f"Failed to open editor: {e}")
+        print_error(f"Failed to open editor: {e}")
         print(f"Config file: {config_file}")
 
 
@@ -97,6 +99,8 @@ def set_config(key: str, value: str):
         key: Configuration key (e.g., 'llm.provider')
         value: Configuration value
     """
+    from common.terminal.ui import print_success
+
     config = _load_config()
 
     # Parse key path (e.g., 'llm.provider' -> config['llm']['provider'] = value)
@@ -113,8 +117,7 @@ def set_config(key: str, value: str):
 
     _save_config(config)
 
-    from cli import ui
-    ui.print_success(f"已设置 {key} = {value}")
+    print_success(f"已设置 {key} = {value}")
 
 
 def get_config(key: str):

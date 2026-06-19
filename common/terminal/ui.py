@@ -596,3 +596,137 @@ def print_rich_info(message: str) -> None:
 def supports_color() -> bool:
     """Check if terminal supports colors. Alias for should_use_color()."""
     return should_use_color()
+
+
+# ============================================================================
+# UI Facade - 提供统一的属性访问接口
+# ============================================================================
+
+class _UIFacade:
+    """UI 门面类 - 提供统一的属性访问接口"""
+
+    def __init__(self):
+        # 颜色和主题
+        self.Colors = Colors
+        self.Theme = Theme
+        self.Colors_class = Colors
+        self.Theme_class = Theme
+
+        # 状态栏
+        self.status_bar = status_bar
+        self.StatusBar = StatusBar
+
+        # 常量
+        self.HAS_RICH = HAS_RICH
+        self.HEX_AVOCADO = HEX_AVOCADO
+        self.HEX_AVOCADO_BRIGHT = HEX_AVOCADO_BRIGHT
+        self.HEX_AVOCADO_DIM = HEX_AVOCADO_DIM
+        self.RGB_AVOCADO = RGB_AVOCADO
+        self.RGB_AVOCADO_BRIGHT = RGB_AVOCADO_BRIGHT
+        self.RGB_AVOCADO_DIM = RGB_AVOCADO_DIM
+
+    def print_info(self, text, prefix=True):
+        print_info(text, prefix)
+
+    def print_success(self, text, prefix=True):
+        print_success(text, prefix)
+
+    def print_warning(self, text, prefix=True):
+        print_warning(text, prefix)
+
+    def print_error(self, text, prefix=True):
+        print_error(text, prefix)
+
+    def print_header(self, text, border=False):
+        print_header(text, border)
+
+    def print_divider(self, char="─", width=None):
+        print_divider(char, width)
+
+    def print_step(self, step, total, title):
+        print_step(step, total, title)
+
+    def print_substep(self, text, indent=1):
+        print_substep(text, indent)
+
+    def print_end_step(self):
+        print_end_step()
+
+    def print_box(self, content, title=None, style="double", width=None):
+        print_box(content, title, style, width)
+
+    def print_table_row(self, items, widths=None):
+        print_table_row(items, widths)
+
+    def print_spinner(self, message="Processing"):
+        return print_spinner(message)
+
+    def prompt(self, question, default=None, password=False, required=False):
+        return prompt(question, default, password, required)
+
+    def prompt_yes_no(self, question, default=True):
+        return prompt_yes_no(question, default)
+
+    def prompt_choice(self, question, options, default=0):
+        return prompt_choice(question, options, default)
+
+    def print_banner(self, model=None, tools_count=None, skills_count=None, version="0.0.1"):
+        print_banner(model, tools_count, skills_count, version)
+
+    def print_banner_simple(self):
+        print_banner_simple()
+
+    def print_prompt(self, message=None):
+        return print_prompt(message)
+
+    def print_header_text(self, text):
+        print_header_text(text)
+
+    def print_menu(self, options, selected=None):
+        print_menu(options, selected)
+
+    def print_config_item(self, key, value):
+        print_config_item(key, value)
+
+    def print_list(self, items, title=None, icon="•"):
+        print_list(items, title, icon)
+
+    def print_agent_response(self, response, confidence=None):
+        print_agent_response(response, confidence)
+
+    def print_status_bar(self):
+        print_status_bar()
+
+    def print_user_input(self, prompt=None):
+        print_user_input(prompt)
+
+    def print_provider_list(self, providers):
+        print_provider_list(providers)
+
+    def print_setup_complete(self):
+        print_setup_complete()
+
+    def print_rich_table(self, data, headers=None, title=None, style="accent"):
+        print_rich_table(data, headers, title, style)
+
+    def print_rich_panel(self, content, title=None, style="accent", width=None):
+        print_rich_panel(content, title, style, width)
+
+    def print_rich_progress(self, items, title=None, style="accent"):
+        print_rich_progress(items, title, style)
+
+    def print_rich_success(self, message):
+        print_rich_success(message)
+
+    def print_rich_error(self, message):
+        print_rich_error(message)
+
+    def print_rich_warning(self, message):
+        print_rich_warning(message)
+
+    def print_rich_info(self, message):
+        print_rich_info(message)
+
+
+# 全局 UI 实例
+ui = _UIFacade()

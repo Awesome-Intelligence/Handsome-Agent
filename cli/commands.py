@@ -306,7 +306,7 @@ def _cmd_help(args: str, context: dict) -> str:
 
 def _cmd_status(args: str, context: dict) -> str:
     """Handle /status command."""
-    from cli.status import show_status
+    from cli.cli_commands.status import show_status
 
     lines = ["System Status:", ""]
     lines.append("  ✓ CLI Ready")

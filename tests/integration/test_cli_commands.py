@@ -55,7 +55,7 @@ class TestModelCLI:
     def test_model_cli_import(self):
         """Test that model CLI can be imported."""
         try:
-            from cli.model_cli import list_models, set_default_model
+            from cli.config.model_cli import list_models, set_default_model
             assert list_models is not None
             assert set_default_model is not None
         except ImportError as e:
@@ -63,7 +63,7 @@ class TestModelCLI:
 
     def test_list_models_no_json(self, capsys):
         """Test list_models without JSON output."""
-        from cli.model_cli import list_models
+        from cli.config.model_cli import list_models
 
         list_models(provider="openai", json_output=False)
         captured = capsys.readouterr()
@@ -159,7 +159,7 @@ class TestSetupCLI:
     def test_setup_import(self):
         """Test that setup module can be imported."""
         try:
-            from cli.setup import run_setup_wizard
+            from cli.setup.setup_wizard import run_setup_wizard
             assert run_setup_wizard is not None
         except ImportError as e:
             pytest.fail(f"Failed to import setup module: {e}")

@@ -112,7 +112,7 @@ from cli.cli_commands.uninstall import (
 # Status Module (保持原位置)
 # ============================================================================
 
-from cli.status import show_status
+from cli.cli_commands.status import show_status
 
 __all__ = [
     # UI

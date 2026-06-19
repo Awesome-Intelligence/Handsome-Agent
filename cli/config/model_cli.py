@@ -68,19 +68,20 @@ def list_models(provider: str = None, json_output: bool = False):
         provider: Filter by provider
         json_output: Output as JSON
     """
+    from common.terminal.ui import print_header
+
     if provider:
         if provider in PROVIDERS:
             provider_info = PROVIDERS[provider]
             if json_output:
                 print(json.dumps(provider_info, indent=2))
             else:
-                from cli import ui
-                ui.print_header(f"{provider_info['name']} 模型")
+                print_header(f"{provider_info['name']} 模型")
                 print(f"默认模型: {provider_info['default_model']}")
                 print("\n可用模型:")
                 for model in provider_info["models"]:
-                    marker = " ← 默认" if model == provider_info["default_model"] else ""
-                    print(f"  • {model}{marker}")
+                    marker = " <- 默认" if model == provider_info["default_model"] else ""
+                    print(f"  * {model}{marker}")
         else:
             print(f"Unknown provider: {provider}")
             print(f"Available: {', '.join(PROVIDERS.keys())}")
@@ -89,8 +90,7 @@ def list_models(provider: str = None, json_output: bool = False):
         if json_output:
             print(json.dumps(PROVIDERS, indent=2))
         else:
-            from cli import ui
-            ui.print_header("可用模型")
+            print_header("可用模型")
 
             for provider_id, provider_info in PROVIDERS.items():
                 print(f"\n  [{provider_id}] {provider_info['name']}")
@@ -105,6 +105,8 @@ def set_default_model(model_name: str, provider: str = None):
         model_name: Model name
         provider: Provider name (optional)
     """
+    from common.terminal.ui import print_success
+
     config = _load_config()
 
     # Initialize llm section
@@ -128,9 +130,8 @@ def set_default_model(model_name: str, provider: str = None):
 
     _save_config(config)
 
-    from cli import ui
     provider_str = f" ({config['llm']['provider']})" if config["llm"].get("provider") else ""
-    ui.print_success(f"已设置默认模型: {model_name}{provider_str}")
+    print_success(f"已设置默认模型: {model_name}{provider_str}")
 
 
 if __name__ == "__main__":
