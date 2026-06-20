@@ -69,10 +69,10 @@ except ImportError:
 # ============================================================================
 
 # 高雅紫主题 - Elegant Purple Theme
-AVOCADO_PRIMARY = "#B180D7"       # rgb(177,128,215) - 主色
-AVOCADO_BRIGHT = "#C9A0E0"        # rgb(201,160,224) - 亮色
-AVOCADO_DIM = "#8B5CAC"           # rgb(139,92,172) - 暗色
-AVOCADO_DARK = "#6B4EA8"          # rgb(107,78,168) - 深色
+PURPLE_PRIMARY = "#B180D7"       # rgb(177,128,215) - 主色
+PURPLE_BRIGHT = "#C9A0E0"        # rgb(201,160,224) - 亮色
+PURPLE_DIM = "#8B5CAC"           # rgb(139,92,172) - 暗色
+PURPLE_DARK = "#6B4EA8"          # rgb(107,78,168) - 深色
 
 # 状态颜色
 COLOR_SUCCESS = "#4CAF50"        # 绿色 - 正常
@@ -96,11 +96,12 @@ StatusBar {
     height: 1;
     background: $surface 80%;
     padding: 0 1;
+    line-height: 1;
 }
 
 StatusBar > Horizontal {
     width: 100%;
-    height: 1;
+    height: 100%;
     align: center middle;
 }
 

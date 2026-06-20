@@ -4,6 +4,12 @@
 Preset Theme Definitions.
 
 🚪 Access - 💬 CLI - Theming - 预设主题定义
+
+每个主题的样式定义在对应的 CSS 文件中：
+- default: css/themes/default.css
+- awesome: css/themes/awesome.css
+
+Theme 对象仅存储主题元数据（ID、名称）。
 """
 
 from __future__ import annotations
@@ -19,36 +25,10 @@ from .theme_config import Theme
 
 
 def _create_default_theme() -> Theme:
-    """创建高雅紫主题 (Elegant Purple)."""
+    """创建默认主题 (Avocado Green)."""
     return Theme(
         theme_id="default",
         display_name_key="tui.theme.default.name",
-        colors={
-            # 基础颜色
-            "--primary": "#8B9A46",
-            "--primary-bright": "#A0B45A",
-            "--primary-dim": "#647030",
-            "--primary-dark": "#465A1E",
-            # 文字颜色
-            "--text": "#FFFFFF",
-            "--text-dim": "#888888",
-            "--text-accent": "#A0B45A",
-            # 背景颜色
-            "--background": "#465A1E",
-            "--surface": "#1a1a1a",
-            "--surface-light": "#2a2a2a",
-            # 边框颜色
-            "$border": "#B180D7",
-            "--border": "#B180D7",
-            "--border-light": "#8B9A46",
-            "--border-accent": "#A0B45A",
-            # UI 状态颜色
-            "--success": "#4CAF50",
-            "--warning": "#FF9800",
-            "--error": "#F44336",
-            "--info": "#2196F3",
-        },
-        transparency=1.0,
     )
 
 
@@ -57,32 +37,6 @@ def _create_awesome_theme() -> Theme:
     return Theme(
         theme_id="awesome",
         display_name_key="tui.theme.awesome.name",
-        colors={
-            # 基础颜色
-            "--primary": "#A9FC6E",
-            "--primary-bright": "#C5FF9E",
-            "--primary-dim": "#7FD94A",
-            "--primary-dark": "#5FA832",
-            # 文字颜色
-            "--text": "#FFFFFF",
-            "--text-dim": "#A0C47A",
-            "--text-accent": "#C5FF9E",
-            # 背景颜色
-            "--background": "#1A2E0A",
-            "--surface": "#1a1a1a",
-            "--surface-light": "#2a2a2a",
-            # 边框颜色
-            "$border": "#A9FC6E",
-            "--border": "#A9FC6E",
-            "--border-light": "#7FD94A",
-            "--border-accent": "#C5FF9E",
-            # UI 状态颜色
-            "--success": "#4CAF50",
-            "--warning": "#FF9800",
-            "--error": "#F44336",
-            "--info": "#2196F3",
-        },
-        transparency=1.0,
     )
 
 

@@ -1,0 +1,81 @@
+/*
+ * Awesome 主题 - Vibrant Green
+ * 活力绿配色方案
+ */
+
+/* ============================================================================
+   主题变量覆盖
+   ============================================================================ */
+
+.theme-awesome {
+    --accent: #A9FC6E;
+    --accent-bright: #C5FF9E;
+    --accent-dim: #7FD94A;
+    --accent-dark: #5FA832;
+    --accent-10: rgba(169, 252, 110, 0.1);
+    --accent-25: rgba(169, 252, 110, 0.25);
+    --accent-50: rgba(169, 252, 110, 0.5);
+    --border: #A9FC6E;
+    --banner-color: #C5FF9E;
+    --input-border: #A9FC6E;
+    --input-border-focus: #C5FF9E;
+    --tab-indicator: #A9FC6E;
+    --tab-active-color: #C5FF9E;
+    --sidebar-focus-border: #A9FC6E;
+    --frame-border: #A9FC6E;
+}
+
+/* ============================================================================
+   组件样式覆盖
+   ============================================================================ */
+
+/* Screen 外边框 */
+.theme-awesome Screen {
+    border: solid #A9FC6E;
+}
+
+/* Header 下边框 */
+.theme-awesome #app-header {
+    border-bottom: solid #A9FC6E;
+}
+
+/* 侧边栏聚焦边框 */
+.theme-awesome #sidebar-container:hover,
+.theme-awesome #sidebar-container:focus-within {
+    border: solid #A9FC6E;
+}
+
+/* 输入框边框 */
+.theme-awesome #user-input {
+    border: double #C5FF9E;
+}
+
+.theme-awesome #user-input:focus,
+.theme-awesome #user-input:hover {
+    border: heavy #A9FC6E;
+}
+
+/* 聊天区域边框 */
+.theme-awesome #chat-area:hover,
+.theme-awesome #chat-area:focus-within {
+    border: solid #A9FC6E;
+}
+
+/* 侧边栏 Tab 选中样式 */
+.theme-awesome #sidebar-container-inner SidebarContainer Tabs Tab.active,
+.theme-awesome #sidebar-container-inner SidebarContainer Tabs .active {
+    color: #C5FF9E;
+    border-bottom: solid #A9FC6E;
+}
+
+.theme-awesome #sidebar-tabs Tab.active,
+.theme-awesome #sidebar-tabs .active {
+    color: #C5FF9E;
+    border-bottom: solid #A9FC6E;
+}
+
+.theme-awesome [id="sidebar-container-inner"] Tabs Tab.active,
+.theme-awesome [id="sidebar-container-inner"] Tabs .active {
+    color: #C5FF9E;
+    border-bottom: solid #A9FC6E;
+}

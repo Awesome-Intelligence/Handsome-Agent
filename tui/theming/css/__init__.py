@@ -34,7 +34,7 @@ def get_theme_css(theme_id: str) -> str:
     获取主题 CSS 文件内容
 
     Args:
-        theme_id: 主题 ID (default, ares, slate, mono)
+        theme_id: 主题 ID (default, awesome)
 
     Returns:
         主题 CSS 文件内容，如果不存在则返回空字符串

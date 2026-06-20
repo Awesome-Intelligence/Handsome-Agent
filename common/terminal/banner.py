@@ -2,11 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Enhanced Banner Module - Rich-powered terminal display.
-Inspired by Hermes Agent's elegant design.
 
 🚪 Access - 📦 Common - Terminal - Banner 组件
-
-支持皮肤系统，通过 cli.skin_engine 获取主题颜色和品牌文案。
 
 降级机制：
 - Rich 不可用时使用纯文本模式
@@ -66,7 +63,7 @@ except ImportError:
 console = Console() if HAS_RICH else None
 
 # ============================================================================
-# Default colors (fallback when skin_engine not available)
+# Default theme colors (avocado purple)
 # ============================================================================
 
 AVOCADO = "rgb(139,154,70)"
@@ -77,28 +74,6 @@ AVOCADO_DARK = "rgb(70,90,30)"
 WHITE = "white"
 GRAY_DIM = "dim"
 GOLD = "rgb(255,215,0)"
-
-
-# ============================================================================
-# Helper function to get skin-aware colors
-# ============================================================================
-
-def _get_skin_color(key: str, fallback: str) -> str:
-    """Get color from active skin, with fallback."""
-    try:
-        from cli.skin_engine import get_active_skin
-        return get_active_skin().get_color(key, fallback)
-    except ImportError:
-        return fallback
-
-
-def _get_skin_branding(key: str, fallback: str) -> str:
-    """Get branding from active skin, with fallback."""
-    try:
-        from cli.skin_engine import get_active_skin
-        return get_active_skin().get_branding(key, fallback)
-    except ImportError:
-        return fallback
 
 
 # ============================================================================
@@ -137,31 +112,21 @@ def build_welcome_banner(
     """Build and print a welcome banner with rich styling."""
     i18n = get_i18n()
 
-    # Get skin-aware colors
-    banner_border = _get_skin_color("banner_border", AVOCADO)
-    banner_accent = _get_skin_color("banner_accent", AVOCADO_BRIGHT)
-    banner_dim = _get_skin_color("banner_dim", AVOCADO_DIM)
-    banner_title = _get_skin_color("banner_title", GOLD)
-    banner_text = _get_skin_color("banner_text", "white")
+    # Use fixed theme colors (avocado purple theme)
+    banner_border = AVOCADO
+    banner_accent = AVOCADO_BRIGHT
+    banner_dim = AVOCADO_DIM
+    banner_title = GOLD
+    banner_text = "white"
 
-    # Get skin-aware branding
-    agent_name = _get_skin_branding("agent_name", "Handsome Agent")
-    welcome_msg = _get_skin_branding("welcome", i18n.t("subtitle"))
+    # Fixed branding
+    agent_name = "Handsome Agent"
+    welcome_msg = i18n.t("subtitle")
 
-    # Try to get custom logo from skin
-    try:
-        from cli.skin_engine import get_active_skin
-        skin = get_active_skin()
-        custom_logo = skin.banner_logo or skin.banner_hero
-        if custom_logo:
-            console.print()
-            console.print(custom_logo)
-            console.print()
-    except Exception:
-        # Use default logo
-        console.print()
-        console.print(HERO_ASCII)
-        console.print()
+    # Print default logo
+    console.print()
+    console.print(HERO_ASCII)
+    console.print()
 
     # Create layout table
     layout_table = Table.grid(padding=(1, 2))
@@ -241,8 +206,9 @@ def build_welcome_banner(
         llm_configured = config_status.get("llm_configured", False)
         tools_configured = config_status.get("tools_configured", False)
 
-        ui_ok = _get_skin_color("ui_ok", banner_border)
-        ui_error = _get_skin_color("ui_error", "#888888")
+        # Fixed status colors
+        ui_ok = "#4CAF50"  # Green
+        ui_error = "#888888"  # Gray
 
         if llm_configured:
             right_parts.append(f"  [{ui_ok}]✓[/] [white]LLM Configured[/]")

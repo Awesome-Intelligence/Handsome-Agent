@@ -30,10 +30,10 @@ from .text_area import SubmitTextArea
 
 # 主题颜色常量
 from .app import (
-    AVOCADO_PRIMARY,
-    AVOCADO_BRIGHT,
-    AVOCADO_DIM,
-    AVOCADO_DARK,
+    PURPLE_PRIMARY,
+    PURPLE_BRIGHT,
+    PURPLE_DIM,
+    PURPLE_DARK,
 )
 
 __all__ = [
@@ -58,8 +58,8 @@ __all__ = [
     # 文本区域
     "SubmitTextArea",
     # 主题颜色
-    "AVOCADO_PRIMARY",
-    "AVOCADO_BRIGHT",
-    "AVOCADO_DIM",
-    "AVOCADO_DARK",
+    "PURPLE_PRIMARY",
+    "PURPLE_BRIGHT",
+    "PURPLE_DIM",
+    "PURPLE_DARK",
 ]

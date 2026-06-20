@@ -29,7 +29,7 @@ TEXTUAL_AVAILABLE = True
 try:
     from textual.app import ComposeResult
     from textual.screen import ModalScreen
-    from textual.widgets import Static, Input, ListView, ListItem, Button
+    from textual.widgets import Static, Input, DataTable, Button
     from textual.containers import Container, Horizontal
     from textual.message import Message
     from textual.widget import Widget
@@ -38,8 +38,7 @@ except ImportError:
     ModalScreen = object  # type: ignore
     Static = object  # type: ignore
     Input = object  # type: ignore
-    ListView = object  # type: ignore
-    ListItem = object  # type: ignore
+    DataTable = object  # type: ignore
     Container = object  # type: ignore
     Horizontal = object  # type: ignore
     Message = object  # type: ignore
@@ -134,7 +133,7 @@ SessionPickerScreen {
 }
 
 #picker-container {
-    width: 70;
+    width: 80;
     height: auto;
     max-height: 24;
     margin: 1 2;
@@ -154,40 +153,23 @@ SessionPickerScreen {
     border: solid $avocado_bright;
 }
 
-#session-list {
-    height: 14;
+#session-table {
+    height: 16;
     width: 100%;
     padding: 0;
 }
 
-.session-item {
-    width: 100%;
-    height: auto;
-    padding: 0 1;
+#session-table DataTable {
+    height: 100%;
 }
 
-.session-item:hover {
-    background: $avocado_dim;
-}
-
-.session-item:focus {
+#session-table .datatable--cursor {
     background: $avocado_primary;
+    color: $white;
 }
 
-.session-title {
-    width: 100%;
-    color: $avocado_bright;
-    text-style: bold;
-}
-
-.session-meta {
-    width: 100%;
-    color: $gray_dim;
-}
-
-.session-delete {
-    width: 100%;
-    color: $red;
+#session-table :highlight_cursor {
+    background: $avocado_dim;
 }
 
 #action-bar {
@@ -366,7 +348,7 @@ class SessionPickerScreen(ModalScreen):
         )
         
         # 会话列表
-        yield ListView(id="session-list")
+        yield DataTable(id="session-table")
         
         # 空状态提示
         empty_text = self._i18n.t("tui.session_picker.empty", "暂无会话记录")
@@ -409,43 +391,44 @@ class SessionPickerScreen(ModalScreen):
     
     def _update_session_list(self) -> None:
         """更新会话列表"""
-        list_view = self.query_one("#session-list", ListView)
+        table = self.query_one("#session-table", DataTable)
+        
+        # 首次初始化列
+        if not table.columns:
+            table.add_columns(
+                ("📌", 3),      # 当前标记列
+                ("标题", 30),    # 会话标题
+                ("创建时间", 16), # 创建时间
+                ("消息", 6),     # 消息数量
+                ("模型", 15),    # 模型
+            )
         
         # 清空并重建列表
-        list_view.clear()
+        table.clear()
         
         for i, session in enumerate(self._filtered_sessions):
-            # 格式化显示
-            current_marker = " ▶" if session.id == self._current_session_id else ""
-            meta_parts = []
-            if session.created_at:
-                meta_parts.append(session.created_at)
-            if session.message_count > 0:
-                msg_text = self._i18n.t("session.message_count", "{count} 条消息")
-                meta_parts.append(msg_text.format(count=session.message_count))
-            if session.model:
-                meta_parts.append(session.model)
-            
-            meta_text = " · ".join(meta_parts) if meta_parts else ""
-            
             # 判断是否处于删除确认状态
             if self._delete_confirm_index == i:
-                confirm_text = self._i18n.t("session.delete_confirm", "确认删除?")
-                item_content = (
-                    f"[{RED}]{confirm_text}[/{RED}]"
-                    f"[{GRAY_DIM}] - {session.title}[/{GRAY_DIM}]"
-                )
+                current_marker = "⚠"
+                title = f"[red]{session.title}[/red]"
+                time_text = "[red]确认删除?[/red]"
+                msg_count = ""
+                model_text = ""
             else:
-                item_content = (
-                    f"[{AVOCADO_BRIGHT}]{session.title}{current_marker}[/{AVOCADO_BRIGHT}]"
-                    f"[{GRAY_DIM}] - {meta_text}[/{GRAY_DIM}]"
-                )
+                current_marker = "▶" if session.id == self._current_session_id else ""
+                title = session.title
+                time_text = session.created_at or ""
+                msg_count = str(session.message_count)
+                model_text = session.model or ""
             
-            item = ListItem(
-                Static(item_content),
-                id=f"session-{session.id}"
+            table.add_row(
+                current_marker,
+                title,
+                time_text,
+                msg_count,
+                model_text,
+                key=session.id
             )
-            list_view.append(item)
         
         # 选择第一个或保持当前选择
         max_index = len(self._filtered_sessions) - 1
@@ -453,7 +436,9 @@ class SessionPickerScreen(ModalScreen):
             self._selected_index = max(0, max_index)
         
         if self._filtered_sessions:
-            list_view.index = self._selected_index
+            # 选中对应行
+            row_key = self._filtered_sessions[self._selected_index].id
+            table.move_cursor(row=row_key)
     
     def _update_empty_hint(self) -> None:
         """更新空状态提示"""
@@ -465,20 +450,22 @@ class SessionPickerScreen(ModalScreen):
     
     def _select_previous(self) -> None:
         """选择上一个会话"""
-        list_view = self.query_one("#session-list", ListView)
-        if list_view.index is not None and list_view.index > 0:
-            list_view.index -= 1
-            self._selected_index = list_view.index
+        table = self.query_one("#session-table", DataTable)
+        if self._selected_index > 0:
+            self._selected_index -= 1
             self._delete_confirm_index = None
+            row_key = self._filtered_sessions[self._selected_index].id
+            table.move_cursor(row=row_key)
     
     def _select_next(self) -> None:
         """选择下一个会话"""
-        list_view = self.query_one("#session-list", ListView)
+        table = self.query_one("#session-table", DataTable)
         max_index = len(self._filtered_sessions) - 1
-        if list_view.index is not None and list_view.index < max_index:
-            list_view.index += 1
-            self._selected_index = list_view.index
+        if self._selected_index < max_index:
+            self._selected_index += 1
             self._delete_confirm_index = None
+            row_key = self._filtered_sessions[self._selected_index].id
+            table.move_cursor(row=row_key)
     
     def _select_session(self) -> None:
         """选择当前会话"""
@@ -560,8 +547,13 @@ class SessionPickerScreen(ModalScreen):
         if event.input.id == "search-input":
             self._select_session()
     
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """列表项选中时选择会话"""
+        # 找到选中行对应的索引
+        for i, session in enumerate(self._filtered_sessions):
+            if session.id == event.row_key.value:
+                self._selected_index = i
+                break
         self._select_session()
     
     def on_button_pressed(self, event: Button.Pressed) -> None:

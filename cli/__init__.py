@@ -17,7 +17,6 @@ Directory Structure:
     │
     ├── ui/                  # UI 层
     │   ├── banner.py        # Banner 渲染
-    │   ├── skin_engine.py   # 皮肤引擎
     │   └── ...              # (其他 UI 组件在 common/terminal/)
     │
     ├── cli_commands/        # CLI 命令

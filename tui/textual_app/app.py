@@ -29,6 +29,7 @@ try:
     from textual import on
     from textual.events import Key
     from textual import events as textual_events
+    from textual.theme import Theme
     # NewLine 在 Textual 0.x 中已被移除，使用 Rich.Text 替代
     try:
         from textual.widgets._text_area import NewLine
@@ -62,12 +63,10 @@ from .text_area import SubmitTextArea
 
 # 跨模块导入 - Textual 组件 (使用绝对导入，因为这些模块仍在 cli/tui/ 下)
 try:
-    from tui.theming import ThemeManager, get_theme_manager, THEME_CONFIGS, generate_theme_css
+    from tui.theming import ThemeManager, get_theme_manager
 except ImportError:
     ThemeManager = None
     get_theme_manager = None
-    THEME_CONFIGS = {}
-    generate_theme_css = None
 
 try:
     from tui.core.markdown_renderer import MarkdownRenderer
@@ -160,11 +159,11 @@ except ImportError:
         return logging.getLogger("HandsomeAgent")
     LogManager = None
 
-# 颜色常量（用于横幅等 Rich 标记）
-AVOCADO_PRIMARY = "#8B9A46"
-AVOCADO_BRIGHT = "#A0B45A"
-AVOCADO_DIM = "#647030"
-AVOCADO_DARK = "#465A1E"
+# 颜色常量（用于横幅等 Rich 标记）- 高雅紫
+PURPLE_PRIMARY = "#B180D7"
+PURPLE_BRIGHT = "#C9A0E0"
+PURPLE_DIM = "#9A6BC2"
+PURPLE_DARK = "#7A4DA8"
 WHITE = "white"
 GRAY_DIM = "#888888"
 GOLD = "#FFD700"
@@ -188,6 +187,47 @@ def _patch_textual_logger():
         pass
 
 _patch_textual_logger()
+
+
+# ============================================================================
+# Textual 主题定义
+# ============================================================================
+
+if TEXTUAL_AVAILABLE:
+    # Default 主题 - 高雅紫
+    THEME_DEFAULT = Theme(
+        name="default",
+        primary="#B180D7",
+        secondary="#C9A0E0",
+        accent="#B180D7",
+        foreground="#FFFFFF",
+        background="#1a1a1a",
+        surface="#2a2a2a",
+        panel="#1a1a1a",
+        success="#4CAF50",
+        warning="#FF9800",
+        error="#F44336",
+        dark=True,
+    )
+
+    # Awesome 主题 - 活力绿
+    THEME_AWESOME = Theme(
+        name="awesome",
+        primary="#A9FC6E",
+        secondary="#C5FF9E",
+        accent="#A9FC6E",
+        foreground="#FFFFFF",
+        background="#1A2E0A",
+        surface="#2a2a2a",
+        panel="#1a1a1a",
+        success="#4CAF50",
+        warning="#FF9800",
+        error="#F44336",
+        dark=True,
+    )
+
+    # 主题列表
+    THEMES = [THEME_DEFAULT, THEME_AWESOME]
 
 
 class HandsomeAgentApp(App):
@@ -214,6 +254,10 @@ class HandsomeAgentApp(App):
         Binding("j", "scroll_down", "", show=False),
         Binding("k", "scroll_up", "", show=False),
     ]
+
+    # Textual 主题系统 - 定义为类属性
+    if TEXTUAL_AVAILABLE:
+        themes: list[Theme] = THEMES
 
     # 从 css.py 导入 CSS
     CSS = APP_CSS
@@ -386,6 +430,17 @@ class HandsomeAgentApp(App):
 
     def on_mount(self) -> None:
         self._logger.info("Textual UI mounted")
+        
+        # 注册自定义主题（Textual 8.x 需要手动注册）
+        if TEXTUAL_AVAILABLE:
+            for theme in THEMES:
+                self.register_theme(theme)
+            self._logger.info(f"Registered {len(THEMES)} themes: {[t.name for t in THEMES]}")
+            
+            # 设置默认主题为 "default"（紫色）
+            self.theme = "default"
+            self._logger.info(f"Set default theme to: {self.theme}")
+        
         self._render_welcome_banner()
         self._update_status_bar()
         self._register_event_listeners()
@@ -410,6 +465,7 @@ class HandsomeAgentApp(App):
             return
 
         try:
+            # 加载基础 CSS
             stylesheets = get_stylesheets()
             for css_file in stylesheets:
                 css_path = Path(css_file)
@@ -419,14 +475,18 @@ class HandsomeAgentApp(App):
                 else:
                     self._logger.debug(f"Stylesheet not found: {css_path}")
 
-            self._apply_theme_class()
             self._theme_css_loaded = True
             
-            # 加载初始主题的 CSS
-            await self._load_theme_css(self.theme_id)
+            # 预加载所有主题的 CSS（避免切换时闪烁）
+            if self._theme_manager:
+                for tid in self._theme_manager.list_theme_ids():
+                    css_path = self._theme_manager.get_theme_css_path(tid)
+                    if css_path and css_path.exists():
+                        await self.add_stylesheet(str(css_path))
+                        self._logger.debug(f"Preloaded theme CSS: {css_path.name}")
             
-            # 加载完成后更新侧边栏 Tab 颜色
-            self._update_sidebar_tab_colors()
+            # 应用初始主题 class
+            self._apply_theme_class()
         except Exception as e:
             self._logger.debug(f"Failed to load stylesheets: {e}")
 
@@ -437,14 +497,27 @@ class HandsomeAgentApp(App):
             self.set_timer(0.5, self._apply_theme_class)
             return
 
-        for tid in THEME_CONFIGS:
-            self.remove_class(f"theme-{tid}")
+        try:
+            # 获取 Screen 组件
+            screen = self.screen
+            if not screen:
+                self._logger.warning("[_apply_theme_class] No screen found")
+                return
+            
+            # 获取所有主题 ID 并移除旧主题 class
+            if self._theme_manager:
+                theme_ids = self._theme_manager.list_theme_ids()
+                for tid in theme_ids:
+                    screen.remove_class(f"theme-{tid}")
 
-        self.add_class(f"theme-{self.theme_id}")
-        self._logger.info(f"Applied theme class: theme-{self.theme_id}")
+            # 添加新主题 class 到 Screen
+            screen.add_class(f"theme-{self.theme_id}")
+            self._logger.info(f"Applied theme class: theme-{self.theme_id}")
+        except Exception as e:
+            self._logger.error(f"[_apply_theme_class] Error: {e}")
 
     async def _load_theme_css(self, theme_id: str) -> None:
-        """加载主题 CSS 文件."""
+        """加载主题 CSS 文件（异步）."""
         if not self._theme_manager:
             return
 
@@ -466,27 +539,16 @@ class HandsomeAgentApp(App):
         except Exception as e:
             self._logger.debug(f"Failed to load theme CSS: {e}")
 
+    def _load_theme_css_sync(self, theme_id: str) -> None:
+        """切换主题 CSS（CSS 已预加载，只需记录当前主题）."""
+        # CSS 在初始化时已全部预加载，这里只需记录即可
+        self._logger.info(f"[SYNC] Theme CSS already preloaded, switching to: {theme_id}")
+
     def _on_theme_changed(self, theme_id: str) -> None:
-        """主题变更回调."""
+        """主题变更回调（CSS 已预加载，只需更新 class）."""
+        # CSS 在初始化时已全部预加载，这里只需更新 class
         self.theme_id = theme_id
         self._apply_theme_class()
-        # 异步加载主题 CSS
-        self.call_later(lambda: self._load_theme_css(theme_id))
-        # 更新侧边栏 Tab 颜色
-        self.call_later(self._update_sidebar_tab_colors)
-
-    def _update_sidebar_tab_colors(self) -> None:
-        """更新侧边栏 Tab 颜色."""
-        theme_config = THEME_CONFIGS.get(self.theme_id)
-        if not theme_config:
-            return
-        
-        try:
-            sidebar = self.query_one("#sidebar-container-inner")
-            if hasattr(sidebar, 'set_active_color'):
-                sidebar.set_active_color(theme_config.frame_border)
-        except Exception as e:
-            self._logger.debug(f"Failed to update sidebar tab colors: {e}")
 
     def update_theme_css(self) -> None:
         self._apply_theme_class()
@@ -702,8 +764,9 @@ class HandsomeAgentApp(App):
         self._streaming_current_content = ""
 
     def _render_welcome_banner(self) -> None:
-        theme_config = THEME_CONFIGS.get(self.theme_id)
-        banner_color = theme_config.banner_color if theme_config else "#A0B45A"
+        # 根据主题 ID 确定 Banner 颜色
+        # default: 紫色, awesome: 绿色
+        banner_color = "#C9A0E0" if self.theme_id == "default" else "#C5FF9E"
         secondary_color = "#8b949e"
 
         # 渲染左侧 ASCII Banner
@@ -896,23 +959,48 @@ class HandsomeAgentApp(App):
         return ["default"]
 
     def action_change_theme(self) -> None:
-        theme_ids = list(THEME_CONFIGS.keys())
+        """使用 Textual 主题系统切换主题."""
+        if not TEXTUAL_AVAILABLE:
+            self.notify("Theme system not available")
+            return
+
+        # 获取我们支持的主题列表
+        theme_ids = [t.name for t in THEMES]
         if not theme_ids:
             self.notify("No themes available")
             return
 
-        try:
-            current_index = theme_ids.index(self.theme_id)
-        except ValueError:
-            current_index = -1
-
+        # 获取当前主题（可能是 textual-dark 或我们自定义的主题）
+        current_theme = self.theme
+        
+        # 如果当前主题不在我们的列表中，尝试在 available_themes 中查找
+        if current_theme not in theme_ids:
+            self._logger.info(f"[action_change_theme] current '{current_theme}' not in {theme_ids}")
+            # 尝试在可用主题中查找我们的主题
+            if current_theme in self.available_themes:
+                # 当前是 Textual 内置主题，切换到我们的第一个主题
+                current_index = -1  # 这样下一个会是 index 0
+            else:
+                current_index = -1
+        else:
+            current_index = theme_ids.index(current_theme)
+        
         next_index = (current_index + 1) % len(theme_ids)
-        self.theme_id = theme_ids[next_index]
-        self._apply_theme_class()
-
-        theme_config = THEME_CONFIGS.get(self.theme_id)
-        display_name = theme_config.name if theme_config else self.theme_id
-        self.notify(f"Theme changed to: {display_name}")
+        next_theme_id = theme_ids[next_index]
+        
+        self._logger.info(f"[action_change_theme] switching from '{current_theme}' to '{next_theme_id}'")
+        
+        # 使用 Textual 主题系统切换主题
+        self.theme = next_theme_id
+        
+        self._logger.info(f"[action_change_theme] after switch: {self.theme}")
+        
+        # 保存主题偏好
+        if self._theme_manager:
+            self._theme_manager.set_theme(next_theme_id)
+        
+        # 显示通知
+        self.notify_success(f"Theme: {next_theme_id}", duration=2.0)
 
     def action_toggle_transparency(self) -> None:
         if not self._theme_manager:
@@ -1624,9 +1712,9 @@ class HandsomeAgentApp(App):
         chat_area = self.query_one("#chat-area", RichLog)
         if chat_area:
             if role == "user":
-                chat_area.write(f"[bold {AVOCADO_BRIGHT}]You:[/] {content}")
+                chat_area.write(f"[bold {PURPLE_BRIGHT}]You:[/] {content}")
             else:
-                chat_area.write(f"[bold {AVOCADO_PRIMARY}]Agent:[/] {content}")
+                chat_area.write(f"[bold {PURPLE_PRIMARY}]Agent:[/] {content}")
 
     def clear_chat(self) -> None:
         chat_area = self.query_one("#chat-area", RichLog)
@@ -1851,10 +1939,10 @@ __all__ = [
     "is_textual_compatible",
     "create_fallback_app",
     "TEXTUAL_AVAILABLE",
-    "AVOCADO_PRIMARY",
-    "AVOCADO_BRIGHT",
-    "AVOCADO_DIM",
-    "AVOCADO_DARK",
+    "PURPLE_PRIMARY",
+    "PURPLE_BRIGHT",
+    "PURPLE_DIM",
+    "PURPLE_DARK",
     "ThemeManager",
     "get_theme_manager",
     "NotificationType",

@@ -33,10 +33,10 @@ from tui.textual_app import (
     NotificationAnimationManager,
     NotificationType,
     SubmitTextArea,
-    AVOCADO_PRIMARY,
-    AVOCADO_BRIGHT,
-    AVOCADO_DIM,
-    AVOCADO_DARK,
+    PURPLE_PRIMARY,
+    PURPLE_BRIGHT,
+    PURPLE_DIM,
+    PURPLE_DARK,
 )
 
 # 主题系统
@@ -44,7 +44,6 @@ from tui.theming import (
     ThemeManager,
     get_theme_manager,
     Theme,
-    ThemeConfig,
 )
 
 # 视图
@@ -96,15 +95,14 @@ __all__ = [
     "NotificationAnimationManager",
     "NotificationType",
     "SubmitTextArea",
-    "AVOCADO_PRIMARY",
-    "AVOCADO_BRIGHT",
-    "AVOCADO_DIM",
-    "AVOCADO_DARK",
+    "PURPLE_PRIMARY",
+    "PURPLE_BRIGHT",
+    "PURPLE_DIM",
+    "PURPLE_DARK",
     # 主题系统
     "ThemeManager",
     "get_theme_manager",
     "Theme",
-    "ThemeConfig",
     # 视图
     "ChatView",
     "ChatMessageSubmitted",

@@ -18,7 +18,6 @@ Usage::
 
     manager = get_theme_manager()
     manager.set_theme("default")
-    css = manager.get_current_css()
 
 CSS 模块::
 
@@ -32,11 +31,6 @@ from __future__ import annotations
 # 导入子模块
 from .theme_config import (
     Theme,
-    ThemeConfig,
-    THEME_CONFIGS,
-    generate_semantic_colors,
-    generate_theme_css,
-    get_all_theme_css,
 )
 
 from .colors import (
@@ -97,10 +91,11 @@ from .preset_themes import (
     _PRESET_THEMES,
 )
 
-# 计算半透明颜色（需要从 theme_config 导入 THEME_CONFIGS）
-AVOCADO_ACCENT_10 = transparent(THEME_CONFIGS["default"].accent, TRANSPARENCY_LEVELS["sm"])
-AVOCADO_ACCENT_25 = transparent(THEME_CONFIGS["default"].accent, TRANSPARENCY_LEVELS["lg"])
-AVOCADO_ACCENT_50 = transparent(THEME_CONFIGS["default"].accent, TRANSPARENCY_LEVELS["xl"])
+# 计算半透明颜色（使用 default 主题的紫色）
+DEFAULT_ACCENT = "#B180D7"
+PURPLE_ACCENT_10 = transparent(DEFAULT_ACCENT, TRANSPARENCY_LEVELS["sm"])
+PURPLE_ACCENT_25 = transparent(DEFAULT_ACCENT, TRANSPARENCY_LEVELS["lg"])
+PURPLE_ACCENT_50 = transparent(DEFAULT_ACCENT, TRANSPARENCY_LEVELS["xl"])
 
 # 状态色透明版本
 STATUS_ONLINE_15 = transparent(STATUS_ONLINE, TRANSPARENCY_LEVELS["md"])
@@ -109,25 +104,21 @@ STATUS_ERROR_15 = transparent(STATUS_ERROR, TRANSPARENCY_LEVELS["md"])
 STATUS_WARNING_15 = transparent(STATUS_WARNING, TRANSPARENCY_LEVELS["md"])
 STATUS_INFO_15 = transparent(STATUS_INFO, TRANSPARENCY_LEVELS["md"])
 
-# 主题颜色常量
-AVOCADO_PRIMARY = "#8B9A46"
-AVOCADO_BRIGHT = "#A0B45A"
-AVOCADO_DIM = "#647030"
-AVOCADO_DARK = "#465A1E"
+# 主题颜色常量（高雅紫）
+PURPLE_PRIMARY = "#B180D7"
+PURPLE_BRIGHT = "#C9A0E0"
+PURPLE_DIM = "#9A6BC2"
+PURPLE_DARK = "#7A4DA8"
 WHITE = "#FFFFFF"
 GRAY_DIM = "#888888"
-GOLD = "#B180D7"
+GOLD = "#C9A0E0"
 
 __all__ = [
     # 数据类
     "Theme",
-    "ThemeConfig",
     "TypographyConfig",
     # 主题配置
-    "THEME_CONFIGS",
-    "generate_semantic_colors",
-    "generate_theme_css",
-    "get_all_theme_css",
+    "_PRESET_THEMES",
     # 管理器
     "ThemeManager",
     "get_theme_manager",
@@ -160,19 +151,19 @@ __all__ = [
     "STATUS_WARNING",
     "STATUS_INFO",
     # 半透明颜色
-    "AVOCADO_ACCENT_10",
-    "AVOCADO_ACCENT_25",
-    "AVOCADO_ACCENT_50",
+    "PURPLE_ACCENT_10",
+    "PURPLE_ACCENT_25",
+    "PURPLE_ACCENT_50",
     "STATUS_ONLINE_15",
     "STATUS_BUSY_10",
     "STATUS_ERROR_15",
     "STATUS_WARNING_15",
     "STATUS_INFO_15",
     # 主题颜色常量
-    "AVOCADO_PRIMARY",
-    "AVOCADO_BRIGHT",
-    "AVOCADO_DIM",
-    "AVOCADO_DARK",
+    "PURPLE_PRIMARY",
+    "PURPLE_BRIGHT",
+    "PURPLE_DIM",
+    "PURPLE_DARK",
     "WHITE",
     "GRAY_DIM",
     "GOLD",

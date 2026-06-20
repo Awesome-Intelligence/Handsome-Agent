@@ -66,10 +66,10 @@ except ImportError:
 # 主题颜色常量（高雅紫）
 # ============================================================================
 
-AVOCADO_PRIMARY = "#B180D7"       # rgb(177,128,215) - 主色
-AVOCADO_BRIGHT = "#C9A0E0"        # rgb(201,160,224) - 亮色
-AVOCADO_DIM = "#8B5CAC"           # rgb(139,92,172) - 暗色
-AVOCADO_DARK = "#6B4EA8"          # rgb(107,78,168) - 深色
+PURPLE_PRIMARY = "#B180D7"       # rgb(177,128,215) - 主色
+PURPLE_BRIGHT = "#C9A0E0"        # rgb(201,160,224) - 亮色
+PURPLE_DIM = "#8B5CAC"           # rgb(139,92,172) - 暗色
+PURPLE_DARK = "#6B4EA8"          # rgb(107,78,168) - 深色
 WHITE = "white"
 GRAY_DIM = "#888888"
 GOLD = "#FFD700"
@@ -332,7 +332,7 @@ class CommandPaletteScreen(ModalScreen):
         # 标题
         title = i18n.t("tui.command_palette.title", "命令面板")
         yield Static(
-            f"[bold {AVOCADO_BRIGHT}]⌘ {title}[/]",
+            f"[bold {PURPLE_BRIGHT}]⌘ {title}[/]",
             id="palette-title"
         )
         
@@ -386,9 +386,9 @@ class CommandPaletteScreen(ModalScreen):
         
         for command in self._filtered_commands:
             # 创建命令项
-            shortcut_display = f" [{AVOCADO_BRIGHT}]{command.shortcut}[/{AVOCADO_BRIGHT}]" if command.shortcut else ""
+            shortcut_display = f" [{PURPLE_BRIGHT}]{command.shortcut}[/{PURPLE_BRIGHT}]" if command.shortcut else ""
             item_content = (
-                f"[{AVOCADO_BRIGHT}]{command.name}[/{AVOCADO_BRIGHT}]"
+                f"[{PURPLE_BRIGHT}]{command.name}[/{PURPLE_BRIGHT}]"
                 f"[{GRAY_DIM}] - {command.description}[/{GRAY_DIM}]"
                 f"[{GOLD}]{shortcut_display}[/{GOLD}]"
             )

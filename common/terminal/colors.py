@@ -5,11 +5,10 @@ Color definitions and utilities for Handsome Agent CLI.
 
 🚪 Access - 📦 Common - Terminal - 颜色系统
 
-参考 Hermes 的 colors.py 设计，支持：
+支持：
 - 高雅紫主题色
 - ANSI 颜色码
 - Rich 格式颜色 (rgb, hex)
-- 皮肤/主题系统
 """
 
 import os
@@ -232,33 +231,6 @@ class Theme:
     WARNING_BRIGHT = Colors.YELLOW_BRIGHT
     INFO = Colors.BLUE
     INFO_BRIGHT = Colors.CYAN
-
-
-# ============================================================================
-# Skin-aware Colors (for theming support)
-# ============================================================================
-
-def get_skin_color(key: str, fallback: str) -> str:
-    """Get color from active skin, or return fallback.
-
-    Args:
-        key: Color key (e.g., 'banner_accent', 'banner_text')
-        fallback: Fallback color if skin not available
-    """
-    try:
-        from cli.skin_engine import get_active_skin
-        return get_active_skin().get_color(key, fallback)
-    except ImportError:
-        return fallback
-
-
-def get_skin_branding(key: str, fallback: str) -> str:
-    """Get branding string from active skin, or return fallback."""
-    try:
-        from cli.skin_engine import get_active_skin
-        return get_active_skin().get_branding(key, fallback)
-    except ImportError:
-        return fallback
 
 
 # ============================================================================

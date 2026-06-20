@@ -1,6 +1,6 @@
 /*
- * 默认主题 - Avocado Purple
- * 主题变量覆盖
+ * Default 主题 - Elegant Purple
+ * 高雅紫配色方案
  */
 
 /* ============================================================================
@@ -9,18 +9,18 @@
 
 .theme-default {
     --accent: #B180D7;
-    --accent-bright: #B180D7;
-    --accent-dim: #9a6bc2;
-    --accent-dark: #7a4da8;
+    --accent-bright: #C9A0E0;
+    --accent-dim: #9A6BC2;
+    --accent-dark: #7A4DA8;
     --accent-10: rgba(177, 128, 215, 0.1);
     --accent-25: rgba(177, 128, 215, 0.25);
     --accent-50: rgba(177, 128, 215, 0.5);
     --border: #B180D7;
-    --banner-color: #B180D7;
+    --banner-color: #C9A0E0;
     --input-border: #B180D7;
-    --input-border-focus: #a371f7;
+    --input-border-focus: #C9A0E0;
     --tab-indicator: #B180D7;
-    --tab-active-color: #B180D7;
+    --tab-active-color: #C9A0E0;
     --sidebar-focus-border: #B180D7;
     --frame-border: #B180D7;
 }
@@ -64,18 +64,18 @@
 /* 侧边栏 Tab 选中样式 */
 .theme-default #sidebar-container-inner SidebarContainer Tabs Tab.active,
 .theme-default #sidebar-container-inner SidebarContainer Tabs .active {
-    color: #B180D7;
+    color: #C9A0E0;
     border-bottom: solid #B180D7;
 }
 
 .theme-default #sidebar-tabs Tab.active,
 .theme-default #sidebar-tabs .active {
-    color: #B180D7;
+    color: #C9A0E0;
     border-bottom: solid #B180D7;
 }
 
 .theme-default [id="sidebar-container-inner"] Tabs Tab.active,
 .theme-default [id="sidebar-container-inner"] Tabs .active {
-    color: #B180D7;
+    color: #C9A0E0;
     border-bottom: solid #B180D7;
 }
