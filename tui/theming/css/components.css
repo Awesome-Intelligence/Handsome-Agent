@@ -272,3 +272,93 @@ ScrollbarThumb:hover {
 ScrollbarTrack {
     background: $surface;
 }
+
+/* ============================================================================
+   任务面板样式
+   ============================================================================ */
+
+#tasks-pane {
+    width: 100%;
+    height: 100%;
+    padding: 1;
+}
+
+#tasks-pane #tasks-container {
+    width: 100%;
+    height: 100%;
+}
+
+#tasks-pane #current-task {
+    width: 100%;
+    padding: 1;
+    background: $accent 15%;
+    border: solid $accent;
+    border-radius: 4;
+    margin-bottom: 1;
+}
+
+#tasks-pane #current-task .task-running {
+    color: $text;
+    text-style: bold;
+}
+
+#tasks-pane #current-task .progress-bar {
+    width: 100%;
+    height: 3;
+    background: $surface;
+    margin-top: 2;
+}
+
+#tasks-pane .task-group {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#tasks-pane .task-header {
+    color: $text-muted;
+    padding: 0 1;
+}
+
+#tasks-pane .subtask-item {
+    padding: 0 1 0 2;
+}
+
+#tasks-pane .subtask-item.pending {
+    color: $text-muted;
+}
+
+#tasks-pane .subtask-item.running {
+    color: $accent;
+    text-style: bold;
+}
+
+#tasks-pane .subtask-item.completed {
+    color: $success;
+}
+
+#tasks-pane .subtask-item.failed,
+#tasks-pane .subtask-item.error {
+    color: $error;
+}
+
+#tasks-pane .subtask-item.cancelled {
+    color: $text-muted;
+    text-style: italic;
+}
+
+#tasks-pane #empty-state {
+    color: $text-muted;
+    text-style: italic;
+    text-align: center;
+    padding: 2;
+}
+
+/* 进度条动画 */
+@keyframes progress-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+#tasks-pane .subtask-item.running .progress-fill {
+    animation: progress-pulse 1.5s ease-in-out infinite;
+}

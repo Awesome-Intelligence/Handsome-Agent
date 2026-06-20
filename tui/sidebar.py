@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 from typing_extensions import Self
 
 from textual.app import ComposeResult
@@ -103,14 +103,205 @@ class SidebarPane(TabPane):
 
 
 class TasksPane(SidebarPane):
-    """任务面板."""
-
+    """
+    任务面板 - 实时显示 Agent 拆分出的任务
+    
+    功能:
+    1. 显示当前执行的任务（置顶，高亮）
+    2. 显示所有子任务列表
+    3. 显示任务状态和进度
+    """
+    
+    # 内部数据结构
+    _tasks: Dict[str, List] = {}  # task_id -> subtasks
+    _current_task_id: Optional[str] = None
+    _current_subtask_id: Optional[int] = None
+    _progress_percent: int = 0
+    _expanded_tasks: set = set()  # 展开的任务 ID
+    
+    # 状态图标
+    STATUS_ICONS = {
+        "pending": "⏳",
+        "running": "🔄",
+        "completed": "✅",
+        "failed": "❌",
+        "error": "❌",
+        "cancelled": "➖",
+    }
+    
+    # 默认 CSS
+    DEFAULT_CSS = """
+    TasksPane {
+        width: 100%;
+        height: 100%;
+    }
+    
+    TasksPane #tasks-container {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+    }
+    
+    TasksPane #current-task {
+        width: 100%;
+        padding: 0 1;
+        background: $accent 15%;
+        border: solid $accent;
+        margin-bottom: 1;
+    }
+    
+    TasksPane .task-item {
+        padding: 0 1 0 2;
+    }
+    
+    TasksPane .task-item.pending {
+        color: $text-muted;
+    }
+    
+    TasksPane .task-item.running {
+        color: $accent;
+        text-style: bold;
+    }
+    
+    TasksPane .task-item.completed {
+        color: $success;
+    }
+    
+    TasksPane .task-item.failed,
+    TasksPane .task-item.error {
+        color: $error;
+    }
+    
+    TasksPane .task-item.cancelled {
+        color: $text-muted;
+        text-style: italic;
+    }
+    
+    TasksPane #empty-state {
+        color: $text-muted;
+        text-style: italic;
+    }
+    """
+    
     def __init__(self) -> None:
         super().__init__(id="tasks", title="任务")
-
+        # 尝试导入消息类型
+        try:
+            from tui.messages import TaskItem, TasksPaneUpdated, CurrentTaskChanged
+            self._has_messages = True
+        except ImportError:
+            self._has_messages = False
+    
     def compose(self) -> ComposeResult:
         """组合子组件."""
-        yield Static("[dim]暂无任务[/dim]", id="tasks-content")
+        with Vertical(id="tasks-container"):
+            # 当前执行任务（动态显示）
+            yield Static("", id="current-task")
+            
+            # 任务列表
+            yield Static("[dim]暂无任务[/dim]", id="tasks-list")
+    
+    # ==================== 消息处理 ====================
+    
+    def on_mount(self) -> None:
+        """组件挂载时初始化."""
+        # 订阅消息
+        if self._has_messages:
+            from tui.messages import TasksPaneUpdated, CurrentTaskChanged
+            self._tasks_pane_updated = TasksPaneUpdated
+            self._current_task_changed = CurrentTaskChanged
+    
+    async def _on_tasks_pane_updated(self, event) -> None:
+        """处理任务面板更新"""
+        self._tasks = event.tasks if hasattr(event, 'tasks') else {}
+        self._current_task_id = event.current_task_id if hasattr(event, 'current_task_id') else None
+        self._current_subtask_id = event.current_subtask_id if hasattr(event, 'current_subtask_id') else None
+        self._progress_percent = event.progress_percent if hasattr(event, 'progress_percent') else 0
+        
+        self._update_display()
+    
+    async def _on_current_task_changed(self, event) -> None:
+        """处理当前任务变更"""
+        self._current_task_id = event.task_id if hasattr(event, 'task_id') else None
+        self._current_subtask_id = event.subtask_id if hasattr(event, 'subtask_id') else None
+        
+        if event.task_id and event.task_id in self._tasks:
+            # 更新当前任务显示
+            current_task_widget = self.query_one("#current-task", Static)
+            if hasattr(event, 'status') and event.status == "running":
+                current_task_widget.update(
+                    self._format_current_task(event.subtask_title if hasattr(event, 'subtask_title') else "")
+                )
+    
+    # ==================== 显示逻辑 ====================
+    
+    def _update_display(self) -> None:
+        """更新任务列表显示"""
+        tasks_list_widget = self.query_one("#tasks-list", Static)
+        
+        if not self._tasks:
+            tasks_list_widget.update("[dim]暂无任务[/dim]")
+            return
+        
+        lines = []
+        for task_id, subtasks in self._tasks.items():
+            if not subtasks:
+                continue
+            
+            # 获取主任务信息
+            main_task = subtasks[0].title if hasattr(subtasks[0], 'title') and subtasks[0].title else "未知任务"
+            
+            # 任务分组
+            lines.append(f"[dim]┌─ {main_task[:30]}[/dim]")
+            
+            for subtask in subtasks:
+                icon = self.STATUS_ICONS.get(
+                    subtask.status if hasattr(subtask, 'status') else "pending", 
+                    "❓"
+                )
+                
+                # 构建显示行
+                title = subtask.title if hasattr(subtask, 'title') else str(subtask)
+                display_title = title[:35] if len(title) > 35 else title
+                
+                if hasattr(subtask, 'status') and subtask.status == "running" and hasattr(subtask, 'progress') and subtask.progress > 0:
+                    # 显示进度
+                    progress_bar = self._make_progress_bar(subtask.progress)
+                    lines.append(f"  {icon} {display_title} {progress_bar}")
+                else:
+                    lines.append(f"  {icon} {display_title}")
+            
+            lines.append("[dim]└{'─' * 30}[/dim]")
+        
+        tasks_list_widget.update("\n".join(lines) if lines else "[dim]暂无任务[/dim]")
+    
+    def _format_current_task(self, title: str) -> str:
+        """格式化当前执行任务"""
+        progress_bar = self._make_progress_bar(self._progress_percent)
+        icon = self.STATUS_ICONS.get("running", "🔄")
+        
+        return f"""[bold]{icon} 执行中[/bold]
+
+[accent]{title or "未知任务"}[/accent]
+
+{progress_bar} {self._progress_percent}%
+"""
+    
+    def _make_progress_bar(self, percent: int, width: int = 10) -> str:
+        """生成进度条"""
+        filled = int(width * percent / 100)
+        empty = width - filled
+        return f"[success]{'█' * filled}[/success][dim]{'░' * empty}[/dim]"
+    
+    # ==================== 交互操作 ====================
+    
+    def toggle_task_expanded(self, task_id: str) -> None:
+        """切换任务展开/折叠"""
+        if task_id in self._expanded_tasks:
+            self._expanded_tasks.discard(task_id)
+        else:
+            self._expanded_tasks.add(task_id)
+        self._update_display()
 
 
 # ============================================================================

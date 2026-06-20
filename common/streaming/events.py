@@ -20,6 +20,11 @@ class StreamEventType(Enum):
     PLAN_START = "stream.plan_start"  # 任务规划开始
     PLAN_PROGRESS = "stream.plan_progress"  # 任务规划进度更新
     PLAN_COMPLETE = "stream.plan_complete"  # 任务规划完成
+    # 子任务相关事件
+    SUBTASK_STARTED = "stream.subtask_started"       # 子任务开始
+    SUBTASK_PROGRESS = "stream.subtask_progress"    # 子任务进度更新
+    SUBTASK_COMPLETED = "stream.subtask_completed"  # 子任务完成
+    SUBTASK_FAILED = "stream.subtask_failed"        # 子任务失败
 
 
 @dataclass
@@ -195,5 +200,76 @@ class PlanCompleteEvent(StreamEvent):
                 "total": total,
                 "success": success,
                 "summary": summary or "",
+            }
+        )
+
+
+@dataclass
+class SubTaskStartedEvent(StreamEvent):
+    """子任务开始事件"""
+    def __init__(
+        self,
+        task_id: str,
+        subtask_id: int,
+        subtask_title: str,
+        subtask_description: str = "",
+        depends_on: Optional[List[int]] = None,
+    ):
+        super().__init__(
+            type=StreamEventType.SUBTASK_STARTED,
+            data={
+                "task_id": task_id,
+                "subtask_id": subtask_id,
+                "subtask_title": subtask_title,
+                "subtask_description": subtask_description,
+                "depends_on": depends_on or [],
+            }
+        )
+
+
+@dataclass
+class SubTaskProgressEvent(StreamEvent):
+    """子任务进度事件"""
+    def __init__(
+        self,
+        task_id: str,
+        subtask_id: int,
+        progress: int,  # 0-100
+        message: Optional[str] = None,
+    ):
+        super().__init__(
+            type=StreamEventType.SUBTASK_PROGRESS,
+            data={
+                "task_id": task_id,
+                "subtask_id": subtask_id,
+                "progress": progress,
+                "message": message or "",
+            }
+        )
+
+
+@dataclass
+class SubTaskCompletedEvent(StreamEvent):
+    """子任务完成事件"""
+    def __init__(
+        self,
+        task_id: str,
+        subtask_id: int,
+        subtask_title: str,
+        success: bool = True,
+        result: Optional[str] = None,
+        error: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+    ):
+        super().__init__(
+            type=StreamEventType.SUBTASK_COMPLETED,
+            data={
+                "task_id": task_id,
+                "subtask_id": subtask_id,
+                "subtask_title": subtask_title,
+                "success": success,
+                "result": result or "",
+                "error": error or "",
+                "duration_ms": duration_ms,
             }
         )

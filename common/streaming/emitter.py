@@ -20,6 +20,9 @@ from .events import (
     PlanStartEvent,
     PlanProgressEvent,
     PlanCompleteEvent,
+    SubTaskStartedEvent,
+    SubTaskProgressEvent,
+    SubTaskCompletedEvent,
 )
 from .registry import ConsumerRegistry
 
@@ -218,6 +221,69 @@ class StreamEmitter:
         """
         self.emit(PlanCompleteEvent(subtasks, completed, total, success, summary))
 
+    def emit_subtask_started(
+        self,
+        task_id: str,
+        subtask_id: int,
+        subtask_title: str,
+        subtask_description: str = "",
+        depends_on: Optional[List[int]] = None,
+    ) -> None:
+        """发射子任务开始事件
+
+        Args:
+            task_id: 任务ID
+            subtask_id: 子任务ID
+            subtask_title: 子任务标题
+            subtask_description: 子任务描述
+            depends_on: 依赖的子任务ID列表
+        """
+        self.emit(SubTaskStartedEvent(
+            task_id, subtask_id, subtask_title, subtask_description, depends_on
+        ))
+
+    def emit_subtask_progress(
+        self,
+        task_id: str,
+        subtask_id: int,
+        progress: int,
+        message: Optional[str] = None,
+    ) -> None:
+        """发射子任务进度事件
+
+        Args:
+            task_id: 任务ID
+            subtask_id: 子任务ID
+            progress: 进度 (0-100)
+            message: 进度消息
+        """
+        self.emit(SubTaskProgressEvent(task_id, subtask_id, progress, message))
+
+    def emit_subtask_completed(
+        self,
+        task_id: str,
+        subtask_id: int,
+        subtask_title: str,
+        success: bool = True,
+        result: Optional[str] = None,
+        error: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+    ) -> None:
+        """发射子任务完成事件
+
+        Args:
+            task_id: 任务ID
+            subtask_id: 子任务ID
+            subtask_title: 子任务标题
+            success: 是否成功
+            result: 执行结果
+            error: 错误信息
+            duration_ms: 执行时长(毫秒)
+        """
+        self.emit(SubTaskCompletedEvent(
+            task_id, subtask_id, subtask_title, success, result, error, duration_ms
+        ))
+
     def start(self) -> None:
         """启动异步广播线程"""
         if self._running:
@@ -350,6 +416,44 @@ class AsyncStreamEmitter:
     ) -> None:
         """异步发射任务规划完成事件"""
         await self.emit(PlanCompleteEvent(subtasks, completed, total, success, summary))
+
+    async def emit_subtask_started(
+        self,
+        task_id: str,
+        subtask_id: int,
+        subtask_title: str,
+        subtask_description: str = "",
+        depends_on: Optional[List[int]] = None,
+    ) -> None:
+        """异步发射子任务开始事件"""
+        await self.emit(SubTaskStartedEvent(
+            task_id, subtask_id, subtask_title, subtask_description, depends_on
+        ))
+
+    async def emit_subtask_progress(
+        self,
+        task_id: str,
+        subtask_id: int,
+        progress: int,
+        message: Optional[str] = None,
+    ) -> None:
+        """异步发射子任务进度事件"""
+        await self.emit(SubTaskProgressEvent(task_id, subtask_id, progress, message))
+
+    async def emit_subtask_completed(
+        self,
+        task_id: str,
+        subtask_id: int,
+        subtask_title: str,
+        success: bool = True,
+        result: Optional[str] = None,
+        error: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+    ) -> None:
+        """异步发射子任务完成事件"""
+        await self.emit(SubTaskCompletedEvent(
+            task_id, subtask_id, subtask_title, success, result, error, duration_ms
+        ))
 
     async def run(self) -> None:
         """事件消费循环"""

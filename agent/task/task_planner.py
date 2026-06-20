@@ -94,6 +94,27 @@ class TaskPlanner:
         self.adapter = get_todo_adapter(session_id, workspace_dir)
         self.current_plan: Optional[TaskPlan] = None
         self._llm_client = llm_client
+        
+        # 事件发射器（可选）
+        self._emitter = None
+        self._task_id_prefix = "task"  # 用于生成唯一任务 ID
+    
+    def set_emitter(self, emitter) -> None:
+        """设置事件发射器
+        
+        Args:
+            emitter: StreamEmitter 实例
+        """
+        self._emitter = emitter
+
+    def _emit(self, event) -> None:
+        """发射事件到注册表
+        
+        Args:
+            event: StreamEvent 实例
+        """
+        if self._emitter is not None:
+            self._emitter.emit(event)
     
     def set_llm_client(self, client: Any) -> None:
         """设置 LLM 客户端"""
@@ -255,6 +276,22 @@ class TaskPlanner:
             )
             
             self.current_plan = plan
+            
+            # 生成唯一任务 ID
+            task_id = f"{self._task_id_prefix}_{user_request[:20]}_{int(datetime.now().timestamp() * 1000)}"
+            
+            # 发射任务规划开始事件
+            from common.streaming.events import StreamEvent, StreamEventType
+            self._emit(StreamEvent(
+                type=StreamEventType.PLAN_START,
+                data={
+                    "task_id": task_id,
+                    "main_task": user_request,
+                    "complexity": complexity,
+                    "estimated_subtasks": len(subtasks),
+                }
+            ))
+            
             return plan
             
         except Exception as e:
@@ -262,6 +299,12 @@ class TaskPlanner:
 
     async def create_task_list(self, plan: TaskPlan) -> str:
         """根据计划创建任务列表"""
+        # 生成任务 ID（如果还没有）
+        if not hasattr(self, '_current_task_id'):
+            self._current_task_id = f"{self._task_id_prefix}_{int(datetime.now().timestamp() * 1000)}"
+        
+        task_id = self._current_task_id
+        
         task_descriptions = [f"{i+1}. {t.title}" for i, t in enumerate(plan.subtasks)]
         
         result = self.adapter.call_tool('todo_create', {
@@ -270,6 +313,31 @@ class TaskPlanner:
         
         if not result.success:
             raise Exception(f"创建任务列表失败: {result.error}")
+        
+        # 在返回之前，发送子任务列表事件
+        from common.streaming.events import StreamEvent, StreamEventType
+        subtasks_data = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "description": t.description,
+                "depends_on": t.depends_on,
+                "status": t.status.value if hasattr(t.status, 'value') else str(t.status),
+            }
+            for t in plan.subtasks
+        ]
+        
+        self._emit(StreamEvent(
+            type=StreamEventType.PLAN_PROGRESS,
+            data={
+                "task_id": task_id,
+                "subtasks": subtasks_data,
+                "completed": 0,
+                "total": len(subtasks_data),
+                "current_task": "",
+                "progress_percent": 0,
+            }
+        ))
         
         return result.output
 
@@ -341,6 +409,9 @@ class TaskPlanner:
         if not self.current_plan:
             return
         
+        # 获取任务 ID
+        task_id_str = getattr(self, '_current_task_id', 'task_default')
+        
         for task in self.current_plan.subtasks:
             if task.id == task_id:
                 task.status = status
@@ -348,8 +419,53 @@ class TaskPlanner:
                     task.result = result
                 if status == TaskStatus.RUNNING:
                     task.started_at = datetime.now().isoformat()
+                    
+                    # 发射子任务开始事件
+                    from common.streaming.events import StreamEvent, StreamEventType
+                    self._emit(StreamEvent(
+                        type=StreamEventType.SUBTASK_STARTED,
+                        data={
+                            "task_id": task_id_str,
+                            "subtask_id": task_id,
+                            "subtask_title": task.title,
+                            "subtask_description": task.description,
+                            "depends_on": task.depends_on,
+                        }
+                    ))
+                    
                 elif status == TaskStatus.COMPLETED:
                     task.completed_at = datetime.now().isoformat()
+                    
+                    # 发射子任务完成事件
+                    from common.streaming.events import StreamEvent, StreamEventType
+                    started_ts = datetime.fromisoformat(task.started_at) if task.started_at else None
+                    duration_ms = int((datetime.now() - started_ts).total_seconds() * 1000) if started_ts else None
+                    
+                    self._emit(StreamEvent(
+                        type=StreamEventType.SUBTASK_COMPLETED,
+                        data={
+                            "task_id": task_id_str,
+                            "subtask_id": task_id,
+                            "subtask_title": task.title,
+                            "success": True,
+                            "result": result,
+                            "duration_ms": duration_ms,
+                        }
+                    ))
+                    
+                elif status == TaskStatus.CANCELLED:
+                    # 发射子任务失败事件
+                    from common.streaming.events import StreamEvent, StreamEventType
+                    self._emit(StreamEvent(
+                        type=StreamEventType.SUBTASK_COMPLETED,
+                        data={
+                            "task_id": task_id_str,
+                            "subtask_id": task_id,
+                            "subtask_title": task.title,
+                            "success": False,
+                            "error": result,
+                        }
+                    ))
                 break
 
     def is_task_ready(self, task_id: int) -> bool:

@@ -92,6 +92,11 @@ except ImportError:
     SidebarContainer = None
 
 try:
+    from tui.consumers import TUIConsumer
+except ImportError:
+    TUIConsumer = None
+
+try:
     from tui.widgets.approval_dialog import (
         ApprovalDialog, ApprovalMode, RiskLevel, ApprovalManager,
         ApprovalConfirmed, ApprovalRejected, create_approval_dialog,
@@ -356,6 +361,8 @@ class HandsomeAgentApp(App):
         self._agent_status = "online"
         # 使用 Textual 原生 Markdown 组件，无需初始化
         self._markdown_enabled = True
+        # TUIConsumer（任务面板消费者）
+        self._tui_consumer: Optional["TUIConsumer"] = None
 
     def compose(self) -> ComposeResult:
         with Container(id="app-header"):
@@ -438,6 +445,29 @@ class HandsomeAgentApp(App):
         if self._theme_manager and self._theme_manager.is_transparency_enabled():
             self._logger.info("Applying saved transparency settings")
             self._update_transparency_styles(True)
+
+        # 初始化 TUIConsumer 并注册到 Agent 的事件系统
+        if TUIConsumer and self._agent is not None:
+            try:
+                self._tui_consumer = TUIConsumer(self)
+                
+                # 尝试获取 Agent 的 registry 并注册消费者
+                if hasattr(self._agent, '_stream_emitter') and self._agent._stream_emitter is not None:
+                    emitter = self._agent._stream_emitter
+                    if hasattr(emitter, 'registry'):
+                        emitter.registry.register(self._tui_consumer)
+                        self._logger.info("TUIConsumer registered to agent registry")
+                
+                # 同时设置 TaskPlanner 的 emitter
+                if hasattr(self._agent, '_task_planning_middleware') and self._agent._task_planning_middleware is not None:
+                    planner = getattr(self._agent._task_planning_middleware, 'planner', None)
+                    if planner and hasattr(planner, 'set_emitter'):
+                        if hasattr(self._agent, '_stream_emitter'):
+                            planner.set_emitter(self._agent._stream_emitter)
+                            self._logger.info("TaskPlanner emitter set")
+                            
+            except Exception as e:
+                self._logger.warning(f"Failed to initialize TUIConsumer: {e}")
 
         self.set_focus(self.query_one("#user-input", TextArea))
 
