@@ -23,6 +23,7 @@ _TEXTUAL_IMPORT_ERROR: str | None = None
 try:
     from textual.app import App, ComposeResult
     from textual.widgets import Header, Footer, Static, RichLog, Tabs, Tab, TextArea, Button
+    from textual.widgets import Markdown, ProgressBar, LoadingIndicator
     from textual.binding import Binding
     from textual.containers import Container, Vertical, VerticalScroll, Horizontal
     from textual.message import Message
@@ -67,14 +68,6 @@ try:
 except ImportError:
     ThemeManager = None
     get_theme_manager = None
-
-try:
-    from tui.core.markdown_renderer import MarkdownRenderer
-    from tui.core.markdown_renderer import markdown_to_rich, is_markdown_available
-except ImportError:
-    MarkdownRenderer = None
-    markdown_to_rich = None
-    is_markdown_available = None
 
 try:
     from tui.views.chat_view import ChatView, ChatMessageSubmitted
@@ -310,6 +303,10 @@ class HandsomeAgentApp(App):
 
         self._is_loading: bool = False
         self._loading_timer: Optional[callable] = None
+        # 使用 Textual 原生 LoadingIndicator（覆盖模式）
+        self._use_native_loading: bool = False
+        self._loading_indicator: Optional[LoadingIndicator] = None
+        # 保留原有的状态栏加载动画实现（可定制）
         self._LOADING_FRAMES = {
             "dots": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
             "circle": ["◐", "◓", "◑", "◒"],
@@ -357,16 +354,7 @@ class HandsomeAgentApp(App):
         self._init_session_store()
         self._init_approval_manager(approval_mode)
         self._agent_status = "online"
-        self._markdown_renderer: MarkdownRenderer | None = None
-        if MarkdownRenderer:
-            try:
-                self._markdown_renderer = MarkdownRenderer(enable_code_highlight=True)
-                if self._markdown_renderer.is_available():
-                    self._logger.debug("Markdown renderer initialized")
-                else:
-                    self._logger.debug("Markdown renderer not available: " + self._markdown_renderer.get_install_hint())
-            except Exception as e:
-                self._logger.debug(f"Failed to initialize Markdown renderer: {e}")
+        # 使用 Textual 原生 Markdown 组件，无需初始化
         self._markdown_enabled = True
 
     def compose(self) -> ComposeResult:
@@ -392,15 +380,9 @@ class HandsomeAgentApp(App):
                 with Horizontal(id="status-content"):
                     yield Static("●", id="status-icon", classes="status-icon")
                     yield Static(self.model_name or "Handsome Agent", id="status-model", classes="status-model")
-                    yield Static("│", id="status-sep1", classes="status-sep")
-                    tokens_init = f"0/{self._format_context(self.context_length)}" if self.context_length else "n/a"
-                    yield Static(tokens_init, id="status-tokens", classes="status-tokens")
-                    yield Static("│", id="status-sep2", classes="status-sep")
-                    yield Static("░░░░░░░░░░░░", id="status-progress", classes="status-progress")
-                    yield Static("│", id="status-sep4", classes="status-sep")
-                    yield Static("0m 0s", id="status-time", classes="status-time")
-                    yield Static("│", id="status-sep5", classes="status-sep")
-                    yield Static("│", id="status-sep6", classes="status-sep")
+                    yield Static("0/128K", id="status-tokens", classes="status-tokens")
+                    yield ProgressBar(id="status-progress", show_percentage=False)
+                    yield Static("0:00", id="status-time", classes="status-time")
                     yield Static("🔧", id="status-tools", classes="status-tools")
             yield SubmitTextArea(
                 id="user-input",
@@ -572,8 +554,9 @@ class HandsomeAgentApp(App):
                 tokens_widget.update(f"│ 0/{self._format_context(self.context_length)} ")
             else:
                 tokens_widget.update("│ n/a ")
-            progress_widget = self.query_one("#status-progress", Static)
-            progress_widget.update("░░░░░░░░░░░░")
+            # 使用 Textual 原生 ProgressBar 组件
+            progress_widget = self.query_one("#status-progress", ProgressBar)
+            progress_widget.update(progress=0.0)
             time_widget = self.query_one("#status-time", Static)
             time_widget.update("│ 0m 0s ")
             tools_widget = self.query_one("#status-tools", Static)
@@ -608,13 +591,39 @@ class HandsomeAgentApp(App):
         if self._is_loading:
             return
         self._is_loading = True
-        self._loading_frame_index = 0
-        self._update_loading_frame()
+        
+        if self._use_native_loading and LoadingIndicator is not None:
+            # 使用 Textual 原生 LoadingIndicator
+            try:
+                if self._loading_indicator is None:
+                    # 动态创建 LoadingIndicator 并覆盖到输入区域
+                    status_bar = self.query_one("#status-bar")
+                    self._loading_indicator = LoadingIndicator()
+                    status_bar.mount(self._loading_indicator)
+            except Exception:
+                pass
+        else:
+            # 使用原有的状态栏加载动画
+            self._loading_frame_index = 0
+            self._update_loading_frame()
 
     def _stop_loading_animation(self) -> None:
         self._is_loading = False
-        status_icon = self.query_one("#status-icon", Static)
-        status_icon.update("●")
+        
+        if self._use_native_loading and self._loading_indicator is not None:
+            # 移除 Textual 原生 LoadingIndicator
+            try:
+                self._loading_indicator.remove()
+                self._loading_indicator = None
+            except Exception:
+                pass
+        else:
+            # 使用原有的状态栏加载动画
+            try:
+                status_icon = self.query_one("#status-icon", Static)
+                status_icon.update("●")
+            except Exception:
+                pass
 
     def _toggle_sidebar(self) -> None:
         sidebar = self.query_one("#sidebar-container", Container)
@@ -1050,10 +1059,10 @@ class HandsomeAgentApp(App):
         self._markdown_enabled = not self._markdown_enabled
 
         if self._markdown_enabled:
-            if self._markdown_renderer and self._markdown_renderer.is_available():
+            if TEXTUAL_AVAILABLE and Markdown is not None:
                 self.notify_info("✓ Markdown 渲染已启用")
             else:
-                self.notify_warning("Markdown 渲染未安装（pip install mistune）")
+                self.notify_warning("Textual Markdown 组件不可用")
         else:
             self.notify_info("✗ Markdown 渲染已禁用")
 
@@ -1063,19 +1072,46 @@ class HandsomeAgentApp(App):
         return self._markdown_enabled
 
     def is_markdown_available(self) -> bool:
-        return self._markdown_renderer is not None and self._markdown_renderer.is_available()
+        """检查 Textual 原生 Markdown 组件是否可用."""
+        return TEXTUAL_AVAILABLE and Markdown is not None
 
     def get_markdown_features(self) -> dict:
-        if is_markdown_available:
-            return is_markdown_available()
-        return {"mistune": False, "pygments": False, "code_highlight": False}
+        """获取 Markdown 功能特性."""
+        return {
+            "textual_markdown": TEXTUAL_AVAILABLE and Markdown is not None,
+        }
+
+    def action_toggle_loading_style(self) -> None:
+        """切换加载动画样式（原生 LoadingIndicator / 状态栏动画）."""
+        self._use_native_loading = not self._use_native_loading
+        
+        if self._use_native_loading:
+            self.notify_info("✓ 使用原生 LoadingIndicator")
+        else:
+            self.notify_info("✓ 使用状态栏加载动画")
+
+    def set_use_native_loading(self, use_native: bool) -> None:
+        """设置是否使用原生 LoadingIndicator.
+        
+        Args:
+            use_native: True 使用原生 LoadingIndicator，False 使用状态栏动画
+        """
+        self._use_native_loading = use_native
 
     def render_markdown(self, text: str) -> str:
-        if not self._markdown_enabled or not self._markdown_renderer:
+        """使用 Textual 原生 Markdown 组件渲染文本.
+        
+        Args:
+            text: Markdown 格式的文本
+            
+        Returns:
+            渲染后的 Rich 格式文本
+        """
+        if not self._markdown_enabled:
             return text
 
         try:
-            return self._markdown_renderer.render(text)
+            return self._render_markdown_content(text)
         except Exception as e:
             self._logger.debug(f"Markdown render failed: {e}")
             return text
@@ -1397,19 +1433,43 @@ class HandsomeAgentApp(App):
     def _on_text_area_submitted(self) -> None:
         self._submit_user_input()
 
+    def _render_markdown_content(self, content: str) -> str:
+        """使用 Textual 原生 Markdown 组件渲染内容.
+        
+        Args:
+            content: Markdown 格式的文本
+            
+        Returns:
+            渲染后的 Rich 格式文本
+        """
+        if not content:
+            return content
+            
+        try:
+            # 使用 Textual 原生 Markdown 组件渲染
+            markdown_widget = Markdown(content)
+            # 获取渲染结果（返回 Rich Text 对象）
+            from rich.console import RenderableType
+            return markdown_widget._content  # Markdown widget 的内部内容已经是渲染好的
+        except Exception:
+            return content
+    
     def _append_message(self, role: str, content: str, render_markdown: bool = True) -> None:
         chat_area = self.query_one("#chat-area", RichLog)
 
+        # 使用 Textual 原生 Markdown 组件
         should_render_markdown = (
             render_markdown
             and self._markdown_enabled
-            and self._markdown_renderer
+            and TEXTUAL_AVAILABLE
+            and Markdown is not None
             and role == "assistant"
         )
 
         if should_render_markdown:
             try:
-                content = self._markdown_renderer.render(content)
+                # 使用 Textual 原生 Markdown 组件渲染
+                content = self._render_markdown_content(content)
             except Exception as e:
                 self._logger.debug(f"Markdown render failed: {e}")
 
@@ -1600,9 +1660,10 @@ class HandsomeAgentApp(App):
         chat_area = self.query_one("#chat-area", RichLog)
         chat_area.write(NewLine(1))
 
-        if self._markdown_enabled and self._markdown_renderer and self._markdown_renderer.is_available():
+        # 使用 Textual 原生 Markdown 组件
+        if self._markdown_enabled and TEXTUAL_AVAILABLE and Markdown is not None:
             try:
-                content = self._markdown_renderer.render_inline(content)
+                content = self._render_markdown_content(content)
             except Exception as e:
                 self._logger.debug(f"Markdown render failed: {e}")
 
@@ -1947,8 +2008,6 @@ __all__ = [
     "get_theme_manager",
     "NotificationType",
     "NotificationAnimationManager",
-    "MarkdownRenderer",
-    "markdown_to_rich",
     "is_markdown_available",
 ]
 

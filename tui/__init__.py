@@ -58,7 +58,6 @@ from tui.views import (
 
 # 组件
 from tui.widgets import (
-    StatusBar,
     CommandPaletteScreen,
     Command,
     MessageList,
@@ -111,7 +110,6 @@ __all__ = [
     "WelcomeScreen",
     "OnboardingScreen",
     # 组件
-    "StatusBar",
     "CommandPaletteScreen",
     "Command",
     "MessageList",

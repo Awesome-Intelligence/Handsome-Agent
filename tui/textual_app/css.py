@@ -156,49 +156,50 @@ Screen {
     height: 1;
     width: 100%;
     background: $primary;
+    padding: 0 2;
 }
 
 #status-content {
     height: 100%;
     layout: horizontal;
-    padding: 0 2;
+    padding: 0 0;
     align: left middle;
     color: $background;
 }
 
 .status-icon {
-    width: 1;
-    color: $background;
+    width: auto;
+    margin-right: 2;
+    color: $success;
 }
 
 .status-model {
     width: auto;
-    color: $background;
-}
-
-.status-sep {
-    width: 1;
-    color: $background;
+    margin-right: 2;
+    color: $foreground;
+    text-style: bold;
 }
 
 .status-tokens {
     width: auto;
-    color: $background;
+    margin-right: 2;
+    color: $secondary;
 }
 
-.status-progress {
-    width: auto;
-    color: $background;
+#status-progress {
+    width: 15;
+    margin-right: 2;
 }
 
 .status-time {
     width: auto;
-    color: $background;
+    margin-right: 2;
+    color: $secondary;
 }
 
 .status-tools {
     width: auto;
-    color: $background;
+    color: $accent;
 }
 
 /* 聊天日志样式 */
@@ -246,19 +247,11 @@ Screen {
     layout: vertical;
 }
 
-#input-area #status-bar {
-    height: 1;
-    width: 100%;
-    background: $primary;
-    margin: 0;
-    border: none;
-}
-
 #input-area #status-content {
     height: 100%;
     layout: horizontal;
     padding: 0 2;
-    align: left middle;
+    align: left bottom;
     color: $background;
 }
 

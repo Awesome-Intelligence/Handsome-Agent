@@ -13,7 +13,8 @@ TUI Widgets - Textual UI Widget Components
 - ApprovalDialog: 权限审批对话框
 """
 
-from .status_bar import StatusBar, StatusBarUpdated
+# StatusBar 已移动到 common/terminal/status_bar.py
+# 注意：TUI 模式使用的是 css.py 中定义的内联样式，非 Textual 组件
 
 # 命令面板（带降级机制）
 try:
@@ -88,8 +89,7 @@ except ImportError:
 
 __all__ = [
     # 基础组件
-    "StatusBar",
-    "StatusBarUpdated",
+    # StatusBar 已移至 common/terminal/status_bar.py
     "CommandPaletteScreen",
     "Command",
     # 消息列表
