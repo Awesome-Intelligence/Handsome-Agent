@@ -49,7 +49,6 @@ from tui.theming import (
 # 视图
 from tui.views import (
     ChatView,
-    ChatMessageSubmitted,
     HelpScreen,
     SessionPickerScreen,
     WelcomeScreen,
@@ -104,7 +103,6 @@ __all__ = [
     "Theme",
     # 视图
     "ChatView",
-    "ChatMessageSubmitted",
     "HelpScreen",
     "SessionPickerScreen",
     "WelcomeScreen",

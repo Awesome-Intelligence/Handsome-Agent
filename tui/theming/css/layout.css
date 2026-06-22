@@ -30,7 +30,7 @@ ScrollbarTrack {
 }
 
 #chat-area ScrollbarTrack {
-    background: #0d1117;
+    background: transparent;
 }
 
 /* 侧边栏面板 */

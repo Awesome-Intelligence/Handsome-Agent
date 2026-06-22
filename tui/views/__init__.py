@@ -13,7 +13,7 @@ TUI Views - Textual UI View Components
 - OnboardingScreen: 首次使用引导流程
 """
 
-from .chat_view import ChatView, ChatMessageSubmitted
+from .chat_view import ChatView
 
 # 帮助面板（带降级机制）
 try:
@@ -63,7 +63,6 @@ except ImportError:
 
 __all__ = [
     "ChatView",
-    "ChatMessageSubmitted",
     "HelpScreen",
     "SessionPickerScreen",
     # 欢迎界面

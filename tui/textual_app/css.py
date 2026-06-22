@@ -40,8 +40,8 @@ Screen {
 /* 聊天区域 */
 #chat-area {
     height: 1fr;
-    width: 100%;
-    background: $background;
+    width: 1fr;
+    background: transparent;
     margin: 0;
     padding: 0;
     border: blank;
@@ -51,26 +51,24 @@ Screen {
 /* 默认边框样式 */
 #chat-area:hover,
 #chat-area:focus-within {
-    border: solid $primary;
+    border: blank;
 }
 
 /* RichLog 自动换行 - 禁止横向滚动 */
 #chat-area RichLog {
     width: 100%;
+    height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
+    border: blank;
+    padding: 1 2;
+    background: transparent;
 }
 
 /* 确保消息内容自动换行，不产生横向滚动 */
 #chat-area RichLog > * {
     max-width: 100%;
     overflow-x: hidden;
-}
-
-/* 聊天日志内所有文本自动换行 */
-#chat-area RichLog {
-    border: blank;
-    padding: 1 2;
 }
 
 /* 确保 RichText 内容宽度受限 */
@@ -200,11 +198,6 @@ Screen {
 .status-tools {
     width: auto;
     color: $accent;
-}
-
-/* 聊天日志样式 */
-#chat-area {
-    padding: 1 2;
 }
 
 /* 消息样式 - 用户消息浅色气泡 */
@@ -406,13 +399,6 @@ Button:focus {
     padding: 0;
 }
 
-#chat-area {
-    width: 1fr;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-}
-
 #file-tree-title,
 #tasks-title,
 #agent-title,
@@ -461,7 +447,7 @@ Button:focus {
 
 /* 半透明聊天区域 */
 .transparent-chat {
-    background: rgba(13, 17, 23, 0.70);
+    background: transparent;
 }
 
 /* 半透明输入框 */

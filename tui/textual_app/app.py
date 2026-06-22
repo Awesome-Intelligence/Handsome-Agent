@@ -70,10 +70,9 @@ except ImportError:
     get_theme_manager = None
 
 try:
-    from tui.views.chat_view import ChatView, ChatMessageSubmitted
+    from tui.views.chat_view import ChatView
 except ImportError:
     ChatView = None
-    ChatMessageSubmitted = None
 
 try:
     from tui.widgets.command_palette import CommandPaletteScreen, Command
@@ -377,7 +376,7 @@ class HandsomeAgentApp(App):
                     yield Static("", id="tools-info", classes="header-info-text")
 
         with Horizontal(id="main-area"):
-            yield RichLog(id="chat-area", auto_scroll=True, markup=True)
+            yield ChatView(id="chat-area")
             if SidebarContainer:
                 with Container(id="sidebar-container"):
                     yield SidebarContainer(cwd=self.cwd, agent=self._agent)
@@ -722,7 +721,7 @@ class HandsomeAgentApp(App):
             markup=True,
         )
 
-        chat_area = self.query_one("#chat-area", RichLog)
+        chat_area = self.query_one("#chat-area", ChatView)
         chat_area.mount(streaming_widget)
 
         self._streaming_timer = self.set_interval(
@@ -757,8 +756,11 @@ class HandsomeAgentApp(App):
             self._streaming_displayed = end_index
 
         try:
-            chat_area = self.query_one("#chat-area", RichLog)
-            chat_area.scroll_home(animate=False)
+            chat_area = self.query_one("#chat-area", ChatView)
+            if hasattr(chat_area, 'scroll_home'):
+                chat_area.scroll_home(animate=False)
+            elif hasattr(chat_area, 'scroll_to'):
+                chat_area.scroll_to(0, animate=False)
         except Exception:
             pass
 
@@ -1485,51 +1487,23 @@ class HandsomeAgentApp(App):
             return content
     
     def _append_message(self, role: str, content: str, render_markdown: bool = True) -> None:
-        chat_area = self.query_one("#chat-area", RichLog)
+        chat_area = self.query_one("#chat-area", ChatView)
 
-        # 使用 Textual 原生 Markdown 组件
-        should_render_markdown = (
-            render_markdown
-            and self._markdown_enabled
-            and TEXTUAL_AVAILABLE
-            and Markdown is not None
-            and role == "assistant"
-        )
-
-        if should_render_markdown:
-            try:
-                # 使用 Textual 原生 Markdown 组件渲染
-                content = self._render_markdown_content(content)
-            except Exception as e:
-                self._logger.debug(f"Markdown render failed: {e}")
-
-        if RichText:
-            if role == "user":
-                title = RichText.from_markup("[bold #58a6ff]**You**[/]")
-                body = RichText.from_markup(content)
-                if Style:
-                    bg_style = Style(bgcolor="#21262d")
-                    body.stylize(bg_style, 0, len(body))
-                formatted = title + RichText("\n\n") + body
-            elif role == "assistant":
-                formatted = RichText.from_markup(f"[bold #3fb950]**Assistant**[/]\n\n{content}")
-            elif role == "tool":
-                formatted = RichText.from_markup(f"[dim]🛠️ **Tool**[/]\n{content}")
-            else:
-                formatted = RichText.from_markup(f"[dim]**System**[/]\n\n{content}")
-            chat_area.write("\n")
-            chat_area.write(formatted)
+        # 构建消息标签
+        if role == "user":
+            label = "You"
+        elif role == "assistant":
+            label = "Agent"
+        elif role == "tool":
+            label = "Tool"
         else:
-            if role == "user":
-                label = "You"
-            elif role == "assistant":
-                label = "Assistant"
-            elif role == "tool":
-                label = "Tool"
-            else:
-                label = "System"
-            chat_area.write("\n")
-            chat_area.write(f"{label}: {content}")
+            label = "System"
+
+        # ChatView 使用纯文本
+        if hasattr(chat_area, 'write'):
+            chat_area.write(f"\n{label}: {content}\n")
+        elif hasattr(chat_area, 'append_message'):
+            chat_area.append_message(role, content)
 
     def _history_prev(self) -> None:
         text_area = self.query_one("#user-input", TextArea)
@@ -1687,22 +1661,19 @@ class HandsomeAgentApp(App):
         return getattr(self, '_agent', None)
 
     def _show_typewriter_message(self, content: str) -> None:
-        chat_area = self.query_one("#chat-area", RichLog)
-        chat_area.write(NewLine(1))
-
-        # 使用 Textual 原生 Markdown 组件
-        if self._markdown_enabled and TEXTUAL_AVAILABLE and Markdown is not None:
-            try:
-                content = self._render_markdown_content(content)
-            except Exception as e:
-                self._logger.debug(f"Markdown render failed: {e}")
-
-        self.start_typewriter_effect(content, "chat-area")
+        # 流式输出暂不支持 ChatView，直接写入
+        chat_area = self.query_one("#chat-area", ChatView)
+        if chat_area:
+            if hasattr(chat_area, 'write'):
+                chat_area.write(f"\nAgent: {content}\n")
 
     def action_clear_screen(self) -> None:
-        chat_area = self.query_one("#chat-area", RichLog)
+        chat_area = self.query_one("#chat-area", ChatView)
         if chat_area:
-            chat_area.clear()
+            if hasattr(chat_area, 'clear'):
+                chat_area.clear()
+            elif hasattr(chat_area, 'clear_messages'):
+                chat_area.clear_messages()
         self._logger.debug("Screen cleared")
 
     def action_cancel_current(self) -> None:
@@ -1800,17 +1771,21 @@ class HandsomeAgentApp(App):
             self._logger.debug(f"Switched to previous tab: {prev_tab.id}")
 
     def append_chat_message(self, role: str, content: str) -> None:
-        chat_area = self.query_one("#chat-area", RichLog)
+        chat_area = self.query_one("#chat-area", ChatView)
         if chat_area:
-            if role == "user":
-                chat_area.write(f"[bold {PURPLE_BRIGHT}]You:[/] {content}")
-            else:
-                chat_area.write(f"[bold {PURPLE_PRIMARY}]Agent:[/] {content}")
+            label = "You" if role == "user" else "Agent"
+            if hasattr(chat_area, 'write'):
+                chat_area.write(f"{label}: {content}\n")
+            elif hasattr(chat_area, 'append_message'):
+                chat_area.append_message(role, content)
 
     def clear_chat(self) -> None:
-        chat_area = self.query_one("#chat-area", RichLog)
+        chat_area = self.query_one("#chat-area", ChatView)
         if chat_area:
-            chat_area.clear()
+            if hasattr(chat_area, 'clear'):
+                chat_area.clear()
+            elif hasattr(chat_area, 'clear_messages'):
+                chat_area.clear_messages()
 
     def add_tab(self) -> str | None:
         if not ChatView:

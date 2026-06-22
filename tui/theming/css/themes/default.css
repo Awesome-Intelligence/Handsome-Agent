@@ -55,11 +55,7 @@
     border: heavy #B180D7;
 }
 
-/* 聊天区域边框 */
-.theme-default #chat-area:hover,
-.theme-default #chat-area:focus-within {
-    border: solid #B180D7;
-}
+
 
 /* 侧边栏 Tab 选中样式 */
 .theme-default #sidebar-container-inner SidebarContainer Tabs Tab.active,

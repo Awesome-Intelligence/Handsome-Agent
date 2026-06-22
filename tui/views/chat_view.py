@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ChatView - 聊天视图组件
+ChatView - 聊天消息显示组件
 
 🚪 Access - 💬 CLI - TUI Views - ChatView
 
-提供独立的聊天会话界面，包括：
-- 消息列表区域
-- 输入区域
-- 发送按钮
+使用 MessageList 组件实现富文本消息显示，支持：
+- 用户消息、助手消息、系统消息、工具消息
+- 流式输出（打字机效果）
+- 思考内容显示
+- 错误消息高亮
+- 自动滚动
 """
 
 from __future__ import annotations
@@ -18,25 +20,16 @@ from typing import TYPE_CHECKING
 # 降级机制：如果 textual 不可用，提供友好提示
 try:
     from textual.app import ComposeResult
-    from textual.widgets import RichLog, Input, Button
-    from textual.containers import Container, VerticalScroll
-    from textual.message import Message
+    from textual.containers import Container
 except ImportError:
     pass
 
-# i18n 支持
+# MessageList 组件导入
 try:
-    from common.i18n import get_i18n, t
+    from tui.widgets.message_list import MessageList, MessageRole
 except ImportError:
-    # 降级：简单的翻译函数
-    def get_i18n():
-        class SimpleI18n:
-            def t(self, key, default=None, **kwargs):
-                return default or key
-        return SimpleI18n()
-    
-    def t(key, default=None, **kwargs):
-        return default or key
+    MessageList = None
+    MessageRole = None
 
 # 日志支持
 try:
@@ -56,57 +49,12 @@ CHAT_VIEW_CSS = """
 ChatView {
     height: 100%;
     width: 100%;
-    layout: vertical;
 }
 
-#chat-messages {
-    height: 1fr;
+ChatView #chat-list {
+    height: 100%;
     width: 100%;
-    background: $surface;
-    border: solid $avocado_dim;
-}
-
-#chat-input-area {
-    height: auto;
-    width: 100%;
-    padding: 1 2;
-    background: $surface;
-    border-top: solid $avocado_dim;
-}
-
-#chat-input-container {
-    width: 100%;
-    height: auto;
-}
-
-#chat-input {
-    width: 1fr;
-    border: solid $avocado_primary;
-    background: $surface;
-    color: $white;
-}
-
-#chat-input:focus {
-    border: solid $avocado_bright;
-}
-
-#send-button {
-    width: auto;
-    min-width: 8;
-    margin-left: 1;
-}
-
-.assistant-message {
-    color: $avocado_bright;
-}
-
-.user-message {
-    color: $white;
-}
-
-/* j/k 导航提示 */
-.nav-hint {
-    color: $gray_dim;
+    background: transparent;
 }
 """
 
@@ -116,159 +64,276 @@ ChatView {
 # ============================================================================
 
 class ChatView(Container):
-    """聊天视图组件.
-    
-    提供独立的聊天会话界面，包含消息列表、输入框和发送按钮。
-    
+    """聊天消息显示组件.
+
+    使用 MessageList 实现富文本消息显示，支持多种消息类型和流式输出。
+    输入功能由外部的 #user-input 组件处理。
+
     Attributes:
         tab_id: 标签页 ID
-        tab_title: 标签页标题
     """
-    
+
     CSS = CHAT_VIEW_CSS
-    
-    def __init__(self, tab_id: str, tab_title: str | None = None, **kwargs):
+
+    def __init__(self, tab_id: str = "main", **kwargs):
         """初始化 ChatView.
-        
+
         Args:
             tab_id: 标签页唯一标识
-            tab_title: 标签页显示标题
             **kwargs: 传递给父类的其他参数
         """
         super().__init__(**kwargs)
         self.tab_id = tab_id
-        self.tab_title = tab_title or t("chat.tab.default", "Chat")
         self._logger = get_access_logger("ChatView", sublayer="tui")
-        self._message_history: list[dict[str, str]] = []
-    
+        self._message_list: MessageList | None = None
+        self._current_streaming_id: str | None = None
+
     def compose(self) -> ComposeResult:
         """组合聊天视图布局.
-        
+
         Returns:
             ComposeResult: 组件生成器
         """
-        # 消息列表区域
-        with VerticalScroll(id="chat-messages"):
-            yield RichLog(id="chat-log", auto_scroll=True)
-        
-        # 输入区域
-        with Container(id="chat-input-area"):
-            with Container(id="chat-input-container"):
-                yield Input(
-                    placeholder=t("chat.input.placeholder", "Type your message..."),
-                    id="chat-input"
-                )
-                yield Button(
-                    t("chat.button.send", "Send"),
-                    id="send-button",
-                    variant="primary"
-                )
-    
+        # 消息列表区域 - 使用 MessageList 支持富文本和流式输出
+        if MessageList:
+            yield MessageList(
+                id="chat-list",
+                max_messages=200,
+                auto_scroll=True,
+                show_timestamps=True,
+                show_role_icons=True,
+                streaming_throttle_ms=30,
+            )
+        else:
+            # 降级：如果 MessageList 不可用，使用占位符
+            from textual.widgets import Static
+            yield Static("[dim]MessageList not available[/dim]", id="chat-list")
+
     def on_mount(self) -> None:
         """视图挂载时初始化."""
         self._logger.info(f"ChatView mounted: {self.tab_id}")
-    
-    def on_key(self, event: "Input.Key") -> None:
-        """处理键盘事件，支持 j/k 导航."""
-        key = event.key
-        
-        # 获取消息滚动区域
-        messages_container = self.query_one("#chat-messages", VerticalScroll)
-        
-        if key == "j" or key == "down":
-            # 向下滚动
-            messages_container.scroll_down(animate=True)
-            event.prevent_default()
-        elif key == "k" or key == "up":
-            # 向上滚动
-            messages_container.scroll_up(animate=True)
-            event.prevent_default()
-    
+        if MessageList:
+            self._message_list = self.query_one("#chat-list", MessageList)
+
+    # ========================================================================
+    # 消息操作方法（保持 API 兼容性）
+    # ========================================================================
+
     def append_message(self, role: str, content: str) -> None:
-        """追加消息到聊天日志.
-        
+        """追加消息到聊天日志（兼容旧 API）.
+
         Args:
-            role: 消息角色 (user/assistant)
+            role: 消息角色 (user/assistant/system/tool/error)
             content: 消息内容
         """
+        if not self._message_list:
+            self._logger.warning("MessageList not available")
+            return
+
         # 保存到历史记录
         self._message_history.append({"role": role, "content": content})
-        
-        # 更新显示
-        log = self.query_one("#chat-log", RichLog)
-        if log:
-            if role == "user":
-                log.write(f"[bold #A0B45A]You:[/] {content}")
-            elif role == "assistant":
-                log.write(f"[bold #8B9A46]Agent:[/] {content}")
-            else:
-                log.write(f"[dim]{content}[/]")
-    
+
+        # 使用 MessageList 添加消息
+        self._message_list.add_message(role, content)
+
     def clear_messages(self) -> None:
         """清空聊天消息."""
         self._message_history.clear()
-        log = self.query_one("#chat-log", RichLog)
-        if log:
-            log.clear()
-    
+        if self._message_list:
+            self._message_list.clear_messages()
+
     def get_message_history(self) -> list[dict[str, str]]:
         """获取消息历史.
-        
+
         Returns:
             消息历史列表
         """
         return self._message_history.copy()
-    
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        """处理输入框提交事件.
-        
-        Args:
-            event: 输入提交事件
-        """
-        input_widget = self.query_one("#chat-input", Input)
-        if input_widget.value.strip():
-            # 发布消息提交事件
-            self.post_message(ChatMessageSubmitted(self.tab_id, input_widget.value))
-            input_widget.value = ""
-    
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """处理按钮按下事件.
-        
-        Args:
-            event: 按钮按下事件
-        """
-        if event.button.id == "send-button":
-            input_widget = self.query_one("#chat-input", Input)
-            if input_widget.value.strip():
-                # 发布消息提交事件
-                self.post_message(ChatMessageSubmitted(self.tab_id, input_widget.value))
-                input_widget.value = ""
 
+    def write(self, text: str) -> None:
+        """直接写入文本（兼容 RichLog 的 write 接口）.
 
-# ============================================================================
-# ChatView 消息类
-# ============================================================================
+        转换为 assistant 消息追加。
 
-class ChatMessageSubmitted(Message):
-    """聊天消息提交事件.
-    
-    当用户在 ChatView 中提交消息时发布此事件。
-    
-    Attributes:
-        tab_id: 标签页 ID
-        message: 用户输入的消息内容
-    """
-    
-    def __init__(self, tab_id: str, message: str) -> None:
-        """初始化事件.
-        
         Args:
-            tab_id: 标签页 ID
-            message: 消息内容
+            text: 要写入的文本
         """
-        super().__init__()
-        self.tab_id = tab_id
-        self.message = message
+        if self._message_list:
+            self._message_list.add_assistant_message(text)
+
+    def clear(self) -> None:
+        """清空内容（兼容 RichLog 的 clear 接口）."""
+        self.clear_messages()
+
+    # ========================================================================
+    # 流式输出方法
+    # ========================================================================
+
+    def start_streaming(self, role: str = "assistant") -> str:
+        """开始流式输出.
+
+        Args:
+            role: 消息角色
+
+        Returns:
+            消息 ID
+        """
+        if not self._message_list:
+            return ""
+
+        self._current_streaming_id = self._message_list.start_streaming(role)
+        return self._current_streaming_id
+
+    def append_streaming_text(self, text: str) -> None:
+        """追加流式文本.
+
+        Args:
+            text: 要追加的文本
+        """
+        if not self._message_list or not self._current_streaming_id:
+            return
+
+        self._message_list.append_streaming_text(self._current_streaming_id, text)
+
+    def append_streaming_thinking(self, text: str) -> None:
+        """追加思考内容.
+
+        Args:
+            text: 思考内容
+        """
+        if not self._message_list or not self._current_streaming_id:
+            return
+
+        self._message_list.append_streaming_thinking(self._current_streaming_id, text)
+
+    def complete_streaming(self) -> None:
+        """完成流式输出."""
+        if not self._message_list or not self._current_streaming_id:
+            return
+
+        self._message_list.complete_streaming(self._current_streaming_id)
+        self._current_streaming_id = None
+
+    def cancel_streaming(self) -> None:
+        """取消流式输出."""
+        if self._current_streaming_id:
+            self._message_list.remove_message(self._current_streaming_id)
+            self._current_streaming_id = None
+
+    # ========================================================================
+    # 便捷消息方法
+    # ========================================================================
+
+    def add_user_message(self, content: str) -> str:
+        """添加用户消息.
+
+        Args:
+            content: 消息内容
+
+        Returns:
+            消息 ID
+        """
+        self._message_history.append({"role": "user", "content": content})
+        if self._message_list:
+            return self._message_list.add_user_message(content)
+        return ""
+
+    def add_assistant_message(self, content: str) -> str:
+        """添加助手消息.
+
+        Args:
+            content: 消息内容
+
+        Returns:
+            消息 ID
+        """
+        self._message_history.append({"role": "assistant", "content": content})
+        if self._message_list:
+            return self._message_list.add_assistant_message(content)
+        return ""
+
+    def add_system_message(self, content: str) -> str:
+        """添加系统消息.
+
+        Args:
+            content: 消息内容
+
+        Returns:
+            消息 ID
+        """
+        self._message_history.append({"role": "system", "content": content})
+        if self._message_list:
+            return self._message_list.add_system_message(content)
+        return ""
+
+    def add_tool_message(self, content: str, tool_name: str) -> str:
+        """添加工具执行消息.
+
+        Args:
+            content: 消息内容
+            tool_name: 工具名称
+
+        Returns:
+            消息 ID
+        """
+        self._message_history.append({"role": "tool", "content": content})
+        if self._message_list:
+            return self._message_list.add_tool_message(content, tool_name)
+        return ""
+
+    def add_error_message(self, content: str) -> str:
+        """添加错误消息.
+
+        Args:
+            content: 消息内容
+
+        Returns:
+            消息 ID
+        """
+        self._message_history.append({"role": "error", "content": content})
+        if self._message_list:
+            return self._message_list.add_error_message(content)
+        return ""
+
+    def add_thinking_message(self, content: str) -> str:
+        """添加思考内容消息.
+
+        Args:
+            content: 思考内容
+
+        Returns:
+            消息 ID
+        """
+        if self._message_list:
+            return self._message_list.add_thinking_message(content)
+        return ""
+
+    # ========================================================================
+    # 辅助方法
+    # ========================================================================
+
+    def scroll_to_bottom(self) -> None:
+        """滚动到底部."""
+        if self._message_list:
+            self._message_list.scroll_to_bottom()
+
+    def get_message_count(self) -> int:
+        """获取消息数量.
+
+        Returns:
+            消息数量
+        """
+        if self._message_list:
+            return len(self._message_list.get_messages())
+        return len(self._message_history)
+
+    def is_streaming(self) -> bool:
+        """检查是否正在流式输出.
+
+        Returns:
+            True 如果正在流式输出
+        """
+        return self._current_streaming_id is not None
 
 
 # ============================================================================
@@ -277,6 +342,5 @@ class ChatMessageSubmitted(Message):
 
 __all__ = [
     "ChatView",
-    "ChatMessageSubmitted",
     "CHAT_VIEW_CSS",
 ]
