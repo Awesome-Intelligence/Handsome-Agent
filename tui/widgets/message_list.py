@@ -5,13 +5,15 @@ MessageList Widget - 消息列表组件
 
 🚪 Access - 💬 CLI - TUI Widgets - MessageList
 
-使用 RichLog 实现高性能消息列表显示，支持：
+使用 VerticalScroll + Markdown 实现富文本消息显示，支持：
 - 用户消息、助手消息、系统消息、工具消息
 - 流式输出（打字机效果）
 - 思考内容显示
 - 错误消息高亮
 - 自动滚动
 - 历史消息数量限制
+- 鼠标文本选择
+- Markdown 渲染
 """
 
 from __future__ import annotations
@@ -22,23 +24,18 @@ from datetime import datetime
 from enum import Enum
 import time
 
-# Rich 文本支持
-try:
-    from rich.text import Text
-except ImportError:
-    Text = str  # type: ignore
-
-# Textual 框架导入（带降级机制）
 TEXTUAL_AVAILABLE = True
 try:
-    from textual.widgets import RichLog
+    from textual.widgets import Markdown, Static
+    from textual.containers import VerticalScroll
     from textual.message import Message
 except ImportError:
     TEXTUAL_AVAILABLE = False
-    RichLog = object  # type: ignore
+    Markdown = object  # type: ignore
+    Static = object  # type: ignore
+    VerticalScroll = object  # type: ignore
     Message = object  # type: ignore
 
-# 主题图标和颜色
 try:
     from tui.theming import MESSAGE_ICONS, MESSAGE_COLORS
 except ImportError:
@@ -61,7 +58,6 @@ except ImportError:
         "APPROVAL": "#3fb950",
     }
 
-# i18n 支持
 try:
     from common.i18n import get_i18n
 except ImportError:
@@ -71,7 +67,6 @@ except ImportError:
                 return default or key
         return SimpleI18n()
 
-# 日志支持
 try:
     from common.logging_manager import get_access_logger
 except ImportError:
@@ -151,8 +146,8 @@ class StreamingComplete(Message):
 # MessageList Widget
 # ============================================================================
 
-class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
-    """消息列表组件 - 使用 RichLog 实现"""
+class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
+    """消息列表组件 - 使用 VerticalScroll + Markdown 实现"""
 
     def __init__(
         self,
@@ -164,14 +159,7 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
-        # RichLog 初始化参数
-        kwargs = {
-            "id": id,
-            "classes": classes,
-            "auto_scroll": auto_scroll,
-            "max_lines": max_messages,
-        }
-        super().__init__(**kwargs)
+        super().__init__(id=id, classes=classes)
 
         self.max_messages = max_messages
         self.auto_scroll = auto_scroll
@@ -183,6 +171,7 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
         self._message_counter = 0
         self._streaming_active: dict[str, str] = {}
         self._last_streaming_update: dict[str, float] = {}
+        self._message_widgets: dict[str, Static | Markdown] = {}
         self._logger = get_access_logger("MessageList", sublayer="tui")
 
     # ========================================================================
@@ -217,8 +206,7 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
         self._messages.append(msg)
         self._trim_messages()
 
-        # 渲染并写入 RichLog
-        self._render_and_write()
+        self._render_message(msg)
         self._post_message(MessageListUpdated(self, len(self._messages)))
 
         return msg_id
@@ -267,7 +255,7 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
         self._streaming_active[msg_id] = role_enum.value
         self._trim_messages()
 
-        self._render_and_write()
+        self._render_message(msg)
         return msg_id
 
     def append_streaming_text(self, message_id: str, text: str) -> None:
@@ -284,7 +272,7 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
         for msg in self._messages:
             if msg.id == message_id:
                 msg.content += text
-                self._update_last_message()
+                self._update_message_widget(msg)
                 break
 
     def append_streaming_thinking(self, message_id: str, text: str) -> None:
@@ -312,7 +300,7 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
             )
             self._messages.append(thinking_msg)
 
-        self._render_and_write()
+        self._render_or_update_message(thinking_msg)
 
     def complete_streaming(self, message_id: str) -> None:
         if message_id not in self._streaming_active:
@@ -322,6 +310,7 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
             if msg.id == message_id:
                 msg.is_streaming = False
                 msg.is_complete = True
+                self._upgrade_to_markdown(msg)
                 break
 
         thinking_id = f"{message_id}-thinking"
@@ -329,13 +318,13 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
             if msg.id == thinking_id:
                 msg.is_streaming = False
                 msg.is_complete = True
+                self._upgrade_to_markdown(msg)
                 break
 
         del self._streaming_active[message_id]
         if message_id in self._last_streaming_update:
             del self._last_streaming_update[message_id]
 
-        self._render_and_write()
         self._post_message(StreamingComplete(self, message_id))
 
     # ========================================================================
@@ -346,14 +335,17 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
         for msg in self._messages:
             if msg.id == message_id:
                 msg.content = content
-                self._render_and_write()
+                self._update_message_widget(msg)
                 break
 
     def remove_message(self, message_id: str) -> bool:
         for i, msg in enumerate(self._messages):
             if msg.id == message_id:
                 self._messages.pop(i)
-                self._render_and_write()
+                if msg.id in self._message_widgets:
+                    widget = self._message_widgets[msg.id]
+                    widget.remove()
+                    del self._message_widgets[msg.id]
                 self._post_message(MessageListUpdated(self, len(self._messages)))
                 return True
         return False
@@ -362,15 +354,16 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
         self._messages.clear()
         self._streaming_active.clear()
         self._last_streaming_update.clear()
-        self.clear()
+        for widget in self._message_widgets.values():
+            widget.remove()
+        self._message_widgets.clear()
         self._post_message(MessageListUpdated(self, 0))
 
     def get_messages(self) -> list[MessageItem]:
         return self._messages.copy()
 
     def scroll_to_bottom(self) -> None:
-        if self.auto_scroll:
-            self.scroll_end(animate=True)
+        self.scroll_end(animate=True)
 
     # ========================================================================
     # 内部方法
@@ -397,71 +390,118 @@ class MessageList(RichLog if TEXTUAL_AVAILABLE else object):
                 msg = self._messages[i]
                 if msg.id not in self._streaming_active:
                     self._messages.pop(i)
+                    if msg.id in self._message_widgets:
+                        widget = self._message_widgets[msg.id]
+                        widget.remove()
+                        del self._message_widgets[msg.id]
                     removed += 1
                     i -= 1
 
-    def _format_message(self, msg: MessageItem) -> Text:
+    def _format_message_header(self, msg: MessageItem) -> str:
         msg_type = msg.role.value.upper()
         icon = MESSAGE_ICONS.get(msg_type, "💬")
-        color = MESSAGE_COLORS.get(msg_type, "#c9d1d9")
-
-        timestamp_str = f"[dim]{msg.time_str}[/]" if self.show_timestamps else ""
 
         role_labels = {
-            MessageRole.USER: "你",
+            MessageRole.USER: "我",
             MessageRole.ASSISTANT: "助手",
             MessageRole.SYSTEM: "系统",
-            MessageRole.TOOL: f"工具({msg.tool_name})",
+            MessageRole.TOOL: f"工具({msg.tool_name})" if msg.tool_name else "工具",
             MessageRole.ERROR: "错误",
             MessageRole.THINKING: "思考",
         }
         role_label = role_labels.get(msg.role, "")
 
-        tool_prefix = ""
-        if msg.role == MessageRole.TOOL and msg.tool_name:
-            tool_prefix = f"[#a371f7]{msg.tool_name}[/]: "
+        if self.show_timestamps:
+            return f"{icon} **{role_label}** {msg.time_str}\n\n"
+        return f"{icon} **{role_label}**\n\n"
 
-        streaming_indicator = " ▌" if msg.is_streaming else ""
+    def _format_message_content(self, msg: MessageItem) -> str:
+        content = msg.content
+
+        if msg.is_streaming:
+            content += " ▌"
+
+        return content
+
+    def _render_message(self, msg: MessageItem) -> None:
+        header = self._format_message_header(msg)
+        content = self._format_message_content(msg)
+        full_content = header + content
 
         if msg.role == MessageRole.SYSTEM:
-            return Text.from_markup(f"\n[dim]--- {msg.content} ---\n[/]")
+            widget = Static(f"--- {msg.content} ---", classes=f"message-{msg.role.value}")
+        else:
+            if msg.is_streaming:
+                widget = Static(full_content, classes=f"message-{msg.role.value}", markup=True)
+            else:
+                widget = Markdown(full_content, classes=f"message-{msg.role.value}")
 
-        header = f"{icon} [bold {color}]{role_label}[/]"
-        if timestamp_str:
-            header += f"  [dim]{timestamp_str}[/]"
+        widget.id = f"msg-widget-{msg.id}"
+        self._message_widgets[msg.id] = widget
+        
+        def _do_mount():
+            try:
+                self.mount(widget)
+                if self.auto_scroll:
+                    self.scroll_end(animate=False)
+            except Exception as e:
+                self._logger.error(f"Failed to mount widget: {e}")
+        
+        self.call_later(_do_mount)
 
-        content_lines = msg.content.split("\n")
-
-        if msg.role == MessageRole.THINKING:
-            lines = [f"  {header}"]
-            for line in content_lines:
-                lines.append(f"    [{color}]{line}{streaming_indicator}[/]")
-            return Text.from_markup("\n".join(lines) + "\n")
-
-        if msg.role == MessageRole.USER:
-            lines = [header]
-            for line in content_lines:
-                lines.append(f"  [{color}]{line}{streaming_indicator}[/]")
-            return Text.from_markup("\n".join(lines) + "\n")
-
-        lines = [header]
-        for line in content_lines:
-            lines.append(f"  [{color}]{tool_prefix}{line}{streaming_indicator}[/]")
-        return Text.from_markup("\n".join(lines) + "\n")
-
-    def _render_and_write(self) -> None:
-        """渲染所有消息并写入 RichLog"""
-        self.clear()
-        for msg in self._messages:
-            self.write(self._format_message(msg))
-        if self.auto_scroll:
-            self.scroll_end(animate=False)
-
-    def _update_last_message(self) -> None:
-        """更新最后一条消息（用于流式输出）"""
-        if not self._messages:
+    def _update_message_widget(self, msg: MessageItem) -> None:
+        if msg.id not in self._message_widgets:
+            self._render_message(msg)
             return
-        self._render_and_write()
+
+        widget = self._message_widgets[msg.id]
+
+        header = self._format_message_header(msg)
+        content = self._format_message_content(msg)
+        full_content = header + content
+
+        if isinstance(widget, Static):
+            if msg.role == MessageRole.SYSTEM:
+                widget.update(f"--- {msg.content} ---")
+            else:
+                widget.update(full_content)
+        elif isinstance(widget, Markdown):
+            pass
+
+        if self.auto_scroll:
+            self.call_later(self.scroll_end, animate=False)
+
+    def _upgrade_to_markdown(self, msg: MessageItem) -> None:
+        if msg.id not in self._message_widgets:
+            return
+
+        old_widget = self._message_widgets[msg.id]
+        old_widget.remove()
+
+        header = self._format_message_header(msg)
+        content = self._format_message_content(msg)
+        full_content = header + content
+
+        if msg.role != MessageRole.SYSTEM:
+            new_widget = Markdown(full_content, classes=f"message-{msg.role.value}")
+            new_widget.id = f"msg-widget-{msg.id}"
+            self._message_widgets[msg.id] = new_widget
+            
+            def _do_mount():
+                try:
+                    self.mount(new_widget)
+                    if self.auto_scroll:
+                        self.scroll_end(animate=False)
+                except Exception as e:
+                    self._logger.error(f"Failed to mount markdown widget: {e}")
+            
+            self.call_later(_do_mount)
+
+    def _render_or_update_message(self, msg: MessageItem) -> None:
+        if msg.id in self._message_widgets:
+            self._update_message_widget(msg)
+        else:
+            self._render_message(msg)
 
     def _post_message(self, msg: Message) -> None:
         if hasattr(self, 'post_message'):

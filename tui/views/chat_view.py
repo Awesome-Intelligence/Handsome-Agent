@@ -87,6 +87,7 @@ class ChatView(Container):
         self._logger = get_access_logger("ChatView", sublayer="tui")
         self._message_list: MessageList | None = None
         self._current_streaming_id: str | None = None
+        self._message_history: list[dict[str, str]] = []
 
     def compose(self) -> ComposeResult:
         """组合聊天视图布局.

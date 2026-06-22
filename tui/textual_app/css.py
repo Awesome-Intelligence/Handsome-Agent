@@ -54,8 +54,8 @@ Screen {
     border: blank;
 }
 
-/* RichLog 自动换行 - 禁止横向滚动 */
-#chat-area RichLog {
+/* MessageList (VerticalScroll) 样式 */
+#chat-area MessageList {
     width: 100%;
     height: 100%;
     overflow-x: hidden;
@@ -65,24 +65,12 @@ Screen {
     background: transparent;
 }
 
-/* 确保消息内容自动换行，不产生横向滚动 */
-#chat-area RichLog > * {
-    max-width: 100%;
-    overflow-x: hidden;
-}
-
-/* 确保 RichText 内容宽度受限 */
-#chat-area RichLog .rich-text {
-    width: 100%;
-    max-width: 100%;
-}
-
 /* 自定义 Header - 模型信息显示 + 欢迎横幅 */
 #app-header {
     height: auto;
     width: 100%;
     dock: top;
-    background: transparent;
+    background: rgba(177, 128, 215, 0.2);
     border-bottom: solid $primary;
 }
 
@@ -200,26 +188,58 @@ Screen {
     color: $accent;
 }
 
-/* 消息样式 - 用户消息浅色气泡 */
-#chat-area .user-message {
-    background: $surface;
-    color: $foreground;
-    padding: 0 1;
-    margin: 0;
+/* 消息样式 - 用户消息 */
+#chat-area .message-user {
+    background: transparent;
+    color: $primary;
+    padding: 1 3;
+    margin: 1 0;
+    border-left: solid $primary;
 }
 
 /* 消息样式 - 助手消息 */
-#chat-area .assistant-message {
-    color: $foreground;
-    padding: 0 1;
-    margin: 0;
+#chat-area .message-assistant {
+    background: transparent;
+    color: #c9d1d9;
+    padding: 1 3;
+    margin: 1 0;
+    border-left: solid #3fb950;
 }
 
-/* 消息样式 - 系统消息灰色 */
-#chat-area .system-message {
+/* 消息样式 - 系统消息 */
+#chat-area .message-system {
+    background: transparent;
     color: #8b949e;
-    padding: 0 1;
-    margin: 0;
+    padding: 1 2;
+    margin: 2 0;
+    text-align: center;
+}
+
+/* 消息样式 - 工具消息 */
+#chat-area .message-tool {
+    background: rgba(163, 113, 247, 0.1);
+    color: #a371f7;
+    padding: 2 3;
+    margin: 2 0;
+    border-left: solid #a371f7;
+}
+
+/* 消息样式 - 错误消息 */
+#chat-area .message-error {
+    background: rgba(248, 81, 73, 0.1);
+    color: #f85149;
+    padding: 2 3;
+    margin: 2 0;
+    border-left: solid #f85149;
+}
+
+/* 消息样式 - 思考消息 */
+#chat-area .message-thinking {
+    background: rgba(240, 136, 62, 0.1);
+    color: #f0883e;
+    padding: 2 3;
+    margin: 2 0;
+    border-left: solid #f0883e;
 }
 
 /* 滚动条样式 - 美化为细线 */

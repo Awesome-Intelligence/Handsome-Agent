@@ -14,11 +14,15 @@ from __future__ import annotations
 
 class CompatibleLog:
     """兼容 Textual 8.x 的 Log 对象."""
-    
+
+    def worker(self, *args, **kwargs):
+        """Textual 8.x log.worker() 方法."""
+        pass
+
     def __call__(self, *args, **kwargs):
         """Textual 8.x log 是 callable."""
         pass
-    
+
     def system(self, *args, **kwargs): pass
     def info(self, *args, **kwargs): pass
     def debug(self, *args, **kwargs): pass

@@ -5,10 +5,8 @@ TUI 侧边栏组件 - 提供文件树、任务、Agent、日志面板
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable
 from typing_extensions import Self
 
 from textual.app import ComposeResult
@@ -16,35 +14,9 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.events import Click
 from textual.message import Message
-from textual.widgets import Static, RichLog, TabbedContent, TabPane, Tree
+from textual.widgets import Static, RichLog, TabbedContent, TabPane, DirectoryTree
 from textual.widgets import Tabs
 from textual import on
-
-
-# ============================================================================
-# 文件树数据结构
-# ============================================================================
-
-
-class NodeType(Enum):
-    """节点类型枚举."""
-    FILE = "file"
-    DIRECTORY = "directory"
-
-
-@dataclass
-class FileTreeNode:
-    """文件树节点数据类."""
-    path: Path
-    name: str
-    node_type: NodeType
-    expanded: bool = False
-    children: list = None
-    parent: Optional = None
-
-    def __post_init__(self) -> None:
-        if self.children is None:
-            self.children = []
 
 
 # 图标系统
@@ -68,6 +40,25 @@ except ImportError:
     def get_file_icon(filename: str) -> str:
         ext = Path(filename).suffix.lower()
         return FILE_TYPE_ICONS.get(ext, FILE_TYPE_ICONS[".default"])
+
+
+# ============================================================================
+# 过滤目录树
+# ============================================================================
+
+
+class FilteredDirectoryTree(DirectoryTree):
+    """过滤后的目录树组件."""
+
+    BLOCKLIST = {".venv", "node_modules", "__pycache__", ".git", ".idea", ".vscode"}
+
+    def filter_paths(self, paths: Iterable[Path]) -> list[Path]:
+        """过滤目录树，隐藏隐藏文件和黑名单目录."""
+        result = []
+        for path in paths:
+            if not path.name.startswith(".") and path.name not in self.BLOCKLIST:
+                result.append(path)
+        return result
 
 
 # ============================================================================
@@ -319,179 +310,49 @@ class FileTreePane(SidebarPane):
             self.path = path
             super().__init__()
 
-    BINDINGS = [
-        Binding("up", "cursor_up", "上", show=False),
-        Binding("down", "cursor_down", "下", show=False),
-        Binding("enter", "toggle_open", "打开", show=False),
-        Binding("backspace", "go_up", "返回", show=False),
-        Binding("home", "go_root", "根目录", show=False),
-    ]
-
     DEFAULT_CSS = """
     FileTreePane {
         width: 100%;
         height: 100%;
     }
 
-    FileTreePane Tree {
+    FileTreePane DirectoryTree {
         height: 100%;
         background: transparent;
     }
 
-    FileTreePane Tree > .tree--cursor {
+    FileTreePane DirectoryTree > .tree--cursor {
         background: $accent 25%;
         color: $text;
     }
 
-    /* 美化展开指示器 */
-    FileTreePane Tree .tree--node-toggle {
+    FileTreePane DirectoryTree .tree--node-toggle {
         color: $accent;
     }
     """
 
     def __init__(self, cwd: str = None) -> None:
         self._cwd = Path(cwd) if cwd else Path.cwd()
-        self._root_node = self._build_tree_node(self._cwd)
-        self._tree = None
         super().__init__(id="file_tree", title="文件")
 
     def compose(self) -> ComposeResult:
         """组合子组件."""
-        yield Tree("root", data=self._root_node, id="file-tree-widget")
-
-    def on_mount(self) -> None:
-        """组件挂载时初始化树."""
-        tree = self.query_one(Tree)
-        self._tree = tree
-        tree.root.label = self._get_node_label(self._root_node)
-        # 添加子节点到树中
-        self._add_children_to_tree(tree.root, self._root_node)
-        # 选中根节点
-        tree.select_node(tree.root)
-
-    def _add_children_to_tree(self, tree_node, data_node: FileTreeNode) -> None:
-        """将数据节点的所有子节点添加到 Tree 组件中."""
-        for child_data in data_node.children:
-            child_tree_node = tree_node.add(
-                self._get_node_label(child_data),
-                data=child_data
-            )
-            # 递归添加子节点的子节点
-            if child_data.children:
-                self._add_children_to_tree(child_tree_node, child_data)
-
-    def _build_tree_node(self, path: Path, parent: FileTreeNode = None) -> FileTreeNode:
-        """递归构建文件树节点."""
-        node = FileTreeNode(
-            path=path,
-            name=path.name or str(path),
-            node_type=NodeType.DIRECTORY if path.is_dir() else NodeType.FILE,
-            parent=parent,
-            expanded=False,
-            children=[]
+        yield FilteredDirectoryTree(
+            self._cwd,
+            id="file-tree-widget",
         )
 
-        if path.is_dir():
-            try:
-                items = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
-                for item in items:
-                    if not item.name.startswith("."):
-                        child = self._build_tree_node(item, node)
-                        node.children.append(child)
-            except PermissionError:
-                pass
-
-        return node
-
-    def _get_node_label(self, node: FileTreeNode) -> str:
-        """获取节点的显示标签."""
-        from rich.text import Text
-
-        if node.node_type == NodeType.DIRECTORY:
-            # Tree 组件自带展开指示器，不需要手动添加
-            return Text.from_markup(f"[cyan]📁 {node.name}/[/cyan]")
-        else:
-            icon = get_file_icon(node.name)
-            ext = node.path.suffix.lower()
-            code_exts = {'.py', '.rs', '.js', '.ts', '.go', '.java', '.c', '.cpp', '.cs', '.rb'}
-            doc_exts = {'.md', '.txt', '.pdf', '.doc', '.docx'}
-            if ext in code_exts:
-                return Text.from_markup(f"[green]{icon} {node.name}[/green]")
-            elif ext in doc_exts:
-                return Text.from_markup(f"[yellow]{icon} {node.name}[/yellow]")
-            else:
-                return Text.from_markup(f"{icon} {node.name}")
-
-    @on(Tree.NodeSelected)
-    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
-        """处理节点选中事件."""
-        node = event.node.data
-        if node and node.node_type == NodeType.FILE:
-            self.post_message(self.FileSelected(node.path))
-
-    def action_cursor_up(self) -> None:
-        """选中上一个节点."""
-        if self._tree:
-            self._tree.action_cursor_up()
-
-    def action_cursor_down(self) -> None:
-        """选中下一个节点."""
-        if self._tree:
-            self._tree.action_cursor_down()
-
-    def action_toggle_open(self) -> None:
-        """切换展开/折叠状态或打开文件."""
-        if not self._tree:
-            return
-        node = self._tree.selected_node
-        if not node or not node.data:
-            return
-
-        data = node.data
-        if data.node_type == NodeType.DIRECTORY:
-            data.expanded = not data.expanded
-            if data.expanded:
-                # 展开时，添加子节点到树中
-                self._add_children_to_tree(node, data)
-                node.expand()
-            else:
-                node.collapse()
-            node.label = self._get_node_label(data)
-        else:
-            self.post_message(self.FileSelected(data.path))
-
-    def action_go_up(self) -> None:
-        """返回上级目录."""
-        if self._tree and self._tree.selected_node:
-            current = self._tree.selected_node
-            if current.data and current.data.parent:
-                parent_node = self._find_tree_node(self._tree.root, current.data.parent)
-                if parent_node:
-                    self._tree.select_node(parent_node)
-
-    def action_go_root(self) -> None:
-        """返回根目录."""
-        if self._tree:
-            self._tree.select_node(self._tree.root)
-
-    def _find_tree_node(self, tree_node, target_data: FileTreeNode):
-        """在树中查找对应数据的节点."""
-        if tree_node.data == target_data:
-            return tree_node
-        for child in tree_node.children:
-            result = self._find_tree_node(child, target_data)
-            if result:
-                return result
-        return None
+    @on(DirectoryTree.FileSelected)
+    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        """处理文件选中事件."""
+        event.stop()
+        self.post_message(self.FileSelected(Path(event.path)))
 
     def set_focus_within(self) -> None:
         """设置面板内部焦点."""
-        if self._tree:
-            self.set_focus(self._tree)
-        else:
-            tree = self.query_one(Tree, None)
-            if tree:
-                self.set_focus(tree)
+        tree = self.query_one(DirectoryTree, None)
+        if tree:
+            tree.focus(scroll_visible=False)
 
 
 # ============================================================================
@@ -776,13 +637,10 @@ __all__ = [
     "SidebarPane",
     "TasksPane",
     "FileTreePane",
+    "FilteredDirectoryTree",
     "AgentPane",
     "LogsPane",
-    "SidebarTabBar",  # 保留用于向后兼容
-    # 数据结构
-    "NodeType",
-    "FileTreeNode",
-    # 辅助函数
+    "SidebarTabBar",
     "get_log_level_icon",
     "format_log_entry",
     "get_task_status_icon",

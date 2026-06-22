@@ -1489,21 +1489,11 @@ class HandsomeAgentApp(App):
     def _append_message(self, role: str, content: str, render_markdown: bool = True) -> None:
         chat_area = self.query_one("#chat-area", ChatView)
 
-        # 构建消息标签
-        if role == "user":
-            label = "You"
-        elif role == "assistant":
-            label = "Agent"
-        elif role == "tool":
-            label = "Tool"
-        else:
-            label = "System"
-
-        # ChatView 使用纯文本
-        if hasattr(chat_area, 'write'):
-            chat_area.write(f"\n{label}: {content}\n")
-        elif hasattr(chat_area, 'append_message'):
+        # ChatView 使用 append_message 正确传递 role
+        if hasattr(chat_area, 'append_message'):
             chat_area.append_message(role, content)
+        elif hasattr(chat_area, 'write'):
+            chat_area.write(f"{content}\n")
 
     def _history_prev(self) -> None:
         text_area = self.query_one("#user-input", TextArea)
@@ -1575,7 +1565,6 @@ class HandsomeAgentApp(App):
 
         self.set_agent_status("busy")
         self._start_loading_animation()
-        self._append_message("system", "🤔 正在思考...")
 
         def run_agent():
             try:
