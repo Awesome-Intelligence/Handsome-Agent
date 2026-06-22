@@ -14,7 +14,7 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.events import Click
 from textual.message import Message
-from textual.widgets import Static, RichLog, TabbedContent, TabPane, DirectoryTree
+from textual.widgets import Static, Log, TabbedContent, TabPane, DirectoryTree
 from textual.widgets import Tabs
 from textual import on
 
@@ -386,7 +386,7 @@ class LogsPane(SidebarPane):
 
     def compose(self) -> ComposeResult:
         """组合子组件."""
-        yield RichLog(id="log-output", auto_scroll=True, max_lines=1000, wrap=True, min_width=1)
+        yield Log(id="log-output", auto_scroll=True, max_lines=1000, highlight=True)
 
 
 # ============================================================================
@@ -577,23 +577,10 @@ def format_log_entry(level: str, message: str) -> str:
         message: 日志消息
 
     Returns:
-        格式化的日志字符串（带颜色）
+        格式化的日志字符串
     """
     icon = get_log_level_icon(level)
-    # 根据级别选择颜色
-    color_map = {
-        "DEBUG": "#8b949e",  # 灰色
-        "INFO": "#58a6ff",  # 蓝色
-        "WARNING": "#f0883e",  # 橙色
-        "WARN": "#f0883e",  # 橙色
-        "ERROR": "#f85149",  # 红色
-        "ERR": "#f85149",  # 红色
-        "CRITICAL": "#f85149",  # 红色
-        "FATAL": "#f85149",  # 红色
-        "SUCCESS": "#3fb950",  # 绿色
-    }
-    color = color_map.get(level.upper(), "#c9d1d9")
-    return f"{icon} [{color}]{level}[/]  {message}"
+    return f"{icon} [{level}]  {message}"
 
 
 # ============================================================================

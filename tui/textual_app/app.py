@@ -436,7 +436,8 @@ class HandsomeAgentApp(App):
 
         if self._tui_log_handler is not None:
             try:
-                log_widget = self.query_one("#log-output", RichLog)
+                from textual.widgets import Log
+                log_widget = self.query_one("#log-output", Log)
                 self._tui_log_handler.set_widget(log_widget)
             except Exception:
                 pass

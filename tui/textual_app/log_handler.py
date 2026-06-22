@@ -12,11 +12,11 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from textual.widgets import RichLog
+    from textual.widgets import Log
 
 
 class TuiLogHandler(logging.Handler):
-    """将后端日志输出重定向到 Textual RichLog 组件的日志处理器。
+    """将后端日志输出重定向到 Textual Log 组件的日志处理器。
 
     线程安全：通过 App.call_from_thread() 将日志从任意线程路由到 UI 线程。
     组件就绪前自动缓冲日志，就绪后一次性刷新。
@@ -35,15 +35,15 @@ class TuiLogHandler(logging.Handler):
     def __init__(self, app, buffer_size: int = 500):
         super().__init__()
         self._app = app
-        self._widget: RichLog | None = None
+        self._widget: Log | None = None
         self._buffer: list[logging.LogRecord] = []
         self._buffer_size = buffer_size
 
-    def set_widget(self, widget: RichLog) -> None:
-        """设置目标 RichLog 组件并刷新缓冲区。
+    def set_widget(self, widget: Log) -> None:
+        """设置目标 Log 组件并刷新缓冲区。
         
         Args:
-            widget: RichLog 组件实例
+            widget: Log 组件实例
         """
         self._widget = widget
         if self._buffer:
@@ -98,6 +98,5 @@ class TuiLogHandler(logging.Handler):
             return
         
         msg = self.format(record)
-        # 直接写入原始字符串，不预先换行
-        # RichLog 会自动处理换行逻辑
-        self._widget.write(msg)
+        # write_line() 会自动在消息末尾添加换行符
+        self._widget.write_line(msg)
