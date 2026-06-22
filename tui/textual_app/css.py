@@ -160,10 +160,40 @@ Screen {
 }
 
 .status-model {
-    width: auto;
+    width: 22;
+    max-width: 22;
+    height: 1;
     margin-right: 2;
+    background: $surface;
     color: $foreground;
     text-style: bold;
+}
+
+/* Select widget in status bar - compact mode */
+#status-model Select {
+    height: 1;
+    width: 100%;
+}
+
+#status-model Select.-textual-compact {
+    border: none;
+    background: transparent;
+}
+
+#status-model Select.-textual-compact > SelectCurrent {
+    border: none;
+    background: transparent;
+    padding: 0 1 0 0;
+}
+
+#status-model Select.-textual-compact > SelectCurrent > Static#label {
+    color: $foreground;
+    width: auto;
+}
+
+#status-model Select > SelectOverlay {
+    overlay: screen;
+    constrain: none inside;
 }
 
 .status-tokens {

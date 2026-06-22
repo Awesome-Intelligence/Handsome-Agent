@@ -23,9 +23,10 @@ _TEXTUAL_IMPORT_ERROR: str | None = None
 try:
     from textual.app import App, ComposeResult
     from textual.widgets import Header, Footer, Static, RichLog, Tabs, Tab, TextArea, Button
-    from textual.widgets import Markdown, ProgressBar, LoadingIndicator
+    from textual.widgets import Markdown, ProgressBar, LoadingIndicator, Select, Input
     from textual.binding import Binding
     from textual.containers import Container, Vertical, VerticalScroll, Horizontal
+    from textual.screen import Screen as TextualScreen
     from textual.message import Message
     from textual import on
     from textual.events import Key
@@ -43,6 +44,12 @@ try:
 except ImportError as e:
     TEXTUAL_AVAILABLE = False
     _TEXTUAL_IMPORT_ERROR = str(e)
+
+# TextualScreen 后备定义（当 Textual 不可用时）
+if not TEXTUAL_AVAILABLE:
+    class TextualScreen:
+        """Textual Screen 的后备类."""
+        pass
 
 # Rich 库导入
 try:
@@ -362,6 +369,19 @@ class HandsomeAgentApp(App):
         self._markdown_enabled = True
         # TUIConsumer（任务面板消费者）
         self._tui_consumer: Optional["TUIConsumer"] = None
+        # 内置模型列表 - 格式为 (value, label) 元组
+        self._builtin_models: list[tuple[str, str]] = [
+            ("Handsome Agent", "Handsome Agent"),
+            ("gpt-4o", "GPT-4o"),
+            ("gpt-4o-mini", "GPT-4o Mini"),
+            ("gpt-4-turbo", "GPT-4 Turbo"),
+            ("claude-3-5-sonnet", "Claude 3.5 Sonnet"),
+            ("claude-3-5-haiku", "Claude 3.5 Haiku"),
+            ("gemini-2.0-flash", "Gemini 2.0 Flash"),
+            ("deepseek-chat", "DeepSeek Chat"),
+            ("qwen-plus", "Qwen Plus"),
+            ("custom", "其他..."),
+        ]
 
     def compose(self) -> ComposeResult:
         with Container(id="app-header"):
@@ -385,7 +405,12 @@ class HandsomeAgentApp(App):
             with Container(id="status-bar"):
                 with Horizontal(id="status-content"):
                     yield Static("●", id="status-icon", classes="status-icon")
-                    yield Static(self.model_name or "Handsome Agent", id="status-model", classes="status-model")
+                    yield Select(
+                        id="status-model",
+                        classes="status-model",
+                        options=self._builtin_models,
+                        compact=True,
+                    )
                     yield Static("0/128K", id="status-tokens", classes="status-tokens")
                     yield ProgressBar(id="status-progress", show_percentage=False)
                     yield Static("0:00", id="status-time", classes="status-time")
@@ -431,6 +456,8 @@ class HandsomeAgentApp(App):
         
         self._render_welcome_banner()
         self._update_status_bar()
+        # 初始化模型选择下拉菜单
+        self._init_model_select()
         self._register_event_listeners()
         self.call_later(self._load_stylesheets)
 
@@ -577,8 +604,7 @@ class HandsomeAgentApp(App):
         try:
             icon_widget = self.query_one("#status-icon", Static)
             icon_widget.update("●")
-            model_widget = self.query_one("#status-model", Static)
-            model_widget.update(f" {self.model_name or 'Handsome Agent'} ")
+            # status-model 现在是 Select 组件，在 _init_model_select 中初始化
             tokens_widget = self.query_one("#status-tokens", Static)
             if self.context_length:
                 tokens_widget.update(f"│ 0/{self._format_context(self.context_length)} ")
@@ -593,6 +619,64 @@ class HandsomeAgentApp(App):
             tools_widget.update("🔧")
         except Exception as e:
             self._logger.debug(f"Failed to update status bar: {e}")
+
+    def _init_model_select(self) -> None:
+        """初始化模型选择下拉菜单."""
+        try:
+            select_widget = self.query_one("#status-model", Select)
+            # 获取当前配置的模型
+            current_model = self.model_name or "Handsome Agent"
+            # 检查当前模型是否在选项列表中，不在则添加
+            model_values = [opt[0] for opt in self._builtin_models]
+            if current_model not in model_values:
+                # 动态添加当前配置的模型到列表开头
+                display_name = current_model
+                self._builtin_models = [(current_model, display_name)] + self._builtin_models
+                # 更新 Select 的选项
+                select_widget.set_options(self._builtin_models)
+            # 设置当前模型为选中项
+            select_widget.value = current_model
+        except Exception as e:
+            self._logger.debug(f"Failed to init model select: {e}")
+
+    @on(Select.Changed)
+    def _on_model_selected(self, event: Select.Changed) -> None:
+        """处理模型选择变化（仅预览，不真实切换）."""
+        if event.control.id == "status-model":
+            selected = event.value
+            if selected == "custom":
+                # 弹出输入对话框让用户输入自定义模型
+                self._show_custom_model_input()
+            elif selected:
+                # 仅显示提示，不真实切换模型
+                self._logger.info(f"Model preview: {selected}")
+                self.notify(f"预览模型: {selected}")
+
+    def _show_custom_model_input(self) -> None:
+        """显示自定义模型输入对话框."""
+        self.push_screen(
+            CustomModelInputScreen(on_submit=self._handle_custom_model_input),
+        )
+
+    def _handle_custom_model_input(self, value: str) -> None:
+        """处理自定义模型输入（仅预览，不真实切换）."""
+        if value and value.strip():
+            # 仅显示预览，不真实切换模型
+            try:
+                select_widget = self.query_one("#status-model", Select)
+                custom_model = value.strip()
+                # 检查自定义模型是否已在列表中，不在则添加
+                model_values = [opt[0] for opt in self._builtin_models]
+                if custom_model not in model_values:
+                    # 在 "其他..." 选项前插入自定义模型
+                    custom_index = model_values.index("custom") if "custom" in model_values else len(self._builtin_models)
+                    self._builtin_models.insert(custom_index, (custom_model, custom_model))
+                    select_widget.set_options(self._builtin_models)
+                select_widget.value = custom_model
+            except Exception:
+                pass
+            self._logger.info(f"Custom model preview: {value.strip()}")
+            self.notify(f"预览自定义模型: {value.strip()}")
 
     @on(SubmitTextArea.InputSubmitted)
     def _on_input_submitted(self, event: SubmitTextArea.InputSubmitted) -> None:
@@ -2004,7 +2088,64 @@ __all__ = [
     "NotificationType",
     "NotificationAnimationManager",
     "is_markdown_available",
+    "CustomModelInputScreen",
 ]
+
+
+class CustomModelInputScreen(TextualScreen if TEXTUAL_AVAILABLE else object):
+    """自定义模型输入对话框."""
+
+    CSS = """
+    CustomModelInputScreen {
+        align: center middle;
+    }
+
+    #dialog {
+        width: 50;
+        height: auto;
+        border: solid $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    #title {
+        text-align: center;
+        text-style: bold;
+        color: $primary;
+        margin-bottom: 1;
+    }
+
+    #input-container {
+        margin: 1 0;
+    }
+
+    #buttons {
+        height: auto;
+        align: center;
+    }
+    """
+
+    def __init__(self, on_submit: callable = None, **kwargs):
+        super().__init__(**kwargs)
+        self._on_submit = on_submit
+
+    def compose(self) -> ComposeResult:
+        with Container(id="dialog"):
+            yield Static("输入自定义模型名称", id="title")
+            with Container(id="input-container"):
+                yield Input(placeholder="例如: custom-model-v1", id="model-input")
+            with Container(id="buttons"):
+                yield Button("确认", id="btn-submit", variant="primary")
+                yield Button("取消", id="btn-cancel", variant="default")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-submit":
+            input_widget = self.query_one("#model-input", Input)
+            value = input_widget.value.strip()
+            if value and self._on_submit:
+                self.dismiss(value)
+        elif event.button.id == "btn-cancel":
+            self.dismiss(None)
 
 
 if __name__ == "__main__":

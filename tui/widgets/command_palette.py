@@ -319,6 +319,14 @@ class CommandPaletteScreen(ModalScreen):
                 )),
                 category="system",
             ),
+            Command(
+                id="settings",
+                name=i18n.t("tui.command.settings", "打开设置"),
+                description=i18n.t("tui.command.settings_desc", "打开设置界面"),
+                shortcut="Ctrl+,",
+                action=lambda: self.app.action_open_settings(),
+                category="system",
+            ),
         ]
     
     def compose(self) -> ComposeResult:

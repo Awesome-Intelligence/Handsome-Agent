@@ -61,6 +61,12 @@ except ImportError:
     OnboardingSkipped = None
     ConfigurationSaved = None
 
+# 设置界面（带降级机制）
+try:
+    from .settings_screen import SettingsScreen
+except ImportError:
+    SettingsScreen = None
+
 __all__ = [
     "ChatView",
     "HelpScreen",
@@ -78,4 +84,6 @@ __all__ = [
     "OnboardingComplete",
     "OnboardingSkipped",
     "ConfigurationSaved",
+    # 设置界面
+    "SettingsScreen",
 ]
