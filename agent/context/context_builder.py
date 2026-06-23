@@ -35,6 +35,7 @@ from agent.context.prompt_templates import (
     SESSION_SEARCH_GUIDANCE,
     SKILLS_GUIDANCE,
     TOOL_USAGE_GUIDANCE,
+    THINK_TAG_INSTRUCTION,
     DEFAULT_USER_PROFILE,
 )
 
@@ -345,6 +346,9 @@ class ContextBuilder:
             tools_schema = json.dumps(self.get_tools_schema(), ensure_ascii=False, indent=2)
             prompt_parts.append(f"Available tools:\n{tools_schema}")
             prompt_parts.append(TOOL_USAGE_GUIDANCE)
+        
+        # 7. 思考内容标签指令（所有模式都包含）
+        prompt_parts.append(THINK_TAG_INSTRUCTION)
         
         return "\n\n".join(prompt_parts)
     

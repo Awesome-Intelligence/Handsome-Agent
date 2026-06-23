@@ -277,10 +277,31 @@ OPENAI_MODEL_EXECUTION_GUIDANCE = """## 🤖 执行纪律 (DeepSeek/GPT 模型)
 - 如果必须用不完整信息继续，明确标注假设
 """
 
+# 思考内容标签指令
+THINK_TAG_INSTRUCTION = """## 🧠 思考内容标签 ⚠️ 重要
+
+**你必须使用 `<think>` 标签包裹你的思考过程！**
+
+### 格式要求
+- 在回复内容之前，使用 `<think>` 标签包裹你的思考过程
+- `<think>` 标签内的内容会被自动隐藏，不会显示给用户
+- 示例：`<think>我需要分析用户的需求...</think>你的实际回复内容`
+
+### 支持的标签格式
+- `<think>思考内容</think>`
+- `<reasoning>思考内容</reasoning>`
+- `<thinking>思考内容</thinking>`
+
+### 注意事项
+- 不要在 `<think>` 标签内包含实际回复内容
+- `<think>` 标签必须完整，包含开放标签和关闭标签
+- 思考内容应该简洁明了，说明你的推理过程
+"""
+
 # 工具调用格式约束
 TOOL_CALL_FORMAT = """## 🔧 工具调用格式约束 ⚠️ 重要
 
-**你必须严格遵循以下 JSON 格式返回决策，不得偏离！**
+**你必须严格遵循以下格式返回决策，不得偏离！**
 
 ### 需要使用工具时 ✅
 ```json
@@ -289,14 +310,23 @@ TOOL_CALL_FORMAT = """## 🔧 工具调用格式约束 ⚠️ 重要
 
 ### 不需要工具时 ✅
 ```json
-{"action": "direct_response", "reasoning": "原因说明"}
+{"action": "direct_response"}
 ```
+<think>你的思考过程和推理逻辑</think>
+你的实际回复内容
+
+### 思考内容标签 ⚠️ 重要
+- **必须**使用 `<think>` 标签包裹思考内容
+- `<think>` 标签必须放在 JSON 决策之后、实际回复内容之前
+- 思考内容会被自动隐藏，不会显示给用户
+- 不要在 `<think>` 标签内包含实际回复内容
 
 ### 禁止的格式 ❌
 - XML 标签格式（如 `<execute_terminal>...</execute_terminal>`）
 - 自然语言描述（如 "我会打开文件夹"）
 - 其他 JSON 字段名（如 `decision`, `_response` 等）
 - 缺少 `action` 字段
+- 不使用 `<think>` 标签包裹思考内容
 
 ### 格式字段说明
 | 字段 | 必须 | 说明 |
@@ -304,7 +334,6 @@ TOOL_CALL_FORMAT = """## 🔧 工具调用格式约束 ⚠️ 重要
 | `action` | ✅ | "use_tool" 或 "direct_response" |
 | `tool` | 当 action=use_tool 时 | 工具的确切名称（见 Available Tools） |
 | `parameters` | 当 action=use_tool 时 | 该工具的参数对象 |
-| `reasoning` | 当 action=direct_response 时 | 为什么不使用工具 |
 
 ### 工具名称参考（严格匹配）
 - 启动应用：`launch_app`（参数：`app_name`）
@@ -316,12 +345,13 @@ TOOL_CALL_FORMAT = """## 🔧 工具调用格式约束 ⚠️ 重要
 {"decision": "allow", "reasoning": "..."}              // ❌ 错误：字段名不对
 {"action": "open_app", "parameters": {...}}           // ❌ 错误：action 不是 use_tool
 {"response": "好的，我来打开计算器"}                  // ❌ 错误：没有 action 字段
+{"action": "direct_response", "reasoning": "..."}     // ❌ 错误：不使用 reasoning 字段
 ```
 
 ### 正确示例
 - 打开计算器：`{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "calculator"}}`
 - 打开记事本：`{"action": "use_tool", "tool": "launch_app", "parameters": {"app_name": "notepad"}}`
-- 问候用户：`{"action": "direct_response", "reasoning": "用户问候，直接回复"}`
+- 问候用户：`{"action": "direct_response"}<think>用户问候，直接回复</think>你好！有什么我可以帮你的吗？`
 """
 
 # 工具使用示例
@@ -453,6 +483,17 @@ TOOL_EXAMPLES = """## 📚 工具使用示例
 - 工具名必须精确匹配（如用 `open_folder` 而不是 `open`）
 - 参数必须符合 schema（如 `path` 是字符串，不是 `folder`）
 - 不要猜测工具名，先看 Available tools 列表
+
+### 直接回复（不需要工具）
+**场景**: 用户说"你好"、"谢谢"、简单的问候或不需要工具的问题
+
+```json
+{"action": "direct_response"}
+```
+<think>用户问候，不需要使用工具，直接回复即可</think>
+你好！有什么我可以帮你的吗？
+
+**注意**：直接回复时，必须先输出 JSON 决策，然后用 `<think>` 标签包裹思考内容，最后输出实际回复内容。
 """
 
 # 组合的工具使用指南
@@ -516,6 +557,7 @@ __all__ = [
     "TOOL_USE_ENFORCEMENT",
     "TOOL_CALL_FORMAT",
     "TOOL_EXAMPLES",
+    "THINK_TAG_INSTRUCTION",
     "MANDATORY_TOOL_USE",
     "ACT_DONT_ASK",
     "OPENAI_MODEL_EXECUTION_GUIDANCE",
