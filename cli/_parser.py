@@ -169,16 +169,10 @@ def build_top_level_parser():
         help="Quiet mode: suppress banner, spinner, and tool previews.",
     )
     parser.add_argument(
-        "--textual",
+        "--cli",
         action="store_true",
         default=False,
-        help="Use Textual TUI (modern terminal UI)",
-    )
-    parser.add_argument(
-        "--no-textual",
-        action="store_true",
-        default=False,
-        help="Disable Textual TUI, use traditional CLI",
+        help="使用传统 CLI 界面代替 TUI",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")

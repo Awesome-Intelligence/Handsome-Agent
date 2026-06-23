@@ -662,34 +662,32 @@ def cmd_auth(args: argparse.Namespace):
 
 def should_use_textual(args: argparse.Namespace) -> bool:
     """Determine if Textual UI should be used.
-    
+
+    默认使用 TUI，除非显式指定 --cli 或环境不适配。
+
     Args:
         args: Parsed command line arguments
-        
+
     Returns:
         True if Textual UI should be used, False otherwise
     """
-    # Check if textual is available
+    # 显式 --cli 使用传统 CLI
+    if getattr(args, 'cli', False):
+        return False
+
+    # 检查 TUI 可用性
     try:
         from tui import TEXTUAL_AVAILABLE
         if not TEXTUAL_AVAILABLE:
             return False
     except ImportError:
         return False
-    
-    # Explicit --no-textual disables it
-    if getattr(args, 'no_textual', False):
-        return False
-    
-    # Explicit --textual flag takes precedence
-    if getattr(args, 'textual', False):
-        return True
-    
-    # Non-TTY environment check (pipes, redirects, cron, etc.)
+
+    # 非 TTY 环境回退（管道、重定向、cron 等）
     if not sys.stdout.isatty():
         return False
-    
-    # Terminal size check
+
+    # 终端大小检查
     try:
         import shutil
         terminal_size = shutil.get_terminal_size()
@@ -697,9 +695,9 @@ def should_use_textual(args: argparse.Namespace) -> bool:
             return False
     except Exception:
         return False
-    
-    # Default: use traditional CLI
-    return False
+
+    # 默认使用 TUI
+    return True
 
 
 def run_textual_mode(args: argparse.Namespace, agent: Agent, model_name: str) -> int:
