@@ -233,7 +233,7 @@ Screen {
     color: #c9d1d9;
     padding: 1 3;
     margin: 1 0;
-    border-left: solid #3fb950;
+    border-left: solid #ffffff;
 }
 
 /* 消息样式 - 系统消息 */

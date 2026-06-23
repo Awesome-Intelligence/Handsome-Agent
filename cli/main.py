@@ -907,8 +907,8 @@ def main():
     saved_display = saved_config.get("display", {})
     saved_prefs = saved_config.get("preferences", {})
 
-    # Get explanation depth from args or config (default: detailed)
-    explanation_depth = getattr(args, 'explanation_depth', saved_prefs.get("explanation_depth", "detailed"))
+    # Get explanation depth from args or config (default: moderate)
+    explanation_depth = getattr(args, 'explanation_depth', saved_prefs.get("explanation_depth", "moderate"))
 
     # Load language from config
     language = saved_config.get("language", saved_prefs.get("language", "zh"))

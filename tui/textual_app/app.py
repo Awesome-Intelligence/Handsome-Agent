@@ -499,7 +499,28 @@ class HandsomeAgentApp(App):
                             self._logger.info("TaskPlanner emitter set")
                             
             except Exception as e:
-                self._logger.warning(f"Failed to initialize TUIConsumer: {e}")
+                    self._logger.warning(f"Failed to initialize TUIConsumer: {e}")
+
+        # 加载持久化的输入历史（跨会话）
+        try:
+            from tui.services.session_store import SessionStore
+            session_store = SessionStore()
+            persisted_history = session_store.load_input_history(limit=100)
+            if persisted_history:
+                self._input_history = persisted_history
+                self._logger.info(f"Loaded {len(persisted_history)} persisted input history items")
+        except Exception as e:
+            self._logger.warning(f"Failed to load persisted input history: {e}")
+
+        # 绑定输入框历史导航回调（上下键切换历史消息）
+        if SubmitTextArea is not None:
+            try:
+                text_area = self.query_one("#user-input", SubmitTextArea)
+                text_area.history_navigate = self._navigate_input_history
+            except Exception as e:
+                self._logger.warning(
+                    f"Failed to wire up history navigation: {e}"
+                )
 
         self.set_focus(self.query_one("#user-input", TextArea))
 
@@ -696,6 +717,13 @@ class HandsomeAgentApp(App):
             if len(self._input_history) > 100:
                 self._input_history = self._input_history[:100]
 
+            try:
+                from tui.services.session_store import SessionStore
+                session_store = SessionStore()
+                session_store.save_input_history(user_input)
+            except Exception as e:
+                self._logger.warning(f"Failed to save input history: {e}")
+
         self._history_index = -1
         self._current_input = ""
         text_area.text = ""
@@ -704,7 +732,7 @@ class HandsomeAgentApp(App):
         self.call_later(lambda: self._call_agent_async(user_input))
 
     def _register_event_listeners(self) -> None:
-        self._logger.debug("Event listeners registered (using @on decorators)")
+        pass
 
     def _start_loading_animation(self) -> None:
         if self._is_loading:
@@ -1584,6 +1612,18 @@ class HandsomeAgentApp(App):
             chat_area.append_message(role, content)
         elif hasattr(chat_area, 'write'):
             chat_area.write(f"{content}\n")
+
+    def _navigate_input_history(self, direction: int) -> None:
+        """输入框上下键触发的历史导航回调。
+
+        Args:
+            direction: -1 表示向上（更早的历史），
+                1 表示向下（更新的历史或还原当前输入）
+        """
+        if direction < 0:
+            self._history_prev()
+        else:
+            self._history_next()
 
     def _history_prev(self) -> None:
         text_area = self.query_one("#user-input", TextArea)

@@ -51,7 +51,7 @@ except ImportError:
 # 数据库 Schema
 # ============================================================================
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 INITIAL_SCHEMA = f"""
 -- 会话表
@@ -79,15 +79,37 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
+-- 输入历史表（跨会话持久化）
+CREATE TABLE IF NOT EXISTS input_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    use_count INTEGER DEFAULT 1
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_input_history_created ON input_history(created_at DESC);
 """
 
 # 数据库迁移脚本
 MIGRATIONS: list[str] = [
     # v1: 初始版本
     "",
+    # v2: 添加输入历史表
+    """
+    CREATE TABLE IF NOT EXISTS input_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        use_count INTEGER DEFAULT 1
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_input_history_created ON input_history(created_at DESC);
+    """,
 ]
 
 
@@ -716,6 +738,108 @@ class SessionStore:
                 (session_id,),
             )
             return cursor.fetchone()[0]
+    
+    # ========================================================================
+    # 输入历史操作（跨会话持久化）
+    # ========================================================================
+    
+    def save_input_history(self, content: str) -> None:
+        """保存输入历史（去重，更新使用次数和时间）
+        
+        Args:
+            content: 用户输入内容
+        """
+        content = content.strip()
+        if not content:
+            return
+        
+        now = datetime.now()
+        
+        with self._transaction() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "SELECT id, use_count FROM input_history WHERE content = ?",
+                (content,),
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                cursor.execute(
+                    """
+                    UPDATE input_history
+                    SET use_count = use_count + 1, last_used_at = ?
+                    WHERE id = ?
+                    """,
+                    (now, row[0]),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO input_history (content, created_at, last_used_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (content, now, now),
+                )
+    
+    def load_input_history(self, limit: int = 100) -> list[str]:
+        """加载输入历史
+        
+        Args:
+            limit: 返回数量限制
+            
+        Returns:
+            输入历史内容列表（按最后使用时间倒序）
+        """
+        with self._transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT content
+                FROM input_history
+                ORDER BY last_used_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = cursor.fetchall()
+        
+        return [row[0] for row in rows]
+    
+    def delete_input_history(self, content: str) -> bool:
+        """删除指定输入历史
+        
+        Args:
+            content: 要删除的输入内容
+            
+        Returns:
+            True 如果删除成功
+        """
+        with self._transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM input_history WHERE content = ?",
+                (content,),
+            )
+            deleted = cursor.rowcount > 0
+        
+        if deleted:
+            self._logger.debug(f"Input history deleted: {content[:50]}...")
+        return deleted
+    
+    def clear_input_history(self) -> int:
+        """清空所有输入历史
+        
+        Returns:
+            删除的记录数量
+        """
+        with self._transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM input_history")
+            deleted = cursor.rowcount
+        
+        self._logger.info(f"Cleared {deleted} input history records")
+        return deleted
     
     # ========================================================================
     # 工具方法

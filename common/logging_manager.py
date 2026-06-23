@@ -111,6 +111,8 @@ class LogConfig:
             # 其他常见第三方库
             "http": logging.WARNING,
             "asyncio": logging.WARNING,
+            "markdown_it": logging.WARNING,
+            "markdown_it.rules_block": logging.WARNING,
         }
         self.module_levels.update(third_party_levels)
 

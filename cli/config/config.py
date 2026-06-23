@@ -118,7 +118,7 @@ DEFAULT_CONFIG = {
         "language": "zh",
     },
     "preferences": {
-        "explanation_depth": "detailed",
+        "explanation_depth": "moderate",
         "response_format": "markdown",
         "log_level": "info",
     },

@@ -16,6 +16,7 @@ def setup_logging(level: int = logging.INFO, log_file: Optional[str] = None) -> 
     
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
     logging.getLogger("fastapi").setLevel(logging.WARNING)
+    logging.getLogger("markdown_it").setLevel(logging.WARNING)
     logging.getLogger("brain_trajectory").setLevel(logging.INFO)
     logging.getLogger("brain_curator").setLevel(logging.INFO)
     logging.getLogger("brain.agent").setLevel(logging.INFO)
