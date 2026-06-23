@@ -337,8 +337,9 @@ class HandsomeAgentApp(App):
         self._streaming_text: str = ""
         self._streaming_widget_id: str | None = None
         self._streaming_timer: Optional[callable] = None
-        self._streaming_chars_per_tick: int = 3
-        self._streaming_delay_ms: int = 30
+        self._streaming_chars_per_tick: int = 10  # 优化：从 3 改为 10，减少更新频率
+        self._streaming_delay_ms: int = 50  # 优化：从 30 改为 50ms
+        self._streaming_scroll_threshold: int = 15  # 每累积 15 个字符才滚动一次
 
         self._agent = agent
         self._theme_manager: ThemeManager | None = None
@@ -387,6 +388,20 @@ class HandsomeAgentApp(App):
             ("qwen-plus", "Qwen Plus"),
             ("custom", "其他..."),
         ]
+
+        # Welcome Banner 缓存
+        self._banner_cache: dict = {
+            "project_path": None,
+            "skills_path": None,
+            "tools_path": None,
+            "skills_count": None,
+            "tools_count": None,
+            "version": None,
+        }
+        self._banner_cache_initialized: bool = False
+
+        # ========== Widget 缓存（优化性能）==========
+        self._widget_cache: dict = {}  # 缓存常用 widget 引用
 
     def compose(self) -> ComposeResult:
         with Container(id="app-header"):
@@ -458,6 +473,9 @@ class HandsomeAgentApp(App):
             # 设置默认主题为 "default"（紫色）
             self.theme = "default"
             self._logger.info(f"Set default theme to: {self.theme}")
+        
+        # 缓存常用 Widget 引用（优化性能）
+        self._cache_widgets()
         
         self._render_welcome_banner()
         self._update_status_bar()
@@ -628,21 +646,30 @@ class HandsomeAgentApp(App):
 
     def _update_status_bar(self) -> None:
         try:
-            icon_widget = self.query_one("#status-icon", Static)
-            icon_widget.update("●")
-            # status-model 现在是 Select 组件，在 _init_model_select 中初始化
-            tokens_widget = self.query_one("#status-tokens", Static)
-            if self.context_length:
-                tokens_widget.update(f"│ 0/{self._format_context(self.context_length)} ")
-            else:
-                tokens_widget.update("│ n/a ")
+            # 使用缓存的 widgets（避免频繁 query_one）
+            icon_widget = self._widget_cache.get("status_icon")
+            if icon_widget:
+                icon_widget.update("●")
+            
+            tokens_widget = self._widget_cache.get("status_tokens")
+            if tokens_widget:
+                if self.context_length:
+                    tokens_widget.update(f"│ 0/{self._format_context(self.context_length)} ")
+                else:
+                    tokens_widget.update("│ n/a ")
+            
             # 使用 Textual 原生 ProgressBar 组件
-            progress_widget = self.query_one("#status-progress", ProgressBar)
-            progress_widget.update(progress=0.0)
-            time_widget = self.query_one("#status-time", Static)
-            time_widget.update("│ 0m 0s ")
-            tools_widget = self.query_one("#status-tools", Static)
-            tools_widget.update("🔧")
+            progress_widget = self._widget_cache.get("status_progress")
+            if progress_widget:
+                progress_widget.update(progress=0.0)
+            
+            time_widget = self._widget_cache.get("status_time")
+            if time_widget:
+                time_widget.update("│ 0m 0s ")
+            
+            tools_widget = self._widget_cache.get("status_tools")
+            if tools_widget:
+                tools_widget.update("🔧")
         except Exception as e:
             self._logger.debug(f"Failed to update status bar: {e}")
 
@@ -706,7 +733,10 @@ class HandsomeAgentApp(App):
 
     @on(SubmitTextArea.InputSubmitted)
     def _on_input_submitted(self, event: SubmitTextArea.InputSubmitted) -> None:
-        text_area = self.query_one("#user-input", SubmitTextArea)
+        # 使用缓存的 widget（优化性能）
+        text_area = self._widget_cache.get("user_input")
+        if text_area is None:
+            text_area = self.query_one("#user-input", SubmitTextArea)
         user_input = text_area.text.strip()
 
         if not user_input:
@@ -766,11 +796,10 @@ class HandsomeAgentApp(App):
                 pass
         else:
             # 使用原有的状态栏加载动画
-            try:
-                status_icon = self.query_one("#status-icon", Static)
+            # 使用缓存的 widget（避免频繁 query_one）
+            status_icon = self._widget_cache.get("status_icon")
+            if status_icon:
                 status_icon.update("●")
-            except Exception:
-                pass
 
     def _toggle_sidebar(self) -> None:
         sidebar = self.query_one("#sidebar-container", Container)
@@ -785,8 +814,10 @@ class HandsomeAgentApp(App):
     def _update_loading_frame(self) -> None:
         if not self._is_loading:
             return
-        status_icon = self.query_one("#status-icon", Static)
-        status_icon.update(self._loading_frames[self._loading_frame_index])
+        # 使用缓存的 widget（避免频繁 query_one）
+        status_icon = self._widget_cache.get("status_icon")
+        if status_icon:
+            status_icon.update(self._loading_frames[self._loading_frame_index])
         self._loading_frame_index = (self._loading_frame_index + 1) % len(self._loading_frames)
         self.set_timer(0.2, self._update_loading_frame)
 
@@ -839,8 +870,13 @@ class HandsomeAgentApp(App):
             markup=True,
         )
 
-        chat_area = self.query_one("#chat-area", ChatView)
-        chat_area.mount(streaming_widget)
+        # 使用缓存的 chat_area（优化性能）
+        chat_area = self._widget_cache.get("chat_area")
+        if chat_area:
+            chat_area.mount(streaming_widget)
+
+        # 初始化滚动计数器
+        self._streaming_chars_since_scroll = 0
 
         self._streaming_timer = self.set_interval(
             self._streaming_delay_ms / 1000.0,
@@ -872,15 +908,22 @@ class HandsomeAgentApp(App):
             self._streaming_current_content += new_chars
             streaming_widget.update(self._streaming_current_content)
             self._streaming_displayed = end_index
+            # 更新滚动计数器
+            self._streaming_chars_since_scroll = getattr(self, '_streaming_chars_since_scroll', 0) + len(new_chars)
 
-        try:
-            chat_area = self.query_one("#chat-area", ChatView)
-            if hasattr(chat_area, 'scroll_home'):
-                chat_area.scroll_home(animate=False)
-            elif hasattr(chat_area, 'scroll_to'):
-                chat_area.scroll_to(0, animate=False)
-        except Exception:
-            pass
+        # 滚动节流：每累积一定字符数才滚动一次（优化性能）
+        should_scroll = self._streaming_chars_since_scroll >= self._streaming_scroll_threshold
+        if should_scroll:
+            self._streaming_chars_since_scroll = 0
+            try:
+                chat_area = self._widget_cache.get("chat_area")
+                if chat_area:
+                    if hasattr(chat_area, 'scroll_home'):
+                        chat_area.scroll_home(animate=False)
+                    elif hasattr(chat_area, 'scroll_to'):
+                        chat_area.scroll_to(0, animate=False)
+            except Exception:
+                pass
 
         if self._streaming_displayed >= len(self._streaming_text):
             self._finish_typewriter_effect()
@@ -922,50 +965,141 @@ class HandsomeAgentApp(App):
         self._streaming_displayed = 0
         self._streaming_current_content = ""
 
+    def _init_banner_cache(self) -> None:
+        """初始化 Banner 缓存（在后台线程中调用）"""
+        if self._banner_cache_initialized:
+            return
+
+        try:
+            # 缓存项目路径
+            self._banner_cache["project_path"] = self._get_project_path()
+            self._banner_cache["skills_path"] = self._get_skills_path()
+            self._banner_cache["tools_path"] = self._get_tools_path()
+            # 缓存数量
+            self._banner_cache["skills_count"] = self._get_skills_count()
+            self._banner_cache["tools_count"] = self._get_tools_count()
+            # 缓存版本
+            try:
+                from cli import __version__ as app_version
+                self._banner_cache["version"] = app_version
+            except ImportError:
+                self._banner_cache["version"] = "unknown"
+            self._banner_cache_initialized = True
+            self._logger.debug("Banner cache initialized")
+        except Exception as e:
+            self._logger.error(f"Failed to initialize banner cache: {e}")
+
+    def _cache_widgets(self) -> None:
+        """缓存常用 Widget 引用（优化性能，避免频繁 query_one）"""
+        try:
+            # 状态栏 widgets
+            self._widget_cache["status_icon"] = self.query_one("#status-icon", Static)
+            self._widget_cache["status_model"] = self.query_one("#status-model", Select)
+            self._widget_cache["status_tokens"] = self.query_one("#status-tokens", Static)
+            self._widget_cache["status_progress"] = self.query_one("#status-progress", ProgressBar)
+            self._widget_cache["status_time"] = self.query_one("#status-time", Static)
+            self._widget_cache["status_tools"] = self.query_one("#status-tools", Static)
+            self._widget_cache["status_bar"] = self.query_one("#status-bar")
+            
+            # 聊天区域
+            self._widget_cache["chat_area"] = self.query_one("#chat-area", ChatView)
+            
+            # 输入框
+            self._widget_cache["user_input"] = self.query_one("#user-input", TextArea)
+            
+            # Banner widgets
+            self._widget_cache["welcome_banner"] = self.query_one("#welcome-banner", Static)
+            self._widget_cache["version_info"] = self.query_one("#version-info", Static)
+            self._widget_cache["skills_info"] = self.query_one("#skills-info", Static)
+            self._widget_cache["tools_info"] = self.query_one("#tools-info", Static)
+            
+            # 侧边栏
+            try:
+                self._widget_cache["sidebar_container"] = self.query_one("#sidebar-container", Container)
+            except Exception:
+                pass
+                
+            self._logger.debug(f"Cached {len(self._widget_cache)} widgets")
+        except Exception as e:
+            self._logger.warning(f"Failed to cache widgets: {e}")
+
+    def _get_cached_widget(self, key: str, widget_class=None):
+        """获取缓存的 Widget 引用
+        
+        Args:
+            key: Widget 缓存键
+            widget_class: 可选的 widget 类型，用于回退到 query_one
+            
+        Returns:
+            Widget 引用或 None
+        """
+        if key in self._widget_cache:
+            return self._widget_cache[key]
+        
+        # 回退到 query_one（如果 widget 未被缓存）
+        try:
+            widget = self.query_one(f"#{key}" if not key.startswith("#") else key, widget_class)
+            self._widget_cache[key] = widget
+            return widget
+        except Exception:
+            return None
+
     def _render_welcome_banner(self) -> None:
+        # 初始化缓存（首次调用时）
+        if not self._banner_cache_initialized:
+            self._init_banner_cache()
+
         # 根据主题 ID 确定 Banner 颜色
         # default: 紫色, awesome: 绿色
         banner_color = "#C9A0E0" if self.theme_id == "default" else "#C5FF9E"
-        secondary_color = "#8b949e"
 
-        # 渲染左侧 ASCII Banner
+        # 渲染左侧 ASCII Banner（不缓存，每次都重新生成因为颜色可能变化）
         welcome_lines = [
             f"[bold {banner_color}]░█░█░█▀█░█▀█░█▀▄░█▀▀░█▀█░█▄█░█▀▀[/]",
             f"[bold {banner_color}]░█▀█░█▀█░█░█░█░█░▀▀█░█░█░█░█░█▀▀[/]",
             f"[bold {banner_color}]░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀▀▀░▀░▀░▀▀▀[/]",
         ]
 
-        welcome_widget = self.query_one("#welcome-banner")
+        # 使用缓存的 widgets（优化性能）
+        welcome_widget = self._widget_cache.get("welcome_banner")
         if welcome_widget:
             from rich.text import Text as RichText
             welcome_text = RichText.from_markup("\n".join(welcome_lines))
             welcome_widget.update(welcome_text)
 
-        # 渲染右侧信息栏
+        # 渲染右侧信息栏（使用缓存）
         from rich.text import Text as RichText
 
-        # 版本信息 + 项目路径
-        version_widget = self.query_one("#version-info")
-        if version_widget:
-            from cli import __version__ as app_version
-            project_path = self._get_project_path()
-            version_text = RichText.from_markup(f"[dim]{app_version}[/] [bright_black]@[/] [bright_black]{project_path}[/]")
+        # 版本信息 + 项目路径（使用缓存）
+        version_widget = self._widget_cache.get("version_info")
+        if version_widget and self._banner_cache["version"]:
+            version_text = RichText.from_markup(
+                f"[dim]{self._banner_cache['version']}[/] "
+                f"[bright_black]@[/] "
+                f"[bright_black]{self._banner_cache['project_path']}[/]"
+            )
             version_widget.update(version_text)
 
-        # Skill 数量 + 路径
-        skills_widget = self.query_one("#skills-info")
-        if skills_widget:
-            skills_count = self._get_skills_count()
-            skills_path = self._get_skills_path()
-            skills_text = RichText.from_markup(f"[bold #f0c040]⭐[/] [dim]{skills_count}[/] [bright_black]@[/] [bright_black]{skills_path}[/]")
+        # Skill 数量 + 路径（使用缓存）
+        skills_widget = self._widget_cache.get("skills_info")
+        if skills_widget and self._banner_cache["skills_count"] is not None:
+            skills_text = RichText.from_markup(
+                f"[bold #f0c040]⭐[/] "
+                f"[dim]{self._banner_cache['skills_count']}[/] "
+                f"[bright_black]@[/] "
+                f"[bright_black]{self._banner_cache['skills_path']}[/]"
+            )
             skills_widget.update(skills_text)
 
-        # 工具数量 + 路径
-        tools_widget = self.query_one("#tools-info")
-        if tools_widget:
-            tools_count = self._get_tools_count()
-            tools_path = self._get_tools_path()
-            tools_text = RichText.from_markup(f"[bold #58a6ff]🔧[/] [dim]{tools_count}[/] [bright_black]@[/] [bright_black]{tools_path}[/]")
+        # 工具数量 + 路径（使用缓存）
+        tools_widget = self._widget_cache.get("tools_info")
+        if tools_widget and self._banner_cache["tools_count"] is not None:
+            tools_text = RichText.from_markup(
+                f"[bold #58a6ff]🔧[/] "
+                f"[dim]{self._banner_cache['tools_count']}[/] "
+                f"[bright_black]@[/] "
+                f"[bright_black]{self._banner_cache['tools_path']}[/]"
+            )
             tools_widget.update(tools_text)
 
     def _get_tools_count(self) -> int:
@@ -1605,7 +1739,10 @@ class HandsomeAgentApp(App):
             return content
     
     def _append_message(self, role: str, content: str, render_markdown: bool = True) -> None:
-        chat_area = self.query_one("#chat-area", ChatView)
+        # 使用缓存的 widget（优化性能）
+        chat_area = self._widget_cache.get("chat_area")
+        if chat_area is None:
+            chat_area = self.query_one("#chat-area", ChatView)
 
         # ChatView 使用 append_message 正确传递 role
         if hasattr(chat_area, 'append_message'):
@@ -1755,11 +1892,10 @@ class HandsomeAgentApp(App):
 
                 self._show_typewriter_message(content)
 
-                try:
-                    time_widget = self.query_one("#status-time", Static)
+                # 使用缓存的 widget（优化性能）
+                time_widget = self._widget_cache.get("status_time")
+                if time_widget:
                     time_widget.update(f"│ {elapsed_minutes}m {elapsed_seconds}s ")
-                except Exception:
-                    pass
             except Exception as e:
                 self._stop_loading_animation()
                 self.set_agent_status("error")

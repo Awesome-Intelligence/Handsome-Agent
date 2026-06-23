@@ -313,14 +313,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         if not buffered_text:
             return
 
-        # 使用索引快速查找消息，而不是线性遍历
+        # 使用索引快速查找消息（索引在 add_message/start_streaming 时已维护）
         msg = self._message_index.get(message_id)
-        if msg is None:
-            for m in self._messages:
-                if m.id == message_id:
-                    msg = m
-                    break
-
         if msg is None:
             return
 
@@ -334,15 +328,11 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
 
         thinking_id = f"{message_id}-thinking"
         thinking_msg = self._message_index.get(thinking_id)
-        if thinking_msg is None:
-            for msg in self._messages:
-                if msg.id == thinking_id:
-                    thinking_msg = msg
-                    break
 
         if thinking_msg:
             thinking_msg.content += text
         else:
+            # 首次创建思考消息时，同时添加到列表和索引
             self._message_counter += 1
             thinking_msg = MessageItem(
                 id=thinking_id,
@@ -365,14 +355,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         if message_id in self._streaming_buffer and self._streaming_buffer.get(message_id, ""):
             self._flush_streaming_buffer(message_id)
 
-        # 使用索引快速查找
+        # 使用索引快速查找（索引在 start_streaming 时已维护）
         msg = self._message_index.get(message_id)
-        if msg is None:
-            for m in self._messages:
-                if m.id == message_id:
-                    msg = m
-                    break
-
         if msg:
             msg.is_streaming = False
             msg.is_complete = True
@@ -380,12 +364,6 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
 
         thinking_id = f"{message_id}-thinking"
         thinking_msg = self._message_index.get(thinking_id)
-        if thinking_msg is None:
-            for m in self._messages:
-                if m.id == thinking_id:
-                    thinking_msg = m
-                    break
-
         if thinking_msg:
             thinking_msg.is_streaming = False
             thinking_msg.is_complete = True
@@ -404,25 +382,15 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
     # ========================================================================
 
     def update_message(self, message_id: str, content: str) -> None:
-        # 使用索引快速查找
+        # 使用索引快速查找（索引已维护，直接查询即可）
         msg = self._message_index.get(message_id)
-        if msg is None:
-            for m in self._messages:
-                if m.id == message_id:
-                    msg = m
-                    break
         if msg:
             msg.content = content
             self._update_message_widget(msg)
 
     def remove_message(self, message_id: str) -> bool:
-        # 使用索引快速查找
+        # 使用索引快速查找（索引已维护，直接查询即可）
         msg = self._message_index.get(message_id)
-        if msg is None:
-            for i, m in enumerate(self._messages):
-                if m.id == message_id:
-                    msg = m
-                    break
         if msg:
             self._messages.remove(msg)
             self._message_index.pop(message_id, None)

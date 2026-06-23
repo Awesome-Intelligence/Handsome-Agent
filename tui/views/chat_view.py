@@ -103,7 +103,7 @@ class ChatView(Container):
                 auto_scroll=True,
                 show_timestamps=True,
                 show_role_icons=True,
-                streaming_throttle_ms=30,
+                streaming_throttle_ms=50,  # 优化：从 30ms 改为 50ms，减少刷新频率
             )
         else:
             # 降级：如果 MessageList 不可用，使用占位符
