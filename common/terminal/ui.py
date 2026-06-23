@@ -616,6 +616,9 @@ class _UIFacade:
         self.status_bar = status_bar
         self.StatusBar = StatusBar
 
+        # Spinner
+        self.Spinner = Spinner
+
         # 常量
         self.HAS_RICH = HAS_RICH
         self.HEX_AVOCADO = HEX_AVOCADO
