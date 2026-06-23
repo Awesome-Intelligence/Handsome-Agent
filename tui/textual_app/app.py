@@ -127,6 +127,11 @@ except ImportError:
     HelpScreen = None
 
 try:
+    from tui.views.file_preview import FilePreviewScreen
+except ImportError:
+    FilePreviewScreen = None
+
+try:
     from tui.core.keybindings import (
         KeyBinding, KeyBindingManager, KeyBindingCategory, create_default_keybindings,
     )

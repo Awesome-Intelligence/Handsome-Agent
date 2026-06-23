@@ -18,6 +18,12 @@ from textual.widgets import Static, Log, TabbedContent, TabPane, DirectoryTree
 from textual.widgets import Tabs
 from textual import on
 
+# 文件预览支持
+try:
+    from tui.views.file_preview import FilePreviewScreen
+except ImportError:
+    FilePreviewScreen = None
+
 
 # 图标系统
 try:
@@ -346,7 +352,15 @@ class FileTreePane(SidebarPane):
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """处理文件选中事件."""
         event.stop()
-        self.post_message(self.FileSelected(Path(event.path)))
+        file_path = Path(event.path)
+        
+        # 如果是目录，展开/折叠
+        if file_path.is_dir():
+            return
+        
+        # 如果是文件，打开预览
+        if FilePreviewScreen:
+            self.app.push_screen(FilePreviewScreen(file_path))
 
     def set_focus_within(self) -> None:
         """设置面板内部焦点."""
