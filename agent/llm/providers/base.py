@@ -118,15 +118,53 @@ class BaseProvider(ABC):
                 body_str = body_str[:50] + " ... " + body_str[-50:]
             self.logger.debug(f"{self.provider_display_name} request body: {body_str}")
 
-    def _log_input_messages(self, messages: List[Dict[str, Any]]):
-        """记录输入消息（DEBUG级别）"""
+    def _log_input_messages(self, messages: List[Dict[str, Any]], system_prompt_meta: Dict = None):
+        """记录输入消息（DEBUG级别）
+        
+        特殊处理：
+        - system 消息：仅显示名称（第一行标题），如果有多行内容则附加 "(+N chars)"
+        - 其他消息：显示截断格式
+        """
         if self.logger:
             self.logger.debug(f"{self.provider_display_name} Input Messages ({len(messages)} messages):")
             for i, msg in enumerate(messages):
                 role = msg.get("role", "unknown")
                 content = msg.get("content", "")
-                preview = self._format_message_for_log(role, content)
+                
+                # 防御性检查：确保 content 不是 None
+                if content is None:
+                    content = ""
+                
+                if role == "system":
+                    # System 消息特殊处理：提取名称（标题）
+                    # 优先使用传入的 system_prompt_meta，否则尝试从消息获取
+                    prompt_meta = system_prompt_meta or msg.get("_prompt_meta")
+                    preview = self._format_system_prompt_name(content, prompt_meta)
+                else:
+                    preview = self._format_message_for_log(role, content)
+                
                 self.logger.info(f"⬆️  [{i}] {role}: {preview}")
+    
+    def _extract_system_prompt_meta(self, messages: List) -> Optional[Dict]:
+        """从消息列表中提取 system prompt 的 _prompt_meta
+        
+        用于在 _build_messages 处理后仍然能获取原始的 _prompt_meta。
+        
+        Returns:
+            _prompt_meta 字典或 None
+        """
+        if not messages:
+            return None
+        
+        for msg in messages:
+            if isinstance(msg, dict) and msg.get("role") == "system":
+                return msg.get("_prompt_meta")
+            elif hasattr(msg, "role") and msg.role == "system":
+                # Pydantic 模型等
+                meta = getattr(msg, "_prompt_meta", None)
+                if meta:
+                    return meta
+        return None
 
     def _log_output_content(self, content: str):
         """记录输出内容（INFO级别）"""
@@ -400,3 +438,57 @@ class BaseProvider(ABC):
             preview = content
 
         return f"{color}{preview}{RESET}"
+    
+    def _format_system_prompt_name(self, content: str, prompt_meta: Dict = None) -> str:
+        """格式化系统提示词名称：提取标题，附加额外信息
+        
+        规则：
+        - 如果是第一行是 Markdown 标题（# 开头），提取标题文本作为名称
+        - 如果有 prompt_meta.stable_keys，显示模板变量名列表
+        - 如果有 prompt_meta，显示各层信息（如 [stable:100, context:50, volatile:30]）
+        - 如果没有 prompt_meta 但有多行内容，附加 "(+N chars)"
+        - 如果只有一行，直接显示
+        
+        颜色：使用 system 专用色（灰紫）
+        """
+        SYSTEM_COLOR = "\033[38;5;146m"  # 灰紫 - 系统提示词
+        RESET = "\033[0m"
+        
+        if not content:
+            return f"{SYSTEM_COLOR}[Empty System Prompt]{RESET}"
+        
+        lines = content.split('\n')
+        first_line = lines[0].strip() if lines else ""
+        
+        # 尝试提取 Markdown 标题
+        if first_line.startswith('#'):
+            # 去掉 # 和可能的空格
+            name = first_line.lstrip('#').strip()
+        else:
+            # 非标题格式，取第一行前 60 字符
+            name = first_line[:60] if len(first_line) > 60 else first_line
+        
+        # 构建额外信息
+        if prompt_meta:
+            stable_keys = prompt_meta.get("stable_keys", [])
+            if stable_keys:
+                # 显示模板变量名
+                extra_info = f" [{', '.join(stable_keys)}]"
+            else:
+                # 显示各层信息
+                stable = prompt_meta.get("stable_chars", 0)
+                context = prompt_meta.get("context_chars", 0)
+                volatile = prompt_meta.get("volatile_chars", 0)
+                extra_info = f" [stable:{stable}, context:{context}, volatile:{volatile}]"
+        else:
+            # 计算额外字符数
+            first_line_len = len(first_line)
+            total_len = len(content)
+            extra_chars = total_len - first_line_len
+            
+            if extra_chars > 0:
+                extra_info = f" (+{extra_chars} chars)"
+            else:
+                extra_info = ""
+        
+        return f"{SYSTEM_COLOR}{name}{extra_info}{RESET}"

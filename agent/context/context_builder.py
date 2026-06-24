@@ -150,7 +150,16 @@ class ContextBuilder:
 
         # 3. 构建消息列表
         messages: List[Dict[str, Any]] = []
-        messages.append({"role": "system", "content": system_content})
+        # System 消息添加元数据：prompt_key 用于日志标识
+        system_msg = {"role": "system", "content": system_content}
+        # 记录各层长度和模板变量名（用于日志显示）
+        system_msg["_prompt_meta"] = {
+            "stable_chars": len(parts.get("stable", "")),
+            "context_chars": len(parts.get("context", "")),
+            "volatile_chars": len(parts.get("volatile", "")),
+            "stable_keys": parts.get("stable_keys", []),
+        }
+        messages.append(system_msg)
 
         # 5. 处理对话历史
         if conversation_history:
@@ -339,6 +348,9 @@ class ContextBuilder:
             AGENT_IDENTITY,                              # Agent 身份
             CAPABILITIES,                                # 能力摘要
         ]
+        
+        # 记录 stable 层使用的模板变量名（用于日志）
+        stable_keys = ["AGENT_IDENTITY", "CAPABILITIES"]
 
         # 仅当启用指导时添加指导性文本
         if self.enable_guidance:
@@ -350,12 +362,21 @@ class ContextBuilder:
                 SESSION_SEARCH_GUIDANCE,                     # 跨会话搜索指导
                 SKILLS_GUIDANCE,                             # 技能保存指导
             ])
+            stable_keys.extend([
+                "TOOL_USE_ENFORCEMENT",
+                "MANDATORY_TOOL_USE",
+                "ACT_DONT_ASK",
+                "MEMORY_GUIDANCE",
+                "SESSION_SEARCH_GUIDANCE",
+                "SKILLS_GUIDANCE",
+            ])
 
             # 模型特定指导
             if model:
                 model_lower = model.lower()
                 if any(p in model_lower for p in ["deepseek", "gpt", "grok", "glm", "qwen"]):
                     stable_parts.append(OPENAI_MODEL_EXECUTION_GUIDANCE)
+                    stable_keys.append("OPENAI_MODEL_EXECUTION_GUIDANCE")
         
         stable_content = "\n\n".join(stable_parts)
         
@@ -397,6 +418,7 @@ class ContextBuilder:
             "stable": stable_content,
             "context": context_content,
             "volatile": volatile_content,
+            "stable_keys": stable_keys,
         }
 
 
