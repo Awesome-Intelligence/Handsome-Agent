@@ -319,7 +319,6 @@ class TestSetupWizard:
         
         assert result is not None
         assert result["enabled"] == True
-        assert result["vector_store"] == "sqlite"
     
     def test_setup_compression(self, isolated_config, monkeypatch):
         """测试 Context 压缩配置"""

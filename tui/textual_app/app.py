@@ -1044,14 +1044,41 @@ class HandsomeAgentApp(App):
         except Exception:
             return None
 
+    def _get_theme_banner_color(self) -> str:
+        """从 CSS 主题文件读取 --banner-color 变量.
+
+        从 tui/theming/css/themes/{theme_id}.css 中解析 --banner-color 值。
+        如果解析失败，返回默认紫色。
+
+        Returns:
+            HEX 格式的颜色值
+        """
+        import re
+        themes_dir = Path(__file__).resolve().parent.parent / "theming" / "css" / "themes"
+        css_file = themes_dir / f"{self.theme_id}.css"
+
+        if not css_file.exists():
+            return "#C9A0E0"  # 默认紫色
+
+        try:
+            content = css_file.read_text(encoding="utf-8")
+            # 匹配 .theme-default { ... --banner-color: #C9A0E0; ... }
+            pattern = r'\.' + re.escape(self.theme_id) + r'.*?--banner-color\s*:\s*([^;]+);'
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                return match.group(1).strip()
+        except Exception:
+            pass
+
+        return "#C9A0E0"  # 默认紫色
+
     def _render_welcome_banner(self) -> None:
         # 初始化缓存（首次调用时）
         if not self._banner_cache_initialized:
             self._init_banner_cache()
 
-        # 根据主题 ID 确定 Banner 颜色
-        # default: 紫色, awesome: 绿色
-        banner_color = "#C9A0E0" if self.theme_id == "default" else "#C5FF9E"
+        # 从 CSS 主题文件读取 Banner 颜色
+        banner_color = self._get_theme_banner_color()
 
         # 渲染左侧 ASCII Banner（不缓存，每次都重新生成因为颜色可能变化）
         welcome_lines = [
@@ -1833,14 +1860,23 @@ class HandsomeAgentApp(App):
         self.set_agent_status("busy")
         self._start_loading_animation()
 
+        def on_stream_delta(text: str):
+            self.app.call_later(self._on_agent_stream_delta, text)
+        
+        def on_thinking(text: str):
+            self.app.call_later(self._on_agent_thinking, text)
+
         def run_agent():
             try:
                 agent = self._get_agent()
                 if agent:
+                    agent.set_stream_callback(on_stream_delta)
+                    agent.set_thinking_callback(on_thinking)
+                    
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     try:
-                        response = agent.chat(user_input)
+                        response = agent.chat(user_input, enable_stream=True)
                         if asyncio.iscoroutine(response):
                             response = loop.run_until_complete(response)
                         return response
@@ -1857,6 +1893,7 @@ class HandsomeAgentApp(App):
 
         self._agent_future = future
         self._agent_start_time = __import__("time").time()
+        self._current_thinking = ""
 
         if hasattr(self, '_poll_timer') and self._poll_timer is not None:
             self._poll_timer.stop()
@@ -1890,7 +1927,11 @@ class HandsomeAgentApp(App):
                 else:
                     content = "（无回复）"
 
-                self._show_typewriter_message(content)
+                self._complete_agent_stream()
+
+                # 如果没有使用流式输出，使用传统方式显示
+                if not getattr(self, '_current_streaming_id', None):
+                    self._show_typewriter_message(content)
 
                 # 使用缓存的 widget（优化性能）
                 time_widget = self._widget_cache.get("status_time")
@@ -1900,6 +1941,7 @@ class HandsomeAgentApp(App):
                 self._stop_loading_animation()
                 self.set_agent_status("error")
                 self._append_message("system", f"❌ 处理失败: {str(e)}")
+                self._current_streaming_id = None
 
             self._agent_future = None
             return
@@ -1909,17 +1951,58 @@ class HandsomeAgentApp(App):
             self._poll_timer = None
             self._append_message("system", "⏱️ 处理超时，请重试")
             self._agent_future = None
+            self._current_streaming_id = None
 
     def _get_agent(self):
         if hasattr(self, '_agent') and self._agent:
             return self._agent
         return getattr(self, '_agent', None)
 
+    def _on_agent_stream_delta(self, text: str) -> None:
+        """处理 Agent 流式输出增量"""
+        chat_area = self._widget_cache.get("chat_area")
+        if chat_area is None:
+            chat_area = self.query_one("#chat-area", ChatView)
+        
+        if chat_area and hasattr(chat_area, 'start_streaming'):
+            if not hasattr(self, '_current_streaming_id') or not self._current_streaming_id:
+                self._current_streaming_id = chat_area.start_streaming("assistant")
+            
+            if hasattr(chat_area, 'append_streaming_text'):
+                chat_area.append_streaming_text(text)
+    
+    def _on_agent_thinking(self, text: str) -> None:
+        """处理 Agent 思考内容"""
+        self._current_thinking = getattr(self, '_current_thinking', "") + text
+        
+        chat_area = self._widget_cache.get("chat_area")
+        if chat_area is None:
+            chat_area = self.query_one("#chat-area", ChatView)
+        
+        if chat_area and hasattr(chat_area, 'append_streaming_thinking') and hasattr(self, '_current_streaming_id'):
+            chat_area.append_streaming_thinking(text)
+    
+    def _complete_agent_stream(self) -> None:
+        """完成 Agent 流式输出"""
+        chat_area = self._widget_cache.get("chat_area")
+        if chat_area is None:
+            chat_area = self.query_one("#chat-area", ChatView)
+        
+        if chat_area and hasattr(chat_area, 'complete_streaming') and hasattr(self, '_current_streaming_id'):
+            chat_area.complete_streaming()
+        
+        self._current_streaming_id = None
+    
     def _show_typewriter_message(self, content: str) -> None:
-        # 流式输出暂不支持 ChatView，直接写入
-        chat_area = self.query_one("#chat-area", ChatView)
+        """显示 Agent 回复消息"""
+        chat_area = self._widget_cache.get("chat_area")
+        if chat_area is None:
+            chat_area = self.query_one("#chat-area", ChatView)
+        
         if chat_area:
-            if hasattr(chat_area, 'write'):
+            if hasattr(chat_area, 'add_assistant_message'):
+                chat_area.add_assistant_message(content)
+            elif hasattr(chat_area, 'write'):
                 chat_area.write(f"\nAgent: {content}\n")
 
     def action_clear_screen(self) -> None:

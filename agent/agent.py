@@ -109,8 +109,17 @@ class Agent:
         self._context_builder = ContextBuilder(tools=tools_dict)
 
         # 初始化 ContextCompressor（所有模式共用压缩功能）
-        from agent.context_compressor import SummaryCompressor
-        self._context_compressor = SummaryCompressor(recent_messages=10)
+        from agent.context.context_compressor import ContextCompressor
+        model_name = getattr(self.llm_provider, 'model', 'gpt-4o')
+        self._context_compressor = ContextCompressor(
+            model=model_name,
+            threshold_percent=0.75,
+            protect_first_n=3,
+            protect_last_n=10,
+            summary_target_ratio=0.20,
+            quiet_mode=True,
+            llm_client=None  # 使用 LLMClient 的辅助调用
+        )
 
         # 初始化统一的 ContextManager（所有 LLM 调用共用）
         from agent.context import ContextManager
@@ -127,11 +136,9 @@ class Agent:
             aux_config=LLMAuxConfig()
         )
         
-        # 将 ContextManager 和 LLMClient 传递给 engine 的 tool_selector
+        # 统一上下文管理：通过 engine._context_manager property 自动同步给 tool_selector
         self.engine._context_manager = self._context_manager
         self.engine._llm_client = self._llm_client
-        self.engine.tool_selector._context_manager = self._context_manager
-        self.engine.tool_selector._llm_client = self._llm_client
 
         self._session: Optional[Session] = None
         if self.enable_session:
@@ -151,11 +158,6 @@ class Agent:
         
         # 中断机制
         self._interrupt_requested = False
-        
-        # 系统提示词缓存
-        self._cached_system_prompt: Optional[str] = None
-        self._cached_system_prompt_timestamp: float = 0.0
-        self._cached_tools_hash: Optional[str] = None  # 用于检测工具列表变化
         
         self._init_trajectory_and_curator()
     
@@ -183,101 +185,6 @@ class Agent:
         if self._stream_emitter:
             self._stream_emitter.clear_interrupt()
     
-    def _compute_tools_hash(self) -> str:
-        """计算当前工具列表的哈希值，用于检测工具变化"""
-        import hashlib
-        if not self._context_builder.tools:
-            return "no_tools"
-        tool_names = sorted(self._context_builder.tools.keys())
-        content = "|".join(tool_names)
-        return hashlib.md5(content.encode()).hexdigest()[:8]
-    
-    def _build_system_prompt(self, system_message: Optional[str] = None) -> str:
-        """构建系统提示词（由 ContextBuilder 实际构建）
-        
-        Returns:
-            完整的系统提示词字符串
-        """
-        from agent.context import ContextPurpose
-        
-        # 使用 ContextBuilder 构建系统提示词
-        result = self._context_builder.build_with_layers(
-            user_message="",
-            conversation_history=None,
-            include_tools=True,
-            model=getattr(self.llm_provider, 'model', None)
-        )
-        
-        # 组装完整提示词（stable + context + volatile）
-        parts = [result.stable]
-        if result.context:
-            parts.append(result.context)
-        if result.volatile:
-            parts.append(result.volatile)
-        
-        return "\n\n".join(parts)
-    
-    def _restore_or_build_system_prompt(
-        self,
-        system_message: Optional[str] = None,
-        conversation_history: Optional[List[Dict]] = None
-    ) -> None:
-        """恢复或构建系统提示词缓存
-        
-        检查是否有缓存的系统提示词，如果没有则构建并缓存。
-        缓存应该在会话开始时构建一次，之后复用。
-        
-        Args:
-            system_message: 可选的系统消息（暂未使用，预留接口）
-            conversation_history: 对话历史（用于判断是否是首次构建）
-        """
-        current_tools_hash = self._compute_tools_hash()
-        
-        # 检查缓存是否存在且工具列表未变化
-        if self._cached_system_prompt is not None:
-            # 工具列表未变化，使用缓存
-            if self._cached_tools_hash == current_tools_hash:
-                self._decision_logger.debug(
-                    f"Using cached system prompt (hash={current_tools_hash}, "
-                    f"age={self._cached_system_prompt_timestamp:.1f}s)"
-                )
-                return
-            
-            # 工具列表变化，使缓存失效
-            self._decision_logger.info(
-                f"Tool list changed ({self._cached_tools_hash} -> {current_tools_hash}), "
-                "invalidating system prompt cache"
-            )
-            self._cached_system_prompt = None
-        
-        # 构建新的系统提示词
-        self._decision_logger.info("Building new system prompt")
-        self._cached_system_prompt = self._build_system_prompt(system_message)
-        self._cached_system_prompt_timestamp = __import__("time").time()
-        self._cached_tools_hash = current_tools_hash
-        
-        self._decision_logger.debug(
-            f"System prompt cached (hash={current_tools_hash}, "
-            f"length={len(self._cached_system_prompt)} chars)"
-        )
-    
-    def invalidate_system_prompt(self) -> None:
-        """使系统提示词缓存失效
-        
-        当工具列表变化或其他配置变化时调用此方法强制重建。
-        """
-        self._cached_system_prompt = None
-        self._cached_tools_hash = None
-        self._decision_logger.info("System prompt cache invalidated")
-    
-    def get_cached_system_prompt(self) -> Optional[str]:
-        """获取缓存的系统提示词
-        
-        Returns:
-            缓存的系统提示词，如果不存在则返回 None
-        """
-        return self._cached_system_prompt
-    
     def set_stream_callback(self, callback):
         """设置流式输出回调
         
@@ -285,6 +192,14 @@ class Agent:
             callback: 回调函数，签名为 on_delta(text: str)
         """
         self._stream_callback = callback
+    
+    def set_thinking_callback(self, callback):
+        """设置思考内容回调
+        
+        Args:
+            callback: 回调函数，签名为 on_thinking(text: str)
+        """
+        self._thinking_callback = callback
     
     def set_stream_emitter(self, emitter):
         """设置流式发射器
@@ -490,20 +405,13 @@ Answer ONLY with this exact JSON format (no other text):
             session_id=session_id,
             rails=rails,
             tools=self._context_builder.tools,
-            stream_emitter=self._stream_emitter
+            stream_emitter=self._stream_emitter,
+            context_manager=self._context_manager
         )
 
-        # 如果有历史消息，先检查是否需要压缩
+        # 压缩逻辑已统一到 ContextManager，此处不再重复压缩
+        # ContextManager.build_messages() 会自动处理压缩
         compressed_history = conversation_history
-        if conversation_history and len(conversation_history) > 10:
-            result = await self._context_compressor.compress(
-                conversation_history,
-                max_messages=10
-            )
-            compressed_history = result.compressed_messages
-            self._decision_logger.info(
-                f"Context Compression: {result.original_count} -> {result.compressed_count} messages"
-            )
 
         tools = self.engine.tool_selector.get_tools_schema()
         tool_handlers = {
@@ -853,6 +761,9 @@ Answer ONLY with this exact JSON format (no other text):
         """使用对话历史生成直接回复（流式版本，使用消息列表模式）"""
         try:
             from agent.context import ContextPurpose
+            from common.streaming import StreamingThinkScrubber
+            
+            scrubber = StreamingThinkScrubber()
             
             # 使用消息列表模式构建上下文
             messages_result = await self._context_manager.build_messages(
@@ -872,14 +783,32 @@ Answer ONLY with this exact JSON format (no other text):
 
             # 使用流式调用（传递消息列表，使用空 prompt）
             accumulated = ""
+            thinking_accumulated = ""
             async for chunk in self.llm_provider.generate_stream(
                 prompt="",
                 messages=messages_result.messages
             ):
                 delta = chunk.delta if hasattr(chunk, 'delta') else (chunk.content if hasattr(chunk, 'content') else str(chunk))
                 if delta:
-                    self._emit_stream(delta)
-                    accumulated += delta
+                    visible, thinking = scrubber.feed(delta)
+                    
+                    if visible:
+                        self._emit_stream(visible)
+                        accumulated += visible
+                    
+                    if thinking:
+                        thinking_accumulated += thinking
+                        if hasattr(self, '_thinking_callback') and self._thinking_callback:
+                            self._thinking_callback(thinking)
+            
+            remaining_visible, remaining_thinking = scrubber.flush()
+            if remaining_visible:
+                self._emit_stream(remaining_visible)
+                accumulated += remaining_visible
+            if remaining_thinking:
+                thinking_accumulated += remaining_thinking
+                if hasattr(self, '_thinking_callback') and self._thinking_callback:
+                    self._thinking_callback(remaining_thinking)
             
             self._emit_stream_complete(accumulated)
             return accumulated

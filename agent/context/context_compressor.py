@@ -37,9 +37,39 @@ from agent.context.token_estimator import (
     _content_length_for_budget,
 )
 from common.redact import redact_sensitive_text
+from common.config import (
+    DEFAULT_COMPRESSION_THRESHOLD,
+    DEFAULT_SUMMARY_RATIO,
+    DEFAULT_PROTECT_FIRST_N,
+    DEFAULT_PROTECT_LAST_N,
+    SUMMARY_TOKENS_CEILING,
+    MIN_SUMMARY_TOKENS,
+    SUMMARY_FAILURE_COOLDOWN_SECONDS,
+)
 
 from common.logging_manager import get_decision_logger
-from agent.context.context_engine import ContextEngine, ContextMessage
+from agent.context.context_engine import ContextEngine
+from agent.context.tool_summarizer import summarize_tool_result
+
+from agent.context.strategies import (
+    KeywordPriorityStrategy,
+    TurnImportanceStrategy,
+    CodeBlockStrategy,
+    PathPreservationStrategy,
+    SemanticMergeStrategy,
+    ErrorPreservationStrategy,
+    InstructionResultSeparationStrategy,
+    CompressionStrategyType,
+)
+from agent.context.strategies.config import (
+    KeywordPriorityConfig,
+    TurnImportanceConfig,
+    CodeBlockConfig,
+    PathPreservationConfig,
+    SemanticMergeConfig,
+    ErrorPreservationConfig,
+    InstructionResultConfig,
+)
 
 logger = get_decision_logger(__name__, sublayer="context")
 
@@ -439,17 +469,19 @@ SUMMARY_PREFIX = (
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 摘要参数 (直接采用 Hermes Agent 的科学测算值)
+# 本地常量 (使用 common.config 中的常量)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_MIN_SUMMARY_TOKENS = 2000
-_SUMMARY_RATIO = 0.20
-_SUMMARY_TOKENS_CEILING = 12000
+# 以下常量已移至 common/config.py:
+# - MIN_SUMMARY_TOKENS (最小摘要 token 数)
+# - SUMMARY_TOKENS_CEILING (摘要 token 上限)
+# - SUMMARY_FAILURE_COOLDOWN_SECONDS (摘要失败冷却时间)
+# - DEFAULT_COMPRESSION_THRESHOLD, DEFAULT_SUMMARY_RATIO 等
+
 _PRUNED_TOOL_PLACEHOLDER = "[Old tool output cleared to save context space]"
 _CHARS_PER_TOKEN = 4
 _IMAGE_TOKEN_ESTIMATE = 1600
 _IMAGE_CHAR_EQUIVALENT = _IMAGE_TOKEN_ESTIMATE * _CHARS_PER_TOKEN
-_SUMMARY_FAILURE_COOLDOWN_SECONDS = 600
 
 
 def _content_text_for_contains(content: Any) -> str:
@@ -595,279 +627,6 @@ def _strip_historical_media(messages: List[Dict[str, Any]]) -> List[Dict[str, An
     return result if changed else messages
 
 
-def _summarize_tool_result(tool_name: str, tool_args: str, tool_content: str) -> str:
-    """Create an informative 1-line summary of a tool call + result.
-    
-    Inspired by Hermes Agent's implementation, extended for Handsome Agent tools.
-    Provides meaningful summaries instead of raw content to save context space.
-    """
-    try:
-        args = json.loads(tool_args) if tool_args and tool_args.strip().startswith("{") else {}
-    except (json.JSONDecodeError, TypeError):
-        args = {}
-
-    content = tool_content or ""
-    content_len = len(content)
-    line_count = content.count("\n") + 1 if content.strip() else 0
-
-    # ═══════════════════════════════════════════════════════════════
-    # 📁 File Operations (文件操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "read_file":
-        path = args.get("path", "?")
-        offset = args.get("offset", 1)
-        limit = args.get("limit", "")
-        location = f"line {offset}" + (f"-{offset + limit}" if limit else "")
-        return f"[read_file] read {path} from {location} ({content_len:,} chars)"
-
-    if tool_name == "write_file":
-        path = args.get("path", "?")
-        content_param = args.get("content", "")
-        lines = content_param.count("\n") + 1 if content_param else "?"
-        return f"[write_file] wrote {path} ({lines} lines)"
-
-    if tool_name == "patch":
-        path = args.get("path", "?")
-        mode = args.get("mode", "replace")
-        old_str = args.get("old_string", "")
-        new_str = args.get("new_string", "")
-        return f"[patch] {mode} in {path} - {'updated' if new_str else 'modified'}"
-
-    if tool_name == "list_directory":
-        path = args.get("path", ".")
-        all_files = args.get("all", False)
-        # Try to count entries from content
-        entry_count = content.count("\n") if content.strip() else "?"
-        return f"[list_directory] listing {path} ({entry_count} entries{' incl. hidden' if all_files else ''})"
-
-    if tool_name == "create_directory":
-        path = args.get("path", "?")
-        return f"[create_directory] created {path}"
-
-    if tool_name == "delete_file":
-        path = args.get("path", "?")
-        return f"[delete_file] deleted {path}"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🔍 Search Operations (搜索操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "search_files":
-        pattern = args.get("pattern", "?")
-        path = args.get("path", ".")
-        target = args.get("target", "content")
-        match_count = re.search(r'"total_count"\s*:\s*(\d+)', content)
-        count = match_count.group(1) if match_count else "?"
-        return f"[search_files] {target} '{pattern}' in {path} -> {count} matches"
-
-    if tool_name == "grep":
-        pattern = args.get("pattern", "?")
-        path = args.get("path", ".")
-        # Use the same pattern matching as search_files
-        match_count = re.search(r'"total_count"\s*:\s*(\d+)', content)
-        count = match_count.group(1) if match_count else "?"
-        return f"[grep] '{pattern}' in {path} -> {count} matches"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🖥️ Terminal Operations (终端操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "terminal":
-        cmd = args.get("command", "")
-        if len(cmd) > 60:
-            cmd = cmd[:57] + "..."
-        exit_match = re.search(r'"exit_code"\s*:\s*(-?\d+)', content)
-        exit_code = exit_match.group(1) if exit_match else "?"
-        return f"[terminal] `{cmd}` -> exit {exit_code}, {line_count} lines"
-
-    if tool_name == "bash":
-        cmd = args.get("command", "")
-        if len(cmd) > 60:
-            cmd = cmd[:57] + "..."
-        exit_match = re.search(r'"exit_code"\s*:\s*(-?\d+)', content)
-        exit_code = exit_match.group(1) if exit_match else "?"
-        return f"[bash] `{cmd}` -> exit {exit_code}, {line_count} lines"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🐳 Code Execution (代码执行)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "execute_code":
-        language = args.get("language", "?")
-        code_preview = (args.get("code") or "")[:40].replace("\n", " ")
-        if len(args.get("code", "")) > 40:
-            code_preview += "..."
-        return f"[execute_code] {language}: `{code_preview}` ({line_count} lines output)"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🌐 Web Operations (网络操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "web_search":
-        query = args.get("query", "?")
-        limit = args.get("limit", 5)
-        return f"[web_search] query='{query}' (limit={limit}, {content_len:,} chars)"
-
-    if tool_name == "web_fetch":
-        url = args.get("url", args.get("urls", ["?"]))
-        if isinstance(url, list):
-            url = url[0] if url else "?"
-        return f"[web_fetch] {url} ({content_len:,} chars)"
-
-    if tool_name == "web_extract":
-        urls = args.get("urls", [])
-        url_count = len(urls) if isinstance(urls, list) else 1
-        url_desc = urls[0] if isinstance(urls, list) and urls else str(url)[:50]
-        return f"[web_extract] {url_desc}" + (f" (+{url_count-1} more)" if url_count > 1 else "") + f" ({content_len:,} chars)"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🌐 Browser Operations (浏览器操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name in {"browser_navigate", "browser_click", "browser_type", 
-                      "browser_scroll", "browser_press", "browser_back"}:
-        url = args.get("url", "")
-        ref = args.get("ref", "")
-        action = tool_name.replace("browser_", "")
-        detail = f" {url}" if url else (f" ref={ref[:20]}" if ref else "")
-        return f"[browser_{action}]{detail}"
-
-    if tool_name == "browser_snapshot":
-        url = args.get("url", "")
-        return f"[browser_snapshot] {url}" + (f" ({content_len:,} chars)" if content_len > 0 else "")
-
-    if tool_name == "browser_vision":
-        question = args.get("question", "")[:50]
-        return f"[browser_vision] '{question}'" + (f" ({content_len:,} chars)" if content_len > 0 else "")
-
-    if tool_name == "browser_console":
-        return f"[browser_console] ({content_len:,} chars)"
-
-    if tool_name == "browser_get_images":
-        return f"[browser_get_images] ({content_len:,} chars)"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🖼️ Vision/Image Operations (视觉/图像操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "analyze_image":
-        question = args.get("question", "")[:50]
-        return f"[analyze_image] '{question}' ({content_len:,} chars)"
-
-    if tool_name == "extract_text":
-        return f"[extract_text] ({content_len:,} chars extracted)"
-
-    if tool_name == "compare_images":
-        return f"[compare_images] ({content_len:,} chars)"
-
-    if tool_name == "image_generate":
-        prompt = args.get("prompt", "")[:50]
-        model = args.get("model", "?")
-        return f"[image_generate] model={model}: '{prompt}'" + (f" ({content_len:,} chars)" if content_len > 0 else "")
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🧠 Memory Operations (记忆操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "memory":
-        action = args.get("action", "?")
-        target = args.get("target", "?")
-        entry_count = re.search(r'"entry_count"\s*:\s*(\d+)', content)
-        count = entry_count.group(1) if entry_count else "?"
-        return f"[memory] {action} on {target} ({count} entries)"
-
-    if tool_name == "session_search":
-        query = args.get("query", "?")
-        limit = args.get("limit", 5)
-        result_count = re.search(r'"result_count"\s*:\s*(\d+)', content)
-        count = result_count.group(1) if result_count else "?"
-        return f"[session_search] '{query}' -> {count} results (limit={limit})"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 📋 Task Management (任务管理)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "todo":
-        action = args.get("action", "?")
-        return f"[todo] {action}"
-
-    if tool_name == "todo_create":
-        title = args.get("title", "")[:40]
-        return f"[todo_create] '{title}'"
-
-    if tool_name == "todo_add":
-        task = args.get("task", "")[:40]
-        return f"[todo_add] '{task}'"
-
-    if tool_name == "todo_complete":
-        task_id = args.get("task_id", "?")
-        return f"[todo_complete] task={task_id}"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🛠️ Skills Operations (技能操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name in {"skill_view", "skills_list", "skill_manage", "skill_create"}:
-        name = args.get("name", "?")
-        action = args.get("action", tool_name.replace("skill_", ""))
-        return f"[{tool_name}] name={name} ({action})"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 📢 Communication Operations (通信操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "text_to_speech":
-        text = args.get("text", "")[:30]
-        voice = args.get("voice", "?")
-        return f"[text_to_speech] voice={voice}: '{text}'" + (f" ({content_len:,} chars)" if content_len > 0 else "")
-
-    if tool_name == "clarify":
-        return "[clarify] asked user a question"
-
-    # ═══════════════════════════════════════════════════════════════
-    # ⏰ Scheduler Operations (调度操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "cronjob":
-        action = args.get("action", "?")
-        return f"[cronjob] {action}"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🔧 System Operations (系统操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "checkpoint":
-        action = args.get("action", "?")
-        name = args.get("name", "?")
-        return f"[checkpoint] {action}: {name}"
-
-    if tool_name == "process":
-        action = args.get("action", "?")
-        sid = args.get("session_id", "?")
-        return f"[process] {action} session={sid}"
-
-    if tool_name == "delegate_task":
-        goal = args.get("goal", "")
-        if len(goal) > 50:
-            goal = goal[:47] + "..."
-        return f"[delegate_task] '{goal}' ({content_len:,} chars result)"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🏠 Home Automation (智能家居)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name.startswith("ha_"):
-        action = tool_name.replace("ha_", "")
-        entity = args.get("entity_id", "?")
-        return f"[ha_{action}] entity={entity}"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 📦 Checkpoint Operations (检查点操作)
-    # ═══════════════════════════════════════════════════════════════
-    if tool_name == "checkpoint_restore":
-        checkpoint_id = args.get("checkpoint_id", "?")
-        return f"[checkpoint_restore] id={checkpoint_id}"
-
-    if tool_name == "checkpoint_list":
-        return f"[checkpoint_list] ({content_len:,} chars)"
-
-    # ═══════════════════════════════════════════════════════════════
-    # 🔄 Generic Fallback (通用回退)
-    # ═══════════════════════════════════════════════════════════════
-    first_arg = ""
-    for k, v in list(args.items())[:2]:
-        sv = str(v)[:30]
-        first_arg += f" {k}={sv}"
-    return f"[{tool_name}]{first_arg} ({content_len:,} chars)"
-
-
 class ContextCompressor(ContextEngine):
     """Context compressor - compresses conversation context via lossy summarization.
 
@@ -879,21 +638,27 @@ class ContextCompressor(ContextEngine):
       5. On subsequent compactions, iteratively update the previous summary
     """
 
+    @property
+    def name(self) -> str:
+        """短标识符，用于插件系统和配置"""
+        return "compressor"
+
     def __init__(
         self,
         model: str = "gpt-4",
-        # threshold_percent: 当上下文使用达到此比例时触发压缩 (Hermes: 0.75)
-        threshold_percent: float = 0.75,
-        protect_first_n: int = 3,
-        protect_last_n: int = 10,
-        summary_target_ratio: float = 0.20,
+        # threshold_percent: 当上下文使用达到此比例时触发压缩
+        threshold_percent: float = DEFAULT_COMPRESSION_THRESHOLD,
+        protect_first_n: int = DEFAULT_PROTECT_FIRST_N,
+        protect_last_n: int = DEFAULT_PROTECT_LAST_N,
+        summary_target_ratio: float = DEFAULT_SUMMARY_RATIO,
         quiet_mode: bool = False,
         summary_model: str = "",
         base_url: str = "",
         api_key: str = "",
         provider: str = "",
         llm_client: Any = None,
-        memory_manager: Any = None,  # 🧠 Memory Manager for on_pre_compress
+        # 注意：memory_prefetch_context 现在由协调层通过 compress() 参数传入
+        # 不再在 __init__ 中持有 memory_manager 引用（职责分离原则）
     ):
         self.model = model
         self.base_url = base_url
@@ -905,7 +670,6 @@ class ContextCompressor(ContextEngine):
         self.summary_target_ratio = max(0.10, min(summary_target_ratio, 0.80))
         self.quiet_mode = quiet_mode
         self.llm_client = llm_client
-        self.memory_manager = memory_manager  # 🧠 Memory Manager for on_pre_compress
 
         self.context_length = self._get_model_context_length(model)
         # threshold_tokens: 触发压缩的绝对 token 数 (Hermes MINIMUM_CONTEXT_LENGTH: 8192)
@@ -918,7 +682,7 @@ class ContextCompressor(ContextEngine):
         target_tokens = int(self.threshold_tokens * self.summary_target_ratio)
         self.tail_token_budget = target_tokens
         self.max_summary_tokens = min(
-            int(self.context_length * 0.05), _SUMMARY_TOKENS_CEILING,
+            int(self.context_length * 0.05), SUMMARY_TOKENS_CEILING,
         )
 
         self._previous_summary: Optional[str] = None
@@ -940,6 +704,10 @@ class ContextCompressor(ContextEngine):
         
         # 钩子系统
         self._hooks = CompressionHooks()
+        
+        # 初始化压缩策略
+        self._strategies: Dict[str, Any] = {}
+        self._init_strategies()
         
         self.logger = get_decision_logger(self.__class__.__name__, sublayer="context")
 
@@ -1043,6 +811,25 @@ class ContextCompressor(ContextEngine):
         """清除所有钩子."""
         self._hooks.clear()
 
+    def has_content_to_compress(self, messages: List[Dict[str, Any]]) -> bool:
+        """
+        快速检查：消息列表中是否有可以压缩的内容
+
+        用于 gateway ``/compress`` 命令作为预检保护——
+        返回 False 让 gateway 报告"尚无内容可压缩"而无需进行 LLM 调用。
+
+        Returns:
+            是否有内容可以压缩
+        """
+        if not messages:
+            return False
+
+        compress_start = self._protect_head_size(messages)
+        compress_start = self._align_boundary_forward(messages, compress_start)
+        compress_end = self._find_tail_cut_by_tokens(messages, compress_start)
+
+        return compress_start < compress_end
+
     @staticmethod
     def _get_model_context_length(model: str) -> int:
         """Get context length for common models."""
@@ -1064,9 +851,130 @@ class ContextCompressor(ContextEngine):
         """Set the LLM client for summarization."""
         self.llm_client = client
 
-    def should_compress(self, prompt_tokens: int = None) -> bool:
-        """Check if context exceeds the compression threshold."""
-        tokens = prompt_tokens if prompt_tokens is not None else 0
+    def _init_strategies(self) -> None:
+        """初始化所有压缩策略"""
+        # 关键词优先级策略
+        self._strategies["keyword_priority"] = KeywordPriorityStrategy(
+            KeywordPriorityConfig()
+        )
+        # 轮次重要性策略
+        self._strategies["turn_importance"] = TurnImportanceStrategy(
+            TurnImportanceConfig()
+        )
+        # 代码块压缩策略
+        self._strategies["code_block"] = CodeBlockStrategy(
+            CodeBlockConfig()
+        )
+        # 路径保护策略
+        self._strategies["path_preservation"] = PathPreservationStrategy(
+            PathPreservationConfig()
+        )
+        # 语义合并策略
+        self._strategies["semantic_merge"] = SemanticMergeStrategy(
+            SemanticMergeConfig()
+        )
+        # 错误保护策略
+        self._strategies["error_preservation"] = ErrorPreservationStrategy(
+            ErrorPreservationConfig()
+        )
+        # 指令-结果分离策略
+        self._strategies["instruction_result"] = InstructionResultSeparationStrategy(
+            InstructionResultConfig()
+        )
+
+    def _apply_pre_compression_strategies(
+        self, 
+        messages: List[Dict[str, Any]], 
+        context: Dict[str, Any] = None
+    ) -> List[Dict[str, Any]]:
+        """应用预处理压缩策略（在 LLM 摘要之前）"""
+        result = messages
+        
+        # 按顺序应用预处理策略
+        pre_strategies = [
+            "path_preservation",  # 先提取路径
+            "error_preservation",  # 提取错误信息
+            "code_block",          # 压缩代码块
+            "keyword_priority",    # 关键词评分
+        ]
+        
+        for strategy_name in pre_strategies:
+            strategy = self._strategies.get(strategy_name)
+            if strategy and strategy.enabled:
+                # 调用 apply 方法（基类定义的方法名）
+                result = strategy.apply(result, context)
+        
+        return result
+
+    def _apply_post_compression_strategies(
+        self, 
+        messages: List[Dict[str, Any]], 
+        context: Dict[str, Any] = None
+    ) -> List[Dict[str, Any]]:
+        """应用后处理压缩策略（在 LLM 摘要之后）"""
+        result = messages
+        
+        # 按顺序应用后处理策略
+        post_strategies = [
+            "turn_importance",       # 重要性排序
+            "semantic_merge",        # 合并相似消息
+            "instruction_result",    # 指令-结果分离
+        ]
+        
+        for strategy_name in post_strategies:
+            strategy = self._strategies.get(strategy_name)
+            if strategy and strategy.enabled:
+                # 调用 apply 方法（基类定义的方法名）
+                result = strategy.apply(result, context)
+        
+        return result
+
+    def get_strategy(self, name: str) -> Optional[Any]:
+        """获取指定策略"""
+        return self._strategies.get(name)
+
+    def enable_strategy(self, name: str) -> bool:
+        """启用策略"""
+        strategy = self._strategies.get(name)
+        if strategy:
+            strategy.enabled = True
+            return True
+        return False
+
+    def disable_strategy(self, name: str) -> bool:
+        """禁用策略"""
+        strategy = self._strategies.get(name)
+        if strategy:
+            strategy.enabled = False
+            return True
+        return False
+
+    def get_enabled_strategies(self) -> List[str]:
+        """获取已启用的策略列表"""
+        return [name for name, s in self._strategies.items() if s.enabled]
+
+    def should_compress(self, prompt_tokens: Optional[int] = None) -> bool:
+        """
+        Check if context exceeds the compression threshold.
+
+        这是压缩判断的唯一入口，ContextManager 不再独立判断。
+
+        规则：
+        - token 数超过阈值（context_length * threshold_percent）
+        - 过去两次压缩都无效（节省 < 10%）则跳过
+        - 摘要生成冷却期内跳过
+
+        与 ContextManager 的旧实现对比：
+        - 旧实现：基于消息数量（> 10 条）判断
+        - 新实现：基于 token 数量（> threshold_percent * context_length）
+
+        Args:
+            prompt_tokens: 预估的 prompt token 数，如果为 None 则使用 last_prompt_tokens
+
+        Returns:
+            bool: 是否需要压缩
+        """
+        tokens = prompt_tokens if prompt_tokens is not None else self.last_prompt_tokens
         if tokens < self.threshold_tokens:
             return False
         if self._ineffective_compression_count >= 2:
@@ -1078,34 +986,24 @@ class ContextCompressor(ContextEngine):
             return False
         return True
 
-    # Required abstract methods from ContextEngine
-    def add_message(self, message: ContextMessage) -> None:
-        """Add a new message to the context. (ContextCompressor doesn't store messages internally)"""
-        pass
+    # -- Compression State Management -----------------------------------------
 
     def clear(self) -> None:
         """Clear compression state."""
         self._previous_summary = None
         self._ineffective_compression_count = 0
         self._last_summary_error = None
-
-    def get_context(self, max_tokens: Optional[int] = None) -> List[ContextMessage]:
-        """Get context. (ContextCompressor doesn't store messages internally)"""
-        return []
-
-    def summarize(self, messages: List[ContextMessage]) -> str:
-        """Generate a summary of messages. Uses LLM-based summarization."""
-        dict_messages = [
-            {"role": m.role, "content": m.content}
-            for m in messages
-        ]
-        result = self._generate_summary(dict_messages)
-        return result if result else "Summary unavailable"
+        self._summary_failure_cooldown_until = 0.0
 
     def update_from_response(self, usage: Dict[str, Any]) -> None:
-        """Update internal state from LLM response usage info."""
+        """Update tracked token usage from API response."""
         if usage:
-            self._last_prompt_tokens = usage.get("prompt_tokens", 0)
+            self.last_prompt_tokens = usage.get("prompt_tokens", 0)
+            self.last_completion_tokens = usage.get("completion_tokens", 0)
+            self.last_total_tokens = usage.get(
+                "total_tokens",
+                self.last_prompt_tokens + self.last_completion_tokens
+            )
 
     def _prune_old_tool_results(
         self, messages: List[Dict[str, Any]], protect_tail_count: int,
@@ -1188,7 +1086,7 @@ class ContextCompressor(ContextEngine):
             if len(content) > 200:
                 call_id = msg.get("tool_call_id", "")
                 tool_name, tool_args = call_id_to_tool.get(call_id, ("unknown", ""))
-                summary = _summarize_tool_result(tool_name, tool_args, content)
+                summary = summarize_tool_result(tool_name, tool_args, content)
                 result[i] = {**msg, "content": summary}
                 pruned += 1
 
@@ -1215,8 +1113,8 @@ class ContextCompressor(ContextEngine):
     def _compute_summary_budget(self, turns_to_summarize: List[Dict[str, Any]]) -> int:
         """Scale summary token budget with the amount of content being compressed."""
         content_tokens = estimate_messages_tokens_rough(turns_to_summarize)
-        budget = int(content_tokens * _SUMMARY_RATIO)
-        return max(_MIN_SUMMARY_TOKENS, min(budget, self.max_summary_tokens))
+        budget = int(content_tokens * DEFAULT_SUMMARY_RATIO)
+        return max(MIN_SUMMARY_TOKENS, min(budget, self.max_summary_tokens))
 
     # ═══════════════════════════════════════════════════════════════════════════
     # 内容截断参数 (直接采用 Hermes Agent 的科学测算值)
@@ -1278,7 +1176,7 @@ class ContextCompressor(ContextEngine):
         if self.llm_client is None:
             self.logger.warning("No LLM client configured for compression summarization")
             self._last_summary_error = "No LLM client configured"
-            self._summary_failure_cooldown_until = time.monotonic() + _SUMMARY_FAILURE_COOLDOWN_SECONDS
+            self._summary_failure_cooldown_until = time.monotonic() + SUMMARY_FAILURE_COOLDOWN_SECONDS
             return None
 
         summary_budget = self._compute_summary_budget(turns_to_summarize)
@@ -1602,8 +1500,26 @@ The user has requested that this compaction PRIORITISE preserving all informatio
 
         return max(cut_idx, head_end + 1)
 
-    def compress(self, messages: List[Dict[str, Any]], current_tokens: int = None, focus_topic: str = None) -> List[Dict[str, Any]]:
-        """Compress conversation messages by summarizing middle turns."""
+    def compress(
+        self,
+        messages: List[Dict[str, Any]],
+        current_tokens: int = None,
+        focus_topic: str = None,
+        memory_prefetch_context: str = "",  # 由协调层在调用前传入
+    ) -> List[Dict[str, Any]]:
+        """
+        Compress conversation messages by summarizing middle turns.
+        
+        Args:
+            messages: 消息列表
+            current_tokens: 当前 token 数估计
+            focus_topic: 聚焦主题
+            memory_prefetch_context: 记忆预取上下文（由协调层 ContextManager 在调用前生成）
+        
+        注意：
+        - memory_prefetch_context 由 ContextManager（协调层）调用 memory_manager.on_pre_compress() 生成
+        - ContextCompressor（压缩层）不再持有 memory_manager 引用，遵循职责分离原则
+        """
         compress_start_time = time.monotonic()
         
         self._last_summary_dropped_count = 0
@@ -1617,13 +1533,8 @@ The user has requested that this compaction PRIORITISE preserving all informatio
         # 触发压缩前钩子
         self._hooks._run_pre_compress(messages)
         
-        # 🧠 Memory Manager on_pre_compress - 从即将压缩的消息中提取关键信息
-        memory_prefetch_context = ""
-        if self.memory_manager:
-            try:
-                memory_prefetch_context = self.memory_manager.on_pre_compress(messages)
-            except Exception as e:
-                self.logger.debug(f"Memory manager on_pre_compress failed: {e}")
+        # memory_prefetch_context 由协调层传入，不再在压缩层内部获取
+        # 遵循 Hermes 的设计：将记忆相关逻辑保留在协调层
 
         _min_for_compress = self._protect_head_size(messages) + 3 + 1
         if n_messages <= _min_for_compress:
@@ -1635,6 +1546,9 @@ The user has requested that this compaction PRIORITISE preserving all informatio
             return messages
 
         display_tokens = original_tokens
+
+        # 应用预处理压缩策略（在 _prune_old_tool_results 之前）
+        messages = self._apply_pre_compression_strategies(messages)
 
         messages, pruned_count = self._prune_old_tool_results(
             messages, protect_tail_count=self.protect_last_n,
@@ -1762,25 +1676,7 @@ The user has requested that this compaction PRIORITISE preserving all informatio
         self._hooks._stats["total_compressions"] += 1
         self._hooks._stats["total_savings_tokens"] += saved_estimate
 
-        return compressed
-
-    def compress_simple(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Simple compression without LLM (for testing or when LLM is unavailable)."""
-        if len(messages) <= 20:
-            return messages
-
-        head_end = self._protect_head_size(messages)
-        compress_start = self._align_boundary_forward(messages, head_end)
-        compress_end = self._find_tail_cut_by_tokens(messages, compress_start)
-
-        if compress_start >= compress_end:
-            return messages
-
-        compressed = messages[:compress_start]
-        compressed.append({
-            "role": "user",
-            "content": "[CONTEXT COMPACTION] Earlier conversation has been compacted. See above for history."
-        })
-        compressed.extend(messages[compress_end:])
+        # 应用后处理压缩策略（在返回之前）
+        compressed = self._apply_post_compression_strategies(compressed)
 
         return compressed

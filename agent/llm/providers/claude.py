@@ -55,6 +55,56 @@ class ClaudeProvider(BaseProvider):
             await self._client.aclose()
             self._client = None
 
+    def _get_request_body_extra(self, kwargs):
+        """获取额外的请求体参数
+
+        Claude 使用 tools 参数而非 function calling 格式。
+        """
+        from tools.schema_registry import generate_openai_tools_schema
+
+        extra = {}
+
+        # 处理 tools 参数 (Claude 格式)
+        tools = kwargs.get("tools")
+        if tools:
+            # Claude 使用不同的 tools 格式
+            tools_schema = self._convert_to_claude_tools(tools)
+            if tools_schema:
+                extra["tools"] = tools_schema
+
+        return extra
+
+    def _convert_to_claude_tools(self, tools) -> List[Dict]:
+        """将工具转换为 Claude 格式"""
+        from tools.schema_registry import generate_openai_tools_schema
+
+        # 先获取 OpenAI 格式
+        openai_tools = generate_openai_tools_schema(tools)
+
+        # 转换为 Claude 格式
+        claude_tools = []
+        for tool in openai_tools:
+            func = tool.get("function", tool)
+            claude_tools.append({
+                "name": func["name"],
+                "description": func.get("description", ""),
+                "input_schema": func.get("parameters", {"type": "object", "properties": {}})
+            })
+
+        return claude_tools
+
+    def _extract_function_call(self, data: Dict) -> Optional[Dict[str, Any]]:
+        """从 Claude 响应中提取函数调用"""
+        content = data.get("content", [])
+        if content and isinstance(content, list):
+            for block in content:
+                if block.get("type") == "tool_use":
+                    return {
+                        "name": block.get("name", ""),
+                        "arguments": block.get("input", {})
+                    }
+        return None
+
     async def generate(
         self,
         prompt: str,
@@ -98,6 +148,9 @@ class ClaudeProvider(BaseProvider):
         if system:
             request_body["system"] = system
 
+        # 添加 tools 参数
+        request_body.update(self._get_request_body_extra(kwargs))
+
         try:
             client = await self._get_client()
             response = await client.post("/messages", json=request_body)
@@ -108,6 +161,23 @@ class ClaudeProvider(BaseProvider):
 
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
+
+            # 检查是否有工具调用
+            function_call = self._extract_function_call(data)
+            if function_call:
+                self._log_response_debug(data, function_call)
+                self._log_request_completed(latency_ms)
+                return ProviderResponse(
+                    content=json.dumps(function_call),
+                    model=data.get("model", self.config.model),
+                    finish_reason=data.get("stop_reason", "stop"),
+                    usage={
+                        "input_tokens": data.get("usage", {}).get("input_tokens", 0),
+                        "output_tokens": data.get("usage", {}).get("output_tokens", 0),
+                    },
+                    latency_ms=latency_ms,
+                    function_call=function_call,
+                )
 
             content = data["content"][0]["text"]
             usage = data.get("usage", {})

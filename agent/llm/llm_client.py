@@ -181,7 +181,8 @@ class LLMClient:
         
         if self._context_manager:
             try:
-                result = await self._context_manager.build(
+                # 使用统一入口 build_messages()
+                messages_result = await self._context_manager.build_messages(
                     user_message=user_message,
                     conversation_history=conversation_history,
                     purpose=context_purpose,
@@ -192,13 +193,14 @@ class LLMClient:
                 )
                 
                 self._logger.debug(
-                    f"Main call: prompt chars={len(result.system_prompt)}, "
-                    f"compressed={result.compressed}"
+                    f"Main call: messages={len(messages_result.messages)}, "
+                    f"compressed={messages_result.compressed}"
                 )
                 
+                # 使用消息列表模式调用 LLM
                 response = await self._provider.generate(
-                    result.user_message,
-                    system_prompt=result.system_prompt,
+                    prompt="",  # 空 prompt，消息已在 messages 中
+                    messages=messages_result.messages,
                     model=model,
                     **kwargs
                 )

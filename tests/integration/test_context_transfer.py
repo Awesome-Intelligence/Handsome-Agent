@@ -25,8 +25,7 @@ class TestMultiTurnConversationContext:
         from agent.context.context_builder import ContextBuilder
         return ContextBuilder(
             tools={},
-            enable_guidance=True,
-            enable_memory_prefetch=False
+            enable_guidance=True
         )
     
     def test_multi_turn_conversation_context(self, context_builder):
@@ -128,8 +127,7 @@ class TestToolCallResultPreserved:
         
         return ContextBuilder(
             tools={"file_list": mock_tool},
-            enable_guidance=True,
-            enable_memory_prefetch=False
+            enable_guidance=True
         )
     
     def test_tool_call_result_preserved(self, context_builder_with_tools):
@@ -286,8 +284,7 @@ class TestSystemPromptCache:
         from agent.context.context_builder import ContextBuilder
         return ContextBuilder(
             tools={},
-            enable_guidance=True,
-            enable_memory_prefetch=False
+            enable_guidance=True
         )
     
     def test_system_prompt_cache(self, context_builder):
@@ -310,28 +307,33 @@ class TestSystemPromptCache:
     
     def test_cache_invalidation_on_tools_change(self, context_builder):
         """
-        验证工具列表变化时缓存失效
+        验证工具列表变化时的行为
+
+        注意：根据 Hermes 设计，工具信息通过 API 的 tools 参数传递，
+        而不是放在 system prompt 中。此测试验证工具确实被设置。
         """
         # 初始状态（无工具）
         messages1 = context_builder.build_messages()
-        system_content1 = messages1[0]["content"]
-        assert "Available tools" not in system_content1, "初始状态不应有工具"
-        
+        assert len(context_builder.tools) == 0, "初始状态应无工具"
+
         # 添加工具后
         mock_tool = Mock()
         mock_tool.name = "test_tool"
         mock_tool.description = "Test tool description"
         mock_tool.parameters = {}
-        
+
         context_builder.set_tools({"test_tool": mock_tool})
-        
-        # 构建时应该包含新工具
+
+        # 验证工具已设置
+        assert "test_tool" in context_builder.tools, "工具应被设置到 context_builder"
+
+        # 构建消息时，工具使用指导应该被包含
         messages2 = context_builder.build_messages()
         system_content2 = messages2[0]["content"]
-        
-        # 工具列表应该被包含
-        assert "test_tool" in system_content2 or "Available tools" in system_content2, \
-            "添加工具后系统提示词应包含工具信息"
+
+        # 工具使用指导应该被包含（TOOL_USE_ENFORCEMENT）
+        assert "工具使用" in system_content2 or "Tool" in system_content2, \
+            "添加工具后应包含工具使用指导"
     
     def test_build_messages_with_different_history(self, context_builder):
         """
@@ -400,8 +402,7 @@ class TestContextTransferEdgeCases:
         from agent.context.context_builder import ContextBuilder
         return ContextBuilder(
             tools={},
-            enable_guidance=True,
-            enable_memory_prefetch=False
+            enable_guidance=True
         )
     
     def test_empty_conversation_history(self, context_builder):

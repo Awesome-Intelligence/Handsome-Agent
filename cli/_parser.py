@@ -735,4 +735,36 @@ def build_top_level_parser():
     auth_test_parser = auth_subparsers.add_parser("test", help="Test connection")
     auth_test_parser.add_argument("provider", help="Provider ID")
 
+    # =========================================================================
+    # memory command
+    # =========================================================================
+    memory_parser = subparsers.add_parser(
+        "memory",
+        help="Memory management",
+        description="View and manage agent memory",
+    )
+    memory_subparsers = memory_parser.add_subparsers(dest="memory_command", help="Memory command")
+
+    memory_status_parser = memory_subparsers.add_parser(
+        "status",
+        help="Show memory status and usage",
+    )
+
+    memory_list_parser = memory_subparsers.add_parser(
+        "list",
+        help="List memory entries",
+    )
+    memory_list_parser.add_argument(
+        "target",
+        nargs="?",
+        choices=["memory", "user"],
+        default="memory",
+        help="Target memory type (default: memory)",
+    )
+
+    memory_setup_parser = memory_subparsers.add_parser(
+        "setup",
+        help="Run memory configuration wizard",
+    )
+
     return parser, subparsers, chat_parser

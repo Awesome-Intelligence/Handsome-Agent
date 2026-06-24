@@ -239,26 +239,51 @@ class LLMToolSelector:
         from agent.context.context_builder import ContextBuilder
         from agent.context import ContextPurpose
         
+        # 检查 ContextManager 是否可用且有正确的压缩器
+        def _is_valid_context_manager(cm) -> bool:
+            if cm is None:
+                return False
+            # 检查压缩器是否有 should_compress 方法（新版压缩器）
+            compressor = getattr(cm, '_context_compressor', None)
+            if compressor is None:
+                return False
+            return hasattr(compressor, 'should_compress')
+        
         # 优先使用 ContextManager 统一入口
-        if self._context_manager:
+        if self._context_manager and _is_valid_context_manager(self._context_manager):
             try:
-                result = await self._context_manager.build(
+                # 使用统一入口 build_messages()
+                messages_result = await self._context_manager.build_messages(
                     user_message=user_input,
                     conversation_history=conversation_history,
                     purpose=ContextPurpose.TOOL_SELECTION,
                     tools=self.tools,
                     include_tools=True
                 )
-                return result.system_prompt
+                # 从消息列表中提取 system message
+                for msg in messages_result.messages:
+                    if msg.get("role") == "system":
+                        return msg.get("content", "")
+                # 如果没有 system message，返回第一个消息的 content
+                if messages_result.messages:
+                    return messages_result.messages[0].get("content", "")
+                return ""
             except Exception as e:
                 self.logger.warning(f"ContextManager failed, falling back to ContextBuilder: {e}")
         
-        # 降级到 ContextBuilder（传入 user_input 用于记忆预取）
+        # 降级到 ContextBuilder（使用 build_parts() 三层架构）
         context_builder = ContextBuilder(tools=self.tools)
-        return context_builder.build_system_prompt(
-            conversation_history=conversation_history,
-            user_message=user_input
+        parts = context_builder.build_parts(
+            user_message=user_input,
+            model=None,
+            memory_context=""
         )
+        # 合并为单条系统提示词
+        return "\n\n".join([
+            parts.get("stable", ""),
+            parts.get("context", ""),
+            parts.get("volatile", "")
+        ])
 
     def _keyword_fallback(self, user_input: str) -> ToolSelectionResult:
         """
@@ -686,6 +711,10 @@ class LLMDrivenDecisionEngine:
     LLM 驱动的决策引擎（核心）
 
     整合工具选择和执行，移除意图识别层
+    
+    统一上下文管理：
+    - ContextManager 统一由 Agent 管理
+    - Engine 通过 tool_selector._context_manager 访问
     """
 
     def __init__(
@@ -698,15 +727,25 @@ class LLMDrivenDecisionEngine:
         Args:
             llm_provider: LLM 提供者
             enable_llm_selection: 是否启用 LLM 工具选择
-            context_manager: 统一的上下文管理器（可选）
+            context_manager: 统一的上下文管理器（可选，会传递给 tool_selector）
         """
         self._llm_provider = llm_provider
         self.tool_selector = LLMToolSelector(llm_provider, context_manager)
         self.direct_router = DirectToolRouter()
         self.execution_engine = ToolExecutionEngine()
         self.enable_llm_selection = enable_llm_selection
-        self._context_manager = context_manager
+        # 移除独立的 _context_manager，统一通过 tool_selector._context_manager 访问
         self.logger = get_decision_logger(self.__class__.__name__)
+    
+    @property
+    def _context_manager(self):
+        """统一访问入口（委托给 tool_selector）"""
+        return self.tool_selector._context_manager
+    
+    @_context_manager.setter
+    def _context_manager(self, value):
+        """统一设置入口（同步给 tool_selector）"""
+        self.tool_selector._context_manager = value
 
     @property
     def llm_provider(self):

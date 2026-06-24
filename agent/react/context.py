@@ -207,15 +207,12 @@ class ReActContext:
         return self._custom_data.get(key, default)
     
     def get_tools_schema(self) -> List[Dict[str, Any]]:
-        """获取工具 Schema"""
-        return [
-            {
-                "name": t["name"] if isinstance(t, dict) else t.name,
-                "description": t["description"] if isinstance(t, dict) else t.description,
-                "parameters": t["parameters"] if isinstance(t, dict) else t.parameters
-            }
-            for t in self.tools
-        ]
+        """获取工具 Schema
+
+        使用统一的 schema_registry 生成 OpenAI 格式的工具 Schema。
+        """
+        from tools.schema_registry import generate_openai_tools_schema
+        return generate_openai_tools_schema(self.tools)
     
     def get_recent_messages(self, count: int = 6) -> List[Dict[str, str]]:
         """获取最近的对话历史"""

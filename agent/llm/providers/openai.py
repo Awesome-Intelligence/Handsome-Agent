@@ -60,6 +60,29 @@ class OpenAIProvider(BaseProvider):
             await self._client.aclose()
             self._client = None
 
+    def _get_request_body_extra(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """获取额外的请求体参数
+
+        统一处理 tools 参数。
+        """
+        from tools.schema_registry import generate_openai_tools_schema
+
+        extra = {}
+
+        # 处理 tools 参数
+        tools = kwargs.get("tools")
+        if tools:
+            # 统一转换为 OpenAI 格式
+            tools_schema = generate_openai_tools_schema(tools)
+            if tools_schema:
+                extra["tools"] = tools_schema
+
+        return extra
+
+    def _extract_function_call(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """从 OpenAI 响应消息中提取函数调用"""
+        return self._should_handle_function_call(message)
+
     async def generate(
         self,
         prompt: str,
@@ -89,6 +112,9 @@ class OpenAIProvider(BaseProvider):
             "stream": False,
         }
 
+        # 添加 tools 参数
+        request_body.update(self._get_request_body_extra(kwargs))
+
         try:
             client = await self._get_client()
             response = await client.post("/chat/completions", json=request_body)
@@ -100,7 +126,23 @@ class OpenAIProvider(BaseProvider):
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
 
-            output_content = data["choices"][0]["message"]["content"]
+            message = data["choices"][0]["message"]
+
+            # 检查是否有函数调用
+            function_call = self._extract_function_call(message)
+            if function_call:
+                self._log_response_debug(message, function_call)
+                self._log_request_completed(latency_ms)
+                return ProviderResponse(
+                    content=json.dumps(function_call),
+                    model=data.get("model", self.config.model),
+                    finish_reason=data["choices"][0].get("finish_reason", "stop"),
+                    usage=data.get("usage", {}),
+                    latency_ms=latency_ms,
+                    function_call=function_call,
+                )
+
+            output_content = message.get("content", "")
             usage = data.get("usage", {})
 
             self._log_output_content(output_content)

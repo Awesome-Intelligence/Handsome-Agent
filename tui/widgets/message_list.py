@@ -26,9 +26,11 @@ import time
 
 TEXTUAL_AVAILABLE = True
 try:
-    from textual.widgets import Markdown, Static
+    from textual.widgets import Markdown, Static, Collapsible
     from textual.containers import VerticalScroll, Container
     from textual.message import Message
+    from textual import on
+    from textual.events import Key
 except ImportError:
     TEXTUAL_AVAILABLE = False
     Markdown = object  # type: ignore
@@ -36,14 +38,14 @@ except ImportError:
     VerticalScroll = object  # type: ignore
     Container = object  # type: ignore
     Message = object  # type: ignore
-
-# Collapsible 组件 (Textual 0.37+)
-TEXTUAL_COLLAPSIBLE_AVAILABLE = True
-try:
-    from textual.widgets import Collapsible
-except ImportError:
-    TEXTUAL_COLLAPSIBLE_AVAILABLE = False
     Collapsible = object  # type: ignore
+    Key = object  # type: ignore
+    
+    def on(*args, **kwargs):
+        """Mock on decorator when textual is not available."""
+        def decorator(func):
+            return func
+        return decorator
 
 try:
     from tui.theming import MESSAGE_ICONS, MESSAGE_COLORS
@@ -129,17 +131,12 @@ class MessageItem:
     tool_name: Optional[str] = None
     is_streaming: bool = False
     is_complete: bool = True
-    # 思考内容相关字段
-    thinking_content: Optional[str] = None
-    thinking_collapsed: bool = True  # 默认收起
+    thinking: Optional[str] = None
+    thinking_collapsed: bool = True
 
     @property
     def time_str(self) -> str:
         return datetime.fromtimestamp(self.timestamp).strftime("%H:%M:%S")
-
-    @property
-    def has_thinking(self) -> bool:
-        return bool(self.thinking_content)
 
 
 # ============================================================================
@@ -195,11 +192,13 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         self._streaming_buffer: dict[str, str] = {}  # 文本累积缓冲区
         self._streaming_timers: dict[str, any] = {}  # 定时器引用
         self._message_widgets: dict[str, Static | Markdown] = {}
+        self._message_collapsibles: dict[str, Collapsible] = {}  # 思考内容 Collapsible 引用
+        self._message_containers: dict[str, Container] = {}  # 消息容器引用
         self._logger = get_access_logger("MessageList", sublayer="tui")
 
         # 自动滚动优化
         self._user_scrolled_to_bottom: bool = True  # 用户是否在底部
-        self._scroll_throttle_ms: int = 150  # 滚动节流时间（优化：从 100 改为 150ms）
+        self._scroll_throttle_ms: int = 100  # 滚动节流时间
         self._last_scroll_time: float = 0  # 上次滚动时间
 
     # ========================================================================
@@ -339,22 +338,75 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         self._update_message_widget(msg)
 
     def append_streaming_thinking(self, message_id: str, text: str) -> None:
-        """追加思考内容 - 现在存到主消息的 thinking_content 字段中"""
+        """流式追加思考内容到消息"""
         if message_id not in self._streaming_active:
             return
 
-        # 使用索引快速查找主消息
         msg = self._message_index.get(message_id)
         if msg is None:
             return
 
-        # 将思考内容追加到主消息的 thinking_content 字段
-        if msg.thinking_content is None:
-            msg.thinking_content = ""
-        msg.thinking_content += text
+        # 更新消息的 thinking 字段
+        if msg.thinking is None:
+            msg.thinking = ""
+        msg.thinking += text
 
-        # 更新渲染（触发思考内容更新）
-        self._update_thinking_widget(msg)
+        # 如果 Collapsible 已存在，更新其内容
+        if message_id in self._message_collapsibles:
+            self._update_thinking_collapsible(message_id, msg)
+        elif message_id in self._message_widgets:
+            # 消息已渲染但还没有 Collapsible，需要创建
+            # 重新渲染消息以包含 Collapsible
+            self._upgrade_to_thinking_message(msg)
+
+    def _update_thinking_collapsible(self, message_id: str, msg: MessageItem) -> None:
+        """更新 Collapsible 内的思考内容"""
+        collapsible = self._message_collapsibles.get(message_id)
+        if collapsible is None:
+            return
+
+        # 查找 Collapsible 内的思考内容 widget
+        thinking_widget_id = f"msg-thinking-content-{message_id}"
+        for child in collapsible.children:
+            if hasattr(child, 'update'):
+                # 流式输出时使用 Static
+                child.update(msg.thinking + (" ▌" if msg.is_streaming else ""))
+                break
+
+    def _upgrade_to_thinking_message(self, msg: MessageItem) -> None:
+        """将已有消息升级为包含 Collapsible 的消息"""
+        if msg.id not in self._message_widgets:
+            return
+
+        old_widget = self._message_widgets[msg.id]
+        
+        def _do_upgrade():
+            try:
+                old_widget.remove()
+            except Exception as e:
+                self._logger.debug(f"Failed to remove old widget during upgrade: {e}")
+            
+            self._render_message(msg)
+        
+        self.call_later(_do_upgrade)
+
+    def _upgrade_thinking_to_markdown(self, message_id: str) -> None:
+        """将 Collapsible 内的思考内容从 Static 升级为 Markdown"""
+        collapsible = self._message_collapsibles.get(message_id)
+        if collapsible is None:
+            return
+
+        msg = self._message_index.get(message_id)
+        if msg is None:
+            return
+
+        # 查找并升级 Collapsible 内的 Static 为 Markdown
+        for child in list(collapsible.children):
+            if isinstance(child, Static):
+                thinking_content = msg.thinking if msg.thinking else ""
+                new_widget = Markdown(thinking_content, classes="thinking-content")
+                child.replace(new_widget)
+                break
 
     def complete_streaming(self, message_id: str) -> None:
         if message_id not in self._streaming_active:
@@ -369,9 +421,14 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         if msg:
             msg.is_streaming = False
             msg.is_complete = True
-            # 如果有思考内容，需要重新渲染整个消息（包含 Collapsible）
-            if msg.has_thinking:
-                self._rebuild_message_with_thinking(msg)
+            
+            # 如果有思考内容，升级 Collapsible 内的内容为 Markdown
+            if message_id in self._message_collapsibles:
+                self._upgrade_thinking_to_markdown(message_id)
+            
+            # 如果消息有思考内容，不调用 _upgrade_to_markdown，而是重新渲染整个消息
+            if msg.thinking is not None and msg.role == MessageRole.ASSISTANT:
+                self._render_message(msg)
             else:
                 self._upgrade_to_markdown(msg)
 
@@ -404,6 +461,16 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
                 widget = self._message_widgets[message_id]
                 widget.remove()
                 del self._message_widgets[message_id]
+            # 清理 Collapsible
+            if message_id in self._message_collapsibles:
+                collapsible = self._message_collapsibles[message_id]
+                collapsible.remove()
+                del self._message_collapsibles[message_id]
+            # 清理 Container
+            if message_id in self._message_containers:
+                container = self._message_containers[message_id]
+                container.remove()
+                del self._message_containers[message_id]
             # 清理相关状态
             self._streaming_active.pop(message_id, None)
             self._streaming_buffer.pop(message_id, None)
@@ -422,6 +489,12 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         for widget in self._message_widgets.values():
             widget.remove()
         self._message_widgets.clear()
+        for collapsible in self._message_collapsibles.values():
+            collapsible.remove()
+        self._message_collapsibles.clear()
+        for container in self._message_containers.values():
+            container.remove()
+        self._message_containers.clear()
         self._post_message(MessageListUpdated(self, 0))
 
     def get_messages(self) -> list[MessageItem]:
@@ -457,16 +530,13 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
             self.scroll_end(animate=False)
 
     def _check_if_at_bottom(self) -> bool:
-        """检查滚动区域是否在底部附近（用于检测用户是否在底部）
-        
-        优化：只访问必要的属性，减少 DOM 查询开销
-        """
+        """检查滚动区域是否在底部附近（用于检测用户是否在底部）"""
         try:
+            # 获取可滚动区域的尺寸
+            scroll_height = self.scroll_home  # 滚动区域总高度
             max_scroll = self.max_scroll_y  # 最大滚动偏移
-            # 如果几乎没有可滚动内容，认为在底部
-            if max_scroll <= 50:
-                return True
             current_y = self.scroll_y  # 当前滚动位置
+
             # 如果最大滚动接近当前滚动位置，说明在底部
             # 允许 50 像素的误差
             return (max_scroll - current_y) < 50
@@ -524,6 +594,16 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
                     widget = self._message_widgets[msg_id]
                     widget.remove()
                     del self._message_widgets[msg_id]
+                # 清理 Collapsible
+                if msg_id in self._message_collapsibles:
+                    collapsible = self._message_collapsibles[msg_id]
+                    collapsible.remove()
+                    del self._message_collapsibles[msg_id]
+                # 清理 Container
+                if msg_id in self._message_containers:
+                    container = self._message_containers[msg_id]
+                    container.remove()
+                    del self._message_containers[msg_id]
                 # 清理相关状态
                 self._streaming_buffer.pop(msg_id, None)
                 self._last_streaming_update.pop(msg_id, None)
@@ -560,22 +640,50 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         return content
 
     def _render_message(self, msg: MessageItem) -> None:
-        # 如果消息有思考内容，使用 Collapsible 结构渲染
-        if msg.has_thinking and TEXTUAL_COLLAPSIBLE_AVAILABLE:
-            self._render_message_with_thinking(msg)
-            return
-
         header = self._format_message_header(msg)
         content = self._format_message_content(msg)
         full_content = header + content
 
         if msg.role == MessageRole.SYSTEM:
             widget = Static(f"--- {msg.content} ---", classes=f"message-{msg.role.value}")
+            widget.id = f"msg-widget-{msg.id}"
+            self._message_widgets[msg.id] = widget
+
+            def _do_mount():
+                try:
+                    self.mount(widget)
+                    self._do_smart_scroll()
+                except Exception as e:
+                    self._logger.error(f"Failed to mount widget: {e}")
+
+            self.call_later(_do_mount)
+            return
+
+        # 如果消息有思考内容，使用 Container 包装
+        # 防御性检查：确保 thinking 是有效字符串
+        if (
+            msg.thinking is not None
+            and msg.role == MessageRole.ASSISTANT
+            and isinstance(msg.thinking, str)
+            and msg.thinking.strip()
+        ):
+            try:
+                self._render_message_with_thinking(msg, full_content)
+            except Exception as e:
+                self._logger.warning(f"Failed to render message with thinking, falling back: {e}")
+                # 回退到普通渲染
+                self._render_message_plain(msg, full_content)
+            return
+
+        # 普通消息渲染
+        self._render_message_plain(msg, full_content)
+
+    def _render_message_plain(self, msg: MessageItem, full_content: str) -> None:
+        """渲染普通消息（无思考内容）"""
+        if msg.is_streaming:
+            widget = Static(full_content, classes=f"message-{msg.role.value}", markup=True)
         else:
-            if msg.is_streaming:
-                widget = Static(full_content, classes=f"message-{msg.role.value}", markup=True)
-            else:
-                widget = Markdown(full_content, classes=f"message-{msg.role.value}")
+            widget = Markdown(full_content, classes=f"message-{msg.role.value}")
 
         widget.id = f"msg-widget-{msg.id}"
         self._message_widgets[msg.id] = widget
@@ -583,120 +691,62 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         def _do_mount():
             try:
                 self.mount(widget)
-                # 使用智能滚动 - 只在用户位于底部时自动滚动
                 self._do_smart_scroll()
             except Exception as e:
                 self._logger.error(f"Failed to mount widget: {e}")
 
         self.call_later(_do_mount)
 
-    def _render_message_with_thinking(self, msg: MessageItem) -> None:
-        """渲染带有思考内容的消息 - 使用 Collapsible 嵌套"""
-        # 如果 Collapsible 不可用，回退到普通渲染
-        if not TEXTUAL_COLLAPSIBLE_AVAILABLE:
-            self._render_message_fallback(msg)
-            return
+    def _render_message_with_thinking(self, msg: MessageItem, full_content: str) -> None:
+        """渲染带有思考内容的消息，使用 Collapsible 嵌套"""
+        container_id = f"msg-container-{msg.id}"
+        container = Container(classes=f"message-container message-{msg.role.value}")
+        container.id = container_id
 
-        # 格式化思考内容标题
-        i18n = get_i18n()
-        thinking_title = i18n.t("message.thinking", default="💭 Thinking")
-
-        # 思考内容
-        thinking_content = msg.thinking_content or ""
+        # 创建消息内容 widget
         if msg.is_streaming:
-            thinking_content += " ▌"
-
-        # 回复内容
-        header = self._format_message_header(msg)
-        content = self._format_message_content(msg)
-        response_content = header + content
-
-        # 创建子组件
-        if msg.is_streaming:
-            thinking_widget = Static(thinking_content, classes="thinking-content")
+            msg_widget = Static(full_content, classes="message-content", markup=True)
         else:
-            thinking_widget = Markdown(thinking_content, classes="thinking-content")
-        thinking_widget.id = f"thinking-{msg.id}"
+            msg_widget = Markdown(full_content, classes="message-content")
 
-        # Collapsible - 默认收起
+        msg_widget.id = f"msg-widget-{msg.id}"
+        self._message_widgets[msg.id] = msg_widget
+
+        # 创建思考内容的 Collapsible
+        i18n = get_i18n()
+        thinking_title = f"💭 {i18n.t('message.thinking', '思考过程')}"
+        thinking_content = msg.thinking if msg.thinking else ""
+
         collapsible = Collapsible(
-            thinking_widget,
             title=thinking_title,
             collapsed=msg.thinking_collapsed,
             collapsed_symbol="▶",
             expanded_symbol="▼",
-            classes="message-thinking",
+            classes="thinking-collapsible"
         )
-        collapsible.id = f"thinking-collapsible-{msg.id}"
+        collapsible.id = f"msg-thinking-{msg.id}"
 
-        # 回复内容（主消息）
+        # 在 Collapsible 内创建 Markdown 显示思考内容
         if msg.is_streaming:
-            response_widget = Static(response_content, classes=f"message-{msg.role.value}", markup=True)
+            thinking_widget = Static(thinking_content, classes="thinking-content", markup=True)
         else:
-            response_widget = Markdown(response_content, classes=f"message-{msg.role.value}")
-        response_widget.id = f"response-{msg.id}"
+            thinking_widget = Markdown(thinking_content, classes="thinking-content")
 
-        # 创建消息容器（按垂直顺序排列）
-        container_id = f"msg-container-{msg.id}"
-        container = Container(
-            collapsible,
-            response_widget,
-            classes="message-container",
-        )
-        container.id = container_id
-
-        self._message_widgets[msg.id] = container
-        # 同时记录子组件引用
-        self._message_widgets[f"collapsible-{msg.id}"] = collapsible
-        self._message_widgets[f"thinking-{msg.id}"] = thinking_widget
-        self._message_widgets[f"response-{msg.id}"] = response_widget
+        self._message_collapsibles[msg.id] = collapsible
 
         def _do_mount():
             try:
+                # 先挂载容器
                 self.mount(container)
+                # 在容器内挂载消息和 Collapsible
+                container.mount(msg_widget)
+                container.mount(collapsible)
+                # 在 Collapsible 内挂载思考内容
+                collapsible.mount(thinking_widget)
+                self._message_containers[msg.id] = container
                 self._do_smart_scroll()
             except Exception as e:
-                self._logger.error(f"Failed to mount thinking message: {e}")
-
-        self.call_later(_do_mount)
-
-    def _render_message_fallback(self, msg: MessageItem) -> None:
-        """当 Collapsible 不可用时的回退渲染"""
-        header = self._format_message_header(msg)
-
-        # 格式化思考内容
-        thinking_header = f"**💭 Thinking**\n\n"
-        thinking_content = msg.thinking_content or ""
-        if msg.is_streaming:
-            thinking_content += " ▌"
-        full_thinking = thinking_header + thinking_content
-
-        # 回复内容
-        content = self._format_message_content(msg)
-        full_content = header + content
-
-        if msg.is_streaming:
-            thinking_widget = Static(full_thinking, classes="thinking-content", markup=True)
-            response_widget = Static(full_content, classes=f"message-{msg.role.value}", markup=True)
-        else:
-            thinking_widget = Markdown(full_thinking, classes="thinking-content")
-            response_widget = Markdown(full_content, classes=f"message-{msg.role.value}")
-
-        # 创建容器
-        container_id = f"msg-container-{msg.id}"
-        container = Container(thinking_widget, response_widget, classes="message-container-fallback")
-        container.id = container_id
-
-        self._message_widgets[msg.id] = container
-        self._message_widgets[f"thinking-{msg.id}"] = thinking_widget
-        self._message_widgets[f"response-{msg.id}"] = response_widget
-
-        def _do_mount():
-            try:
-                self.mount(container)
-                self._do_smart_scroll()
-            except Exception as e:
-                self._logger.error(f"Failed to mount fallback message: {e}")
+                self._logger.error(f"Failed to mount message with thinking: {e}")
 
         self.call_later(_do_mount)
 
@@ -719,54 +769,27 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         elif isinstance(widget, Markdown):
             pass
 
+        # 如果有思考内容且 Collapsible 已存在，更新思考内容
+        if msg.thinking is not None and msg.id in self._message_collapsibles:
+            self._update_thinking_collapsible(msg.id, msg)
+
         # 使用智能滚动 - 只在用户位于底部时自动滚动
         self.call_later(self._do_smart_scroll)
-
-    def _update_thinking_widget(self, msg: MessageItem) -> None:
-        """更新思考内容组件（流式输出时调用）"""
-        thinking_widget_id = f"thinking-{msg.id}"
-
-        if thinking_widget_id not in self._message_widgets:
-            # 如果思考组件不存在，先渲染整个消息
-            if msg.has_thinking:
-                self._render_message_with_thinking(msg)
-            return
-
-        thinking_widget = self._message_widgets[thinking_widget_id]
-        thinking_content = msg.thinking_content or ""
-
-        if msg.is_streaming:
-            thinking_content += " ▌"
-
-        if isinstance(thinking_widget, Static):
-            thinking_widget.update(thinking_content)
-
-        # 智能滚动
-        self.call_later(self._do_smart_scroll)
-
-    def _rebuild_message_with_thinking(self, msg: MessageItem) -> None:
-        """重建带有思考内容的消息（流式完成时调用）"""
-        container_id = f"msg-container-{msg.id}"
-
-        # 移除旧的消息组件
-        if container_id in self._message_widgets:
-            old_container = self._message_widgets[container_id]
-            old_container.remove()
-
-        # 清理旧组件引用
-        for key in [f"collapsible-{msg.id}", f"thinking-{msg.id}", f"response-{msg.id}"]:
-            if key in self._message_widgets:
-                del self._message_widgets[key]
-
-        # 重新渲染消息
-        self._render_message_with_thinking(msg)
 
     def _upgrade_to_markdown(self, msg: MessageItem) -> None:
         if msg.id not in self._message_widgets:
             return
 
         old_widget = self._message_widgets[msg.id]
-        old_widget.remove()
+        
+        try:
+            old_widget.remove()
+        except Exception as e:
+            self._logger.debug(f"Failed to remove widget during markdown upgrade: {e}")
+
+        if msg.thinking is not None and msg.role == MessageRole.ASSISTANT:
+            self._render_message(msg)
+            return
 
         header = self._format_message_header(msg)
         content = self._format_message_content(msg)
@@ -802,12 +825,6 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
 
     def on_scroll(self) -> None:
         """监听滚动事件，检测用户是否在底部"""
-        # 滚动事件节流：避免频繁计算
-        current_time = time.time() * 1000
-        if current_time - self._last_scroll_time < self._scroll_throttle_ms:
-            return
-        self._last_scroll_time = current_time
-        
         if self._check_if_at_bottom():
             self._mark_scrolled_to_bottom()
         else:
@@ -815,7 +832,6 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
 
     def on_scroll_to(self, event) -> None:
         """监听 scroll_to 事件"""
-        # scroll_to 事件同样需要节流
         self.on_scroll()
 
     def scroll_to_bottom(self, animate: bool = True) -> None:
@@ -823,6 +839,34 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
         super().scroll_end(animate=animate)
         self._user_scrolled_to_bottom = True
         self._last_scroll_time = time.time() * 1000
+
+    def _toggle_all_thinking(self, expanded: bool) -> None:
+        """展开或收起所有思考内容
+
+        Args:
+            expanded: True 展开所有，False 收起所有
+        """
+        for msg_id, collapsible in self._message_collapsibles.items():
+            try:
+                if expanded:
+                    collapsible.collapsed = False
+                else:
+                    collapsible.collapsed = True
+            except Exception as e:
+                self._logger.error(f"Failed to toggle thinking collapsible: {e}")
+
+    @on(Key)
+    def _handle_thinking_key(self, event) -> None:
+        """处理思考内容快捷键
+
+        - 'e': 展开所有思考内容
+        - 'c': 收起所有思考内容
+        """
+        key = event.key
+        if key == "e":
+            self._toggle_all_thinking(expanded=True)
+        elif key == "c":
+            self._toggle_all_thinking(expanded=False)
 
 
 # ============================================================================

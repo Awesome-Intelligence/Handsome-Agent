@@ -399,6 +399,10 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             Static(f"  存储方式: {session.storage}", classes="setting-item"),
             Static(f"  重置策略: {session_reset.mode.value}", classes="setting-item"),
             Static(f"  {'[×] 记忆系统' if memory.enabled else '[ ] 记忆系统'}", classes="setting-item"),
+            # 语义检索配置
+            Static(f"  {'[×] 语义检索' if memory.semantic_retrieval_enabled else '[ ] 语义检索'}", classes="setting-item"),
+            Static(f"    最大结果: {memory.semantic_max_results}", classes="setting-item"),
+            Static(f"    最低相似度: {memory.semantic_min_score:.1f}", classes="setting-item"),
             Static(f"  {'[×] Context 压缩' if compression.enabled else '[ ] Context 压缩'}", classes="setting-item"),
         ]
     

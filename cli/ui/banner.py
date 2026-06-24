@@ -85,8 +85,9 @@ def print_setup_summary(config_status: dict) -> None:
     # Memory Status
     memory = config_status.get("memory", {})
     if memory.get("enabled"):
-        vector_store = memory.get("vector_store", "sqlite")
-        print(f"║   ✓ Memory: {vector_store:<44}║")
+        semantic = memory.get("semantic_retrieval_enabled", False)
+        semantic_str = "Semantic" if semantic else "Basic"
+        print(f"║   ✓ Memory: {semantic_str:<44}║")
     else:
         print(f"║   ○ Memory: Disabled{' ' * 40}║")
 

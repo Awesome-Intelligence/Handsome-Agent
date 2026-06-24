@@ -33,7 +33,7 @@ except ImportError:
 
 def print_logo():
     """打印 Logo"""
-    from common.terminal.banner import print_setup_banner
+    from cli.ui.banner import print_setup_banner
     print_setup_banner()
 
 

@@ -24,6 +24,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from common.logging_manager import get_decision_logger
+from common.config import DEFAULT_COMPRESSION_THRESHOLD, DEFAULT_SUMMARY_RATIO
 
 logger = get_decision_logger(__name__, sublayer="context")
 
@@ -342,7 +343,7 @@ def estimate_request_tokens_rough(
 
 def calculate_compression_threshold(
     model: str,
-    threshold_percent: float = 0.50,
+    threshold_percent: float = DEFAULT_COMPRESSION_THRESHOLD,
     config_context_length: Optional[int] = None,
 ) -> int:
     """Calculate the token threshold for triggering compression.
@@ -366,7 +367,7 @@ def calculate_compression_threshold(
 
 def calculate_tail_token_budget(
     model: str,
-    summary_target_ratio: float = 0.20,
+    summary_target_ratio: float = DEFAULT_SUMMARY_RATIO,
     threshold_tokens: Optional[int] = None,
 ) -> int:
     """Calculate the token budget for the protected tail region.

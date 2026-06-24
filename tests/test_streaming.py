@@ -38,8 +38,16 @@ async def test_streaming():
     # 2. 初始化组件
     tools_dict = {}  # 简单模式不需要工具
     context_builder = ContextBuilder(tools=tools_dict)
-    from agent.context_compressor import SummaryCompressor
-    context_compressor = SummaryCompressor(recent_messages=10)
+    from agent.context.context_compressor import ContextCompressor
+    context_compressor = ContextCompressor(
+        model="gpt-4o-mini",
+        threshold_percent=0.75,
+        protect_first_n=3,
+        protect_last_n=10,
+        summary_target_ratio=0.20,
+        quiet_mode=True,
+        llm_client=None
+    )
     context_manager = ContextManager(
         context_compressor=context_compressor,
         context_builder=context_builder

@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import time
 
+import httpx
+
 from agent.error import classify_api_error, FailoverReason
 
 
@@ -226,6 +228,35 @@ class BaseProvider(ABC):
             # 返回详细的错误消息，供调用者使用
             return f"{error_type}: {error_msg}"
 
+    def _raise_for_status(self, response: httpx.Response) -> None:
+        """检查响应状态码，非 200 时抛出携带 response 的 HTTPStatusError
+        
+        使用此方法替代直接调用 response.raise_for_status()，
+        确保异常携带完整的 response 对象供 error_classifier 分析。
+        
+        子类可覆盖此方法以添加 provider 特定的错误处理逻辑。
+        """
+        if response.status_code == 200:
+            return
+        
+        # 记录错误日志
+        if self.logger:
+            self.logger.error(
+                f"{self.provider_display_name} API error - "
+                f"status: {response.status_code}, detail: {response.text}"
+            )
+        
+        # 对于认证错误，可以抛出带有友好消息的异常
+        if response.status_code == 401:
+            raise httpx.HTTPStatusError(
+                f"{self.provider_display_name} API Key 无效或已过期。",
+                request=response.request,
+                response=response,
+            )
+        
+        # 其他错误直接让 httpx 抛出 HTTPStatusError，携带完整 response
+        response.raise_for_status()
+
     def _validate_api_key(self):
         """验证 API Key 是否配置（子类可覆盖）
 
@@ -247,13 +278,14 @@ class BaseProvider(ABC):
     def _should_handle_function_call(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """检查并处理 function_call/tool_calls（子类可覆盖）
 
-        默认返回 None 表示不处理 function_call。
-        子类（如 MiniMax）可覆盖此方法检查 tool_calls。
+        默认使用 schema_registry 中的统一提取逻辑。
+        子类可覆盖此方法以处理特定格式。
 
         Returns:
             function_call 字典或 None
         """
-        return None
+        from tools.schema_registry import extract_tool_from_response
+        return extract_tool_from_response(message)
 
     def _log_response_debug(self, message: Dict[str, Any], function_call: Optional[Dict[str, Any]] = None):
         """记录响应调试日志（子类可覆盖）
@@ -334,7 +366,10 @@ class BaseProvider(ABC):
                     else:
                         msg_list.append({"role": msg.role, "content": msg.content})
 
-        msg_list.append({"role": "user", "content": prompt})
+        # 只有当 prompt 非空时才添加用户消息
+        # 避免在消息列表已包含用户消息时添加空消息
+        if prompt:
+            msg_list.append({"role": "user", "content": prompt})
         return (system if system else None, msg_list)
 
     def _estimate_tokens(self, text: str) -> int:

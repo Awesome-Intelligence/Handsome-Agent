@@ -97,7 +97,8 @@ class ReActLoop:
         rails: Optional[List["Rail"]] = None,
         max_iterations: int = 20,
         tools: Optional[Dict[str, Any]] = None,
-        stream_emitter=None
+        stream_emitter=None,
+        context_manager=None
     ):
         self.llm = llm_provider
         self.session_id = session_id
@@ -105,14 +106,18 @@ class ReActLoop:
         self.max_iterations = max_iterations
         self.tools = tools or {}
         self._stream_emitter = stream_emitter
+        self._context_manager = context_manager
 
         self.logger = get_task_logger("ReActLoop", sublayer="task")
         self._state = LoopState.RUNNING
         self._steps: List[StepResult] = []
 
-        # 初始化统一的 ContextBuilder（复用上下文拼装逻辑）
-        from agent.context import ContextBuilder
-        self._context_builder = ContextBuilder(tools=self.tools)
+        # 如果没有传入 ContextManager，初始化 ContextBuilder 作为降级方案
+        if self._context_manager is None:
+            from agent.context import ContextBuilder
+            self._context_builder = ContextBuilder(tools=self.tools)
+        else:
+            self._context_builder = None
     
     def set_stream_emitter(self, emitter):
         """设置流式发射器"""
@@ -391,17 +396,9 @@ class ReActLoop:
         """LLM 决策下一步 - Hermes 风格"""
 
         try:
-            # 构建 tools 参数（用于 function calling）
-            tools = []
-            for tool_name, tool in self.tools.items():
-                tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": tool_name,
-                        "description": getattr(tool, 'description', f'Tool: {tool_name}'),
-                        "parameters": getattr(tool, 'parameters', {"type": "object", "properties": {}})
-                    }
-                })
+            # 使用统一的 schema_registry 生成 tools 参数
+            from tools.schema_registry import generate_openai_tools_schema
+            tools = generate_openai_tools_schema(self.tools)
 
             # 构建消息历史（使用标准消息列表格式）
             # 消息格式：
@@ -412,14 +409,27 @@ class ReActLoop:
             messages = context.to_messages_dict() or []
             self.logger.debug(f"Message history: {len(messages)} messages")
 
-            # 使用 ContextBuilder 构建完整的消息列表（包含系统消息、用户任务、对话历史等）
-            messages = self._context_builder.build_messages(
-                conversation_history=messages,
-                include_tools=True,
-                user_message=context.task_description,
-                model=None
-            ) or []
-            self.logger.debug(f"Context built: {len(messages)} messages")
+            # 优先使用 ContextManager 统一入口
+            if self._context_manager:
+                from agent.context import ContextPurpose
+                messages_result = await self._context_manager.build_messages(
+                    user_message=context.task_description,
+                    conversation_history=messages,
+                    purpose=ContextPurpose.REACT_LOOP,
+                    tools=self.tools,
+                    include_tools=True
+                )
+                messages = messages_result.messages
+                self.logger.debug(f"Context built via ContextManager: {len(messages)} messages")
+            else:
+                # 降级到 ContextBuilder（兼容旧代码）
+                messages = self._context_builder.build_messages(
+                    conversation_history=messages,
+                    include_tools=True,
+                    user_message=context.task_description,
+                    model=None
+                ) or []
+                self.logger.debug(f"Context built via ContextBuilder: {len(messages)} messages")
 
             # 添加用户任务消息（追加到消息列表末尾）
             messages.append({

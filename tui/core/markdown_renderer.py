@@ -382,28 +382,39 @@ else:
 class MarkdownRenderer:
     """Markdown 渲染器.
 
-    提供统一的 Markdown 渲染接口。
+    提供统一的 Markdown 渲染接口，支持 LRU 缓存。
     """
 
-    def __init__(self, enable_code_highlight: bool = True):
+    # 类级别的缓存配置
+    DEFAULT_CACHE_SIZE = 128
+    MAX_CACHE_TEXT_LENGTH = 2000  # 超过此长度的文本不缓存
+
+    def __init__(self, enable_code_highlight: bool = True, cache_size: int = None):
         """初始化 Markdown 渲染器.
 
         Args:
             enable_code_highlight: 是否启用代码语法高亮
+            cache_size: LRU 缓存大小，None 则使用默认值
         """
         self._enable_code_highlight = enable_code_highlight
         self._markdown: Optional[HandsomeAgentMarkdown] = None
+        self._cache_size = cache_size or self.DEFAULT_CACHE_SIZE
+        self._render_cache: dict[str, str] = {}  # 简单缓存
+        self._cache_order: list[str] = []  # LRU 顺序
 
         if MISTUNE_AVAILABLE:
             self._init_markdown()
 
     def _init_markdown(self) -> None:
         """初始化 Markdown 解析器."""
-        self._markdown = HandsomeAgentMarkdown(
-            renderer=HandsomeAgentRenderer(),
-            inline_rules=[],  # 使用默认规则
-            block_rules=[],   # 使用默认规则
-        )
+        try:
+            # 尝试带参数的初始化
+            self._markdown = HandsomeAgentMarkdown(
+                renderer=HandsomeAgentRenderer(),
+            )
+        except TypeError:
+            # 降级：不带参数初始化
+            self._markdown = HandsomeAgentMarkdown()
 
     def is_available(self) -> bool:
         """检查 Markdown 渲染是否可用."""
@@ -418,8 +429,49 @@ class MarkdownRenderer:
             "  pip install pygments"
         )
 
+    def _get_cache_key(self, text: str) -> str:
+        """生成缓存键。
+
+        对于短文本直接使用原文作为键，
+        对于长文本使用哈希值作为键。
+        """
+        if len(text) <= self.MAX_CACHE_TEXT_LENGTH:
+            return text
+        # 长文本使用哈希值
+        import hashlib
+        return hashlib.md5(text.encode()).hexdigest()
+
+    def _get_from_cache(self, cache_key: str) -> str | None:
+        """从缓存获取结果."""
+        return self._render_cache.get(cache_key)
+
+    def _put_to_cache(self, cache_key: str, rendered: str) -> None:
+        """放入缓存（LRU 策略）."""
+        if len(self._render_cache) >= self._cache_size:
+            # 移除最旧的条目
+            if self._cache_order:
+                oldest = self._cache_order.pop(0)
+                self._render_cache.pop(oldest, None)
+
+        self._render_cache[cache_key] = rendered
+        self._cache_order.append(cache_key)
+
+    def clear_cache(self) -> None:
+        """清空渲染缓存."""
+        self._render_cache.clear()
+        self._cache_order.clear()
+
+    def get_cache_stats(self) -> dict:
+        """获取缓存统计信息."""
+        return {
+            "size": len(self._render_cache),
+            "max_size": self._cache_size,
+        }
+
     def render(self, text: str) -> str:
         """将 Markdown 文本渲染为 Rich 格式.
+
+        使用 LRU 缓存优化重复渲染。
 
         Args:
             text: Markdown 格式的文本
@@ -434,6 +486,12 @@ class MarkdownRenderer:
             # 返回原始文本
             return text
 
+        # 检查缓存
+        cache_key = self._get_cache_key(text)
+        cached = self._get_from_cache(cache_key)
+        if cached is not None:
+            return cached
+
         # 预处理 Markdown 文本
         text = self._preprocess(text)
 
@@ -443,6 +501,9 @@ class MarkdownRenderer:
 
             # 后处理渲染结果
             rendered = self._postprocess(rendered)
+
+            # 放入缓存
+            self._put_to_cache(cache_key, rendered)
 
             return rendered
         except Exception:

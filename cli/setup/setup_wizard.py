@@ -236,7 +236,7 @@ def setup_llm_provider(config: dict) -> dict | None:
     print_step(1, 1, "🤖 大模型配置")
     
     providers = get_all_providers()
-    provider_options = [(p["id"], f"{p['name']} - {p['description']}") for p in providers]
+    provider_options = [(p["name"], f"{p['display_name']}") for p in providers]
     provider_options.append(("none", "暂不使用 (使用基础模板模式)"))
     
     current_provider = config.get('llm', {}).get('provider', 'none')
@@ -252,7 +252,7 @@ def setup_llm_provider(config: dict) -> dict | None:
         print_info("将使用基础模板模式")
         return {"provider": "none", "api_key": None, "model": None, "base_url": None}
     
-    provider_info = next((p for p in providers if p["id"] == provider_id), None)
+    provider_info = next((p for p in providers if p["name"] == provider_id), None)
     
     if not provider_info:
         print_error(f"未找到提供商: {provider_id}")
@@ -262,12 +262,9 @@ def setup_llm_provider(config: dict) -> dict | None:
         "provider": provider_id,
         "api_key": None,
         "model": provider_info.get("default_model"),
-        "base_url": provider_info.get("base_url"),
     }
     
-    print_substep(f"请设置 {provider_info.get('name')} API Key")
-    if provider_info.get("api_key_url"):
-        print_substep(f"获取地址: {provider_info.get('api_key_url')}")
+    print_substep(f"请设置 {provider_info.get('display_name')} API Key")
     
     current_key = config.get('llm', {}).get('api_key', '')
     if current_key:
@@ -590,7 +587,7 @@ def _build_config_status(config: dict) -> dict:
     memory = config.get('memory', {})
     status["memory"] = {
         "enabled": memory.get('enabled', True),
-        "vector_store": memory.get('vector_store', 'sqlite')
+        "semantic_retrieval_enabled": memory.get('semantic_retrieval_enabled', False),
     }
 
     return status

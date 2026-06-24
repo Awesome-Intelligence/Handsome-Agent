@@ -6,6 +6,7 @@ import logging
 from gateway.gateway import Gateway, GatewayConfig
 from gateway.adapters import HTTPAdapter, CLIAdapter
 from gateway.message import MessageChannel
+from gateway.memory_monitor import start_memory_monitoring, stop_memory_monitoring
 from common.logging import setup_logging
 
 
@@ -94,6 +95,11 @@ async def main():
     logger.info("Handsome Agent Gateway")
     logger.info("=" * 50)
     
+    # 启动内存监控
+    memory_monitor_enabled = start_memory_monitoring(interval_seconds=300)
+    if memory_monitor_enabled:
+        logger.info("Memory monitoring enabled")
+    
     config = GatewayConfig(
         name="HandsomeAgentGateway",
         host=args.host,
@@ -104,14 +110,14 @@ async def main():
     
     gateway = Gateway(config)
     
-    if args.cli:
-        logger.info("Starting CLI interactive mode")
-        await run_cli_mode(gateway, args.user_id)
-    else:
-        http_adapter = HTTPAdapter(gateway, config)
-        gateway.register_adapter(MessageChannel.HTTP, http_adapter)
-        
-        try:
+    try:
+        if args.cli:
+            logger.info("Starting CLI interactive mode")
+            await run_cli_mode(gateway, args.user_id)
+        else:
+            http_adapter = HTTPAdapter(gateway, config)
+            gateway.register_adapter(MessageChannel.HTTP, http_adapter)
+            
             await gateway.start()
             logger.info(f"Gateway started: http://{args.host}:{args.port}")
             logger.info(f"Brain Service: {args.brain_url}")
@@ -120,11 +126,12 @@ async def main():
             while True:
                 await asyncio.sleep(1)
                 
-        except KeyboardInterrupt:
-            logger.info("Received stop signal")
-        finally:
-            await gateway.stop()
-            logger.info("Gateway stopped")
+    except KeyboardInterrupt:
+        logger.info("Received stop signal")
+    finally:
+        await gateway.stop()
+        stop_memory_monitoring()
+        logger.info("Gateway stopped")
 
 
 if __name__ == "__main__":

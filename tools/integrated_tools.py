@@ -188,7 +188,7 @@ def get_integrated_engine(llm_provider=None, force_reinit: bool = False, context
     Args:
         llm_provider: LLM 提供者
         force_reinit: 是否强制重新初始化
-        context_manager: 统一的上下文管理器（可选）
+        context_manager: 统一的上下文管理器（可选，会通过 engine._context_manager 设置）
 
     Returns:
         LLMDrivenDecisionEngine: 已注册所有工具的决策引擎
@@ -210,10 +210,9 @@ def get_integrated_engine(llm_provider=None, force_reinit: bool = False, context
         if llm_provider is not None:
             _global_engine.llm_provider = llm_provider
         
-        # 如果传入了新的 context_manager，更新 tool_selector
+        # 如果传入了新的 context_manager，通过 property 设置（自动同步给 tool_selector）
         if context_manager is not None:
             _global_engine._context_manager = context_manager
-            _global_engine.tool_selector._context_manager = context_manager
 
     return _global_engine
 

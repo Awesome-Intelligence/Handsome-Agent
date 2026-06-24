@@ -130,27 +130,6 @@ class TestSkillsGuidance:
         assert "skill_manage" in SKILLS_GUIDANCE
 
 
-class TestToolUsageGuidance:
-    """工具使用指南测试"""
-    
-    def test_tool_usage_guidance_exists(self):
-        """测试 TOOL_USAGE_GUIDANCE 常量存在"""
-        from agent.context.prompt_templates import TOOL_USAGE_GUIDANCE
-        assert TOOL_USAGE_GUIDANCE is not None
-        assert len(TOOL_USAGE_GUIDANCE) > 0
-    
-    def test_tool_usage_has_title(self):
-        """测试包含标题"""
-        from agent.context.prompt_templates import TOOL_USAGE_GUIDANCE
-        assert "工具使用规范" in TOOL_USAGE_GUIDANCE
-    
-    def test_tool_usage_has_principles(self):
-        """测试包含使用原则"""
-        from agent.context.prompt_templates import TOOL_USAGE_GUIDANCE
-        assert "正确做法" in TOOL_USAGE_GUIDANCE
-        assert "错误做法" in TOOL_USAGE_GUIDANCE
-
-
 class TestDefaultUserProfile:
     """默认用户画像测试"""
     
@@ -215,7 +194,11 @@ class TestAllExports:
             MEMORY_GUIDANCE,
             SESSION_SEARCH_GUIDANCE,
             SKILLS_GUIDANCE,
-            TOOL_USAGE_GUIDANCE,
+            TOOL_USE_ENFORCEMENT,
+            MANDATORY_TOOL_USE,
+            ACT_DONT_ASK,
+            OPENAI_MODEL_EXECUTION_GUIDANCE,
+            THINK_TAG_INSTRUCTION,
             DEFAULT_USER_PROFILE,
             get_guidance_for_tools,
         )
@@ -226,7 +209,11 @@ class TestAllExports:
         assert MEMORY_GUIDANCE
         assert SESSION_SEARCH_GUIDANCE
         assert SKILLS_GUIDANCE
-        assert TOOL_USAGE_GUIDANCE
+        assert TOOL_USE_ENFORCEMENT
+        assert MANDATORY_TOOL_USE
+        assert ACT_DONT_ASK
+        assert OPENAI_MODEL_EXECUTION_GUIDANCE
+        assert THINK_TAG_INSTRUCTION
         assert DEFAULT_USER_PROFILE
         assert callable(get_guidance_for_tools)
 

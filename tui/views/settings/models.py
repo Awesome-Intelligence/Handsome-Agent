@@ -156,6 +156,10 @@ class MemoryConfig(BaseModel):
     """记忆配置 (对应 config.memory)"""
     enabled: bool = False
     type: str = "none"
+    # 语义检索配置
+    semantic_retrieval_enabled: bool = False
+    semantic_max_results: int = Field(default=5, ge=1, le=20)
+    semantic_min_score: float = Field(default=0.3, ge=0.0, le=1.0)
 
 class TerminalConfig(BaseModel):
     """终端配置 (对应 config.terminal)"""

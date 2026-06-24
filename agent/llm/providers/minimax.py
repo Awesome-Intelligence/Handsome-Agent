@@ -125,14 +125,8 @@ class MiniMaxProvider(BaseProvider):
             self._log_input_messages(msg_list)
             response = await client.post("/chat/completions", json=request_body)
 
-            if response.status_code != 200:
-                self.logger.error(f"MiniMax API error - status: {response.status_code}")
-                if response.status_code == 401:
-                    raise Exception(
-                        "MiniMax API Key 无效或已过期。请检查环境变量 MINIMAX_API_KEY 是否正确。\n"
-                        "获取方式: https://platform.minimaxi.com/"
-                    )
-                raise Exception(f"MiniMax API error: {response.status_code}")
+            # 使用基类方法处理错误，确保 HTTPStatusError 携带 response
+            self._raise_for_status(response)
 
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
@@ -168,8 +162,12 @@ class MiniMaxProvider(BaseProvider):
             )
 
         except httpx.HTTPError as e:
-            detailed_error = self._log_request_error(e, "request")
-            raise Exception(f"Failed to call MiniMax API: {detailed_error}")
+            # HTTPStatusError 会从 _raise_for_status 传播，携带 response
+            # 其他 HTTP 错误（超时、连接错误等）需要包装
+            if not isinstance(e, httpx.HTTPStatusError):
+                self._log_request_error(e, "request")
+                raise Exception(f"Failed to call {self.provider_display_name} API: {e}") from e
+            raise
 
     async def generate_stream(
         self,

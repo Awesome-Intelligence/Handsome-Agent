@@ -48,7 +48,6 @@ _STORE_DIRNAME = "store"
 _REFS_PREFIX = "refs/handsome"
 _INDEXES_DIRNAME = "indexes"
 _PROJECTS_DIRNAME = "projects"
-_LEGACY_PREFIX = "legacy-"
 
 DEFAULT_EXCLUDES = [
     "node_modules/",
@@ -240,39 +239,6 @@ def _run_git(
         return False, "", str(exc)
 
 
-def _migrate_legacy_store(base: Path) -> Optional[Path]:
-    if not base.exists():
-        return None
-    store = _store_path(base)
-    legacy_root: Optional[Path] = None
-    reserved = {_STORE_DIRNAME, _PRUNE_MARKER_NAME}
-    for child in list(base.iterdir()):
-        name = child.name
-        if name in reserved or name.startswith(_LEGACY_PREFIX):
-            continue
-        if legacy_root is None:
-            stamp = time.strftime("%Y%m%d-%H%M%S")
-            legacy_root = base / f"{_LEGACY_PREFIX}{stamp}"
-            try:
-                legacy_root.mkdir(parents=True, exist_ok=True)
-            except OSError as exc:
-                logger.warning("Could not create legacy archive dir: %s", exc)
-                return None
-        dest = legacy_root / name
-        try:
-            shutil.move(str(child), str(dest))
-        except OSError as exc:
-            logger.warning("Could not archive legacy checkpoint %s: %s", child, exc)
-    _ = store
-    if legacy_root is not None:
-        logger.info(
-            "Migrated pre-v2 checkpoint repos to %s. "
-            "Clear with `handsome checkpoints clear-legacy` when safe.",
-            legacy_root,
-        )
-    return legacy_root
-
-
 def _init_store(store: Path, working_dir: str) -> Optional[str]:
     base = store.parent
     if not store.exists():
@@ -280,7 +246,6 @@ def _init_store(store: Path, working_dir: str) -> Optional[str]:
             base.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             return f"Could not create checkpoint base: {exc}"
-        _migrate_legacy_store(base)
 
     if (store / "HEAD").exists():
         return None
@@ -995,24 +960,6 @@ def prune_checkpoints(
             continue
         if child.name == _STORE_DIRNAME:
             continue
-        if child.name.startswith(_LEGACY_PREFIX):
-            if retention_days <= 0:
-                continue
-            try:
-                m = child.stat().st_mtime
-            except OSError:
-                continue
-            if m >= cutoff:
-                continue
-            try:
-                size = _dir_size_bytes(child)
-                shutil.rmtree(child)
-                result["bytes_freed"] += size
-                result["deleted_stale"] += 1
-            except OSError as exc:
-                result["errors"] += 1
-                logger.warning("Failed to delete legacy archive %s: %s", child, exc)
-            continue
         if not (child / "HEAD").exists():
             continue
         result["scanned"] += 1
@@ -1240,11 +1187,9 @@ def store_status(checkpoint_base: Optional[Path] = None) -> Dict:
     out: Dict = {
         "base": str(base),
         "store_size_bytes": 0,
-        "legacy_size_bytes": 0,
         "total_size_bytes": 0,
         "project_count": 0,
         "projects": [],
-        "legacy_archives": [],
     }
     if not base.exists():
         return out
@@ -1275,23 +1220,6 @@ def store_status(checkpoint_base: Optional[Path] = None) -> Dict:
                 })
     out["project_count"] = len(out["projects"])
 
-    for child in base.iterdir():
-        if child.is_dir() and child.name.startswith(_LEGACY_PREFIX):
-            try:
-                size = _dir_size_bytes(child)
-            except OSError:
-                size = 0
-            out["legacy_size_bytes"] += size
-            try:
-                mt = child.stat().st_mtime
-            except OSError:
-                mt = 0
-            out["legacy_archives"].append({
-                "name": child.name,
-                "size_bytes": size,
-                "mtime": mt,
-            })
-
     out["total_size_bytes"] = _dir_size_bytes(base)
     return out
 
@@ -1308,22 +1236,4 @@ def clear_all(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
         out["deleted"] = True
     except OSError as exc:
         logger.warning("Could not clear checkpoint base %s: %s", base, exc)
-    return out
-
-
-def clear_legacy(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
-    base = checkpoint_base or CHECKPOINT_BASE
-    out = {"bytes_freed": 0, "deleted": 0}
-    if not base.exists():
-        return out
-    for child in list(base.iterdir()):
-        if not child.is_dir() or not child.name.startswith(_LEGACY_PREFIX):
-            continue
-        try:
-            size = _dir_size_bytes(child)
-            shutil.rmtree(child)
-            out["bytes_freed"] += size
-            out["deleted"] += 1
-        except OSError as exc:
-            logger.warning("Could not delete legacy archive %s: %s", child, exc)
     return out

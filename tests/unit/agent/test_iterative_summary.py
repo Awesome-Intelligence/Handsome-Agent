@@ -107,39 +107,6 @@ class TestCompressionStats:
         assert compressor._last_compression_savings_pct == 15.5
 
 
-class TestCompressSimple:
-    """测试简单压缩功能"""
-
-    @pytest.fixture
-    def compressor(self):
-        return ContextCompressor(model="gpt-4o", quiet_mode=True)
-
-    def test_compress_simple_basic(self, compressor):
-        """测试简单压缩基本功能"""
-        messages = [
-            {"role": "user", "content": "Hello" * 100}
-            for _ in range(20)
-        ]
-        result = compressor.compress_simple(messages)
-        assert len(result) > 0
-        assert len(result) <= len(messages)
-
-    def test_compress_simple_preserves_head(self, compressor):
-        """测试简单压缩保护头部"""
-        messages = [
-            {"role": "system", "content": "You are helpful"},
-            {"role": "user", "content": "Task 1" * 100},
-            {"role": "assistant", "content": "Response 1"},
-        ]
-        result = compressor.compress_simple(messages)
-        assert any(msg.get("role") == "system" for msg in result)
-
-    def test_compress_simple_empty(self, compressor):
-        """测试空消息列表"""
-        result = compressor.compress_simple([])
-        assert result == []
-
-
 class TestCompressionIntegration:
     """测试压缩集成"""
 

@@ -542,7 +542,7 @@ print(f"估算 tokens: {tokens}")
 from agent.context.context_compressor import ContextCompressor
 
 compressor = ContextCompressor(model="gpt-4o", quiet_mode=True)
-result = compressor.compress_simple(messages)
+result = compressor.compress(messages)
 print(f"压缩后: {len(result)} 条消息")
 ```
 

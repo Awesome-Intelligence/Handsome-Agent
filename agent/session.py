@@ -1,10 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Session Management Module - Inspired by Hermes Agent's session handling.
+Session Management Module - 会话管理
 
-This module provides persistent session management with context retention,
-history tracking, and state management across multiple interactions.
+提供跨会话的上下文保留、历史追踪和状态管理。
+
+架构说明：
+- Session: 单个对话会话，管理消息历史
+- SessionManager: 多会话管理，创建/获取/切换会话
+
+职责边界（与 MemoryStore 的区分）：
+┌─────────────────────────────────────────────────────────────────────┐
+│                         用户可见记忆                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│  MemoryStore (agent/memory/memory_store.py)                          │
+│  - 用途: 用户显式添加/管理的长期记忆                                   │
+│  - 存储: ~/.handsome_agent/memories/MEMORY.md                       │
+│  - 管理: 通过 memory_tool (add/replace/remove)                        │
+│  - 特点: 跨会话持久，用户完全控制                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│  Session (本模块)                                                    │
+│  - 用途: 自动生成的会话摘要，用于跨会话上下文                          │
+│  - 存储: ~/.handsome_agent/sessions/daily_summary.md                │
+│  - 管理: sync_to_daily_summary() 自动生成                            │
+│  - 特点: 自动摘要，Agent 可读取但不直接修改                            │
+└─────────────────────────────────────────────────────────────────────┘
+
+参考 Hermes Agent 的 session handling 设计。
 """
 
 import json
@@ -495,10 +517,59 @@ class Session:
         self._save_session()
         self.logger.info("Session cleared")
     
-    def end(self):
-        """End the session and persist final state."""
+    def end(self, trigger_curator: bool = True):
+        """
+        End the session and persist final state.
+        
+        Args:
+            trigger_curator: Whether to trigger automatic memory summarization.
+                            Set to False to skip curator (e.g., for brief sessions).
+        """
         self._save_session()
         self.logger.info("Session ended")
+        
+        # 自动记忆总结 (参考 Hermes)
+        if trigger_curator:
+            self._trigger_memory_curator()
+    
+    def _trigger_memory_curator(self):
+        """
+        Trigger automatic memory summarization via MemoryCurator.
+        
+        This is called automatically at session end if curator is enabled.
+        Reference: Hermes Agent's HonchoSessionManager for user preference modeling.
+        """
+        try:
+            from agent.memory import curator_on_session_end, get_default_curator
+            
+            # 检查是否需要总结（基于消息数）
+            user_message_count = sum(1 for m in self.messages if m.role == 'user')
+            
+            if user_message_count < 5:
+                self.logger.debug(f"Session has only {user_message_count} user messages, skipping curator")
+                return
+            
+            # 调用 curator
+            curator = get_default_curator()
+            result = curator.on_session_end(self)
+            
+            if result.get("status") == "success":
+                self.logger.info(
+                    f"MemoryCurator: added {result.get('user_entries_added', 0)} user, "
+                    f"{result.get('memory_entries_added', 0)} memory entries"
+                )
+            elif result.get("status") == "below_threshold":
+                self.logger.debug("MemoryCurator: below threshold, skipped")
+            elif result.get("status") == "disabled":
+                self.logger.debug("MemoryCurator: disabled")
+            else:
+                if result.get("errors"):
+                    self.logger.warning(f"MemoryCurator errors: {result.get('errors')}")
+                    
+        except ImportError:
+            self.logger.debug("MemoryCurator not available, skipping")
+        except Exception as e:
+            self.logger.warning(f"MemoryCurator error: {e}")
     
     def get_summary(self, max_messages: int = 10) -> str:
         """
@@ -722,46 +793,58 @@ class SessionManager:
         self.logger.info(f"Created new session for today: {session.session_id}")
         return session
     
-    def sync_to_memory_md(self, workspace_path: str = None):
+    def sync_to_daily_summary(self, workspace_path: str = None):
         """
-        Sync all sessions to memory.md.
-        
-        This generates a summary of recent sessions for cross-session context.
-        
+        生成并同步最近会话的每日摘要。
+
+        会话摘要与 MemoryStore 的用户记忆分离：
+        - MemoryStore (MEMORY.md): 用户显式添加的记忆
+        - Session (daily_summary.md): 自动生成的会话摘要
+
         Args:
-            workspace_path: Path to memory.md file. If None, uses default location.
+            workspace_path: 摘要文件路径。如果为 None，使用默认位置。
+
+        Returns:
+            摘要文件路径
         """
         import os
         from datetime import datetime, timedelta
-        
+
         if workspace_path is None:
-            workspace_path = os.path.join(os.path.expanduser("~"), ".handsome_agent", "memory.md")
-        
+            # 写入独立文件，避免与 MemoryStore 冲突
+            workspace_path = os.path.join(
+                os.path.expanduser("~"),
+                ".handsome_agent",
+                "sessions",
+                "daily_summary.md"
+            )
+
         sessions_by_date = self.list_sessions_by_date()
-        
-        memory_lines = ["# Memory", "", "## Daily Sessions", ""]
-        
+
+        summary_lines = ["# 会话每日摘要", "", "## 最近 7 天会话", ""]
+
         today = datetime.now()
         for i in range(7):
             date = today - timedelta(days=i)
             date_str = date.strftime("%Y-%m-%d")
-            
+
             if date_str in sessions_by_date:
                 sessions = sessions_by_date[date_str]
-                for session_id in sessions[:3]:
+                for session_id in sessions[:3]:  # 每天最多 3 个会话
                     session = self.get_session(session_id)
                     if session and session.messages:
-                        memory_lines.append(session.get_memory_content())
-                        memory_lines.append("")
-        
-        memory_content = "\n".join(memory_lines)
-        
+                        summary_lines.append(session.get_memory_content())
+                        summary_lines.append("")
+
+        summary_content = "\n".join(summary_lines)
+
         os.makedirs(os.path.dirname(workspace_path), exist_ok=True)
         with open(workspace_path, 'w', encoding='utf-8') as f:
-            f.write(memory_content)
-        
-        self.logger.info(f"Synced sessions to memory.md: {workspace_path}")
-    
+            f.write(summary_content)
+
+        self.logger.info(f"Synced sessions to daily_summary.md: {workspace_path}")
+        return workspace_path
+
     def get_active_sessions(self) -> List[Session]:
         """Get all currently active sessions."""
         return list(self.sessions.values())

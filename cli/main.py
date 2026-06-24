@@ -34,14 +34,7 @@ import os
 import json
 import logging
 
-from agent.context.compression_commands import (
-    is_compression_command,
-    parse_compression_command,
-    handle_compress_command,
-    handle_usage_command,
-    handle_status_command,
-)
-from agent.context.compression_integration import CompressionIntegration
+
 
 # 首先解析命令行参数，以便在导入其他模块之前配置日志
 _pre_parser = argparse.ArgumentParser(add_help=False)
@@ -157,18 +150,6 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
     from common.terminal.banner import build_welcome_banner, print_simple_banner
     from cli.commands import execute_command
 
-    # 初始化压缩集成器
-    compression_integration = None
-    if hasattr(agent, 'llm_provider') and agent.llm_provider:
-        try:
-            compression_integration = CompressionIntegration(
-                session_id=agent._session.session_id if agent._session else "cli",
-                model=model_name,
-                llm_client=agent.llm_provider,
-            )
-        except Exception:
-            pass
-
     # 使用增强的 Banner 显示欢迎界面
     try:
         config_status = {
@@ -207,15 +188,6 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
     ui.print_status_bar()
 
     print()
-
-    # 显示压缩命令帮助
-    if compression_integration:
-        print("  Commands:")
-        print("    /compress              - 手动压缩上下文")
-        print("    /compress --focus=X    - 聚焦压缩")
-        print("    /usage                - 显示 Token 使用统计")
-        print("    /compression-status   - 显示压缩功能状态")
-        print()
 
     # Command context
     context = {"agent": agent, "model_name": model_name}
@@ -265,30 +237,6 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
                 # Regular command output
                 if result:
                     print(result)
-                continue
-
-            # Handle context compression commands
-            if is_compression_command(user_input):
-                command, args = parse_compression_command(user_input)
-                if command == "/compress":
-                    result = handle_compress_command(
-                        agent._session.session_id if agent._session else "cli",
-                        args,
-                        compression_integration,
-                    )
-                    ui.print_info(result.get('message', '压缩命令执行完成'))
-                elif command == "/usage":
-                    result = handle_usage_command(
-                        agent._session.session_id if agent._session else "cli",
-                        compression_integration,
-                    )
-                    print(result.get('message', ''))
-                elif command == "/compression-status":
-                    result = handle_status_command(
-                        agent._session.session_id if agent._session else "cli",
-                        compression_integration,
-                    )
-                    print(result.get('message', ''))
                 continue
 
             # Show processing indicator (spinner will output directly without extra newline)
@@ -538,6 +486,25 @@ def cmd_acp(args: argparse.Namespace):
     else:
         # Default: show status
         check_acp_status()
+
+
+def cmd_memory(args: argparse.Namespace):
+    """Handle 'memory' command."""
+    from cli.cli_commands.memory import (
+        show_memory_status,
+        list_memory_entries,
+        setup_memory,
+    )
+
+    if args.memory_command == "status":
+        show_memory_status()
+    elif args.memory_command == "list":
+        list_memory_entries(args.target)
+    elif args.memory_command == "setup":
+        setup_memory()
+    else:
+        # Default: show status
+        show_memory_status()
 
 
 def cmd_sessions(args: argparse.Namespace):
@@ -856,6 +823,9 @@ def main():
         return
     elif args.command == 'acp':
         cmd_acp(args)
+        return
+    elif args.command == 'memory':
+        cmd_memory(args)
         return
     elif args.command == 'sessions':
         cmd_sessions(args)

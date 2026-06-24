@@ -131,19 +131,137 @@ class TTSConfig:
 
 @dataclass
 class MemoryConfig:
-    """记忆配置"""
-    enabled: bool = True
-    vector_store: str = "sqlite"
-    embedding_model: str = "text-embedding-3-small"
+    """记忆配置
+
+    包含所有记忆系统相关的配置项：
+    - enabled: 是否启用记忆功能（总开关）
+    - builtin_enabled: 是否启用内置记忆（通过 BuiltinMemoryProvider）
+    - external_provider: 外部 Provider 名称（可选，为 None 则不加载）
+    - max_entries: 最大记忆条目数限制
+    - memory_char_limit: Agent 记忆（MEMORY.md）的字符限制
+    - user_char_limit: 用户画像（USER.md）的字符限制
+
+    语义检索配置：
+    - semantic_retrieval_enabled: 是否启用语义检索（可选功能）
+    - semantic_max_results: 语义检索返回的最大结果数
+    - semantic_min_score: 语义检索最低相似度阈值
+
+    自动总结配置 (Curator)：
+    - curator_enabled: 是否启用自动记忆总结
+    - curator_message_threshold: 触发总结的消息数阈值
+    - curator_idle_threshold_seconds: 空闲超时触发总结
+    - curator_auto_user_summary: 自动总结用户偏好
+    - curator_auto_memory_summary: 自动总结环境信息
+    - curator_max_entries_per_summary: 每次总结最大条目数
+    - curator_check_duplicates: 是否检查重复条目
+    - curator_use_auxiliary_model: 使用辅助模型进行总结
+
+    检索策略配置：
+    - retrieval_layer1_threshold: 第一层高置信度阈值
+    - retrieval_layer2_threshold: 第二层宽松阈值
+    - retrieval_short_length: 短记忆阈值（字符数）
+    - retrieval_short_limit: 短记忆最多返回数量
+    - retrieval_total_limit: 总返回数量限制
+    - retrieval_fts_weight: FTS5 权重
+    - retrieval_jaccard_weight: Jaccard 权重
+    - retrieval_hrr_weight: HRR 语义权重
+    - retrieval_keyword_min_overlap: 关键词最小重叠数
+
+    使用示例：
+        config = MemoryConfig()  # 默认配置
+        config = MemoryConfig(
+            enabled=True,
+            builtin_enabled=True,
+            external_provider=None,  # 不加载外部 Provider
+            memory_char_limit=2200,
+            semantic_retrieval_enabled=True,
+            curator_enabled=True,
+            retrieval_total_limit=10,  # 增加返回数量
+            retrieval_fts_weight=0.4,   # 调整检索权重
+        )
+
+    注意：
+    - 向量存储和嵌入模型：当前使用本地 HRR 实现，无需外部服务
+    - CuratorConfig 已整合到此配置中，保持向后兼容
+    """
+    enabled: bool = True           # 总开关
+    builtin_enabled: bool = True    # 内置 Provider 开关
+    external_provider: Optional[str] = None  # 外部 Provider 名称，为 None 则不加载
     max_entries: int = 1000
-    summary_threshold: int = 10
+    memory_char_limit: int = 2200   # Agent 记忆字符限制
+    user_char_limit: int = 1375    # 用户画像字符限制
+
+    # 语义检索配置
+    semantic_retrieval_enabled: bool = False  # 默认关闭
+    semantic_max_results: int = 5              # 最大结果数
+    semantic_min_score: float = 0.3           # 最低相似度
+
+    # =========================================================
+    # Curator 自动总结配置（v9.3.0+）
+    # 这些配置会被 MemoryCurator 使用
+    # =========================================================
+    curator_enabled: bool = True  # 启用自动总结
+    curator_message_threshold: int = 20  # 消息数阈值
+    curator_idle_threshold_seconds: float = 300  # 空闲超时（秒）
+    curator_auto_user_summary: bool = True  # 自动总结用户偏好
+    curator_auto_memory_summary: bool = True  # 自动总结环境信息
+    curator_max_entries_per_summary: int = 3  # 每次总结最大条目数
+    curator_min_entry_length: int = 20  # 最小条目长度
+    curator_max_entry_length: int = 500  # 最大条目长度
+    curator_check_duplicates: bool = True  # 检查重复条目
+    curator_use_auxiliary_model: bool = True  # 使用辅助模型
+
+    # =========================================================
+    # 检索策略配置（v9.3.0+）
+    # 控制预取和检索的行为
+    # =========================================================
+    # 分层预取配置
+    retrieval_layer1_threshold: float = 0.3  # 第一层高置信度阈值
+    retrieval_layer2_threshold: float = 0.1  # 第二层宽松阈值
+    retrieval_short_length: int = 50  # 短记忆阈值（字符数）
+    retrieval_short_limit: int = 2  # 短记忆最多返回数量
+    retrieval_total_limit: int = 5  # 总返回数量限制
+
+    # 检索权重配置（语义检索启用时生效）
+    retrieval_fts_weight: float = 0.3  # FTS5 权重
+    retrieval_jaccard_weight: float = 0.3  # Jaccard 权重
+    retrieval_hrr_weight: float = 0.4  # HRR 语义权重
+
+    # 关键词检索配置（语义检索禁用时使用）
+    retrieval_keyword_min_overlap: int = 1  # 最小关键词重叠数
+
+
+# =============================================================================
+# Context 压缩常量（必须在 CompressionConfig 之前定义）
+# =============================================================================
+
+# 压缩阈值：上下文使用达到此比例时触发压缩
+DEFAULT_COMPRESSION_THRESHOLD = 0.75
+
+# 摘要比例：压缩后保留的 token 比例
+DEFAULT_SUMMARY_RATIO = 0.20
+
+# 头部保护：保留前 N 条消息（system + 初始交互）
+DEFAULT_PROTECT_FIRST_N = 3
+
+# 尾部保护：保留后 N 条消息
+DEFAULT_PROTECT_LAST_N = 6
+
+# 最小摘要 token 数
+MIN_SUMMARY_TOKENS = 2000
+
+# 摘要 token 上限
+SUMMARY_TOKENS_CEILING = 12000
+
+# 摘要失败冷却时间（秒）
+SUMMARY_FAILURE_COOLDOWN_SECONDS = 600
 
 
 @dataclass
 class CompressionConfig:
     """Context 压缩配置"""
     enabled: bool = True
-    threshold: float = 0.85
+    threshold: float = DEFAULT_COMPRESSION_THRESHOLD  # 0.75
     summary_model: str = "openai/gpt-4o-mini"
 
 
@@ -235,7 +353,6 @@ class Settings(BaseSettings):
     
     memory: Dict[str, Any] = Field(default_factory=lambda: {
         "enabled": True,
-        "vector_store": "sqlite",
     })
     
     compression: Dict[str, Any] = Field(default_factory=lambda: {
@@ -403,10 +520,13 @@ def get_memory_config() -> MemoryConfig:
     config = get_settings().memory
     return MemoryConfig(
         enabled=config.get("enabled", True),
-        vector_store=config.get("vector_store", "sqlite"),
-        embedding_model=config.get("embedding_model", "text-embedding-3-small"),
         max_entries=config.get("max_entries", 1000),
-        summary_threshold=config.get("summary_threshold", 10),
+        memory_char_limit=config.get("memory_char_limit", 2200),
+        user_char_limit=config.get("user_char_limit", 1375),
+        # 语义检索配置
+        semantic_retrieval_enabled=config.get("semantic_retrieval_enabled", False),
+        semantic_max_results=config.get("semantic_max_results", 5),
+        semantic_min_score=config.get("semantic_min_score", 0.3),
     )
 
 
