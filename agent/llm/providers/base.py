@@ -397,12 +397,26 @@ class BaseProvider(ABC):
                     if msg.get("role") == "system":
                         system = (system + "\n" + msg.get("content", "")) if system else msg.get("content", "")
                     else:
-                        msg_list.append({"role": msg.get("role"), "content": msg.get("content")})
+                        msg_dict = {"role": msg.get("role"), "content": msg.get("content")}
+                        # 保留 tool_calls（assistant 消息需要）
+                        if msg.get("tool_calls"):
+                            msg_dict["tool_calls"] = msg["tool_calls"]
+                        # 保留 tool_call_id（tool 消息需要）
+                        if msg.get("tool_call_id"):
+                            msg_dict["tool_call_id"] = msg["tool_call_id"]
+                        msg_list.append(msg_dict)
                 else:
                     if msg.role == "system":
                         system = (system + "\n" + msg.content) if system else msg.content
                     else:
-                        msg_list.append({"role": msg.role, "content": msg.content})
+                        msg_dict = {"role": msg.role, "content": msg.content}
+                        # 保留 tool_calls
+                        if getattr(msg, "tool_calls", None):
+                            msg_dict["tool_calls"] = msg.tool_calls
+                        # 保留 tool_call_id
+                        if getattr(msg, "tool_call_id", None):
+                            msg_dict["tool_call_id"] = msg.tool_call_id
+                        msg_list.append(msg_dict)
 
         # 只有当 prompt 非空时才添加用户消息
         # 避免在消息列表已包含用户消息时添加空消息
