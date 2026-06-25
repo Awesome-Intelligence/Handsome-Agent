@@ -35,7 +35,7 @@ from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from common.config import get_sessions_dir, ensure_workspace_dirs
-from common.logging_manager import get_decision_logger
+from common.logging_manager import get_execution_logger
 
 
 @dataclass
@@ -221,7 +221,7 @@ class Session:
         self.context: Dict[str, Any] = {}
         self.last_save_time = 0.0
         self.store = FileSessionStore(self.config.history_path)
-        self.logger = get_decision_logger(f"Session.{session_id}")
+        self.logger = get_execution_logger(f"Session.{session_id}")
         self.logger.propagate = False
         self._enable_detailed_logs = self.config.enable_detailed_logs
         
@@ -669,7 +669,7 @@ class SessionManager:
         self.config = config or SessionConfig()
         self.sessions: Dict[str, Session] = {}
         self.store = FileSessionStore(self.config.history_path)
-        self.logger = get_decision_logger(self.__class__.__name__)
+        self.logger = get_execution_logger(self.__class__.__name__)
         self._enable_detailed_logs = self.config.enable_detailed_logs
     
     def create_session(self, session_id: Optional[str] = None, enable_detailed_logs: Optional[bool] = None) -> Session:

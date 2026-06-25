@@ -118,7 +118,7 @@ class Agent:
             protect_last_n=10,
             summary_target_ratio=0.20,
             quiet_mode=True,
-            llm_client=None  # 使用 LLMClient 的辅助调用
+            llm_client=self.llm_provider,
         )
 
         # 初始化统一的 ContextManager（所有 LLM 调用共用）
