@@ -104,6 +104,21 @@ class DelegateManager:
 _delegate_manager = DelegateManager()
 
 
+def _run_async(coro):
+    """在同步函数中安全地运行协程，支持已存在事件循环的场景"""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # 没有正在运行的事件循环，使用 asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # 已经在事件循环中，创建 Task
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+
+
 def delegate_subtask(
     task: str,
     context: Optional[str] = None,
@@ -153,9 +168,9 @@ def delegate_batch(
     
     for task_info in tasks:
         task_id = asyncio.run(_delegate_manager.create_task(
-            task=task_info.get("task", ""),
-            context=task_info.get("context"),
-            constraints=task_info.get("constraints"),
+            task_info.get("task", ""),
+            task_info.get("context"),
+            task_info.get("constraints"),
         ))
         task_ids.append(task_id)
     
@@ -207,7 +222,7 @@ def list_subtasks(parent_task_id: Optional[str] = None) -> str:
     Returns:
         JSON 格式的结果字符串
     """
-    tasks = asyncio.run(_delegate_manager.list_tasks(parent_task_id))
+    tasks = _run_async(_delegate_manager.list_tasks(parent_task_id))
     
     result = {
         "success": True,
