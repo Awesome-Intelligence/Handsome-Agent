@@ -80,18 +80,6 @@ class MiniMaxProvider(BaseProvider):
         """检查是否有 tool_calls 或 function_call"""
         return message.get("tool_calls") or message.get("function_call")
 
-    def _log_response_debug(self, message, function_call=None):
-        """记录响应调试日志"""
-        if self.logger:
-            self.logger.debug(f"MiniMax message keys: {list(message.keys())}")
-            # 使用截断格式显示 function_call（头部100+省略+尾部100）
-            if function_call:
-                fc_str = json.dumps(function_call)
-                preview = self._format_message_for_log("assistant", fc_str)
-                self.logger.info(f"MiniMax function_call: {preview}")
-            else:
-                self.logger.info(f"MiniMax function_call: {function_call}")
-
     async def generate(
         self,
         prompt: str,

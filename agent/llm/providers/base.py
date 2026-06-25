@@ -332,7 +332,90 @@ class BaseProvider(ABC):
         """
         if self.logger:
             self.logger.debug(f"{self.provider_display_name} message keys: {list(message.keys())}")
-            self.logger.debug(f"{self.provider_display_name} function_call: {function_call}")
+            if function_call:
+                preview = self._format_function_call_for_log(function_call)
+                self.logger.info(f"⬇️ {self.provider_display_name} → {preview}")
+            else:
+                self.logger.debug(f"{self.provider_display_name} function_call: {function_call}")
+
+    def _format_function_call_for_log(self, function_call: Any) -> str:
+        """格式化函数调用用于日志输出 - 简化参数，长字段截断，敏感字段脱敏
+
+        处理多种格式：
+        - OpenAI tool_calls: [{"id": "...", "type": "function", "function": {"name": "...", "arguments": "{...}"}}]
+        - MiniMax function_call: {"name": "...", "arguments": "{...}"}
+        - Claude tool_use: {"name": "...", "input": {...}}
+
+        字段处理策略：
+        - 敏感字段 (api_key, token, password, secret, authorization) → "***"
+        - 长字符串 (>50字符) → 保留前30+后10字符
+        - ID类字段 (board_id, task_id) → 保留前8+后4字符
+        """
+        import json
+
+        SENSITIVE_KEYS = {"api_key", "token", "password", "secret", "authorization", "key", "pwd"}
+        LONG_STRING_THRESHOLD = 50
+        ID_TRUNCATE_BEFORE = 8
+        ID_TRUNCATE_AFTER = 4
+
+        def _truncate_long_string(s: str) -> str:
+            if len(s) > LONG_STRING_THRESHOLD:
+                return s[:30] + "..." + s[-10:]
+            return s
+
+        def _truncate_id(s: str) -> str:
+            if len(s) > ID_TRUNCATE_BEFORE + ID_TRUNCATE_AFTER + 3:
+                return s[:ID_TRUNCATE_BEFORE] + "..." + s[-ID_TRUNCATE_AFTER:]
+            return s
+
+        def _sanitize_value(v: Any, key: str) -> Any:
+            key_lower = key.lower()
+            # 敏感字段
+            if key_lower in SENSITIVE_KEYS:
+                return "***"
+            # ID 类字段
+            if "id" in key_lower and len(str(v)) > 20:
+                return _truncate_id(str(v))
+            # 普通字符串
+            if isinstance(v, str):
+                return _truncate_long_string(v)
+            return v
+
+        def _format_single_call(fc: Any) -> str:
+            if not isinstance(fc, dict):
+                return str(fc)
+
+            # 提取函数名
+            name = fc.get("function", {}).get("name") if isinstance(fc.get("function"), dict) else None
+            if not name:
+                name = fc.get("name", "unknown")
+
+            # 提取参数
+            arguments = fc.get("function", {}).get("arguments") if isinstance(fc.get("function"), dict) else None
+            if arguments is None:
+                arguments = fc.get("input", {})  # Claude 格式
+
+            # 解析 arguments
+            if isinstance(arguments, str):
+                try:
+                    args_dict = json.loads(arguments)
+                except (json.JSONDecodeError, TypeError):
+                    args_dict = {"raw": arguments}
+            elif isinstance(arguments, dict):
+                args_dict = arguments
+            else:
+                args_dict = {"raw": str(arguments)}
+
+            # 清理参数
+            safe_args = {k: _sanitize_value(v, k) for k, v in args_dict.items()}
+            args_str = json.dumps(safe_args, ensure_ascii=False, separators=(", ", ":"))
+            return f"{name}({args_str})"
+
+        try:
+            fc_list = function_call if isinstance(function_call, list) else [function_call]
+            return " | ".join(_format_single_call(fc) for fc in fc_list)
+        except Exception:
+            return str(function_call)
 
     @abstractmethod
     async def generate(
