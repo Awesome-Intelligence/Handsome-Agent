@@ -1173,11 +1173,12 @@ class ContextCompressor(ContextEngine):
             )
             return None
 
-        if self.llm_client is None:
-            self.logger.warning("No LLM client configured for compression summarization")
-            self._last_summary_error = "No LLM client configured"
-            self._summary_failure_cooldown_until = time.monotonic() + SUMMARY_FAILURE_COOLDOWN_SECONDS
-            return None
+        main_runtime = {
+            "model": self.model,
+            "provider": self.provider,
+            "base_url": self.base_url,
+            "api_key": self.api_key,
+        }
 
         summary_budget = self._compute_summary_budget(turns_to_summarize)
         content_to_summarize = self._serialize_for_summary(turns_to_summarize)
@@ -1277,17 +1278,16 @@ The user has requested that this compaction PRIORITISE preserving all informatio
         model_to_use = self._config_summary_model or self.model
         
         try:
-            import asyncio
+            from agent.llm.auxiliary_client import call_llm
 
-            async def _call_llm():
-                response = await self.llm_client.generate(
-                    prompt=prompt,
-                    system_prompt=None,
-                    model=model_to_use,  # 支持使用不同的模型进行摘要
-                )
-                return response
-
-            response = asyncio.run(_call_llm())
+            response = call_llm(
+                messages=[{"role": "user", "content": prompt}],
+                task="compression",
+                model=model_to_use,
+                main_runtime=main_runtime,
+                temperature=0.3,
+                llm_client=self.llm_client,
+            )
             content = response.content if hasattr(response, 'content') else str(response)
 
             if not isinstance(content, str):
@@ -1305,11 +1305,16 @@ The user has requested that this compaction PRIORITISE preserving all informatio
             
             return f"{SUMMARY_PREFIX}\n{summary}"
 
+        except RuntimeError as e:
+            if "no LLM provider configured" in str(e):
+                self.logger.warning("No LLM provider configured for compression summarization")
+                self._last_summary_error = "No LLM provider configured"
+                self._summary_failure_cooldown_until = time.monotonic() + SUMMARY_FAILURE_COOLDOWN_SECONDS
+                return None
+            raise
         except Exception as e:
-            # 使用增强的错误分类
             classification = classify_compression_error(e)
             
-            # 记录错误信息供外部查看
             err_text = str(e).strip() or e.__class__.__name__
             if len(err_text) > 220:
                 err_text = err_text[:217].rstrip() + "..."
