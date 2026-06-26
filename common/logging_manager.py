@@ -78,7 +78,7 @@ class LogConfig:
         self.file_enabled: bool = False
         self.file_path: str = str(get_logs_dir() / "handsome-agent.log")
         self.console_style: str = ConsoleStyle.PRETTY
-        self.console_show_time: bool = True  # 控制台是否显示时间
+        self.console_show_time: bool = False  # 控制台不显示时间，文件日志带时间
         self.max_file_size: int = 50 * 1024 * 1024  # 50MB per file
         self.backup_count: int = 30  # Keep 30 days of logs
         self.rotation: str = "daily"  # "daily"

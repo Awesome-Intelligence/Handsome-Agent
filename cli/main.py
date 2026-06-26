@@ -952,8 +952,8 @@ def main():
             "max_file_size": logging_cfg.get('max_file_size', 50 * 1024 * 1024),
             "backup_count": logging_cfg.get('backup_count', 30),
             "rotation": logging_cfg.get('rotation', 'daily'),
-            # 启用文件日志时，控制台不显示时间（文件日志已有完整时间戳）
-            "console_show_time": not logging_cfg.get('file_enabled', False),
+            # 控制台不显示时间（文件日志已有完整时间戳）
+            "console_show_time": False,
         })
 
     # Create Agent!

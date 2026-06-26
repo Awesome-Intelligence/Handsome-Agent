@@ -389,7 +389,7 @@ Button:focus {
 
 /* === 侧边栏样式 === */
 #sidebar-container {
-    width: 30;
+    width: 50;
     height: 100%;
     background: transparent;
     border: blank;
