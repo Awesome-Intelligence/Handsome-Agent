@@ -51,6 +51,7 @@ class ZhipuProvider(BaseProvider):
                     "Content-Type": "application/json",
                 },
                 timeout=self.config.timeout,
+                limits=self._get_default_limits(),
             )
         return self._client
 

@@ -46,6 +46,7 @@ class ClaudeProvider(BaseProvider):
                     "anthropic-version": "2023-06-01",
                 },
                 timeout=self.config.timeout,
+                limits=self._get_default_limits(),
             )
         return self._client
 

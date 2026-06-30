@@ -88,6 +88,16 @@ class BaseProvider(ABC):
         self._message_history: List[Message] = []
         self.logger = None  # 子类初始化时设置
         self._on_llm_call = None  # LLM 调用回调
+        self._client: Optional[httpx.AsyncClient] = None
+
+    @staticmethod
+    def _get_default_limits() -> httpx.Limits:
+        """获取默认的 httpx 连接限制，避免 Windows 事件循环问题
+        
+        配置 max_keepalive_connections=0 禁用连接重用，
+        避免在跨线程运行 asyncio 时出现 "Event loop is closed" 错误。
+        """
+        return httpx.Limits(max_keepalive_connections=0, max_connections=1)
 
     def register_llm_call_callback(self, callback):
         """注册 LLM 调用回调，每次 generate() 成功调用后触发"""

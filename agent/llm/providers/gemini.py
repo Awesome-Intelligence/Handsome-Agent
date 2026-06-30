@@ -39,6 +39,7 @@ class GeminiProvider(BaseProvider):
         if self._client is None:
             self._client = httpx.AsyncClient(
                 timeout=self.config.timeout,
+                limits=self._get_default_limits(),
             )
         return self._client
 
