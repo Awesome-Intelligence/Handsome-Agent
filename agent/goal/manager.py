@@ -19,7 +19,6 @@ Goal Manager - 参考 Hermes 的 Ralph loop
 from __future__ import annotations
 
 import json
-import logging
 import re
 import time
 from datetime import datetime, timezone
@@ -27,8 +26,7 @@ from typing import Optional, Tuple, List, Dict, Any, TYPE_CHECKING
 
 from .models import GoalState, GoalStatus
 from agent.state.enums import ExitDecision, ExitReason
-
-logger = logging.getLogger(__name__)
+from common.logging_manager import get_decision_logger
 
 # ──────────────────────────────────────────────────────────────────────
 # Constants & defaults
@@ -147,6 +145,9 @@ class GoalManager:
         self._judge_llm = judge_llm_provider  # Judge LLM provider
         self._on_state_change = on_state_change
 
+        # 初始化统一日志
+        self.logger = get_decision_logger(self.__class__.__name__, sublayer="task")
+
         # 尝试从 DB 加载已有 goal
         if session_id:
             self._current_goal = self._load_goal_from_db()
@@ -204,7 +205,7 @@ class GoalManager:
         )
         self._current_goal = state
         self._save_goal()
-        logger.info("Goal set: %s (max_turns=%d)", goal[:50], state.max_turns)
+        self.logger.info(f"Goal set: {goal[:50]} (max_turns={state.max_turns})")
         return state
 
     # 别名：兼容旧代码
@@ -215,7 +216,7 @@ class GoalManager:
         if self._current_goal and self._current_goal.status == GoalStatus.ACTIVE.value:
             self._current_goal.set_status(GoalStatus.PAUSED.value, reason or "User paused")
             self._current_goal.paused_reason = reason
-            logger.info("Goal paused: %s", reason or "User paused")
+            self.logger.info(f"Goal paused: {reason or 'User paused'}")
             self._save_goal()
 
     def resume(self, *, reset_budget: bool = True):
@@ -225,14 +226,14 @@ class GoalManager:
             self._current_goal.paused_reason = None
             if reset_budget:
                 self._current_goal.current_turn = 0
-            logger.info("Goal resumed (reset_budget=%s)", reset_budget)
+            self.logger.info(f"Goal resumed (reset_budget={reset_budget})")
             self._save_goal()
 
     def clear(self):
         """清除目标（用户主动清除，保留审计记录）"""
         if self._current_goal:
             self._current_goal.set_status(GoalStatus.CLEARED.value, "User cleared")
-            logger.info("Goal cleared: %s...", self._current_goal.goal[:50])
+            self.logger.info(f"Goal cleared: {self._current_goal.goal[:50]}...")
             self._save_goal()
         self._current_goal = None
         if self._on_state_change:
@@ -245,7 +246,7 @@ class GoalManager:
         self._current_goal.set_status(GoalStatus.DONE.value, reason)
         self._current_goal.last_verdict = True
         self._current_goal.last_reason = reason
-        logger.info("Goal marked done: %s", reason)
+        self.logger.info(f"Goal marked done: {reason}")
         self._save_goal()
 
     # ──────────────────────────────────────────────────────────────────────
@@ -260,7 +261,7 @@ class GoalManager:
         if not text:
             raise ValueError("subgoal text is empty")
         self._current_goal.subgoals.append(text)
-        logger.info("Subgoal added: %s... (total: %d)", text[:50], len(self._current_goal.subgoals))
+        self.logger.info(f"Subgoal added: {text[:50]}... (total: {len(self._current_goal.subgoals)})")
         self._save_goal()
         return text
 
@@ -272,7 +273,7 @@ class GoalManager:
         if idx < 0 or idx >= len(self._current_goal.subgoals):
             raise IndexError(f"index out of range (1..{len(self._current_goal.subgoals)})")
         removed = self._current_goal.subgoals.pop(idx)
-        logger.info("Subgoal removed: %s...", removed[:50])
+        self.logger.info(f"Subgoal removed: {removed[:50]}...")
         self._save_goal()
         return removed
 
@@ -377,7 +378,7 @@ class GoalManager:
                 max_tokens=self._judge_max_tokens,
             )
         except Exception as exc:
-            logger.info("GoalManager: auxiliary judge API call failed (%s)", exc)
+            self.logger.info("GoalManager: auxiliary judge API call failed (%s)", exc)
             return "skipped", f"judge error: {type(exc).__name__}", False
 
         try:
@@ -387,7 +388,7 @@ class GoalManager:
 
         done, reason, parse_failed = self._parse_judge_response(raw)
         verdict = "done" if done else "continue"
-        logger.info("Goal judge: verdict=%s reason=%s", verdict, self._truncate(reason, 120))
+        self.logger.info(f"Goal judge: verdict={verdict} reason={self._truncate(reason, 120)}")
         return verdict, reason, parse_failed
 
     async def _call_main_judge(
@@ -419,7 +420,7 @@ Current time: {current_time}
             )
             content = response.content if hasattr(response, "content") else str(response)
         except Exception as exc:
-            logger.warning("GoalManager: main judge call failed: %s", exc)
+            self.logger.warning("GoalManager: main judge call failed: %s", exc)
             return "continue", f"judge error: {exc}", False
 
         done, reason, parse_failed = self._parse_judge_response(content)
@@ -511,13 +512,13 @@ Current time: {current_time}
                         "status": self._current_goal.status,
                     }
                 })
-                logger.debug("Goal saved to SessionDB for session: %s", self._session_id)
+                self.logger.debug("Goal saved to SessionDB for session: %s", self._session_id)
             else:
                 key = f"goal:{self._session_id}"
                 self._memory_store[key] = {"goal": self._current_goal.to_json()}
-                logger.debug("Goal saved to memory store: %s", key)
+                self.logger.debug("Goal saved to memory store: %s", key)
         except Exception as e:
-            logger.warning("Failed to save goal: %s", e)
+            self.logger.warning("Failed to save goal: %s", e)
 
     def _load_goal_from_db(self) -> Optional[GoalState]:
         """从 SessionDB 加载目标"""
@@ -536,7 +537,7 @@ Current time: {current_time}
                 if data and "goal" in data:
                     return GoalState.from_json(data["goal"])
         except Exception as e:
-            logger.debug("Failed to load goal from SessionDB: %s", e)
+            self.logger.debug(f"Failed to load goal from SessionDB: {e}")
         return None
 
     def load_goal(self, session_id: str) -> Optional[GoalState]:

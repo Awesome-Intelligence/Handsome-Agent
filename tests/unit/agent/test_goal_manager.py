@@ -116,7 +116,7 @@ class TestGoalManagerInitialization:
         """Test default initialization."""
         manager = GoalManager()
 
-        assert manager._default_max_turns == 20
+        assert manager._default_max_turns == 90  # 参考 Hermes 的默认值
         assert manager._judge_timeout == 30.0
         assert manager._judge_max_tokens == 4096
         assert manager._current_goal is None

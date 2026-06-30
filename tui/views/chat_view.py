@@ -63,11 +63,13 @@ ChatView #chat-list {
 # ChatView 类
 # ============================================================================
 
-class ChatView(Container):
+class ChatView(Container, can_focus=False):
     """聊天消息显示组件.
 
     使用 MessageList 实现富文本消息显示，支持多种消息类型和流式输出。
     输入功能由外部的 #user-input 组件处理。
+
+    注意：设置 can_focus=False 以避免 Textual 8.x 的自动聚焦问题。
 
     Attributes:
         tab_id: 标签页 ID
@@ -96,6 +98,7 @@ class ChatView(Container):
             ComposeResult: 组件生成器
         """
         # 消息列表区域 - 使用 MessageList 支持富文本和流式输出
+        # 注意：设置 can_focus=False 以避免 Textual 8.x 的自动聚焦问题
         if MessageList:
             yield MessageList(
                 id="chat-list",

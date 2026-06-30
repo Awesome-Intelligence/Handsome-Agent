@@ -159,8 +159,11 @@ class StreamingComplete(Message):
 # MessageList Widget
 # ============================================================================
 
-class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object):
-    """消息列表组件 - 使用 VerticalScroll + Markdown 实现"""
+class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=False):
+    """消息列表组件 - 使用 VerticalScroll + Markdown 实现
+    
+    注意：设置 can_focus=False 以避免 Textual 8.x 的自动聚焦问题。
+    """
 
     def __init__(
         self,

@@ -122,8 +122,8 @@ class AgentState:
 
     def __init__(
         self,
-        max_iterations: int = 20,
-        max_turns: int = 20,
+        max_iterations: int = 90,  # 参考 Hermes：父代理默认 90 次
+        max_turns: int = 90,
         tool_loop_config: Optional["ToolLoopConfig"] = None,
     ):
         # ── 核心状态 ──

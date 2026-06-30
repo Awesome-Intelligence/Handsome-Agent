@@ -360,11 +360,23 @@ class ToolExecutor:
         start_time = time.time()
 
         try:
-            # 调用工具，支持传递额外上下文参数
-            if extra_context:
-                result = handler(parameters, **extra_context)
+            # 参考 Hermes：拦截 todo 工具，直接传递 agent 的 _todo_store
+            if tool_name == "todo":
+                from tools.todo_tool import todo_tool as _todo_tool
+                parent_agent = extra_context.get("parent_agent") if extra_context else None
+                store = parent_agent._todo_store if parent_agent else None
+                result = _todo_tool(
+                    todos=parameters.get("todos"),
+                    merge=parameters.get("merge", False),
+                    store=store,
+                    persist=parameters.get("persist", False),
+                )
             else:
-                result = handler(parameters)
+                # 调用工具，支持传递额外上下文参数
+                if extra_context:
+                    result = handler(parameters, **extra_context)
+                else:
+                    result = handler(parameters)
 
             # 处理异步结果
             if inspect.iscoroutine(result):

@@ -120,7 +120,7 @@ class GoalPane(SidebarPane):
     
     # 任务状态图标
     TASK_STATUS_ICONS = {
-        "pending": "⏳",
+        "pending": "⚪",
         "in_progress": "🔄",
         "completed": "✅",
         "cancelled": "➖",
@@ -225,15 +225,30 @@ class GoalPane(SidebarPane):
     _tasks: Dict[str, List] = {}  # task_id -> subtasks
     _todo_store = None  # SessionTodoStore 实例
     _refresh_interval: float = 1.0  # 刷新间隔（秒）
+    _spinner_index: int = 0  # 旋转图标索引
+    _spinner_frames: tuple = ("⚪", "🟡", "🟠")  # 进行中状态循环图标
+    _refresh_timer = None  # 定时器引用
+    _has_active_goal: bool = False  # 是否有活跃的 goal
     
     def __init__(self, goal_manager=None) -> None:
         self._goal_manager = goal_manager
         self._logger = None
+        self._has_active_goal = False
+        # 检查是否有活跃的 goal
+        if goal_manager is not None and goal_manager.is_active():
+            self._has_active_goal = True
         super().__init__(id="goal", title="目标")
     
     def set_goal_manager(self, goal_manager) -> None:
         """设置 GoalManager 实例"""
         self._goal_manager = goal_manager
+        # 检查是否有活跃的 goal，并相应地启动或停止定时器
+        if goal_manager is not None and goal_manager.is_active():
+            self._has_active_goal = True
+            self._ensure_timer_running()
+        else:
+            self._has_active_goal = False
+            self._ensure_timer_stopped()
     
     def compose(self) -> ComposeResult:
         """组合子组件."""
@@ -277,13 +292,52 @@ class GoalPane(SidebarPane):
     
     def _start_refresh_timer(self) -> None:
         """启动定时刷新定时器"""
-        self.set_interval(self._refresh_interval, self._refresh_all)
         self._refresh_all()  # 立即刷新一次
+        # 始终启动定时器以保持任务列表刷新
+        # （无论是否有 goal，任务列表都需要显示）
+        self._ensure_timer_running()
+    
+    def _ensure_timer_running(self) -> None:
+        """确保定时器正在运行"""
+        if self._refresh_timer is None:
+            self._refresh_timer = self.set_interval(self._refresh_interval, self._refresh_all)
+            if self._logger:
+                self._logger.debug("Refresh timer started")
+    
+    def _ensure_timer_stopped(self) -> None:
+        """确保定时器已停止"""
+        if self._refresh_timer is not None:
+            self._refresh_timer.stop()
+            self._refresh_timer = None
+            if self._logger:
+                self._logger.debug("Refresh timer stopped")
     
     def _refresh_all(self) -> None:
         """刷新 Goal 和任务状态"""
         self._refresh_goal()
+        
+        # 检查是否有 active goal
+        has_active_goal = (
+            self._goal_manager is not None 
+            and self._goal_manager._current_goal is not None
+            and self._goal_manager._current_goal.status == "active"
+        )
+        
+        # 根据 goal 状态控制定时器
+        if has_active_goal and not self._has_active_goal:
+            # 从无 goal 变为有 goal，启动定时器
+            self._has_active_goal = True
+            self._ensure_timer_running()
+        elif not has_active_goal and self._has_active_goal:
+            # 从有 goal 变为无 goal，停止定时器
+            self._has_active_goal = False
+            self._ensure_timer_stopped()
+        
+        # 始终刷新任务列表（无论是否有 goal）
         self._refresh_tasks()
+        
+        # 更新旋转图标帧
+        self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
     
     def _refresh_goal(self) -> None:
         """从 GoalManager 刷新 Goal 状态"""
@@ -335,19 +389,36 @@ class GoalPane(SidebarPane):
             goal_text = goal_state.goal
             display_goal = goal_text[:50] + "..." if len(goal_text) > 50 else goal_text
             
-            # 获取进度信息
+            # 获取轮次信息
             budget = self._goal_manager._budget
             current_turn = budget.turns_used
             max_turns = budget.max_turns
             remaining_turns = budget.remaining_turns()
-            turn_progress = int((current_turn / max_turns) * 100) if max_turns > 0 else 0
+            
+            # 获取任务进度信息
+            total_tasks = 0
+            completed_tasks = 0
+            for board_id, subtasks in self._tasks.items():
+                for subtask in subtasks:
+                    total_tasks += 1
+                    if getattr(subtask, 'status', '') == 'completed':
+                        completed_tasks += 1
+            
+            # 计算任务完成进度
+            if total_tasks > 0:
+                task_progress = int((completed_tasks / total_tasks) * 100)
+            else:
+                task_progress = 0
             
             # 更新头部
             header.update(f"""[bold]{status_icon} {status_text}[/bold]  [accent]{display_goal}[/accent]""")
             
-            # 更新进度条
-            progress_bar = self._make_progress_bar(turn_progress)
-            progress.update(f"""[dim]轮次:[/dim] {current_turn}/{max_turns} {progress_bar} | 剩余 {remaining_turns} 轮""")
+            # 更新进度条（基于任务完成情况）+ 轮次信息
+            progress_bar = self._make_progress_bar(task_progress)
+            if total_tasks > 0:
+                progress.update(f"""[dim]任务:[/dim] {completed_tasks}/{total_tasks} {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
+            else:
+                progress.update(f"""[dim]任务:[/dim] 0/0 {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
             
         except Exception as e:
             if self._logger:
@@ -366,11 +437,18 @@ class GoalPane(SidebarPane):
     
     def _refresh_tasks(self) -> None:
         """从 SessionTodoStore 刷新任务列表"""
-        if self._todo_store is None:
-            return
-        
         try:
+            if self._todo_store is None:
+                self._init_todo_store()
+            
+            if self._todo_store is None:
+                return
+            
             todos = self._todo_store.read()
+            
+            # 调试日志
+            if self._logger:
+                self._logger.debug(f"Todo refresh: {len(todos)} items, _todo_store id={id(self._todo_store)}")
             
             if not todos:
                 self._tasks = {}
@@ -408,7 +486,7 @@ class GoalPane(SidebarPane):
         return progress_map.get(todo_status, 0)
     
     def _update_tasks_display(self) -> None:
-        """更新任务列表显示"""
+        """更新任务列表显示（按原始顺序，不分组）"""
         tasks_list_widget = self.query_one("#tasks-list", Static)
         
         if not self._tasks:
@@ -416,56 +494,33 @@ class GoalPane(SidebarPane):
             return
         
         lines = []
+        total_count = 0
         
-        # 按状态分类收集所有任务
-        status_groups: Dict[str, List] = {
-            "in_progress": [],
-            "pending": [],
-            "completed": [],
-            "cancelled": [],
-        }
-        
+        # 按原始顺序遍历所有任务
         for board_id, subtasks in self._tasks.items():
             for subtask in subtasks:
+                total_count += 1
+                if total_count > 15:  # 限制最多显示15个
+                    break
+                
                 status = getattr(subtask, 'status', 'unknown')
+                # 进行中任务使用旋转图标
                 if status == "in_progress":
-                    status_groups["in_progress"].append(subtask)
-                elif status == "pending":
-                    status_groups["pending"].append(subtask)
-                elif status == "completed":
-                    status_groups["completed"].append(subtask)
-                elif status == "cancelled":
-                    status_groups["cancelled"].append(subtask)
-        
-        # 按状态分组显示
-        status_order = ["in_progress", "pending", "cancelled", "completed"]
-        status_labels = {
-            "in_progress": "🔄 进行中",
-            "pending": "⏳ 待处理",
-            "completed": "✅ 已完成",
-            "cancelled": "➖ 已取消",
-        }
-        
-        has_tasks = False
-        for status_key in status_order:
-            tasks = status_groups[status_key]
-            if not tasks:
-                continue
-            
-            has_tasks = True
-            lines.append(f"[dim]{status_labels.get(status_key, status_key)}[/dim]")
-            
-            for subtask in tasks[:8]:  # 限制每组最多显示8个
-                icon = self.TASK_STATUS_ICONS.get(getattr(subtask, 'status', 'unknown'), "❓")
+                    icon = self._spinner_frames[self._spinner_index]
+                else:
+                    icon = self.TASK_STATUS_ICONS.get(status, "❓")
+                
                 title = getattr(subtask, 'title', '未知任务')
-                display_title = title[:35] if len(title) > 35 else title
-                lines.append(f"  {icon} {display_title}")
+                display_title = title[:38] if len(title) > 38 else title
+                lines.append(f"{icon} {display_title}")
             
-            if len(tasks) > 8:
-                lines.append(f"  [dim]... 还有 {len(tasks) - 8} 个[/dim]")
+            if total_count > 15:
+                break
         
-        if not has_tasks:
+        if not lines:
             lines.append("[dim]暂无任务[/dim]")
+        elif total_count > 15:
+            lines.append(f"[dim]... 还有 {total_count - 15} 个任务[/dim]")
         
         tasks_list_widget.update("\n".join(lines).strip())
     

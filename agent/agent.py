@@ -94,6 +94,10 @@ class Agent:
         self._decision_logger = get_decision_logger("Agent", sublayer="task")
         self._llm_logger = get_llm_logger("Agent")
 
+        # 初始化 TodoStore（参考 Hermes）
+        from tools.todo_tool import get_session_todo_store
+        self._todo_store = get_session_todo_store()
+
         self.engine = get_integrated_engine(llm_provider=llm_provider)
 
         from agent.context import ContextBuilder
@@ -176,7 +180,7 @@ class Agent:
         self._goal_manager = GoalManager(
             session_id=session_id,
             judge_llm_provider=llm_provider,
-            default_max_turns=20,
+            default_max_turns=90,  # 参考 Hermes：父代理默认 90 次
             on_state_change=self._state.sync_from_goal_state,
         )
         self._decision_logger.debug(f"GoalManager initialized for session: {session_id}")

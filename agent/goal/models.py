@@ -54,7 +54,7 @@ class GoalState:
     - status_history: 状态转换审计记录
     """
     goal: str  # 用户原始目标
-    max_turns: int = 20  # 最大轮次
+    max_turns: int = 90  # 最大轮次（参考 Hermes）
     current_turn: int = 0  # 当前轮次
     status: str = GoalStatus.ACTIVE.value  # 当前状态
     status_history: List[Dict] = field(default_factory=list)  # 状态转换审计记录
@@ -98,7 +98,7 @@ class GoalState:
         data = json.loads(raw)
         return cls(
             goal=data.get("goal", ""),
-            max_turns=int(data.get("max_turns", 20) or 20),
+            max_turns=int(data.get("max_turns", 90) or 90),
             current_turn=int(data.get("current_turn", 0) or 0),
             status=data.get("status", GoalStatus.ACTIVE.value),
             status_history=data.get("status_history") or [],

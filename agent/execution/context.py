@@ -74,7 +74,7 @@ class ExecutionContext:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_handlers: Optional[Dict[str, Callable]] = None,
         conversation_history: Optional[List[Dict[str, str]]] = None,
-        max_iterations: int = 20,
+        max_iterations: int = 90,  # 参考 Hermes：父代理默认 90 次
         **kwargs
     ):
         self.task_description = task_description

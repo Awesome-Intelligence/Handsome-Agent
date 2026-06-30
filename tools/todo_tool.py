@@ -415,16 +415,25 @@ TODO_SCHEMA = {
 
 from tools.registry import registry
 
+def _todo_handler(args, **kw):
+    """todo 工具的包装 handler，添加调试日志"""
+    from common.logging_manager import get_logger
+    logger = get_logger("todo_handler")
+    store = kw.get("store")
+    todos = args.get("todos")
+    logger.debug(f"todo handler called: todos={todos}, store={id(store) if store else None}")
+    return todo_tool(
+        todos=todos,
+        merge=args.get("merge", False),
+        store=store,
+        persist=args.get("persist", False),
+    )
+
 registry.register(
     name="todo",
     toolset="todo",
     schema=TODO_SCHEMA,
-    handler=lambda args, **kw: todo_tool(
-        todos=args.get("todos"),
-        merge=args.get("merge", False),
-        store=kw.get("store"),
-        persist=args.get("persist", False),
-    ),
+    handler=_todo_handler,
     check_fn=check_todo_requirements,
     emoji="📋",
 )

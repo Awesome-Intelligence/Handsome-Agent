@@ -609,34 +609,85 @@ class LayerLogger:
         else:
             return f"({self._name}) {msg}"
     
-    def debug(self, *args, **kwargs):
+    def debug(self, msg: str, *args, **kwargs):
         """Debug log - displayed in detailed mode only."""
-        # 格式化消息（支持多个参数）
-        if len(args) == 1:
-            msg = str(args[0])
-        else:
-            msg = " ".join(str(arg) for arg in args)
+        # 支持 logging.Logger 风格的格式化: msg % args
+        # 也支持 Textual 内部调用: debug(widget, "was focused")
+        if args:
+            if isinstance(msg, str):
+                try:
+                    msg = msg % args
+                except (TypeError, ValueError):
+                    # 格式化失败，拼接参数
+                    msg = f"{msg} {' '.join(str(a) for a in args)}"
+            else:
+                # 第一个参数不是字符串，拼接所有参数
+                parts = [str(msg)] + [str(a) for a in args]
+                msg = " ".join(parts)
         extra = kwargs.pop('extra', {})
         extra['layer'] = self._layer
         self._logger.debug(self._format_msg(msg), extra=extra, **kwargs)
     
-    def info(self, msg: str, **kwargs):
+    def info(self, msg: str, *args, **kwargs):
+        """Info log - supports logging.Logger style formatting (msg % args)"""
+        # 支持 logging.Logger 风格的格式化: msg % args
+        if args:
+            if isinstance(msg, str):
+                try:
+                    msg = msg % args
+                except (TypeError, ValueError):
+                    msg = f"{msg} {' '.join(str(a) for a in args)}"
+            else:
+                parts = [str(msg)] + [str(a) for a in args]
+                msg = " ".join(parts)
         extra = kwargs.pop('extra', {})
         extra['layer'] = self._layer
         self._logger.info(self._format_msg(msg), extra=extra, **kwargs)
     
-    def summary(self, msg: str, **kwargs):
+    def summary(self, msg: str, *args, **kwargs):
         """Summary log - displayed in moderate and detailed modes (uses INFO level)"""
+        # 支持 logging.Logger 风格的格式化: msg % args
+        if args:
+            if isinstance(msg, str):
+                try:
+                    msg = msg % args
+                except (TypeError, ValueError):
+                    msg = f"{msg} {' '.join(str(a) for a in args)}"
+            else:
+                parts = [str(msg)] + [str(a) for a in args]
+                msg = " ".join(parts)
         extra = kwargs.pop('extra', {})
         extra['layer'] = self._layer
         self._logger.info(self._format_msg(msg), extra=extra, **kwargs)
     
-    def warning(self, msg: str, **kwargs):
+    def warning(self, msg: str, *args, **kwargs):
+        """Warning log - supports logging.Logger style formatting"""
+        # 支持 logging.Logger 风格的格式化: msg % args
+        if args:
+            if isinstance(msg, str):
+                try:
+                    msg = msg % args
+                except (TypeError, ValueError):
+                    msg = f"{msg} {' '.join(str(a) for a in args)}"
+            else:
+                parts = [str(msg)] + [str(a) for a in args]
+                msg = " ".join(parts)
         extra = kwargs.pop('extra', {})
         extra['layer'] = self._layer
         self._logger.warning(self._format_msg(msg), extra=extra, **kwargs)
     
-    def error(self, msg: str, exc_info: bool = False, **kwargs):
+    def error(self, msg: str, *args, exc_info: bool = False, **kwargs):
+        """Error log - supports logging.Logger style formatting"""
+        # 支持 logging.Logger 风格的格式化: msg % args
+        if args:
+            if isinstance(msg, str):
+                try:
+                    msg = msg % args
+                except (TypeError, ValueError):
+                    msg = f"{msg} {' '.join(str(a) for a in args)}"
+            else:
+                parts = [str(msg)] + [str(a) for a in args]
+                msg = " ".join(parts)
         extra = kwargs.pop('extra', {})
         extra['layer'] = self._layer
         self._logger.error(self._format_msg(msg), exc_info=exc_info, extra=extra, **kwargs)

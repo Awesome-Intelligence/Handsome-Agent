@@ -584,10 +584,12 @@ class AgentLoop:
 
         executor = self._ensure_tool_executor(context)
 
-        # 构建 extra_context，传递父 Agent 实例给需要 parent_agent 的工具
+        # 构建 extra_context，传递上下文给工具
         extra_context = {}
         if self._agent is not None:
             extra_context["parent_agent"] = self._agent
+        
+        # todo 工具由 tool_executor 直接拦截，不需要传递 store 参数
 
         # ToolExecutor 只负责执行，Rails 拦截已在 _execute_step 中处理
         result = await executor.execute(tool_name, parameters, extra_context=extra_context)
