@@ -112,6 +112,7 @@ class AgentLoop:
         todo_store=None,
         on_after_step: Optional[AfterStepCallback] = None,
         agent_state: Optional["AgentState"] = None,
+        agent: Optional[Any] = None,  # 父 Agent 实例，用于工具上下文
     ):
         """
         初始化 AgentLoop
@@ -126,6 +127,7 @@ class AgentLoop:
             todo_store: Todo 存储
             on_after_step: 每步执行后的回调
             agent_state: 统一状态管理器（必填）
+            agent: 父 Agent 实例（可选，用于传递 parent_agent 给工具）
 
         注意：
             Rails 始终从 RailRegistry 获取，不接受外部传入。
@@ -142,6 +144,7 @@ class AgentLoop:
         self._todo_store = todo_store
         self._on_after_step = on_after_step
         self._agent_state = agent_state
+        self._agent = agent  # 保存父 Agent 引用
 
         self.logger = get_task_logger("AgentLoop", sublayer="task")
         self._state = LoopState.RUNNING
@@ -332,6 +335,13 @@ class AgentLoop:
     async def _execute_step(self, context, step_num: int) -> LoopStepResult:
         decision = await self._llm_decide(context)
 
+        # 参考 Hermes：判断是否只有 execute_code（纯计算轮次不消耗预算）
+        is_execute_code_only = (
+            decision.action == "use_tool"
+            and decision.tool_name == "execute_code"
+            # 注意：这里只检查单个工具，如果是多工具调用会在下面处理
+        )
+
         if decision.action == "use_tool":
             rail_result = await self._trigger_before_tool(
                 decision.tool_name, decision.parameters
@@ -350,6 +360,13 @@ class AgentLoop:
                     block_reason=rail_result.error,
                 )
 
+            # Tool Loop Guardrail 前置检查（允许执行，但记录警告）
+            tool_loop_decision = self._agent_state._ensure_tool_loop_controller().before_call(
+                decision.tool_name, decision.parameters
+            )
+            if tool_loop_decision.should_halt:
+                self.logger.warning(f"Tool Loop 检测到循环: {tool_loop_decision.message}")
+
             result = await self._execute_tool(
                 decision.tool_name, decision.parameters, context
             )
@@ -358,7 +375,11 @@ class AgentLoop:
                 decision.tool_name, decision.parameters, result
             )
 
+            # 参考 Hermes：execute_code 成功执行后，如果本轮只有它，则退还预算
             is_error = self._is_error_result(result)
+            if not is_error and is_execute_code_only:
+                self._agent_state.refund()
+                self.logger.debug(f"Tool execute_code refunded budget (only tool in this turn)")
 
             tool_call_id = context.add_tool_call(
                 decision.tool_name, decision.parameters, result, is_error
@@ -563,8 +584,13 @@ class AgentLoop:
 
         executor = self._ensure_tool_executor(context)
 
+        # 构建 extra_context，传递父 Agent 实例给需要 parent_agent 的工具
+        extra_context = {}
+        if self._agent is not None:
+            extra_context["parent_agent"] = self._agent
+
         # ToolExecutor 只负责执行，Rails 拦截已在 _execute_step 中处理
-        result = await executor.execute(tool_name, parameters)
+        result = await executor.execute(tool_name, parameters, extra_context=extra_context)
 
         return result.get_output()
 
@@ -653,24 +679,27 @@ class AgentLoop:
 
         # ── 2. 主循环 ──
         while True:
-            # ── a. 中断检查 ──
+            # ── a. 重置 ToolLoopController（每个 turn 开始时） ──
+            self._agent_state.reset_tool_loop_controller()
+
+            # ── b. 中断检查 ──
             if self._agent_state.is_interrupt_requested:
                 self._agent_state.abort("loop_interrupt")
                 self._state = LoopState.ABORTED
                 self.logger.info("收到中断请求，循环终止")
                 break
 
-            # ── b. 预算耗尽检查（先检查再消耗，确保能执行完整的 max_turns 轮） ──
+            # ── c. 预算耗尽检查（先检查再消耗，确保能执行完整的 max_turns 轮） ──
             if not self._agent_state.can_iterate():
                 self.logger.info(f"预算耗尽，循环结束")
                 break
 
-            # ── c. 消耗预算 ──
+            # ── d. 消耗预算 ──
             consumed = self._agent_state.consume()
             remaining = self._agent_state.budget_remaining
             self.logger.debug(f"{self._agent_state.get_budget_status()} (剩余 {remaining})")
 
-            # ── d. 执行单步 ──
+            # ── e. 执行单步 ──
             step_num += 1
             step_result = await self.step(context, step_num)
             self.logger.debug(f"步骤 {step_num} 完成: {step_result.action}")
@@ -682,11 +711,11 @@ class AgentLoop:
                 self._agent_state.abort("step_interrupted")
                 break
 
-            # ── e. 记录响应 ──
+            # ── f. 记录响应 ──
             if step_result.result is not None:
                 self._last_response = str(step_result.result)
 
-            # ── f. 退出判断 ──
+            # ── g. 退出判断 ──
             if self._agent_state.is_goal_mode:
                 # Goal 模式：使用 Judge 评估
                 exit_decision = await self._agent_state.should_exit_with_judge(step_result)

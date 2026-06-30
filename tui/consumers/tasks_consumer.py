@@ -1,10 +1,11 @@
 """TUIConsumer - 任务事件日志消费者
 
-订阅 StreamEmitter 的任务相关事件，用于日志记录。
-注意：由于 TasksPane 直接从 Kanban 读取，此消费者不再向 TasksPane 发送消息。
+订阅 StreamEmitter 的任务相关事件，用于：
+1. 日志记录
+2. 向 GoalPane 发布消息以实时更新任务状态
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -12,14 +13,11 @@ from common.streaming.consumer import StreamConsumer
 from common.streaming.events import StreamEvent, StreamEventType
 from common.logging_manager import get_decision_logger
 
+if TYPE_CHECKING:
+    from textual.app import TextualApp
+
 # 任务规划日志
 task_logger = get_decision_logger("TaskEvent", sublayer="task")
-
-# 尝试导入 TUI 消息
-try:
-    from tui.messages import TaskItem
-except ImportError:
-    TaskItem = None
 
 
 @dataclass
@@ -51,21 +49,16 @@ class TUIConsumer(StreamConsumer):
     """
     TUI 任务事件日志消费者
     
-    处理 StreamEmitter 的任务相关事件，仅用于日志记录。
-    TasksPane 直接从 Kanban 读取，无需此消费者发送消息。
+    处理 StreamEmitter 的任务相关事件，用于日志记录。
     
     用法::
     
-        # 在 TUI App 中
         consumer = TUIConsumer()
         registry.register(consumer)
     """
     
-    def __init__(self, tasks_pane=None):
-        """
-        Args:
-            tasks_pane: TasksPane 组件实例（已废弃，仅保持兼容性）
-        """
+    def __init__(self) -> None:
+        """初始化消费者."""
         self._tasks: Dict[str, TaskState] = {}  # task_id -> TaskState
         self._current_task_id: Optional[str] = None
         self._current_subtask_id: Optional[int] = None

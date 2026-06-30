@@ -236,6 +236,45 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
                     context_info = result[len("__ADD_CONTEXT__"):]
                     ui.print_info(f"Added context: {context_info}")
                     continue
+                elif result.startswith("__START_GOAL__"):
+                    # Goal 模式：自动触发 agent 执行循环
+                    goal_text = result[len("__START_GOAL__"):]
+                    ui.print_success(f"✓ Goal created: {goal_text[:50]}...")
+                    ui.print_info("开始执行目标...")
+                    
+                    # 使用 GoalManager 的 continuation prompt 启动 agent
+                    from cli.commands import _get_goal_manager
+                    goal_manager = _get_goal_manager()
+                    
+                    # 获取初始提示（如果需要）
+                    initial_prompt = goal_text
+                    continuation = goal_manager.next_continuation_prompt() if goal_manager and goal_manager.is_active() else None
+                    
+                    # 如果有 continuation prompt，使用它作为初始输入
+                    if continuation:
+                        # 移除 "Continuing toward your standing goal\nGoal: ..." 部分
+                        if "Goal:\n" in continuation:
+                            parts = continuation.split("Goal:\n", 1)
+                            if len(parts) > 1 and parts[1]:
+                                goal_line_end = parts[1].find("\n")
+                                if goal_line_end > 0:
+                                    initial_prompt = parts[1][goal_line_end + 1:].strip()
+                    
+                    # 执行 agent（使用 goal_text 作为初始输入）
+                    spinner = ui.Spinner("执行中...")
+                    spinner.start()
+                    try:
+                        response = await agent.chat(goal_text)
+                        ui.status_bar.add_tokens(len(response.content.split()))
+                        print("\r" + " " * 50 + "\r", end="", flush=True)
+                        logger.info(f"Goal agent response: {response.content[:100]}...")
+                        if response.tool_used:
+                            ui.print_info(f"🔧 Used tool: {response.tool_used}")
+                        ui.print_agent_response(response.content, response.confidence_score)
+                        ui.print_status_bar()
+                    finally:
+                        spinner.stop()
+                    continue
 
                 # Regular command output
                 if result:

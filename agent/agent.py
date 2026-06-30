@@ -151,8 +151,21 @@ class Agent:
         self._stream_callback = None
         self._stream_emitter = None
 
+        # ── 加载 Tool Loop Guardrail 配置 ──
+        tool_loop_config = None
+        try:
+            from common.config import get_settings
+            settings = get_settings()
+            if hasattr(settings, "tool_loop_guardrail") and settings.tool_loop_guardrail:
+                from agent.rails.tool_loop import ToolLoopConfig
+                tool_loop_config = ToolLoopConfig.from_mapping(settings.tool_loop_guardrail)
+                self._decision_logger.debug(f"ToolLoopConfig loaded from settings")
+        except Exception as e:
+            self._decision_logger.debug(f"Failed to load ToolLoopConfig: {e}")
+
         # 统一状态管理器（替代 InterruptController, BudgetController, LoopExitChecker）
-        self._state = AgentState(max_iterations=30, max_turns=20)
+        # 参考 Hermes：父代理默认 90 次迭代
+        self._state = AgentState(max_iterations=90, max_turns=90, tool_loop_config=tool_loop_config)
 
         from tools.todo_tool import get_session_todo_store
 
@@ -530,7 +543,12 @@ class Agent:
             self._emit_stream(f"🎯 {self._goal_manager.status_line()}\n\n")
 
         # ─────────────────────────────────────────────────────────────────
-        # 6. 创建 AgentLoop（使用 AgentState）
+        # 6. 设置 Todo Store 到 AgentState（用于检查 todo 完成度）
+        # ─────────────────────────────────────────────────────────────────
+        self._state.set_todo_store(self._todo_store)
+
+        # ─────────────────────────────────────────────────────────────────
+        # 7. 创建 AgentLoop（使用 AgentState）
         # ─────────────────────────────────────────────────────────────────
         loop = AgentLoop(
             llm_provider=self.llm_provider,
@@ -540,10 +558,11 @@ class Agent:
             context_manager=self._context_manager,
             todo_store=self._todo_store,
             agent_state=self._state,  # 使用统一状态管理器
+            agent=self,  # 传递自身实例，用于工具的 parent_agent
         )
 
         # ─────────────────────────────────────────────────────────────────
-        # 7. 启动状态并执行循环
+        # 8. 启动状态并执行循环
         # ─────────────────────────────────────────────────────────────────
         self._state.start()
         result = await loop.run(context)

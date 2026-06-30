@@ -60,10 +60,11 @@ def register_integrated_tools(engine):
             
             # 使用工厂函数来创建适配器，避免闭包问题
             def create_tool_adapter(entry):
-                async def tool_adapter(parameters: Dict, context: Optional[Dict] = None):
+                async def tool_adapter(parameters: Dict, context: Optional[Dict] = None, **kwargs):
                     try:
-                        # 传入参数
-                        result = entry.handler(parameters, **(context or {}))
+                        # 合并 context 和额外参数（如 parent_agent）
+                        merged = {**(context or {}), **kwargs}
+                        result = entry.handler(parameters, **merged)
                         # 如果返回字符串，尝试解析为 JSON
                         if isinstance(result, str):
                             try:
@@ -122,9 +123,9 @@ def get_all_tools_as_simplified() -> List[Tool]:
             
             # 使用工厂函数来创建 handler，避免闭包问题
             def create_handler(entry):
-                async def handler(params):
+                async def handler(params, **kwargs):
                     try:
-                        result = entry.handler(params)
+                        result = entry.handler(params, **kwargs)
                         if isinstance(result, str):
                             try:
                                 return json.loads(result)

@@ -150,6 +150,7 @@ class ToolExecutor:
         tool_name: str,
         parameters: Dict[str, Any],
         context: Optional[Any] = None,
+        extra_context: Optional[Dict[str, Any]] = None,
     ) -> ToolInvokeResult:
         """
         执行单个工具
@@ -169,6 +170,8 @@ class ToolExecutor:
             tool_name: 工具名称
             parameters: 工具参数
             context: 传递给 Rail 的上下文（当前未使用，为未来扩展保留）
+            extra_context: 额外的上下文参数，会作为关键字参数传递给工具处理器
+                          例如：{"parent_agent": agent_instance}
 
         Returns:
             ToolInvokeResult
@@ -190,7 +193,7 @@ class ToolExecutor:
             return result
 
         # 2. 执行工具
-        result = await self._do_execute(tool_name, parameters)
+        result = await self._do_execute(tool_name, parameters, extra_context)
         result.execution_time = time.time() - start_time
 
         # 3. 发射事件
@@ -350,14 +353,18 @@ class ToolExecutor:
         self,
         tool_name: str,
         parameters: Dict[str, Any],
+        extra_context: Optional[Dict[str, Any]] = None,
     ) -> ToolInvokeResult:
         """实际执行工具（不带 Rail 拦截）"""
         handler = self.tool_registry[tool_name]
         start_time = time.time()
 
         try:
-            # 调用工具
-            result = handler(parameters)
+            # 调用工具，支持传递额外上下文参数
+            if extra_context:
+                result = handler(parameters, **extra_context)
+            else:
+                result = handler(parameters)
 
             # 处理异步结果
             if inspect.iscoroutine(result):

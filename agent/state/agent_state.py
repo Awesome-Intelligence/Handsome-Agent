@@ -116,40 +116,48 @@ class AgentState:
 
     # 非Goal模式下立即结束的 action 类型
     TERMINAL_ACTIONS = {"direct_response", "ask_clarification", "error"}
-    
-    # 工具调用次数限制（参考 Hermes 的 IterationBudget）
-    _MAX_SAME_TOOL_CALLS = 3  # 同一工具最多调用次数
-    _MAX_TOOL_CALLS_TOTAL = 5  # 工具调用总数上限
+
+    # 工具调用总数上限（放宽到 20，原 5）
+    _MAX_TOOL_CALLS_TOTAL = 20
 
     def __init__(
         self,
         max_iterations: int = 20,
         max_turns: int = 20,
+        tool_loop_config: Optional["ToolLoopConfig"] = None,
     ):
         # ── 核心状态 ──
         self._status: AgentStatus = AgentStatus.IDLE
         self._status_history: List[StateTransition] = []
-        
+
         # ── Goal 相关（代理到 GoalManager）──
         self._goal_manager = None
-        
+
         # ── 预算相关 ──
         self._mode: BudgetMode = BudgetMode.ITERATION
         self._max_iterations: int = max_iterations
         self._max_turns: int = max_turns
         self._current: int = 0
         self._lock: threading.Lock = threading.Lock()
-        
+
         # ── 中断相关 ──
         self._interrupt_requested: bool = False
         self._interrupt_reason: Optional[str] = None
-        
+
         # ── 事件监听器 ──
         self._listeners: List[StateListener] = []
-        
+
         # ── 最后一步结果 ──
         self._last_step_result: Optional["LoopStepResult"] = None
         self._last_response: str = ""
+
+        # ── Tool Loop Guardrail 相关 ──
+        self._tool_loop_config = tool_loop_config
+        self._tool_loop_controller: Optional["ToolLoopController"] = None
+        self._tool_loop_warning: Optional[str] = None
+
+        # ── Todo Store 引用（用于检查 todo 完成度）──
+        self._todo_store = None
 
         # 日志器（统一使用）
         self.logger = logger
@@ -254,6 +262,16 @@ class AgentState:
         with self._lock:
             self._current += 1
             return self._current
+
+    def refund(self) -> None:
+        """
+        退还预算（例如用于 execute_code 回合）
+
+        参考 Hermes 设计：纯计算操作不消耗预算
+        """
+        with self._lock:
+            if self._current > 0:
+                self._current -= 1
 
     def get_budget_status(self) -> str:
         """获取预算状态描述"""
@@ -380,6 +398,10 @@ class AgentState:
         self._last_step_result = None
         self._last_response = ""
         self._tool_call_history = []  # 重置工具调用历史
+        # 重置 ToolLoopController
+        if self._tool_loop_controller:
+            self._tool_loop_controller.reset()
+        self._tool_loop_warning = None
         self._notify_listeners(old_status, AgentStatus.IDLE, "reset")
 
     def _transition_to(self, new_status: AgentStatus, reason: str) -> None:
@@ -416,6 +438,32 @@ class AgentState:
         """移除状态监听器"""
         if listener in self._listeners:
             self._listeners.remove(listener)
+
+    def set_todo_store(self, todo_store) -> None:
+        """设置 Todo Store 引用（用于检查 todo 完成度）"""
+        self._todo_store = todo_store
+
+    def _ensure_tool_loop_controller(self) -> "ToolLoopController":
+        """懒加载 ToolLoopController"""
+        if self._tool_loop_controller is None:
+            from agent.rails.tool_loop import ToolLoopController, ToolLoopConfig
+
+            if self._tool_loop_config is None:
+                self._tool_loop_config = ToolLoopConfig()
+            self._tool_loop_controller = ToolLoopController(self._tool_loop_config)
+        return self._tool_loop_controller
+
+    def reset_tool_loop_controller(self) -> None:
+        """重置 ToolLoopController（在每个 turn 开始时调用）"""
+        controller = self._ensure_tool_loop_controller()
+        controller.reset()
+        self._tool_loop_warning = None
+
+    def get_tool_loop_warning(self) -> Optional[str]:
+        """获取最后一条 Tool Loop 警告"""
+        if self._tool_loop_controller:
+            return self._tool_loop_controller.last_warning
+        return None
 
     # ── 退出判断 ──
     def should_exit(self, step_result: "LoopStepResult") -> ExitDecision:
@@ -578,23 +626,60 @@ class AgentState:
         )
 
     def _check_tool_call_exit(self, step_result: "LoopStepResult") -> ExitDecision:
-        """检查工具调用是否应该退出循环"""
-        if not hasattr(self, '_tool_call_history'):
-            self._tool_call_history = []
+        """
+        检查工具调用是否应该退出循环（优化版）
 
+        核心改进：
+        1. 使用 ToolLoopController 只追踪失败的工具调用
+        2. 成功执行清除失败计数
+        3. 检查 Todo 完成度
+        4. 放宽总调用次数限制
+        """
         tool_name = step_result.tool_name
-        self._tool_call_history.append(tool_name)
+        parameters = step_result.parameters or {}
+        result = step_result.result
+        is_error = step_result.is_error
 
-        same_tool_count = self._tool_call_history.count(tool_name)
-        total_tool_calls = len(self._tool_call_history)
+        # 1. 获取 ToolLoopController 并更新状态
+        controller = self._ensure_tool_loop_controller()
+        decision = controller.after_call(
+            tool_name=tool_name,
+            args=parameters,
+            result=result,
+            failed=is_error,
+        )
 
-        if same_tool_count >= self._MAX_SAME_TOOL_CALLS:
+        # 2. 如果需要 halt，退出循环
+        if decision.should_halt:
             return ExitDecision(
                 should_exit=True,
-                reason=ExitReason.DIRECT_RESPONSE,
-                message=f"同一工具 {tool_name} 连续调用超过 {self._MAX_SAME_TOOL_CALLS} 次，强制总结",
-                metadata={"action": "use_tool", "tool_name": tool_name, "count": same_tool_count},
+                reason=ExitReason.TOOL_LOOP_HALT,
+                message=f"[Tool Loop] {decision.message}",
+                metadata={
+                    "action": "halt",
+                    "tool_name": tool_name,
+                    "code": decision.code,
+                    "count": decision.count,
+                },
             )
+
+        # 3. 记录警告信息（不退出，让 LLM 看到警告）
+        if decision.is_warning:
+            self._tool_loop_warning = decision.message
+
+        # 4. 检查 Todo 完成度
+        if self._should_continue_for_todos():
+            return ExitDecision(
+                should_exit=False,
+                reason=ExitReason.UNKNOWN,
+                message="继续执行: todo 列表还有待完成任务",
+            )
+
+        # 5. 检查工具调用总数上限（放宽到 20）
+        if not hasattr(self, "_tool_call_history"):
+            self._tool_call_history = []
+        self._tool_call_history.append(tool_name)
+        total_tool_calls = len(self._tool_call_history)
 
         if total_tool_calls >= self._MAX_TOOL_CALLS_TOTAL:
             return ExitDecision(
@@ -609,6 +694,32 @@ class AgentState:
             reason=ExitReason.UNKNOWN,
             message="继续执行",
         )
+
+    def _should_continue_for_todos(self) -> bool:
+        """
+        检查是否应该继续执行（因为 todo 还有任务）
+
+        条件：
+        1. 没有 Tool Loop 警告（避免在循环检测触发时继续）
+        2. Todo Store 有任务
+        3. 有 pending 或 in_progress 状态的任务
+        """
+        # 有警告时不自动继续（让 LLM 处理警告）
+        if self._tool_loop_warning:
+            return False
+
+        # 检查 todo 列表
+        if self._todo_store and self._todo_store.has_items():
+            todos = self._todo_store.read()
+            pending_count = sum(
+                1
+                for t in todos
+                if t.get("status") in {"pending", "in_progress"}
+            )
+            if pending_count > 0:
+                return True
+
+        return False
 
     # ── 调试和序列化 ──
     def to_dict(self) -> Dict[str, Any]:

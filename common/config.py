@@ -371,7 +371,24 @@ class Settings(BaseSettings):
         "backup_count": 30,  # 保留30天
         "rotation": "daily",
     })
-    
+
+    # Tool Loop Guardrail 配置（参考 Hermes）
+    # 用于防止 Agent 在工具调用时陷入无限循环
+    tool_loop_guardrail: Dict[str, Any] = Field(default_factory=lambda: {
+        "warnings_enabled": True,  # 是否启用警告
+        "hard_stop_enabled": False,  # 是否启用硬停止（阻止工具执行）
+        "warn_after": {
+            "exact_failure": 2,  # 完全相同的调用失败 2 次后警告
+            "same_tool_failure": 3,  # 同一工具失败 3 次后警告
+            "idempotent_no_progress": 2,  # 幂等工具无进展 2 次后警告
+        },
+        "hard_stop_after": {
+            "exact_failure": 5,  # 完全相同的调用失败 5 次后阻止
+            "same_tool_failure": 8,  # 同一工具失败 8 次后停止
+            "idempotent_no_progress": 5,  # 幂等工具无进展 5 次后阻止
+        },
+    })
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -5,8 +5,7 @@ TUI 层 Textual 消息定义
 
 🚪 Access - 💬 CLI - TUI Messages
 
-定义 TasksPane 订阅的内部消息类型。
-这些消息由 TUIConsumer 转换后发布。
+定义 TUI 面板订阅的内部消息类型。
 """
 
 from __future__ import annotations
@@ -105,82 +104,6 @@ class UpdatedReason:
 
 
 @dataclass
-class TasksPaneUpdated(Message):
-    """任务面板更新消息
-    
-    Attributes:
-        reason: 更新原因，参考 UpdatedReason 常量
-        tasks: 任务字典，键为 task_id，值为 TaskItem 列表
-        current_task_id: 当前任务 ID
-        current_subtask_id: 当前子任务 ID
-        progress_percent: 总体进度百分比
-    """
-    
-    def __init__(
-        self,
-        sender: Any,
-        reason: str,
-        tasks: Optional[Dict[str, List[TaskItem]]] = None,
-        current_task_id: Optional[str] = None,
-        current_subtask_id: Optional[int] = None,
-        progress_percent: int = 0,
-    ) -> None:
-        """初始化任务面板更新消息.
-        
-        Args:
-            sender: 消息发送者
-            reason: 更新原因
-            tasks: 任务字典
-            current_task_id: 当前任务 ID
-            current_subtask_id: 当前子任务 ID
-            progress_percent: 进度百分比
-        """
-        super().__init__()
-        self.reason = reason
-        self.tasks = tasks or {}
-        self.current_task_id = current_task_id
-        self.current_subtask_id = current_subtask_id
-        self.progress_percent = progress_percent
-
-
-@dataclass
-class CurrentTaskChanged(Message):
-    """当前执行任务变更消息
-    
-    当当前执行的任务发生变更时发布此消息。
-    
-    Attributes:
-        task_id: 任务 ID
-        subtask_id: 子任务 ID
-        subtask_title: 子任务标题
-        status: 任务状态
-    """
-    
-    def __init__(
-        self,
-        sender: Any,
-        task_id: Optional[str],
-        subtask_id: Optional[int],
-        subtask_title: Optional[str],
-        status: str,
-    ) -> None:
-        """初始化当前任务变更消息.
-        
-        Args:
-            sender: 消息发送者
-            task_id: 任务 ID
-            subtask_id: 子任务 ID
-            subtask_title: 子任务标题
-            status: 任务状态
-        """
-        super().__init__()
-        self.task_id = task_id
-        self.subtask_id = subtask_id
-        self.subtask_title = subtask_title
-        self.status = status
-
-
-@dataclass
 class TaskPanelToggled(Message):
     """任务面板展开/折叠消息
     
@@ -211,7 +134,5 @@ class TaskPanelToggled(Message):
 __all__ = [
     "TaskItem",
     "UpdatedReason",
-    "TasksPaneUpdated",
-    "CurrentTaskChanged",
     "TaskPanelToggled",
 ]

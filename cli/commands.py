@@ -426,7 +426,8 @@ def _cmd_goal(args: str, context: dict) -> str:
             goal_manager = _get_goal_manager()
             if goal_manager:
                 goal_manager.set(goal_text)
-                return f"Goal created: {goal_text[:50]}..."
+                # 返回特殊标记，通知 CLI 启动 agent 执行
+                return f"__START_GOAL__{goal_text}"
         return "Usage: /goal <text>"
 
 

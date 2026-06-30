@@ -184,6 +184,7 @@ class ExitReason(str, Enum):
     INTERRUPTED = "interrupted"  # 中断
     COMPLETED = "completed"  # 任务完成
     ABORTED = "aborted"  # 被中止
+    TOOL_LOOP_HALT = "tool_loop_halt"  # Tool Loop 检测到循环，强制停止
     UNKNOWN = "unknown"  # 未知原因
 
     def __str__(self) -> str:

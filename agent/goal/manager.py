@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 # Constants & defaults
 # ──────────────────────────────────────────────────────────────────────
 
-DEFAULT_MAX_TURNS = 20
+# 参考 Hermes 的默认值：父代理 90 次，子代理 50 次
+DEFAULT_MAX_TURNS = 90
 DEFAULT_JUDGE_TIMEOUT = 30.0
 DEFAULT_JUDGE_MAX_TOKENS = 4096
 # Cap how much of the last response we send to the judge.
