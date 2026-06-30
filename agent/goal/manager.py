@@ -28,9 +28,6 @@ from typing import Optional, Tuple, List, Dict, Any, TYPE_CHECKING
 from .models import GoalState, GoalStatus
 from agent.state.enums import ExitDecision, ExitReason
 
-if TYPE_CHECKING:
-    from agent.auxiliary_client import AnyLLMClient
-
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────
@@ -346,18 +343,9 @@ class GoalManager:
     ) -> Tuple[str, str, bool]:
         """尝试使用 auxiliary.goal_judge 模型"""
         try:
-            from agent.auxiliary_client import get_text_auxiliary_client, get_auxiliary_extra_body
+            from agent.llm.auxiliary_client import acall_llm
         except ImportError:
             return "skipped", "auxiliary client unavailable", False
-
-        try:
-            client, model = get_text_auxiliary_client("goal_judge")
-        except Exception as exc:
-            logger.debug("GoalManager: get_text_auxiliary_client failed: %s", exc)
-            return "skipped", "auxiliary client unavailable", False
-
-        if client is None or not model:
-            return "skipped", "no auxiliary client configured", False
 
         # 构建 prompt
         clean_subgoals = [s.strip() for s in (subgoals or []) if s and s.strip()]
@@ -365,37 +353,35 @@ class GoalManager:
 
         if clean_subgoals:
             subgoals_block = self._render_subgoals_block_static(clean_subgoals)
-            prompt = JUDGE_USER_PROMPT_WITH_SUBGOALS_TEMPLATE.format(
+            user_content = JUDGE_USER_PROMPT_WITH_SUBGOALS_TEMPLATE.format(
                 goal=self._truncate(goal, 2000),
                 subgoals_block=self._truncate(subgoals_block, 2000),
                 response=self._truncate(last_response, _JUDGE_RESPONSE_SNIPPET_CHARS),
                 current_time=current_time,
             )
         else:
-            prompt = JUDGE_USER_PROMPT_TEMPLATE.format(
+            user_content = JUDGE_USER_PROMPT_TEMPLATE.format(
                 goal=self._truncate(goal, 2000),
                 response=self._truncate(last_response, _JUDGE_RESPONSE_SNIPPET_CHARS),
                 current_time=current_time,
             )
 
         try:
-            resp = client.chat.completions.create(
-                model=model,
+            resp = await acall_llm(
                 messages=[
                     {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
+                    {"role": "user", "content": user_content},
                 ],
+                task="goal_judge",
                 temperature=0,
                 max_tokens=self._judge_max_tokens,
-                timeout=self._judge_timeout,
-                extra_body=get_auxiliary_extra_body() or None,
             )
         except Exception as exc:
             logger.info("GoalManager: auxiliary judge API call failed (%s)", exc)
             return "skipped", f"judge error: {type(exc).__name__}", False
 
         try:
-            raw = resp.choices[0].message.content or ""
+            raw = resp.content if hasattr(resp, "content") else str(resp)
         except Exception:
             raw = ""
 

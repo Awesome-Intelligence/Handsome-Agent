@@ -1854,6 +1854,7 @@ class HandsomeAgentApp(App):
         self.app.call_later(lambda: self._call_agent_async(user_input))
 
     def _call_agent_async(self, user_input: str) -> None:
+        """使用持久事件循环在子线程中运行异步 agent"""
         import asyncio
         from concurrent.futures import ThreadPoolExecutor
 
@@ -1867,21 +1868,31 @@ class HandsomeAgentApp(App):
             self.app.call_later(self._on_agent_thinking, text)
 
         def run_agent():
+            """在子线程中运行异步 agent"""
             try:
                 agent = self._get_agent()
                 if agent:
                     agent.set_stream_callback(on_stream_delta)
                     agent.set_thinking_callback(on_thinking)
                     
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
+                    # 获取或创建线程局部的事件循环
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_closed():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    
                     try:
                         response = agent.chat(user_input, enable_stream=True)
                         if asyncio.iscoroutine(response):
                             response = loop.run_until_complete(response)
                         return response
                     finally:
-                        loop.close()
+                        # 不关闭循环，让它被垃圾回收
+                        pass
                 else:
                     return "Agent 未初始化，请检查配置"
             except Exception as e:

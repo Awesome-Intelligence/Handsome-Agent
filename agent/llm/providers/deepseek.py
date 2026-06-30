@@ -55,6 +55,9 @@ class DeepSeekProvider(BaseProvider):
     async def _get_client(self) -> httpx.AsyncClient:
         """获取 HTTP 客户端"""
         if self._client is None:
+            # 配置 limits 以避免 Windows 上的事件循环问题
+            # limits=None 禁用连接池重用
+            limits = httpx.Limits(max_keepalive_connections=0, max_connections=1)
             self._client = httpx.AsyncClient(
                 base_url=self.API_URL,
                 headers={
@@ -62,6 +65,7 @@ class DeepSeekProvider(BaseProvider):
                     "Content-Type": "application/json",
                 },
                 timeout=self.config.timeout,
+                limits=limits,
             )
         return self._client
 
