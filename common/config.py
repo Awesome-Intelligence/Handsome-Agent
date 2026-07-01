@@ -93,6 +93,17 @@ class BrowserConfig:
 
 
 @dataclass
+class SkillsConfig:
+    """技能系统配置"""
+    external_dirs: List[str] = field(default_factory=list)
+    disabled: List[str] = field(default_factory=list)
+    platform_disabled: Dict[str, List[str]] = field(default_factory=dict)
+    auto_sync: bool = True
+    track_usage: bool = True
+    stale_threshold_days: int = 90
+
+
+@dataclass
 class SessionResetPolicy:
     """Session 重置策略"""
     mode: str = "both"
@@ -355,6 +366,15 @@ class Settings(BaseSettings):
         "enabled": True,
     })
     
+    skills: Dict[str, Any] = Field(default_factory=lambda: {
+        "external_dirs": [],
+        "disabled": [],
+        "platform_disabled": {},
+        "auto_sync": True,
+        "track_usage": True,
+        "stale_threshold_days": 90,
+    })
+    
     compression: Dict[str, Any] = Field(default_factory=lambda: {
         "enabled": True,
         "threshold": 0.85,
@@ -424,6 +444,56 @@ def get_config_dir() -> Path:
 def get_skills_dir() -> Path:
     """获取技能目录"""
     return Path(get_settings().skills_dir)
+
+
+def get_profile_skills_dir(profile: str = "default") -> Path:
+    """获取指定 profile 的技能目录
+    
+    Args:
+        profile: Profile 名称，默认为 "default"
+    
+    Returns:
+        Profile 技能目录路径
+    """
+    home = Path(get_settings().handsome_home)
+    profiles_dir = home / "profiles"
+    
+    if profile == "default":
+        # default profile 使用主目录下的 skills 目录
+        return home / "skills"
+    
+    # 其他 profile 使用 profiles/<name>/skills
+    return profiles_dir / profile / "skills"
+
+
+def get_current_profile() -> str:
+    """获取当前活动的 profile 名称
+    
+    优先级：
+    1. 环境变量 HANDSOME_PROFILE
+    2. profiles/current 符号链接指向的 profile
+    3. 默认值 "default"
+    
+    Returns:
+        当前 profile 名称
+    """
+    import os
+    
+    # 1. 检查环境变量
+    env_profile = os.environ.get("HANDSOME_PROFILE")
+    if env_profile:
+        return env_profile
+    
+    # 2. 检查符号链接
+    home = Path(get_settings().handsome_home)
+    profiles_dir = home / "profiles"
+    link = profiles_dir / "current"
+    
+    if link.is_symlink():
+        return link.resolve().name
+    
+    # 3. 默认值
+    return "default"
 
 
 def ensure_workspace_dirs():
@@ -589,3 +659,64 @@ def get_logging_config() -> LoggingConfig:
         backup_count=config.get("backup_count", 5),
         rotation=config.get("rotation", "daily"),
     )
+
+
+def get_skills_config() -> SkillsConfig:
+    """获取技能配置"""
+    config = get_settings().skills
+    return SkillsConfig(
+        external_dirs=config.get("external_dirs", []),
+        disabled=config.get("disabled", []),
+        platform_disabled=config.get("platform_disabled", {}),
+        auto_sync=config.get("auto_sync", True),
+        track_usage=config.get("track_usage", True),
+        stale_threshold_days=config.get("stale_threshold_days", 90),
+    )
+
+
+def get_disabled_skills(platform: Optional[str] = None) -> List[str]:
+    """获取禁用的技能列表
+    
+    Args:
+        platform: 可选的平台名称，如 "telegram"、"discord"
+    
+    Returns:
+        禁用的技能名称列表
+    """
+    skills_cfg = get_settings().skills
+    disabled = set(skills_cfg.get("disabled", []))
+    
+    # 平台级禁用
+    if platform:
+        platform_disabled = skills_cfg.get("platform_disabled", {}).get(platform, [])
+        disabled.update(platform_disabled)
+    
+    return list(disabled)
+
+
+def get_external_skills_dirs() -> List[Path]:
+    """获取外部技能目录列表"""
+    skills_cfg = get_settings().skills
+    dirs = []
+    
+    for dir_path in skills_cfg.get("external_dirs", []):
+        path = Path(dir_path).expanduser()
+        if path.exists():
+            dirs.append(path)
+    
+    return dirs
+
+
+def get_skills_external_dirs() -> List[str]:
+    """获取配置的外部技能目录列表（字符串形式）
+    
+    Returns:
+        外部目录路径字符串列表，如果配置为单个字符串也会转换为列表
+    """
+    settings = get_settings()
+    skills_config = settings.skills
+    external_dirs = skills_config.get("external_dirs", [])
+    if isinstance(external_dirs, str):
+        external_dirs = [external_dirs]
+    return external_dirs
+   

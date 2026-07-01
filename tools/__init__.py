@@ -20,6 +20,17 @@ Hermes 风格工具系统，包含：
 - 看板工具 (Kanban Tool)
 - 定时任务工具 (Cronjob Tool)
 
+技能管理工具（Agent 集成）：
+- 技能管理工具 (Skill Manager Tool) - skill_manage
+- 技能查看工具 (Skill View Tool) - skill_view
+- 技能列表工具 (Skill List Tool) - skill_list
+- 技能搜索工具 (Skill Search Tool) - skill_search
+- 技能 Curator 工具 (Skill Curator Tool) - skill_curator
+- 技能调度器工具 (Skill Scheduler Tool) - skill_scheduler
+- 技能分析工具 (Skill Analysis Tool) - skill_analysis
+- 技能打包工具 (Skill Bundle Tool) - skill_bundle
+- 技能历史工具 (Skill History Tool) - skill_history
+
 新增工具（参考 Hermes）：
 - 浏览器工具 (Browser Tool) - 浏览器自动化
 - TTS 工具 (TTS Tool) - 文本转语音
@@ -27,6 +38,14 @@ Hermes 风格工具系统，包含：
 - 图像生成工具 (Image Generation Tool) - AI 图像生成
 - Home Assistant 工具 (Home Assistant Tool) - 智能家居控制
 - 会话搜索工具 (Session Search Tool) - 历史会话搜索
+- 凭证管理工具 (Credential Manager Tool) - 密钥安全管理
+
+凭证管理模块：
+- CredentialManager - 凭证管理器类
+- SecretMetadata - 密钥元数据结构
+- SecretCaptureResult - 密钥捕获结果
+- get_credential_manager() - 获取凭证管理器单例
+- reset_credential_manager() - 重置凭证管理器单例
 """
 
 from dataclasses import dataclass
@@ -36,6 +55,13 @@ from .schema_registry import SchemaRegistry, UnifiedToolSchema, ToolSource
 from .registry import ToolRegistry, ToolEntry, registry, discover_builtin_tools
 from .model_tools import register_tool, tool_registry
 from .definitions.file_tools import FILE_TOOLS
+from .credential_manager import (
+    CredentialManager,
+    SecretMetadata,
+    SecretCaptureResult,
+    get_credential_manager,
+    reset_credential_manager,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -152,4 +178,10 @@ __all__ = [
     "get_all_tools",
     "get_tool_by_name",
     "get_tools_by_category",
+    # 凭证管理
+    "CredentialManager",
+    "SecretMetadata",
+    "SecretCaptureResult",
+    "get_credential_manager",
+    "reset_credential_manager",
 ]

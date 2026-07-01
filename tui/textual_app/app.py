@@ -1140,10 +1140,8 @@ class HandsomeAgentApp(App):
     def _get_skills_count(self) -> int:
         """获取已加载的 Skill 数量"""
         try:
-            from skills.skill_loader import get_skill_loader
-            loader = get_skill_loader()
-            if loader:
-                return len(loader._skills) if hasattr(loader, '_skills') else 0
+            from agent.skills.skill_manager import skill_manager
+            return len(skill_manager.skills)
         except ImportError:
             pass
         return 0

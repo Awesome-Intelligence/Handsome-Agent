@@ -5,6 +5,8 @@ TUI 侧边栏组件 - 提供文件树、目标、Agent、日志面板
 
 from __future__ import annotations
 
+import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Iterable
 from typing_extensions import Self
@@ -14,7 +16,7 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.events import Click
 from textual.message import Message
-from textual.widgets import Static, Log, TabbedContent, TabPane, DirectoryTree
+from textual.widgets import Static, Log, TabbedContent, TabPane, DirectoryTree, Input
 from textual.widgets import Tabs
 from textual import on
 
@@ -95,6 +97,39 @@ class SidebarPane(TabPane):
 
 
 # ============================================================================
+# 目标面板配置常量
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class GoalPaneConfig:
+    """GoalPane 配置常量"""
+    # 显示限制
+    MAX_GOAL_DISPLAY_LENGTH: int = 50
+    MAX_TASK_TITLE_LENGTH: int = 38
+    MAX_VISIBLE_TASKS: int = 15
+    PROGRESS_BAR_WIDTH: int = 10
+    
+    # 刷新配置
+    REFRESH_INTERVAL: float = 1.0
+    
+    # 旋转动画
+    SPINNER_FRAMES: tuple = ("⚪", "🟡", "🟠")
+    
+    # Goal 状态图标和文本
+    GOAL_STATUS_ICONS: tuple = ("🎯", "⏸️", "✅", "🗑️", "⏰")
+    GOAL_STATUS_TEXT: tuple = ("执行中", "已暂停", "已完成", "已清除", "已过期")
+    
+    # 任务状态图标
+    TASK_STATUS_ICONS: tuple = ("⚪", "🔄", "✅", "➖")
+    TASK_STATUS_TEXT: tuple = ("待处理", "进行中", "已完成", "已取消")
+
+
+# 全局配置实例
+GOAL_PANE_CONFIG = GoalPaneConfig()
+
+
+# ============================================================================
 # 目标面板（合并 Goal + 任务）
 # ============================================================================
 
@@ -108,6 +143,15 @@ class GoalPane(SidebarPane):
     2. 下方显示 Todo 任务列表（按状态分组）
     3. 支持通过 GoalManager 和 SessionTodoStore 动态更新
     """
+    
+    # 实例属性优化
+    __slots__ = (
+        '_goal_manager', '_logger', '_todo_store', '_config',
+        '_refresh_interval', '_spinner_index', '_spinner_frames',
+        '_refresh_timer', '_has_active_goal', '_tasks',
+        '_goal_header', '_goal_progress', '_goal_empty', '_tasks_list',
+        '_last_goal_state', '_last_tasks_hash'
+    )
     
     # Goal 状态图标
     GOAL_STATUS_ICONS = {
@@ -221,19 +265,25 @@ class GoalPane(SidebarPane):
     }
     """
     
-    # 内部数据结构
-    _tasks: Dict[str, List] = {}  # task_id -> subtasks
-    _todo_store = None  # SessionTodoStore 实例
-    _refresh_interval: float = 1.0  # 刷新间隔（秒）
-    _spinner_index: int = 0  # 旋转图标索引
-    _spinner_frames: tuple = ("⚪", "🟡", "🟠")  # 进行中状态循环图标
-    _refresh_timer = None  # 定时器引用
-    _has_active_goal: bool = False  # 是否有活跃的 goal
-    
     def __init__(self, goal_manager=None) -> None:
         self._goal_manager = goal_manager
         self._logger = None
+        self._todo_store = None
+        self._config = GOAL_PANE_CONFIG  # 使用配置实例
+        self._refresh_interval = self._config.REFRESH_INTERVAL
+        self._spinner_index = 0
+        self._spinner_frames = self._config.SPINNER_FRAMES
+        self._refresh_timer = None
         self._has_active_goal = False
+        self._tasks = {}
+        self._last_goal_state = None
+        self._last_tasks_hash = None
+        # DOM 缓存初始化
+        self._goal_header = None
+        self._goal_progress = None
+        self._goal_empty = None
+        self._tasks_list = None
+        
         # 检查是否有活跃的 goal
         if goal_manager is not None and goal_manager.is_active():
             self._has_active_goal = True
@@ -271,6 +321,12 @@ class GoalPane(SidebarPane):
             self._logger = get_tui_logger("GoalPane")
         except ImportError:
             self._logger = None
+        
+        # 缓存 DOM 组件引用
+        self._goal_header = self.query_one("#goal-header", Static)
+        self._goal_progress = self.query_one("#goal-progress", Static)
+        self._goal_empty = self.query_one("#goal-empty", Static)
+        self._tasks_list = self.query_one("#tasks-list", Static)
         
         # 初始化 SessionTodoStore
         self._init_todo_store()
@@ -312,31 +368,77 @@ class GoalPane(SidebarPane):
             if self._logger:
                 self._logger.debug("Refresh timer stopped")
     
+    def _log_warning(self, msg: str) -> None:
+        """统一日志警告（带空值检查）"""
+        if self._logger:
+            self._logger.warning(msg)
+    
+    def _get_goal_state_hash(self) -> Optional[str]:
+        """计算目标状态的哈希值，用于变化检测"""
+        if not self._goal_manager:
+            return None
+        try:
+            state = self._goal_manager.state
+            if not state:
+                return None
+            # 组合关键状态字段生成哈希
+            hash_input = f"{state.status}:{state.goal}:{state.current_turn}:{state.max_turns}"
+            return hashlib.md5(hash_input.encode()).hexdigest()[:8]
+        except Exception:
+            return None
+    
+    def _get_tasks_hash(self) -> Optional[str]:
+        """计算任务列表的哈希值，用于变化检测"""
+        if not self._todo_store:
+            return None
+        try:
+            todos = self._todo_store.read()
+            # 使用任务 ID 和状态生成哈希
+            task_str = "|".join(f"{t.get('id', '')}:{t.get('status', '')}" for t in todos)
+            if not task_str:
+                return "empty"
+            return hashlib.md5(task_str.encode()).hexdigest()[:8]
+        except Exception:
+            return None
+    
     def _refresh_all(self) -> None:
-        """刷新 Goal 和任务状态"""
-        self._refresh_goal()
+        """刷新 Goal 和任务状态（智能刷新）"""
+        try:
+            # 计算当前状态的哈希
+            current_goal_hash = self._get_goal_state_hash()
+            current_tasks_hash = self._get_tasks_hash()
+            
+            # 只有哈希变化时才更新 DOM
+            goal_changed = current_goal_hash != self._last_goal_state
+            tasks_changed = current_tasks_hash != self._last_tasks_hash
+            
+            if goal_changed:
+                self._refresh_goal()
+                self._last_goal_state = current_goal_hash
+            
+            if tasks_changed:
+                self._refresh_tasks()
+                self._last_tasks_hash = current_tasks_hash
+            
+            # 检查是否有 active goal（使用公共方法）
+            has_active_goal = (
+                self._goal_manager is not None 
+                and self._goal_manager.is_active()
+            )
+            
+            # 根据 goal 状态控制定时器
+            if has_active_goal and not self._has_active_goal:
+                # 从无 goal 变为有 goal，启动定时器
+                self._has_active_goal = True
+                self._ensure_timer_running()
+            elif not has_active_goal and self._has_active_goal:
+                # 从有 goal 变为无 goal，停止定时器
+                self._has_active_goal = False
+                self._ensure_timer_stopped()
+        except Exception as e:
+            self._log_warning(f"Refresh failed: {e}")
         
-        # 检查是否有 active goal
-        has_active_goal = (
-            self._goal_manager is not None 
-            and self._goal_manager._current_goal is not None
-            and self._goal_manager._current_goal.status == "active"
-        )
-        
-        # 根据 goal 状态控制定时器
-        if has_active_goal and not self._has_active_goal:
-            # 从无 goal 变为有 goal，启动定时器
-            self._has_active_goal = True
-            self._ensure_timer_running()
-        elif not has_active_goal and self._has_active_goal:
-            # 从有 goal 变为无 goal，停止定时器
-            self._has_active_goal = False
-            self._ensure_timer_stopped()
-        
-        # 始终刷新任务列表（无论是否有 goal）
-        self._refresh_tasks()
-        
-        # 更新旋转图标帧
+        # 更新旋转图标帧（始终执行，UX 需要）
         self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
     
     def _refresh_goal(self) -> None:
@@ -346,7 +448,7 @@ class GoalPane(SidebarPane):
             return
         
         try:
-            goal_state = self._goal_manager._current_goal
+            goal_state = self._goal_manager.state
             
             if not goal_state:
                 self._show_goal_empty_state()
@@ -361,24 +463,22 @@ class GoalPane(SidebarPane):
     def _show_goal_empty_state(self) -> None:
         """显示 Goal 空状态"""
         try:
-            header = self.query_one("#goal-header", Static)
-            progress = self.query_one("#goal-progress", Static)
-            empty = self.query_one("#goal-empty", Static)
-            
-            header.update("")
-            progress.update("")
-            empty.display = True
+            if self._goal_header:
+                self._goal_header.update("")
+            if self._goal_progress:
+                self._goal_progress.update("")
+            if self._goal_empty:
+                self._goal_empty.display = True
         except Exception:
             pass
     
     def _update_goal_display(self, goal_state) -> None:
         """更新 Goal 状态显示"""
         try:
-            header = self.query_one("#goal-header", Static)
-            progress = self.query_one("#goal-progress", Static)
-            empty = self.query_one("#goal-empty", Static)
+            if not self._goal_header or not self._goal_progress or not self._goal_empty:
+                return
             
-            empty.display = False
+            self._goal_empty.display = False
             
             # 获取状态信息
             status = goal_state.status
@@ -387,13 +487,22 @@ class GoalPane(SidebarPane):
             
             # 获取目标描述（截断过长文本）
             goal_text = goal_state.goal
-            display_goal = goal_text[:50] + "..." if len(goal_text) > 50 else goal_text
+            max_len = self._config.MAX_GOAL_DISPLAY_LENGTH
+            display_goal = goal_text[:max_len] + "..." if len(goal_text) > max_len else goal_text
             
-            # 获取轮次信息
-            budget = self._goal_manager._budget
-            current_turn = budget.turns_used
-            max_turns = budget.max_turns
-            remaining_turns = budget.remaining_turns()
+            # 获取轮次信息（优先使用 get_display_info）
+            try:
+                display_info = self._goal_manager.get_display_info()
+                if display_info:
+                    current_turn = display_info.current_turn
+                    max_turns = display_info.max_turns
+                else:
+                    current_turn = goal_state.current_turn
+                    max_turns = goal_state.max_turns
+            except AttributeError:
+                # 兼容旧版 GoalManager
+                current_turn = getattr(goal_state, 'current_turn', 0)
+                max_turns = getattr(goal_state, 'max_turns', 0)
             
             # 获取任务进度信息
             total_tasks = 0
@@ -411,18 +520,17 @@ class GoalPane(SidebarPane):
                 task_progress = 0
             
             # 更新头部
-            header.update(f"""[bold]{status_icon} {status_text}[/bold]  [accent]{display_goal}[/accent]""")
+            self._goal_header.update(f"""[bold]{status_icon} {status_text}[/bold]  [accent]{display_goal}[/accent]""")
             
             # 更新进度条（基于任务完成情况）+ 轮次信息
             progress_bar = self._make_progress_bar(task_progress)
             if total_tasks > 0:
-                progress.update(f"""[dim]任务:[/dim] {completed_tasks}/{total_tasks} {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
+                self._goal_progress.update(f"""[dim]任务:[/dim] {completed_tasks}/{total_tasks} {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
             else:
-                progress.update(f"""[dim]任务:[/dim] 0/0 {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
+                self._goal_progress.update(f"""[dim]任务:[/dim] 0/0 {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
             
         except Exception as e:
-            if self._logger:
-                self._logger.warning(f"Failed to update Goal display: {e}")
+            self._log_warning(f"Failed to update Goal display: {e}")
     
     def _get_goal_status_text(self, status: str) -> str:
         """获取 Goal 状态的中文文本"""
@@ -487,20 +595,23 @@ class GoalPane(SidebarPane):
     
     def _update_tasks_display(self) -> None:
         """更新任务列表显示（按原始顺序，不分组）"""
-        tasks_list_widget = self.query_one("#tasks-list", Static)
+        if not self._tasks_list:
+            return
         
         if not self._tasks:
-            tasks_list_widget.update("[dim]暂无任务[/dim]")
+            self._tasks_list.update("[dim]暂无任务[/dim]")
             return
         
         lines = []
         total_count = 0
+        max_visible = self._config.MAX_VISIBLE_TASKS
+        max_title_len = self._config.MAX_TASK_TITLE_LENGTH
         
         # 按原始顺序遍历所有任务
         for board_id, subtasks in self._tasks.items():
             for subtask in subtasks:
                 total_count += 1
-                if total_count > 15:  # 限制最多显示15个
+                if total_count > max_visible:
                     break
                 
                 status = getattr(subtask, 'status', 'unknown')
@@ -511,21 +622,23 @@ class GoalPane(SidebarPane):
                     icon = self.TASK_STATUS_ICONS.get(status, "❓")
                 
                 title = getattr(subtask, 'title', '未知任务')
-                display_title = title[:38] if len(title) > 38 else title
+                display_title = title[:max_title_len] if len(title) > max_title_len else title
                 lines.append(f"{icon} {display_title}")
             
-            if total_count > 15:
+            if total_count > max_visible:
                 break
         
         if not lines:
             lines.append("[dim]暂无任务[/dim]")
-        elif total_count > 15:
-            lines.append(f"[dim]... 还有 {total_count - 15} 个任务[/dim]")
+        elif total_count > max_visible:
+            lines.append(f"[dim]... 还有 {total_count - max_visible} 个任务[/dim]")
         
-        tasks_list_widget.update("\n".join(lines).strip())
+        self._tasks_list.update("\n".join(lines).strip())
     
-    def _make_progress_bar(self, percent: int, width: int = 10) -> str:
+    def _make_progress_bar(self, percent: int, width: int = None) -> str:
         """生成进度条"""
+        if width is None:
+            width = self._config.PROGRESS_BAR_WIDTH
         filled = int(width * percent / 100)
         empty = width - filled
         return f"[success]{'█' * filled}[/success][dim]{'░' * empty}[/dim]"
@@ -615,6 +728,340 @@ class FileTreePane(SidebarPane):
         tree = self.query_one(DirectoryTree, None)
         if tree:
             tree.focus(scroll_visible=False)
+
+
+# ============================================================================
+# 技能面板
+# ============================================================================
+
+
+class SkillsPane(SidebarPane):
+    """技能面板 - 显示已安装的技能和 Bundle 列表"""
+
+    # 状态图标
+    SKILL_ICONS = {
+        "active": "🟢",
+        "stale": "🟡",
+        "archived": "⚪",
+        "pinned": "📌",
+    }
+
+    # 类别图标
+    CATEGORY_ICONS = {
+        "general": "📦",
+        "developer": "🔧",
+        "data": "📊",
+        "ai": "🤖",
+        "tools": "🛠️",
+    }
+
+    DEFAULT_CSS = """
+    SkillsPane {
+        width: 100%;
+        height: 100%;
+    }
+
+    SkillsPane #skills-container {
+        width: 100%;
+        height: 100%;
+        padding: 1;
+    }
+
+    SkillsPane #skills-header {
+        width: 100%;
+        padding: 1;
+        background: $accent 15%;
+        border: solid $accent;
+        margin-bottom: 1;
+    }
+
+    SkillsPane #skills-tabs {
+        width: 100%;
+        height: auto;
+        margin-bottom: 1;
+    }
+
+    SkillsPane #skills-list {
+        width: 100%;
+        height: 1fr;
+        padding: 1;
+    }
+
+    SkillsPane .skill-item {
+        padding: 0 1 0 2;
+    }
+
+    SkillsPane .skill-item:hover {
+        background: $accent 15%;
+    }
+
+    SkillsPane .skill-item.pinned {
+        color: $accent;
+    }
+
+    SkillsPane .bundle-item {
+        padding: 0 1 0 2;
+        border-left: solid $accent;
+    }
+
+    SkillsPane .bundle-item:hover {
+        background: $accent 15%;
+    }
+
+    SkillsPane .skill-desc {
+        color: $text-muted;
+        padding-left: 2;
+    }
+
+    SkillsPane #skills-empty {
+        color: $text-muted;
+        text-style: italic;
+        padding: 1;
+    }
+
+    SkillsPane #skills-search {
+        width: 100%;
+        margin-bottom: 1;
+    }
+
+    SkillsPane #skills-filter {
+        width: 100%;
+        margin-bottom: 1;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, on_skill_activate: callable = None, on_bundle_activate: callable = None) -> None:
+        self._on_skill_activate = on_skill_activate
+        self._on_bundle_activate = on_bundle_activate
+        self._logger = None
+        self._refresh_timer = None
+        self._skills = []
+        self._bundles = []
+        self._filtered_skills = []
+        self._filtered_bundles = []
+        self._search_query = ""
+        self._current_tab = "skills"  # "skills" or "bundles"
+        # DOM 缓存
+        self._skills_list = None
+        self._bundles_list = None
+        self._search_input = None
+        self._tab_skills = None
+        self._tab_bundles = None
+        super().__init__(id="skills", title="技能")
+
+    def compose(self) -> ComposeResult:
+        """组合子组件"""
+        with Vertical(id="skills-container"):
+            # 搜索框
+            yield Input(placeholder="搜索技能...", id="skills-search")
+            # Tab 选择器
+            yield Static("[b]技能[/b]  |  Bundle", id="skills-tabs")
+            # 技能列表
+            yield Static("[dim]暂无技能[/dim]", id="skills-list")
+            # 底部提示
+            yield Static("[dim]使用 /skill-name 激活技能[/dim]", id="skills-hint")
+
+    def on_mount(self) -> None:
+        """组件挂载时初始化"""
+        try:
+            from common.logging_manager import get_tui_logger
+            self._logger = get_tui_logger("SkillsPane")
+        except ImportError:
+            self._logger = None
+
+        # 缓存 DOM 组件引用
+        self._skills_list = self.query_one("#skills-list", Static)
+        self._search_input = self.query_one("#skills-search", Input)
+
+        # 加载数据
+        self._load_skills()
+        self._load_bundles()
+        self._refresh_display()
+
+        # 启动定时刷新
+        self._start_refresh_timer()
+
+    @on(Input.Changed)
+    def _on_search_changed(self, event: Input.Changed) -> None:
+        """搜索输入变化"""
+        if hasattr(self, '_search_input') and event.input == self._search_input:
+            self._search_query = event.value.lower()
+            self._filter_data()
+            self._refresh_display()
+
+    def _start_refresh_timer(self) -> None:
+        """启动定时刷新"""
+        self._refresh_timer = self.set_interval(5.0, self._refresh_data)
+
+    def _load_skills(self) -> None:
+        """加载技能列表"""
+        try:
+            from agent.skill_usage_tracker import get_skill_telemetry
+            from common.config import get_skills_dir
+
+            skills_dir = get_skills_dir()
+            if not skills_dir.exists():
+                self._skills = []
+                return
+
+            telemetry = get_skill_telemetry()
+            self._skills = []
+
+            # 遍历技能目录
+            for skill_path in skills_dir.iterdir():
+                if not skill_path.is_dir() or skill_path.name.startswith("."):
+                    continue
+
+                skill_md = skill_path / "SKILL.md"
+                if not skill_md.exists():
+                    skill_md = skill_path / "skill.md"
+
+                if not skill_md.exists():
+                    continue
+
+                # 获取追踪数据
+                record = telemetry.get_record(skill_path.name)
+                state = record.state if record else "active"
+                pinned = record.pinned if record else False
+                use_count = record.use_count if record else 0
+
+                # 读取技能描述
+                try:
+                    content = skill_md.read_text(encoding="utf-8")
+                    from agent.skill_utils import parse_frontmatter
+                    fm, _ = parse_frontmatter(content)
+                    description = fm.get("description", "")
+                    category = fm.get("category", "general")
+                    name = fm.get("name", skill_path.name)
+                except Exception:
+                    description = ""
+                    category = "general"
+                    name = skill_path.name
+
+                self._skills.append({
+                    "name": name,
+                    "path": skill_path.name,
+                    "description": description,
+                    "category": category,
+                    "state": state,
+                    "pinned": pinned,
+                    "use_count": use_count,
+                })
+
+        except ImportError as e:
+            if self._logger:
+                self._logger.warning(f"Failed to load skills: {e}")
+            self._skills = []
+
+    def _load_bundles(self) -> None:
+        """加载 Bundle 列表"""
+        try:
+            from agent.skill_workflows import list_bundles
+
+            bundles = list_bundles()
+            self._bundles = [
+                {
+                    "name": b.name,
+                    "slug": b.slug,
+                    "description": b.description,
+                    "skills": b.skills,
+                    "author": b.author,
+                }
+                for b in bundles
+            ]
+        except ImportError as e:
+            if self._logger:
+                self._logger.warning(f"Failed to load bundles: {e}")
+            self._bundles = []
+
+    def _filter_data(self) -> None:
+        """根据搜索过滤数据"""
+        if not self._search_query:
+            self._filtered_skills = self._skills.copy()
+            self._filtered_bundles = self._bundles.copy()
+            return
+
+        # 过滤技能
+        self._filtered_skills = [
+            s for s in self._skills
+            if (self._search_query in s["name"].lower() or
+                self._search_query in s.get("description", "").lower())
+        ]
+
+        # 过滤 Bundle
+        self._filtered_bundles = [
+            b for b in self._bundles
+            if (self._search_query in b["name"].lower() or
+                self._search_query in b.get("description", "").lower())
+        ]
+
+    def _refresh_data(self) -> None:
+        """定时刷新数据"""
+        self._load_skills()
+        self._load_bundles()
+        self._filter_data()
+        self._refresh_display()
+
+    def _refresh_display(self) -> None:
+        """刷新显示"""
+        if not self._skills_list:
+            return
+
+        self._filter_data()
+
+        # 根据当前 Tab 显示内容
+        lines = []
+
+        # 显示技能 Tab 内容
+        if not self._filtered_skills and not self._filtered_bundles:
+            lines.append("[dim]暂无技能[/dim]")
+            if self._search_query:
+                lines.append(f"[dim]搜索 '{self._search_query}' 无结果[/dim]")
+        else:
+            # 分类显示技能
+            categories = {}
+            for skill in self._filtered_skills:
+                cat = skill.get("category", "general")
+                if cat not in categories:
+                    categories[cat] = []
+                categories[cat].append(skill)
+
+            for cat, skills in sorted(categories.items()):
+                cat_icon = self.CATEGORY_ICONS.get(cat, "📦")
+                lines.append(f"[bold]{cat_icon} {cat.upper()}[/bold]")
+
+                for skill in skills[:10]:  # 限制每个分类显示数量
+                    pinned_mark = "📌 " if skill.get("pinned") else "   "
+                    state_icon = self.SKILL_ICONS.get(skill.get("state", "active"), "🟢")
+                    lines.append(f"  {pinned_mark}{state_icon} {skill['name']}")
+                    if skill.get("description"):
+                        desc = skill["description"]
+                        if len(desc) > 30:
+                            desc = desc[:30] + "..."
+                        lines.append(f"       [dim]{desc}[/dim]")
+
+                if len(skills) > 10:
+                    lines.append(f"       [dim]... 还有 {len(skills) - 10} 个[/dim]")
+
+            # 显示 Bundle
+            if self._filtered_bundles:
+                lines.append("")
+                lines.append("[bold]📚 BUNDLE[/bold]")
+                for bundle in self._filtered_bundles[:5]:
+                    lines.append(f"  📦 /{bundle['slug']}")
+                    lines.append(f"       [dim]{bundle.get('description', 'N/A')}[/dim]")
+                    lines.append(f"       [dim]技能: {', '.join(bundle.get('skills', [])[:3])}[/dim]")
+
+                if len(self._filtered_bundles) > 5:
+                    lines.append(f"       [dim]... 还有 {len(self._filtered_bundles) - 5} 个[/dim]")
+
+        self._skills_list.update("\n".join(lines).strip())
+
+    def set_focus_within(self) -> None:
+        """设置面板内部焦点"""
+        if self._search_input:
+            self._search_input.focus()
 
 
 # ============================================================================
@@ -710,12 +1157,14 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         # 创建面板实例（合并 Goal + Tasks 为 GoalPane）
         self._goal_pane = GoalPane(self._goal_manager)
         self._file_tree_pane = FileTreePane(self._cwd)
+        self._skills_pane = SkillsPane()
         self._agent_pane = AgentPane(self._agent)
         self._logs_pane = LogsPane()
 
         with TabbedContent():
             yield self._goal_pane
             yield self._file_tree_pane
+            yield self._skills_pane
             yield self._agent_pane
             yield self._logs_pane
 
@@ -728,6 +1177,11 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
     def file_tree_pane(self) -> FileTreePane:
         """文件树面板."""
         return self._file_tree_pane
+
+    @property
+    def skills_pane(self) -> SkillsPane:
+        """技能面板."""
+        return self._skills_pane
 
     @property
     def agent_pane(self) -> AgentPane:
@@ -895,6 +1349,7 @@ __all__ = [
     "GoalPane",
     "FileTreePane",
     "FilteredDirectoryTree",
+    "SkillsPane",
     "AgentPane",
     "LogsPane",
     "SidebarTabBar",

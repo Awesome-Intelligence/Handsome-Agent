@@ -22,6 +22,8 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+from agent.skill_preprocessing import substitute_template_vars
+
 # Skill command registry
 _skill_commands: Dict[str, Dict[str, Any]] = {}
 _skill_commands_platform: Optional[str] = None
@@ -142,38 +144,17 @@ def _resolve_platform() -> Optional[str]:
 def _parse_frontmatter(content: str) -> Dict[str, Any]:
     """Parse YAML frontmatter from skill content.
 
+    委托给 agent.skill_utils 中的统一实现。
+
     Args:
         content: Raw skill content
 
     Returns:
         Dict of frontmatter values
     """
-    import yaml
-
-    frontmatter = {}
-    lines = content.split("\n")
-
-    if len(lines) < 3 or lines[0].strip() != "---":
-        return frontmatter
-
-    # Find closing ---
-    end_idx = None
-    for i, line in enumerate(lines[1:], 1):
-        if line.strip() == "---":
-            end_idx = i
-            break
-
-    if end_idx is None:
-        return frontmatter
-
-    try:
-        frontmatter = yaml.safe_load("\n".join(lines[1:end_idx]))
-        if not isinstance(frontmatter, dict):
-            frontmatter = {}
-    except Exception:
-        frontmatter = {}
-
-    return frontmatter
+    from agent.skill_utils import parse_frontmatter
+    fm, _ = parse_frontmatter(content)
+    return fm
 
 
 def build_skill_message(
@@ -193,8 +174,8 @@ def build_skill_message(
     """
     content = str(loaded_skill.get("content") or "")
 
-    # Template substitution
-    content = _substitute_template_vars(content, skill_dir)
+    # Template substitution using unified preprocessing
+    content = substitute_template_vars(content, skill_dir)
 
     parts = [content.strip()]
 
@@ -209,44 +190,6 @@ def build_skill_message(
         parts.append(f"User instruction: {user_instruction}")
 
     return "\n".join(parts)
-
-
-def _substitute_template_vars(content: str, skill_dir: Optional[Path]) -> str:
-    """Substitute template variables in skill content.
-
-    Args:
-        content: Raw content
-        skill_dir: Skill directory
-
-    Returns:
-        Content with variables substituted
-    """
-    # Simple template variable substitution
-    # Format: {{variable_name}}
-    import re
-
-    def replace_var(match):
-        var_name = match.group(1).strip()
-
-        # Built-in variables
-        if var_name == "SKILL_DIR":
-            return str(skill_dir) if skill_dir else ""
-        elif var_name == "CWD":
-            return os.getcwd()
-        elif var_name == "HOME":
-            return os.path.expanduser("~")
-        elif var_name == "USER":
-            return os.getenv("USER", os.getenv("USERNAME", "user"))
-
-        # Environment variables
-        env_val = os.getenv(var_name.upper().replace("-", "_"))
-        if env_val:
-            return env_val
-
-        return match.group(0)  # Keep original if not found
-
-    pattern = r"\{\{(\w+)\}\}"
-    return re.sub(pattern, replace_var, content)
 
 
 def activate_skill(skill_name: str, user_instruction: str = "") -> Optional[str]:
@@ -318,6 +261,68 @@ def get_skill_info(skill_name: str) -> Optional[Dict[str, Any]]:
     for name, info in commands.items():
         if name.endswith(skill_name) or info.get("name") == skill_name:
             return info
+
+    return None
+
+
+def resolve_command(command: str) -> Optional[Dict[str, Any]]:
+    """解析命令，优先检查 Bundle，然后检查 Skill
+
+    Args:
+        command: 命令名称（可能有 / 前缀）
+
+    Returns:
+        {"type": "bundle", "key": "/slug"} 或 {"type": "skill", "key": "/slug"}
+        或 None
+    """
+    # 优先检查 Bundle
+    try:
+        from agent.skill_workflows import resolve_bundle_command_key
+        bundle_key = resolve_bundle_command_key(command)
+        if bundle_key:
+            return {"type": "bundle", "key": bundle_key}
+    except ImportError:
+        pass
+
+    # 检查 Skill
+    key = resolve_skill_command_key(command)
+    if key:
+        return {"type": "skill", "key": key}
+
+    return None
+
+
+def execute_command(command: str, user_instruction: str = "", task_id: Optional[str] = None) -> Optional[str]:
+    """执行命令，自动路由到 Bundle 或 Skill
+
+    Args:
+        command: 命令名称
+        user_instruction: 用户指令
+        task_id: 可选的 task ID
+
+    Returns:
+        格式化消息或 None
+    """
+    result = resolve_command(command)
+    if not result:
+        return None
+
+    if result["type"] == "bundle":
+        try:
+            from agent.skill_workflows import build_bundle_invocation_message
+            bundle_result = build_bundle_invocation_message(
+                result["key"],
+                user_instruction=user_instruction,
+                task_id=task_id,
+            )
+            if bundle_result and bundle_result.success:
+                return bundle_result.message
+        except ImportError:
+            pass
+
+    elif result["type"] == "skill":
+        from agent.skill_commands import activate_skill
+        return activate_skill(result["key"], user_instruction)
 
     return None
 

@@ -431,7 +431,10 @@ def cmd_skills_list(args: argparse.Namespace):
     """Handle 'skills list' command."""
     from cli.cli_commands.skills import list_skills
 
-    list_skills(only_installed=args.installed, json_output=args.json)
+    # Get profile from args or use current profile
+    profile = getattr(args, 'profile', None)
+    
+    list_skills(only_installed=args.installed, json_output=args.json, profile=profile)
 
 
 def cmd_skills_search(args: argparse.Namespace):
@@ -672,6 +675,13 @@ def cmd_auth(args: argparse.Namespace):
         auth.list_credentials()
 
 
+def cmd_bundle(args: argparse.Namespace):
+    """Handle 'bundle' command."""
+    from cli.cli_commands.bundle import run_bundle_command
+
+    return run_bundle_command(args)
+
+
 def should_use_textual(args: argparse.Namespace) -> bool:
     """Determine if Textual UI should be used.
 
@@ -895,6 +905,9 @@ def main():
         return
     elif args.command == 'auth':
         cmd_auth(args)
+        return
+    elif args.command == 'bundle':
+        cmd_bundle(args)
         return
 
     # Handle legacy setup mode

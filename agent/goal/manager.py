@@ -21,12 +21,27 @@ from __future__ import annotations
 import json
 import re
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, Tuple, List, Dict, Any, TYPE_CHECKING
 
 from .models import GoalState, GoalStatus
 from agent.state.enums import ExitDecision, ExitReason
 from common.logging_manager import get_decision_logger
+
+
+@dataclass
+class GoalDisplayInfo:
+    """用于 UI 显示的目标信息"""
+    status: str
+    goal: str
+    goal_truncated: str  # 截断后的目标文本
+    current_turn: int
+    max_turns: int
+    remaining_turns: int
+    status_icon: str
+    status_text: str
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Constants & defaults
@@ -186,6 +201,43 @@ class GoalManager:
         if s.status == GoalStatus.DONE.value:
             return f"✓ Goal done ({turns}{sub}): {s.goal}"
         return f"Goal ({s.status}, {turns}{sub}): {s.goal}"
+
+    def get_display_info(self) -> Optional[GoalDisplayInfo]:
+        """获取用于显示的目标信息（供 TUI 等消费者使用）
+
+        Returns:
+            GoalDisplayInfo 或 None（无活跃目标时）
+        """
+        state = self._current_goal
+        if not state:
+            return None
+
+        # 获取状态图标和文本
+        status_icon_map = {
+            GoalStatus.ACTIVE.value: "🎯",
+            GoalStatus.PAUSED.value: "⏸️",
+            GoalStatus.DONE.value: "✅",
+            GoalStatus.CLEARED.value: "🗑️",
+        }
+        status_text_map = {
+            GoalStatus.ACTIVE.value: "执行中",
+            GoalStatus.PAUSED.value: "已暂停",
+            GoalStatus.DONE.value: "已完成",
+            GoalStatus.CLEARED.value: "已清除",
+        }
+
+        remaining = max(0, state.max_turns - state.current_turn)
+
+        return GoalDisplayInfo(
+            status=state.status,
+            goal=state.goal,
+            goal_truncated=state.goal[:50] + "..." if len(state.goal) > 50 else state.goal,
+            current_turn=state.current_turn,
+            max_turns=state.max_turns,
+            remaining_turns=remaining,
+            status_icon=status_icon_map.get(state.status, "❓"),
+            status_text=status_text_map.get(state.status, state.status),
+        )
 
     # ──────────────────────────────────────────────────────────────────────
     # Mutation

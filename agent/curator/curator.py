@@ -185,7 +185,6 @@ class Curator:
         self._running = False
         self._review_task: Optional[asyncio.Task] = None
 
-        self._lifecycle_manager = None
         self._telemetry = None
 
     @property
@@ -193,22 +192,11 @@ class Curator:
         """Lazy load telemetry"""
         if self._telemetry is None:
             try:
-                from skills import get_skill_telemetry
+                from agent.skill_usage_tracker import get_skill_telemetry
                 self._telemetry = get_skill_telemetry()
             except Exception as e:
                 logger.debug(f"Failed to get skill telemetry: {e}")
         return self._telemetry
-
-    @property
-    def lifecycle_manager(self):
-        """Lazy load lifecycle manager"""
-        if self._lifecycle_manager is None:
-            try:
-                from skills import get_lifecycle_manager
-                self._lifecycle_manager = get_lifecycle_manager()
-            except Exception as e:
-                logger.debug(f"Failed to get lifecycle manager: {e}")
-        return self._lifecycle_manager
 
     def add_evaluation_callback(self, callback: Callable) -> None:
         """添加评估回调"""
@@ -596,17 +584,22 @@ class Curator:
         start_time = datetime.now(timezone.utc)
         summary_parts = []
 
-        lifecycle_report = None
-        if self.lifecycle_manager and not dry_run:
-            lifecycle_report = self.lifecycle_manager.apply_automatic_transitions()
+        # 运行 Curator 清理
+        if not dry_run:
+            try:
+                from agent.skill_curator import run_curator, get_curator_config
+                curator_config = get_curator_config()
+                curator_config.dry_run = dry_run
+                curator_report = run_curator(curator_config)
 
-            if lifecycle_report:
-                if lifecycle_report.marked_stale > 0:
-                    summary_parts.append(f"{lifecycle_report.marked_stale} marked stale")
-                if lifecycle_report.archived > 0:
-                    summary_parts.append(f"{lifecycle_report.archived} archived")
-                if lifecycle_report.reactivated > 0:
-                    summary_parts.append(f"{lifecycle_report.reactivated} reactivated")
+                if curator_report.stats.get("marked_stale", 0) > 0:
+                    summary_parts.append(f"{curator_report.stats['marked_stale']} marked stale")
+                if curator_report.stats.get("archived", 0) > 0:
+                    summary_parts.append(f"{curator_report.stats['archived']} archived")
+                if curator_report.stats.get("restored", 0) > 0:
+                    summary_parts.append(f"{curator_report.stats['restored']} reactivated")
+            except Exception as e:
+                logger.debug(f"Failed to run curator: {e}")
 
         telemetry_summary = None
         if self.telemetry:

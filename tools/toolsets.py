@@ -95,6 +95,24 @@ class ToolsetManager:
             tools=["image_generate", "text_summarize", "sentiment_analysis", "translate"],
             platforms=["linux", "windows", "macos"]
         ))
+
+        # Skills operations toolset
+        self.register_toolset(Toolset(
+            name="skills",
+            description="Skill management and lifecycle operations",
+            tools=[
+                "skill_manage",        # Create, update, delete skills
+                "skill_view",          # View skill content
+                "skill_list",          # List skills
+                "skill_search",        # Search skills
+                "skill_curator",       # Curator lifecycle management
+                "skill_scheduler",     # Scheduler and lock operations
+                "skill_analysis",      # Skill statistics and insights
+                "skill_bundle",        # Import/export and templates
+                "skill_history",       # Version history and rollback
+            ],
+            platforms=["linux", "windows", "macos"]
+        ))
     
     def register_toolset(self, toolset: Toolset):
         """Register a toolset."""

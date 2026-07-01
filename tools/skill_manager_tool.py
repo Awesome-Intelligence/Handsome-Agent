@@ -10,18 +10,19 @@ Provides skill registration, discovery and execution functionality:
 Based on Hermes Agent's skill_manager_tool.py and skills_tool.py implementation.
 
 Usage:
-    from tools.skill_manager_tool import skill_manage, skills_list, skill_view
+    from tools.skill_manager_tool import skill_manage
 """
 
 import json
 import os
 import re
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from common.logging_manager import get_execution_logger
+from common.skill_utils import parse_frontmatter
+from common.file_utils import atomic_replace, atomic_write_text
 from tools.registry import registry
 
 
@@ -53,18 +54,6 @@ VALID_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9._-]*$')
 
 # 允许的子目录
 ALLOWED_SUBDIRS = {"references", "templates", "scripts", "assets"}
-
-
-def atomic_replace(tmp_path: Path, target_path: Path) -> None:
-    """原子化替换文件"""
-    try:
-        if os.name == 'nt':
-            os.replace(str(tmp_path), str(target_path))
-        else:
-            os.rename(str(tmp_path), str(target_path))
-    except Exception as e:
-        logger.error(f"Atomic replace failed: {e}")
-        raise
 
 
 def _validate_name(name: str) -> Optional[str]:
@@ -110,38 +99,24 @@ def _validate_frontmatter(content: str) -> Optional[str]:
     """验证 SKILL.md 内容包含正确的 frontmatter"""
     if not content.strip():
         return "Content cannot be empty."
-    
-    if not content.startswith("---"):
+
+    parsed, body = parse_frontmatter(content)
+    if parsed == {} and not content.startswith("---"):
         return "SKILL.md must start with YAML frontmatter (---). See existing skills for format."
-    
-    # 查找结束标记
-    end_match = re.search(r'\n---\s*\n', content[3:])
-    if not end_match:
-        return "SKILL.md frontmatter is not closed. Ensure you have a closing '---' line."
-    
-    # 尝试解析 YAML
-    try:
-        import yaml
-        yaml_content = content[3:end_match.start() + 3]
-        parsed = yaml.safe_load(yaml_content)
-    except Exception as e:
-        return f"YAML frontmatter parse error: {e}"
-    
+
     if not isinstance(parsed, dict):
         return "Frontmatter must be a YAML mapping (key: value pairs)."
-    
+
     if "name" not in parsed:
         return "Frontmatter must include 'name' field."
     if "description" not in parsed:
         return "Frontmatter must include 'description' field."
     if len(str(parsed["description"])) > MAX_DESCRIPTION_LENGTH:
         return f"Description exceeds {MAX_DESCRIPTION_LENGTH} characters."
-    
-    # 检查主体内容
-    body = content[end_match.end() + 3:].strip()
-    if not body:
+
+    if not body.strip():
         return "SKILL.md must have content after the frontmatter (instructions, procedures, etc.)."
-    
+
     return None
 
 
@@ -188,59 +163,68 @@ def _find_skill(name: str) -> Optional[Dict[str, Any]]:
 
 
 def _validate_file_path(file_path: str) -> Optional[str]:
-    """验证文件路径"""
-    from tools.registry import registry
+    """验证文件路径安全性"""
     if not file_path:
         return "file_path is required."
     
     normalized = Path(file_path)
     
-    # 防止路径遍历
+    # 1. 防止路径遍历
     if ".." in str(normalized):
         return "Path traversal ('..') is not allowed."
     
-    # 必须在允许的子目录下
+    # 2. 检查绝对路径（跨平台兼容）
+    if normalized.is_absolute() or str(normalized).startswith("/"):
+        return "Absolute paths are not allowed. Use relative paths."
+    
+    # 3. 规范化后再次检查（处理编码后的 ..）
+    try:
+        normalized_resolved = normalized.resolve()
+        if ".." in str(normalized_resolved):
+            return "Path traversal detected after normalization."
+    except Exception:
+        pass
+    
+    # 4. 必须在允许的子目录下
     if not normalized.parts or normalized.parts[0] not in ALLOWED_SUBDIRS:
         allowed = ", ".join(sorted(ALLOWED_SUBDIRS))
         return f"File must be under one of: {allowed}. Got: '{file_path}'"
     
-    # 必须有文件名
+    # 5. 必须有文件名
     if len(normalized.parts) < 2:
         return f"Provide a file path, not just a directory. Example: '{normalized.parts[0]}/myfile.md'"
+    
+    # 6. 检查文件名安全性（防止隐藏文件）
+    filename = normalized.parts[-1]
+    if filename.startswith("."):
+        return "Hidden files (starting with '.') are not allowed."
     
     return None
 
 
 def _resolve_skill_target(skill_dir: Path, file_path: str) -> tuple[Optional[Path], Optional[str]]:
-    """解析支持文件路径"""
-    from tools.registry import registry
+    """解析支持文件路径（带安全检查）"""
+    # 先验证路径
+    validation_error = _validate_file_path(file_path)
+    if validation_error:
+        return None, validation_error
+    
     target = skill_dir / file_path
-    # 确保在 skill_dir 内
+    
+    # 最终安全检查：确保解析后的路径仍在 skill_dir 内
     try:
-        target.relative_to(skill_dir)
+        target_resolved = target.resolve()
+        skill_dir_resolved = skill_dir.resolve()
+        target_resolved.relative_to(skill_dir_resolved)
     except ValueError:
-        return None, "File path escapes skill directory."
+        return None, "File path escapes skill directory (security violation)."
+    
     return target, None
 
 
 def _atomic_write_text(file_path: Path, content: str, encoding: str = "utf-8") -> None:
-    """原子化写入文本"""
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(
-        dir=str(file_path.parent),
-        prefix=f".{file_path.name}.tmp.",
-        suffix=""
-    )
-    try:
-        with os.fdopen(fd, 'w', encoding=encoding) as f:
-            f.write(content)
-        atomic_replace(Path(tmp_path), file_path)
-    except Exception:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
-        raise
+    """原子化写入文本（委托给 common.file_utils）"""
+    atomic_write_text(file_path, content, encoding)
 
 
 def _create_skill(name: str, content: str, category: str = None) -> Dict[str, Any]:
@@ -590,83 +574,6 @@ def skill_manage(
     return json.dumps(result, ensure_ascii=False)
 
 
-def skills_list() -> str:
-    """列出所有可用技能"""
-    skills_dir = get_skills_dir()
-    skills = []
-    
-    if not skills_dir.exists():
-        return json.dumps({"success": True, "skills": []}, ensure_ascii=False)
-    
-    # 查找所有 SKILL.md 文件
-    for skill_md in skills_dir.rglob("SKILL.md"):
-        skill_dir = skill_md.parent
-        name = skill_dir.name
-        
-        # 尝试读取内容获取元数据
-        try:
-            content = skill_md.read_text(encoding="utf-8")
-            # 提取 frontmatter
-            if content.startswith("---"):
-                end_match = re.search(r'\n---\s*\n', content[3:])
-                if end_match:
-                    try:
-                        import yaml
-                        yaml_content = content[3:end_match.start() + 3]
-                        parsed = yaml.safe_load(yaml_content)
-                        if isinstance(parsed, dict):
-                            skills.append({
-                                "name": name,
-                                "path": str(skill_dir.relative_to(skills_dir)),
-                                "description": parsed.get("description", ""),
-                            })
-                            continue
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-        
-        # 如果无法解析，添加基本信息
-        skills.append({
-            "name": name,
-            "path": str(skill_dir.relative_to(skills_dir)),
-            "description": "",
-        })
-    
-    return json.dumps({"success": True, "skills": skills}, ensure_ascii=False)
-
-
-def skill_view(name: str) -> str:
-    """查看技能详情"""
-    existing = _find_skill(name)
-    if not existing:
-        return json.dumps({"success": False, "error": f"Skill '{name}' not found."}, ensure_ascii=False)
-    
-    skill_dir = existing["path"]
-    skill_md = skill_dir / "SKILL.md"
-    
-    content = ""
-    if skill_md.exists():
-        content = skill_md.read_text(encoding="utf-8")
-    
-    # 列出支持文件
-    supporting_files = []
-    for subdir in ALLOWED_SUBDIRS:
-        d = skill_dir / subdir
-        if d.exists():
-            for f in d.rglob("*"):
-                if f.is_file():
-                    supporting_files.append(str(f.relative_to(skill_dir)))
-    
-    return json.dumps({
-        "success": True,
-        "name": name,
-        "path": str(skill_dir),
-        "content": content,
-        "supporting_files": supporting_files,
-    }, ensure_ascii=False)
-
-
 def check_skill_requirements() -> bool:
     """技能工具无外部依赖，始终可用"""
     return True
@@ -741,32 +648,6 @@ SKILL_MANAGE_SCHEMA = {
 }
 
 
-SKILLS_LIST_SCHEMA = {
-    "name": "skills_list",
-    "description": "List all available skills.",
-    "parameters": {
-        "type": "object",
-        "properties": {},
-    },
-}
-
-
-SKILL_VIEW_SCHEMA = {
-    "name": "skill_view",
-    "description": "View a skill's content and supporting files.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "name": {
-                "type": "string",
-                "description": "Name of the skill to view."
-            },
-        },
-        "required": ["name"],
-    },
-}
-
-
 # 注册工具
 registry.register(
     name="skill_manage",
@@ -786,24 +667,4 @@ registry.register(
     ),
     check_fn=check_skill_requirements,
     emoji="📝",
-)
-
-
-registry.register(
-    name="skills_list",
-    toolset="skills",
-    schema=SKILLS_LIST_SCHEMA,
-    handler=lambda args, **kw: skills_list(),
-    check_fn=check_skill_requirements,
-    emoji="📚",
-)
-
-
-registry.register(
-    name="skill_view",
-    toolset="skills",
-    schema=SKILL_VIEW_SCHEMA,
-    handler=lambda args, **kw: skill_view(args.get("name", "")),
-    check_fn=check_skill_requirements,
-    emoji="👁️",
 )

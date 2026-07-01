@@ -391,3 +391,180 @@ def my_tool(parameters: dict, context: dict = None):
 - [Tools Module](../modules/tools/README.md) - 工具模块说明
 - [Context Assembly](./context-assembly.md) - 上下文拼装
 - [LLM Tool Selection](../architecture/llm-tool-selection.md) - LLM 工具选择
+
+---
+
+## 技能系统增强功能 (v2.0)
+
+### 1. 内联 Shell 执行
+
+技能内容支持 `!command` 语法执行 shell 命令：
+
+```markdown
+# 示例技能
+
+执行测试：
+`!python scripts/test.py`
+
+获取环境信息：
+`!echo $PATH`
+```
+
+**安全特性**：
+- 危险命令自动阻止（rm -rf /, format 等）
+- 命令超时控制（默认 30 秒）
+- 输出长度限制（默认 10KB）
+
+### 2. 外部技能来源
+
+支持从多种来源安装技能：
+
+```bash
+# 从 GitHub 安装
+handsome skills install github:owner/repo/skill-name
+
+# 从 URL 安装
+handsome skills install https://example.com/skill.zip
+
+# 搜索技能
+handsome skills search "web scraping"
+```
+
+**支持的来源类型**：
+- `github:owner/repo` - GitHub 仓库
+- `https://...` - 直接 URL
+
+### 3. 技能依赖检查
+
+技能可以声明前置依赖：
+
+```yaml
+---
+name: my-skill
+description: 示例技能
+prerequisites:
+  env_vars:
+    - API_KEY
+    - OPENAI_API_KEY:
+        description: OpenAI API Key
+        required: true
+  commands:
+    - python
+    - git:
+        description: Git version control
+        required: false
+---
+```
+
+### 4. 命名空间支持
+
+支持 `namespace:skill-name` 格式引用技能：
+
+```python
+# 注册到命名空间
+from agent.skill_namespace import get_skill_namespace
+
+ns = get_skill_namespace()
+ns.register("web-search", namespace="mcp")
+ns.register("web-search", namespace="custom")
+
+# 解析引用
+qualified = ns.resolve("mcp:web-search")
+```
+
+### 5. 技能版本锁定
+
+安装的技能版本会被锁定在 `skills/.lock` 文件中：
+
+```bash
+# 列出已安装技能
+handsome skills list
+
+# 检查更新
+handsome skills check-updates
+
+# 强制覆盖锁定版本
+handsome skills install github:owner/repo --force
+```
+
+### 6. 技能包 (Bundle)
+
+创建技能包组合多个相关技能：
+
+```yaml
+# web-dev-bundle.yaml
+name: Web Development
+description: Web 开发技能集
+skills:
+  - html-skill
+  - css-skill
+  - js-skill
+instruction: |
+  当用户请求 Web 开发帮助时，加载所有相关技能。
+```
+
+```bash
+# 激活 Bundle
+/bundle web-dev
+```
+
+### 7. 技能 Hub
+
+统一的技能管理入口：
+
+```python
+from agent.skill_hub import get_skill_hub
+
+hub = get_skill_hub()
+
+# 搜索
+results = await hub.unified_search("web scraping")
+
+# 安装
+result = await hub.install("github:owner/repo/skill")
+
+# 列出已安装
+installed = hub.list_installed()
+```
+
+### 架构概览
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      SkillHub                                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │ SkillSource │  │ LockFile    │  │ PrerequisitesCheck  │ │
+│  │ (适配器)     │  │ (.lock)     │  │ (依赖检查)           │ │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+┌─────────────┐  ┌─────────────────┐  ┌─────────────┐
+│ GitHubSource│  │ SkillNamespace  │  │ SkillBundle │
+└─────────────┘  └─────────────────┘  └─────────────┘
+```
+
+### 迁移指南
+
+**从 v1.x 升级**：
+1. 新增功能完全向后兼容
+2. `.lock` 文件会在首次安装时自动创建
+3. 现有技能无需修改即可使用新功能
+
+**推荐配置**：
+
+```yaml
+# ~/.handsome_agent/config.yaml
+skills:
+  sources:
+    - type: github
+      enabled: true
+    - type: url
+      enabled: true
+  
+  security:
+    inline_shell: true
+    max_timeout: 30
+    max_output: 10240
+```

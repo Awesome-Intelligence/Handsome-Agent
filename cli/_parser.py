@@ -380,6 +380,10 @@ def build_top_level_parser():
         help="Skills management",
         description="Manage skills and bundles",
     )
+    skills_parser.add_argument(
+        "--profile",
+        help="Specify profile to manage skills for",
+    )
     skills_subparsers = skills_parser.add_subparsers(dest="skills_command", help="Skills command")
 
     skills_list_parser = skills_subparsers.add_parser(
@@ -766,5 +770,29 @@ def build_top_level_parser():
         "setup",
         help="Run memory configuration wizard",
     )
+
+    # =========================================================================
+    # bundle command
+    # =========================================================================
+    bundle_parser = subparsers.add_parser(
+        "bundle",
+        help="Bundle management",
+        description="Create, list, delete and view skill bundles",
+    )
+    bundle_subparsers = bundle_parser.add_subparsers(dest="bundle_command", help="Bundle command")
+
+    bundle_list_parser = bundle_subparsers.add_parser("list", help="List all bundles")
+
+    bundle_create_parser = bundle_subparsers.add_parser("create", help="Create a new bundle")
+    bundle_create_parser.add_argument("name", help="Bundle name")
+    bundle_create_parser.add_argument("skills", nargs="+", help="Skill list (at least one)")
+    bundle_create_parser.add_argument("-d", "--description", help="Bundle description")
+    bundle_create_parser.add_argument("-i", "--instruction", help="Additional instruction")
+
+    bundle_delete_parser = bundle_subparsers.add_parser("delete", help="Delete a bundle")
+    bundle_delete_parser.add_argument("name", help="Bundle name")
+
+    bundle_info_parser = bundle_subparsers.add_parser("info", help="Show bundle details")
+    bundle_info_parser.add_argument("name", help="Bundle name")
 
     return parser, subparsers, chat_parser

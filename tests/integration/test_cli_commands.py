@@ -94,12 +94,8 @@ class TestSkillsCLI:
 
         # 直接 mock get_skills_dir 返回空目录
         with patch('cli.skills_cli.get_skills_dir', return_value=empty_dir):
-            # Mock the SkillsLoader import by patching it where it's used
-            with patch('skills.SkillsLoader') as mock_loader_class:
-                mock_instance = MagicMock()
-                mock_instance.load_all = MagicMock(return_value=[])
-                mock_loader_class.return_value = mock_instance
-
+            # Mock SkillManager.list_skills
+            with patch('agent.skills.skill_manager.skill_manager.list_skills', return_value=[]):
                 with patch('skills.get_skill_telemetry') as mock_telemetry:
                     mock_telemetry_instance = MagicMock()
                     mock_telemetry.return_value = mock_telemetry_instance

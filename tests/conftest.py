@@ -8,8 +8,20 @@ import pytest
 import asyncio
 import tempfile
 import os
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock
+
+# Mock problematic modules before any imports
+mock_modules = {
+    'skills': MagicMock(),
+    'skills.telemetry': MagicMock(),
+}
+
+for mod_name, mock_mod in mock_modules.items():
+    if mod_name not in sys.modules:
+        sys.modules[mod_name] = mock_mod
+
 from agent.agent import Agent, AgentResponse
 
 

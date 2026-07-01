@@ -27,6 +27,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from common.logging_manager import get_decision_logger
+from agent.progressive_disclosure import get_skills_system_prompt
 from agent.context.prompt_templates import (
     AGENT_IDENTITY,
     CAPABILITIES,
@@ -374,6 +375,15 @@ class ContextBuilder:
         
         # 记录 stable 层使用的模板变量名（用于日志）
         stable_keys = ["AGENT_IDENTITY", "CAPABILITIES"]
+        
+        # 添加渐进式披露技能索引（Tier 1）
+        try:
+            skills_index = get_skills_system_prompt()
+            if skills_index:
+                stable_parts.append(skills_index)
+                stable_keys.append("SKILLS_INDEX")
+        except Exception as e:
+            self.logger.warning(f"Failed to load skills index: {e}")
 
         # 仅当启用指导时添加指导性文本
         if self.enable_guidance:

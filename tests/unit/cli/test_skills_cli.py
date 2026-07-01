@@ -20,7 +20,7 @@ def temp_skills_dir():
 def test_list_skills_empty(temp_skills_dir, monkeypatch):
     """测试列出空技能目录"""
     from cli.skills_cli import list_skills
-    from skills import SkillTelemetry
+    from agent.skill_usage_tracker import SkillTelemetry
 
     telemetry = SkillTelemetry(skills_dir=temp_skills_dir)
 
@@ -40,7 +40,7 @@ def test_list_skills_empty(temp_skills_dir, monkeypatch):
 def test_list_skills_with_skills(temp_skills_dir, monkeypatch):
     """测试列出有技能的目录"""
     from cli.skills_cli import list_skills
-    from skills import SkillTelemetry
+    from agent.skill_usage_tracker import SkillTelemetry
 
     skill1_dir = temp_skills_dir / "test_skill"
     skill1_dir.mkdir()
@@ -65,7 +65,7 @@ def test_list_skills_with_skills(temp_skills_dir, monkeypatch):
 def test_sync_skills_empty(temp_skills_dir, monkeypatch):
     """测试同步空技能目录"""
     from cli.skills_cli import sync_skills
-    from skills import SkillTelemetry
+    from agent.skill_usage_tracker import SkillTelemetry
 
     telemetry = SkillTelemetry(skills_dir=temp_skills_dir)
 
@@ -88,7 +88,7 @@ def test_sync_skills_empty(temp_skills_dir, monkeypatch):
 def test_uninstall_skill_not_exists(temp_skills_dir, monkeypatch):
     """测试卸载不存在的技能"""
     from cli.skills_cli import uninstall_skill
-    from skills import SkillTelemetry
+    from agent.skill_usage_tracker import SkillTelemetry
 
     telemetry = SkillTelemetry(skills_dir=temp_skills_dir)
 

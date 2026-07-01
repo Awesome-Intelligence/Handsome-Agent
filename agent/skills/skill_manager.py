@@ -39,19 +39,19 @@ import sys
 import importlib
 import json
 import re
+import time
 from typing import Dict, List, Optional, Any, Callable, Union, Type
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import logging
-from collections import defaultdict
+from pathlib import Path
 
-try:
-    import yaml
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
+import yaml
 
 from common.logging_manager import get_decision_logger
+from agent.skills.fuzzy_match import fuzzy_find_and_replace
+from agent.skill_utils import get_external_skills_dirs, iter_skill_index_files, parse_frontmatter
+from tools.path_security import validate_within_dir
 
 
 @dataclass
@@ -87,6 +87,9 @@ class SkillMetadata:
     platforms: List[str] = field(default_factory=lambda: ["linux", "macos", "windows"])
     tags: List[str] = field(default_factory=list)
     related_skills: List[str] = field(default_factory=list)
+    pinned: bool = False
+    pinned_at: Optional[str] = None
+    pinned_by: str = ""
 
 
 @dataclass
@@ -97,18 +100,6 @@ class SkillResult:
     error: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
-
-
-@dataclass
-class SkillRecommendation:
-    """推荐的技能及其匹配信息"""
-    skill_id: str
-    name: str
-    description: str
-    confidence: float
-    matched_by: str
-    required_params: Dict[str, str]
-    suggested_params: Dict[str, Any]
 
 
 class BaseSkill(ABC):
@@ -146,16 +137,24 @@ class SkillManager:
     """
     Manages the registration, discovery, and execution of skills.
     
-    Supports Hermes-style progressive skill discovery:
-    - Context-aware matching
-    - History-based recommendations
-    - Automatic parameter inference
-    - Multi-turn skill invocation
-    - Tag-based discovery
-    - Related skills recommendation
+    核心功能：
+    - 技能注册与分类
+    - 标签管理
+    - 安全扫描集成
+    - 技能固定 (Pinning)
+    
+    推荐功能由独立的 SkillRecommender 提供支持。
+    支持跨 Profile 技能管理：
+    - 每个 profile 有独立的技能目录
+    - 可通过 profile 参数指定加载特定 profile 的技能
     """
     
-    def __init__(self, explanation_depth: str = "detailed"):
+    def __init__(self, profile: str = None, explanation_depth: str = "detailed", security_scan: bool = True):
+        from common.config import get_current_profile, get_profile_skills_dir
+        
+        self._profile = profile or get_current_profile()
+        self._skills_dir = get_profile_skills_dir(self._profile)
+        
         self.skills: Dict[str, BaseSkill] = {}
         self.categories: Dict[str, List[str]] = {}
         self.tags: Dict[str, List[str]] = {}  # tag -> skill_ids
@@ -163,11 +162,74 @@ class SkillManager:
         self._explanation_depth = explanation_depth
         self._decision_logger = get_decision_logger("SkillManager")
         
-        # 渐进式发现相关
-        self._skill_usage_history: List[Dict[str, Any]] = []
-        self._context_keywords: Dict[str, int] = defaultdict(int)
-        self._intent_history: List[str] = []
-        self._skill_co_occurrence: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # 安全扫描配置
+        self._security_scan_enabled = security_scan
+        self._skill_scan_results: Dict[str, Any] = {}  # skill_id -> scan_result
+        self._blocked_skills: Dict[str, str] = {}  # skill_id -> block_reason
+        
+        # 命名空间管理
+        from agent.skill_namespace import get_skill_namespace
+        self._namespace = get_skill_namespace()
+
+    def record_usage(self, skill_id: str, success: bool = True) -> None:
+        """记录技能使用情况
+        
+        同时更新多个追踪系统：
+        - skills/telemetry.py (主追踪系统)
+        - agent/skill_usage_tracker.py (Curator 兼容)
+        
+        Args:
+            skill_id: 技能 ID
+            success: 执行是否成功
+        """
+        # 更新 agent/skill_usage_tracker.py
+        try:
+            from agent.skill_usage_tracker import bump_use
+            bump_use(skill_id)
+        except ImportError:
+            pass
+        
+        self._decision_logger.debug(f"Recorded skill usage: {skill_id}, success={success}")
+
+    def record_view(self, skill_id: str) -> None:
+        """记录技能查看
+        
+        同时更新多个追踪系统。
+        
+        Args:
+            skill_id: 技能 ID
+        """
+        # 更新 agent/skill_usage_tracker.py
+        try:
+            from agent.skill_usage_tracker import bump_view
+            bump_view(skill_id)
+        except ImportError:
+            pass
+
+    def record_patch(self, skill_id: str) -> None:
+        """记录技能修改
+        
+        同时更新多个追踪系统。
+        
+        Args:
+            skill_id: 技能 ID
+        """
+        # 更新 agent/skill_usage_tracker.py
+        try:
+            from agent.skill_usage_tracker import bump_patch
+            bump_patch(skill_id)
+        except ImportError:
+            pass
+
+    @property
+    def profile(self) -> str:
+        """获取当前 profile 名称"""
+        return self._profile
+    
+    @property
+    def skills_dir(self) -> Path:
+        """获取当前 profile 的技能目录"""
+        return self._skills_dir
     
     def set_explanation_depth(self, depth: str) -> None:
         """设置日志详细程度"""
@@ -194,7 +256,7 @@ class SkillManager:
                 self.tags[tag].append(metadata.id)
         
         try:
-            from skills import get_skill_telemetry
+            from agent.skill_usage_tracker import get_skill_telemetry
             telemetry = get_skill_telemetry()
             if metadata.agent_created:
                 telemetry.create_skill_record(
@@ -205,38 +267,590 @@ class SkillManager:
         except Exception as e:
             self._decision_logger.warning(f"Failed to create telemetry record: {e}")
         
+        # 注册到命名空间
+        self._namespace.register(
+            skill_name=metadata.id,
+            namespace=metadata.source or "default",
+            skill_path=Path(metadata.source) if metadata.source else None,
+        )
+        
         self._decision_logger.info(f"Registered skill: {metadata.id} ({metadata.name})")
     
-    def unregister_skill(self, skill_id: str):
-        """Unregister a skill."""
-        if skill_id in self.skills:
-            metadata = self.skills[skill_id].get_metadata()
+    def _scan_skill_security(self, skill_id: str, skill_path: Path, source: str = "community") -> Optional[Dict[str, Any]]:
+        """
+        对技能进行安全扫描
+        
+        Args:
+            skill_id: 技能ID
+            skill_path: 技能路径
+            source: 技能来源
+        
+        Returns:
+            扫描结果，如果被阻止则返回None
+        """
+        if not self._security_scan_enabled:
+            return None
+        
+        try:
+            from common.security import (
+                scan_skill,
+                should_allow_install,
+                append_audit_log,
+                quarantine_bundle,
+            )
+            from common.security.trust import TrustLevel, Verdict
             
-            if metadata.category in self.categories:
-                if skill_id in self.categories[metadata.category]:
-                    self.categories[metadata.category].remove(skill_id)
+            # 执行安全扫描
+            scan_result = scan_skill(skill_path, source)
             
-            for tag in metadata.tags:
-                if tag in self.tags and skill_id in self.tags[tag]:
-                    self.tags[tag].remove(skill_id)
+            # 记录扫描结果
+            self._skill_scan_results[skill_id] = scan_result
             
-            for alias in metadata.aliases:
-                if alias in self.skills:
-                    del self.skills[alias]
+            # 检查是否允许安装
+            allowed, reason = should_allow_install(
+                scan_result.verdict,
+                scan_result.trust_level,
+                force=False,
+                findings_count=len(scan_result.findings),
+            )
+            
+            # 记录审计日志
+            append_audit_log(
+                action="scan",
+                skill_name=skill_id,
+                source=source,
+                trust_level=scan_result.trust_level.value,
+                verdict=scan_result.verdict.value,
+                extra=f"findings={len(scan_result.findings)}",
+            )
+            
+            if allowed is True:
+                self._decision_logger.info(f"技能安全扫描通过: {skill_id}")
+                return scan_result.to_dict()
+            elif allowed is None:
+                # 需要确认 - 将技能隔离
+                try:
+                    files = []
+                    for f in skill_path.rglob("*"):
+                        if f.is_file():
+                            rel_path = str(f.relative_to(skill_path))
+                            try:
+                                content = f.read_bytes()
+                                files.append((rel_path, content))
+                            except Exception:
+                                pass
+                    quarantine_bundle(skill_id, files)
+                    append_audit_log(
+                        action="quarantine",
+                        skill_name=skill_id,
+                        source=source,
+                        trust_level=scan_result.trust_level.value,
+                        verdict=scan_result.verdict.value,
+                        extra=f"findings={len(scan_result.findings)}",
+                    )
+                except Exception as e:
+                    self._decision_logger.warning(f"隔离技能失败: {skill_id}, {e}")
+                
+                self._blocked_skills[skill_id] = f"需要确认: {reason}"
+                self._decision_logger.warning(f"技能需要确认: {skill_id} - {reason}")
+                return None
+            else:
+                # 被阻止
+                self._blocked_skills[skill_id] = reason
+                self._decision_logger.warning(f"技能安全扫描阻止: {skill_id} - {reason}")
+                
+                append_audit_log(
+                    action="block",
+                    skill_name=skill_id,
+                    source=source,
+                    trust_level=scan_result.trust_level.value,
+                    verdict=scan_result.verdict.value,
+                    extra=f"reason={reason}",
+                )
+                return None
+                
+        except ImportError:
+            self._decision_logger.warning("安全扫描模块不可用，跳过扫描")
+            return None
+        except Exception as e:
+            self._decision_logger.error(f"安全扫描失败: {skill_id} - {e}")
+            return None
+    
+    def get_skill_scan_result(self, skill_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取技能的安全扫描结果
+        
+        Args:
+            skill_id: 技能ID
+        
+        Returns:
+            扫描结果字典
+        """
+        return self._skill_scan_results.get(skill_id)
+    
+    def is_skill_blocked(self, skill_id: str) -> bool:
+        """
+        检查技能是否被安全扫描阻止
+        
+        Args:
+            skill_id: 技能ID
+        
+        Returns:
+            是否被阻止
+        """
+        return skill_id in self._blocked_skills
+    
+    def get_block_reason(self, skill_id: str) -> Optional[str]:
+        """
+        获取技能被阻止的原因
+        
+        Args:
+            skill_id: 技能ID
+        
+        Returns:
+            阻止原因
+        """
+        return self._blocked_skills.get(skill_id)
+    
+    def scan_all_skills(self) -> Dict[str, Any]:
+        """
+        对所有已加载的技能进行安全扫描
+        
+        Returns:
+            扫描结果汇总
+        """
+        results = {
+            "total": len(self.skills),
+            "scanned": 0,
+            "passed": 0,
+            "blocked": 0,
+            "needs_confirmation": 0,
+            "skills": {},
+        }
+        
+        for skill_id, skill in self.skills.items():
+            if skill_id in self._blocked_skills:
+                results["blocked"] += 1
+                continue
+            
+            skill_path_str = self.skill_paths.get(skill_id)
+            if not skill_path_str:
+                continue
+            
+            skill_path = Path(skill_path_str)
+            if not skill_path.exists():
+                continue
+            
+            metadata = skill.get_metadata()
+            scan_result = self._scan_skill_security(skill_id, skill_path, metadata.source)
+            
+            results["scanned"] += 1
+            if scan_result:
+                results["passed"] += 1
+                results["skills"][skill_id] = scan_result
+            else:
+                if skill_id in self._blocked_skills:
+                    reason = self._blocked_skills[skill_id]
+                    if "需要确认" in reason:
+                        results["needs_confirmation"] += 1
+                    else:
+                        results["blocked"] += 1
+        
+        return results
+    
+    def unregister_skill(self, skill_id: str, force: bool = False):
+        """注销技能（支持 force 覆盖 pinned 保护）"""
+        if skill_id not in self.skills:
+            self._decision_logger.warning(f"技能不存在: {skill_id}")
+            return
+        
+        metadata = self.skills[skill_id].get_metadata()
+        
+        # 检查 pinned 状态
+        if metadata.pinned and not force:
+            error_msg = f"无法注销固定技能: {skill_id}，请先取消固定或使用 force=True"
+            self._decision_logger.warning(error_msg)
+            raise PermissionError(error_msg)
+        
+        if metadata.category in self.categories:
+            if skill_id in self.categories[metadata.category]:
+                self.categories[metadata.category].remove(skill_id)
+        
+        for tag in metadata.tags:
+            if tag in self.tags and skill_id in self.tags[tag]:
+                self.tags[tag].remove(skill_id)
+        
+        for alias in metadata.aliases:
+            if alias in self.skills:
+                del self.skills[alias]
+        
+        try:
+            from agent.skill_usage_tracker import get_skill_telemetry
+            telemetry = get_skill_telemetry()
+            telemetry.delete_skill_record(skill_id)
+        except Exception as e:
+            self._decision_logger.warning(f"Failed to delete telemetry record: {e}")
+        
+        del self.skills[skill_id]
+        self._decision_logger.info(f"Unregistered skill: {skill_id}")
+    
+    def pin_skill(self, skill_id: str, pinned_by: str = "user") -> bool:
+        """固定技能
+        
+        Args:
+            skill_id: 技能 ID
+            pinned_by: 固定操作者
+        
+        Returns:
+            是否固定成功
+        """
+        if skill_id not in self.skills:
+            self._decision_logger.warning(f"无法固定不存在的技能: {skill_id}")
+            return False
+        
+        skill = self.skills[skill_id]
+        metadata = skill.get_metadata()
+        metadata.pinned = True
+        metadata.pinned_at = str(int(time.time()))
+        metadata.pinned_by = pinned_by
+        
+        self._decision_logger.info(f"固定技能: {skill_id} (by: {pinned_by})")
+        return True
+    
+    def unpin_skill(self, skill_id: str) -> bool:
+        """取消固定技能
+        
+        Args:
+            skill_id: 技能 ID
+        
+        Returns:
+            是否取消固定成功
+        """
+        if skill_id not in self.skills:
+            self._decision_logger.warning(f"无法取消固定不存在的技能: {skill_id}")
+            return False
+        
+        skill = self.skills[skill_id]
+        metadata = skill.get_metadata()
+        
+        if not metadata.pinned:
+            self._decision_logger.warning(f"技能未被固定，无需取消: {skill_id}")
+            return False
+        
+        metadata.pinned = False
+        metadata.pinned_at = None
+        metadata.pinned_by = ""
+        
+        self._decision_logger.info(f"取消固定技能: {skill_id}")
+        return True
+    
+    def _find_collision_candidates(self, skill_name: str) -> List[Dict]:
+        """
+        检测同名技能冲突
+        
+        在多个搜索路径中查找同名技能，返回冲突技能列表。
+        
+        Args:
+            skill_name: 技能名称
+        
+        Returns:
+            冲突技能列表，每个元素包含路径信息
+        """
+        candidates = []
+        
+        # 获取所有技能目录（本地 + 外部）
+        all_dirs = [self._skills_dir]
+        try:
+            external_dirs = get_external_skills_dirs()
+            all_dirs.extend(external_dirs)
+        except Exception as e:
+            self._decision_logger.warning(f"获取外部技能目录失败: {e}")
+        
+        # 在所有目录中搜索同名技能
+        for base_dir in all_dirs:
+            if not base_dir.exists():
+                continue
             
             try:
-                from skills import get_skill_telemetry
-                telemetry = get_skill_telemetry()
-                telemetry.delete_skill_record(skill_id)
+                # 使用 iter_skill_index_files 递归查找 SKILL.md 文件
+                for skill_md_path in iter_skill_index_files(base_dir):
+                    try:
+                        content = skill_md_path.read_text(encoding='utf-8')
+                        frontmatter, body = parse_frontmatter(content)
+                        
+                        # 检查技能名称是否匹配（支持 name 字段或目录名）
+                        skill_md_name = frontmatter.get('name', '')
+                        skill_dir_name = skill_md_path.parent.name
+                        
+                        if skill_md_name == skill_name or skill_dir_name == skill_name:
+                            candidate = {
+                                'name': skill_md_name or skill_dir_name,
+                                'path': str(skill_md_path.parent),
+                                'file': str(skill_md_path),
+                                'directory': str(skill_md_path.parent),
+                                'category': frontmatter.get('category', 'unknown'),
+                                'version': frontmatter.get('version', 'unknown'),
+                                'description': frontmatter.get('description', ''),
+                                'author': frontmatter.get('author', ''),
+                            }
+                            
+                            # 避免重复添加自身
+                            if skill_md_path.parent != self.skill_paths.get(skill_name):
+                                candidates.append(candidate)
+                            
+                    except Exception as e:
+                        self._decision_logger.debug(f"解析技能文件失败 {skill_md_path}: {e}")
+                        continue
+                        
             except Exception as e:
-                self._decision_logger.warning(f"Failed to delete telemetry record: {e}")
-            
-            del self.skills[skill_id]
-            self._decision_logger.info(f"Unregistered skill: {skill_id}")
+                self._decision_logger.warning(f"遍历技能目录失败 {base_dir}: {e}")
+                continue
+        
+        return candidates
+    
+    def patch_skill(
+        self,
+        skill_id: str,
+        old_string: str,
+        new_string: str,
+        fuzzy: bool = False,
+        replace_all: bool = False
+    ) -> SkillResult:
+        """
+        修补技能内容
+        
+        Args:
+            skill_id: 技能ID
+            old_string: 要替换的旧文本
+            new_string: 替换后的新文本
+            fuzzy: 是否使用模糊匹配（默认 False）
+            replace_all: 是否替换所有匹配项（默认 False）
+        
+        Returns:
+            SkillResult: 包含成功状态、消息、替换次数等信息
+        """
+        # 1. 检查技能是否存在
+        if skill_id not in self.skills:
+            self._decision_logger.warning(f"技能不存在: {skill_id}")
+            return SkillResult(
+                success=False,
+                output="",
+                error=f"技能不存在: {skill_id}"
+            )
+        
+        # 2. 获取技能路径
+        if skill_id not in self.skill_paths:
+            self._decision_logger.warning(f"技能无文件路径: {skill_id}")
+            return SkillResult(
+                success=False,
+                output="",
+                error=f"技能无文件路径（仅支持从目录导入的技能）: {skill_id}"
+            )
+        
+        skill_path = Path(self.skill_paths[skill_id])
+        skill_md = skill_path / "SKILL.md"
+        
+        # 路径安全检查：验证技能路径在允许范围内
+        safety_error = validate_within_dir(skill_path, self._skills_dir)
+        if safety_error:
+            self._decision_logger.error(f"路径安全检查失败: {safety_error}")
+            return SkillResult(
+                success=False,
+                output="",
+                error=f"路径安全检查失败: 不允许访问该路径"
+            )
+        
+        # 检查是否为外部目录的技能
+        try:
+            external_dirs = get_external_skills_dirs()
+            for ext_dir in external_dirs:
+                ext_safety = validate_within_dir(skill_path, ext_dir)
+                if ext_safety is None:
+                    # 路径在外部目录范围内
+                    break
+            else:
+                # 如果所有外部目录检查都失败，但路径不在本地目录范围内
+                if validate_within_dir(skill_path, self._skills_dir) is None:
+                    pass  # 本地目录检查已通过
+                else:
+                    self._decision_logger.warning(f"技能路径不在任何允许的目录范围内: {skill_path}")
+        except Exception as e:
+            self._decision_logger.warning(f"外部目录验证跳过: {e}")
+        
+        if not skill_md.exists():
+            # 尝试小写文件名
+            skill_md_lower = skill_path / "skill.md"
+            if skill_md_lower.exists():
+                skill_md = skill_md_lower
+            else:
+                self._decision_logger.error(f"技能文件不存在: {skill_md}")
+                return SkillResult(
+                    success=False,
+                    output="",
+                    error=f"技能文件不存在: {skill_md}"
+                )
+        
+        # 3. 读取技能内容
+        try:
+            content = skill_md.read_text(encoding='utf-8')
+        except Exception as e:
+            self._decision_logger.error(f"读取技能文件失败: {e}")
+            return SkillResult(
+                success=False,
+                output="",
+                error=f"读取技能文件失败: {str(e)}"
+            )
+        
+        # 4. 执行替换
+        if fuzzy:
+            # 模糊匹配模式
+            new_content, match_count, strategy, error_msg = fuzzy_find_and_replace(
+                content, old_string, new_string, replace_all
+            )
+        else:
+            # 精确匹配模式
+            new_content, match_count, strategy, error_msg = fuzzy_find_and_replace(
+                content, old_string, new_string, replace_all
+            )
+        
+        # 检查是否找到匹配
+        if strategy == "none":
+            self._decision_logger.warning(f"未找到匹配内容: {skill_id}")
+            return SkillResult(
+                success=False,
+                output="",
+                error=error_msg or "未找到匹配内容",
+                data={
+                    "match_count": 0,
+                    "strategy": strategy,
+                    "skill_id": skill_id
+                }
+            )
+        
+        # 5. 原子写入更新后的内容
+        try:
+            # 先写入临时文件，再重命名（原子操作）
+            temp_path = skill_md.with_suffix('.md.tmp')
+            temp_path.write_text(new_content, encoding='utf-8')
+            temp_path.replace(skill_md)
+        except Exception as e:
+            self._decision_logger.error(f"写入技能文件失败: {e}")
+            # 清理临时文件
+            if temp_path.exists():
+                temp_path.unlink()
+            return SkillResult(
+                success=False,
+                output="",
+                error=f"写入技能文件失败: {str(e)}"
+            )
+        
+        # 6. 返回结果
+        output = f"成功替换 {match_count} 处"
+        if strategy == "fuzzy":
+            output += " (模糊匹配)"
+        
+        self._decision_logger.info(f"修补技能 {skill_id}: {output}")
+        
+        return SkillResult(
+            success=True,
+            output=output,
+            data={
+                "match_count": match_count,
+                "strategy": strategy,
+                "skill_id": skill_id
+            }
+        )
+    
+    def list_pinned_skills(self) -> List[SkillMetadata]:
+        """列出所有固定技能
+        
+        Returns:
+            固定技能的元数据列表
+        """
+        pinned_skills = []
+        seen_ids = set()
+        for skill in self.skills.values():
+            metadata = skill.get_metadata()
+            # 只返回原始技能（不返回别名），且避免重复
+            if metadata.pinned and metadata.id not in seen_ids:
+                seen_ids.add(metadata.id)
+                pinned_skills.append(metadata)
+        return pinned_skills
+    
+    def is_pinned(self, skill_id: str) -> bool:
+        """检查技能是否固定
+        
+        Args:
+            skill_id: 技能 ID
+        
+        Returns:
+            是否已固定
+        """
+        if skill_id not in self.skills:
+            return False
+        return self.skills[skill_id].get_metadata().pinned
     
     def get_skill(self, skill_id: str) -> Optional[BaseSkill]:
-        """Get a skill by ID."""
-        return self.skills.get(skill_id)
+        """Get a skill by ID, supports namespace:skill-name format."""
+        # 先尝试直接查找
+        if skill_id in self.skills:
+            return self.skills[skill_id]
+        # 尝试通过命名空间解析
+        qualified = self._namespace.resolve(skill_id)
+        if qualified:
+            return self.skills.get(qualified.full_name) or self.skills.get(qualified.skill_name)
+        return None
+    
+    def get_skill_by_namespace(self, skill_name: str, namespace: str = "default") -> Optional[BaseSkill]:
+        """Get a skill by name within a specific namespace."""
+        qualified_name = f"{namespace}:{skill_name}"
+        qualified = self._namespace.resolve(qualified_name)
+        if qualified:
+            return self.skills.get(qualified.full_name) or self.skills.get(qualified.skill_name)
+        return None
+    
+    def list_namespaced_skills(self, namespace: Optional[str] = None) -> List[Dict[str, str]]:
+        """List all skills with their namespaces.
+        
+        Args:
+            namespace: Filter by namespace, None for all
+            
+        Returns:
+            List of dicts with skill_name, namespace, full_name
+        """
+        results = []
+        for qualified in self._namespace.list_skills(namespace):
+            results.append({
+                "skill_name": qualified.skill_name,
+                "namespace": qualified.namespace,
+                "full_name": qualified.full_name,
+            })
+        return results
+    
+    def check_namespace_conflicts(self) -> Dict[str, List[Dict[str, str]]]:
+        """Check for skills with conflicting names across namespaces.
+        
+        Returns:
+            Dict mapping skill names to list of namespaces where they exist
+        """
+        conflicts = {}
+        skill_map = {}  # skill_name -> list of namespaces
+        
+        for qualified in self._namespace.list_skills():
+            name = qualified.skill_name
+            if name not in skill_map:
+                skill_map[name] = []
+            skill_map[name].append({
+                "namespace": qualified.namespace,
+                "full_name": qualified.full_name,
+            })
+        
+        # 只返回有冲突的（多个命名空间使用同一名称）
+        for name, namespaces in skill_map.items():
+            if len(namespaces) > 1:
+                conflicts[name] = namespaces
+        
+        return conflicts
     
     def list_skills(self, category: Optional[str] = None) -> List[SkillMetadata]:
         """List all skills, optionally filtered by category."""
@@ -268,264 +882,6 @@ class SkillManager:
             if related_skill:
                 related.append(related_skill.get_metadata())
         return related
-    
-    # ============ 渐进式技能发现 (Hermes Style) ============
-    
-    def _update_context(self, query: str, intent: str = ""):
-        """更新上下文信息"""
-        self._intent_history.append(intent)
-        if len(self._intent_history) > 20:
-            self._intent_history = self._intent_history[-20:]
-        
-        keywords = query.lower().split()
-        for keyword in keywords:
-            if len(keyword) >= 2:
-                self._context_keywords[keyword] += 1
-    
-    def _calculate_context_similarity(self, skill: BaseSkill, query: str) -> float:
-        """计算技能与当前上下文的相似度（Hermes 风格）"""
-        metadata = skill.get_metadata()
-        score = 0.0
-        query_lower = query.lower()
-        
-        # 描述匹配
-        if query_lower in metadata.description.lower():
-            score += 0.2
-        
-        # 名称匹配
-        if query_lower in metadata.name.lower():
-            score += 0.15
-        
-        # 示例匹配
-        for example in metadata.examples:
-            if example.lower() in query_lower:
-                score += 0.2
-                break
-        
-        # 别名匹配
-        for alias in metadata.aliases:
-            if alias.lower() in query_lower:
-                score += 0.2
-                break
-        
-        # 标签匹配
-        for tag in metadata.tags:
-            if tag.lower() in query_lower:
-                score += 0.1
-                break
-        
-        # 历史上下文匹配（关键词频率）
-        for keyword, freq in self._context_keywords.items():
-            if keyword in metadata.description.lower() or keyword in metadata.name.lower():
-                score += 0.05 * min(freq / 5, 1)
-        
-        # 意图历史匹配
-        for past_intent in self._intent_history[-5:]:
-            if past_intent and (past_intent.lower() in metadata.description.lower() or 
-                               past_intent.lower() in metadata.name.lower()):
-                score += 0.05
-                break
-        
-        return min(score, 1.0)
-    
-    async def discover_skills(self, intent: str, query: str = "", 
-                             context: Optional[List[Dict[str, Any]]] = None,
-                             tags: Optional[List[str]] = None) -> List[SkillRecommendation]:
-        """
-        渐进式发现相关技能（Hermes 风格）
-        
-        Args:
-            intent: 用户意图
-            query: 用户查询
-            context: 对话历史上下文
-            tags: 标签过滤
-        
-        Returns:
-            按置信度排序的技能推荐列表
-        """
-        self._update_context(query, intent)
-        
-        recommendations = []
-        query_lower = query.lower()
-        
-        decision = self._decision_logger
-        if self._explanation_depth == 'detailed':
-            decision.info(f"🧠 [决策层] 渐进式技能发现:")
-            decision.info(f"  ├─ 意图: {intent}")
-            decision.info(f"  ├─ 查询: {query[:50]}...")
-            decision.info(f"  └─ 总技能数: {len(self.skills)}")
-        
-        processed_skills = set()
-        
-        for skill_id, skill in self.skills.items():
-            metadata = skill.get_metadata()
-            
-            if metadata.id in processed_skills:
-                continue
-            processed_skills.add(metadata.id)
-            
-            if tags:
-                skill_tags = set(metadata.tags)
-                if not skill_tags.intersection(tags):
-                    continue
-            
-            confidence = self._calculate_context_similarity(skill, query)
-            
-            if confidence < 0.05:
-                continue
-            
-            matched_by = "context"
-            if intent in metadata.description.lower():
-                matched_by = "intent"
-            elif any(alias.lower() in query_lower for alias in metadata.aliases):
-                matched_by = "alias"
-            elif any(example.lower() in query_lower for example in metadata.examples):
-                matched_by = "example"
-            elif any(tag.lower() in query_lower for tag in metadata.tags):
-                matched_by = "tag"
-            
-            missing_params = skill.get_missing_parameters()
-            required_params = {}
-            for param_name in missing_params:
-                param = next((p for p in metadata.parameters if p.name == param_name), None)
-                if param:
-                    required_params[param_name] = param.prompt or param.description
-            
-            suggested_params = self._infer_parameters(skill, query, context)
-            
-            recommendations.append(SkillRecommendation(
-                skill_id=metadata.id,
-                name=metadata.name,
-                description=metadata.description,
-                confidence=confidence,
-                matched_by=matched_by,
-                required_params=required_params,
-                suggested_params=suggested_params
-            ))
-        
-        recommendations.sort(key=lambda x: x.confidence, reverse=True)
-        
-        if self._explanation_depth == 'detailed':
-            decision.info(f"  └─ 发现 {len(recommendations)} 个相关技能")
-        else:
-            decision.summary(f"🧠 [决策层] 发现 {len(recommendations)} 个相关技能")
-        
-        return recommendations
-    
-    def _infer_parameters(self, skill: BaseSkill, query: str, 
-                          context: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """从查询和上下文中推断参数值（Hermes 风格）"""
-        metadata = skill.get_metadata()
-        inferred = {}
-        
-        for param in metadata.parameters:
-            if param.name.lower() in query.lower():
-                words = query.lower().split()
-                try:
-                    idx = words.index(param.name.lower())
-                    if idx + 1 < len(words):
-                        inferred[param.name] = words[idx + 1]
-                except ValueError:
-                    pass
-            
-            if context and param.name not in inferred:
-                for msg in reversed(context[-5:]):
-                    if param.name.lower() in msg.get('content', '').lower():
-                        words = msg['content'].lower().split()
-                        try:
-                            idx = words.index(param.name.lower())
-                            if idx + 1 < len(words):
-                                inferred[param.name] = words[idx + 1]
-                                break
-                        except ValueError:
-                            pass
-        
-        return inferred
-    
-    async def recommend_and_execute(self, intent: str, query: str, 
-                                   context: Optional[List[Dict[str, Any]]] = None,
-                                   auto_confirm: bool = False) -> SkillResult:
-        """渐进式技能推荐与执行（Hermes 风格）"""
-        recommendations = await self.discover_skills(intent, query, context)
-        
-        if not recommendations:
-            return SkillResult(
-                success=False,
-                output="",
-                error="未找到匹配的技能"
-            )
-        
-        best_match = recommendations[0]
-        
-        if best_match.confidence < 0.25:
-            return SkillResult(
-                success=False,
-                output=f"不确定你想要做什么。你是想{best_match.description}吗？",
-                error="低置信度匹配"
-            )
-        
-        decision = self._decision_logger
-        decision.summary(f"🧠 [决策层] 选择技能: {best_match.name} (置信度: {best_match.confidence:.2f})")
-        
-        skill = self.get_skill(best_match.skill_id)
-        if not skill:
-            return SkillResult(
-                success=False,
-                output="",
-                error=f"技能不存在: {best_match.skill_id}"
-            )
-        
-        params = best_match.suggested_params.copy()
-        
-        if best_match.required_params:
-            if self._explanation_depth == 'detailed':
-                decision.info(f"  └─ 需要额外参数: {list(best_match.required_params.keys())}")
-            
-            if not auto_confirm:
-                param_hints = "\n".join([
-                    f"- {name}: {desc}" 
-                    for name, desc in best_match.required_params.items()
-                ])
-                return SkillResult(
-                    success=False,
-                    output=f"需要一些信息来执行此操作:\n{param_hints}",
-                    error="缺少参数",
-                    metadata={
-                        'skill_id': best_match.skill_id,
-                        'missing_params': best_match.required_params
-                    }
-                )
-        
-        return await self.execute_skill(best_match.skill_id, **params)
-    
-    def record_usage(self, skill_id: str, success: bool):
-        """记录技能使用情况（用于渐进式学习）"""
-        skill = self.get_skill(skill_id)
-        if skill:
-            metadata = skill.get_metadata()
-            metadata.usage_count += 1
-            metadata.last_used = str(asyncio.get_event_loop().time())
-            
-            self._skill_usage_history.append({
-                'skill_id': skill_id,
-                'success': success,
-                'timestamp': metadata.last_used
-            })
-            
-            if len(self._skill_usage_history) > 100:
-                self._skill_usage_history = self._skill_usage_history[-100:]
-            
-            try:
-                from skills import get_skill_telemetry
-                telemetry = get_skill_telemetry()
-                telemetry.record_use(skill_id)
-            except Exception as e:
-                self._decision_logger.warning(f"Failed to record skill usage in telemetry: {e}")
-    
-    def record_co_occurrence(self, skill_id1: str, skill_id2: str):
-        """记录技能共现关系"""
-        self._skill_co_occurrence[skill_id1][skill_id2] += 1
-        self._skill_co_occurrence[skill_id2][skill_id1] += 1
     
     # ============ 技能执行方法 ============
     
@@ -585,7 +941,7 @@ class SkillManager:
     
     # ============ 技能导入功能 ============
     
-    def import_skill_from_directory_structure(self, skills_dir: str = "skills") -> int:
+    def import_skill_from_directory_structure(self, skills_dir: str = None) -> int:
         """
         从标准技能目录结构导入技能（Hermes 风格）
         
@@ -599,35 +955,76 @@ class SkillManager:
               references/       # 参考文档
         
         Args:
-            skills_dir: 技能目录路径，默认为 'skills'
+            skills_dir: 技能目录路径，默认为当前 profile 的技能目录
         
         Returns:
             成功导入的技能数量
         """
+        # 使用 profile 技能目录或指定的目录
+        skills_dir = skills_dir or str(self._skills_dir)
+        
         if not os.path.isdir(skills_dir):
-            self._decision_logger.error(f"技能目录不存在: {skills_dir}")
+            self._decision_logger.warning(f"技能目录不存在: {skills_dir}，将跳过导入")
             return 0
+        
+        self._decision_logger.info(f"从技能目录导入: {skills_dir} (profile: {self._profile})")
+        
+        # 收集所有需要扫描的目录（本地 + 外部）
+        all_skills_dirs = [(Path(skills_dir), "local")]
+        
+        try:
+            external_dirs = get_external_skills_dirs()
+            for ext_dir in external_dirs:
+                if ext_dir.exists() and ext_dir.is_dir():
+                    all_skills_dirs.append((ext_dir, "external"))
+                    self._decision_logger.info(f"添加外部技能目录: {ext_dir}")
+        except Exception as e:
+            self._decision_logger.warning(f"获取外部技能目录失败: {e}")
         
         imported_count = 0
         
+        # 遍历所有技能目录
+        for current_dir, dir_type in all_skills_dirs:
+            try:
+                dir_count = self._import_from_single_directory(current_dir, dir_type)
+                imported_count += dir_count
+            except Exception as e:
+                self._decision_logger.error(f"从目录导入技能失败 {current_dir}: {str(e)}")
+        
+        self._decision_logger.info(f"从标准目录结构成功导入 {imported_count} 个技能")
+        return imported_count
+    
+    def _import_from_single_directory(self, skills_dir: Path, dir_type: str = "local") -> int:
+        """
+        从单个技能目录导入技能
+        
+        Args:
+            skills_dir: 技能目录路径
+            dir_type: 目录类型 ("local" 或 "external")
+        
+        Returns:
+            成功导入的技能数量
+        """
+        imported_count = 0
+        
         for category_dir in os.listdir(skills_dir):
-            category_path = os.path.join(skills_dir, category_dir)
+            category_path = skills_dir / category_dir
             
-            if not os.path.isdir(category_path):
+            if not category_path.is_dir():
                 continue
             
             for skill_dir in os.listdir(category_path):
-                skill_path = os.path.join(category_path, skill_dir)
+                skill_path = category_path / skill_dir
                 
-                if not os.path.isdir(skill_path):
+                if not skill_path.is_dir():
                     continue
                 
                 # 优先从 skill.py 文件导入（Python 实现）
-                skill_py = os.path.join(skill_path, "skill.py")
-                if os.path.isfile(skill_py):
+                skill_py = skill_path / "skill.py"
+                if skill_py.is_file():
                     try:
-                        dir_name = os.path.dirname(skill_py)
-                        file_name = os.path.basename(skill_py)
+                        dir_name = str(skill_py.parent)
+                        file_name = skill_py.name
                         module_name = file_name[:-3]
                         
                         if dir_name not in sys.path:
@@ -638,10 +1035,24 @@ class SkillManager:
                         for name in dir(module):
                             obj = getattr(module, name)
                             if isinstance(obj, BaseSkill):
-                                obj.get_metadata().source = "user"
+                                obj.get_metadata().source = "external" if dir_type == "external" else "user"
                                 obj.get_metadata().category = category_dir
+                                
+                                # 安全扫描
+                                scan_result = self._scan_skill_security(
+                                    obj.get_metadata().id,
+                                    skill_path,
+                                    obj.get_metadata().source,
+                                )
+                                
+                                if scan_result is None and self.is_skill_blocked(obj.get_metadata().id):
+                                    self._decision_logger.warning(
+                                        f"技能安全扫描阻止，跳过注册: {obj.get_metadata().id}"
+                                    )
+                                    continue
+                                
                                 self.register_skill(obj)
-                                self.skill_paths[obj.get_metadata().id] = skill_path
+                                self.skill_paths[obj.get_metadata().id] = str(skill_path)
                                 imported_count += 1
                                 self._decision_logger.info(f"从 skill.py 导入技能: {obj.get_metadata().id}")
                         
@@ -653,28 +1064,41 @@ class SkillManager:
                         self._decision_logger.error(f"从 skill.py 导入技能失败 {skill_dir}: {str(e)}")
                 
                 # 否则从 SKILL.md 文件创建（Hermes 风格）
-                skill_md = os.path.join(skill_path, "SKILL.md")
-                if not os.path.isfile(skill_md):
-                    skill_md = os.path.join(skill_path, "skill.md")
+                skill_md = skill_path / "SKILL.md"
+                if not skill_md.is_file():
+                    skill_md = skill_path / "skill.md"
                 
-                if not os.path.isfile(skill_md):
+                if not skill_md.is_file():
                     self._decision_logger.warning(f"跳过非标准技能目录（缺少 SKILL.md 和 skill.py）: {skill_dir}")
                     continue
                 
                 try:
-                    skill = self._create_skill_from_hermes_md(skill_md)
+                    skill = self._create_skill_from_hermes_md(str(skill_md))
                     if skill:
-                        skill.get_metadata().source = "user"
+                        skill.get_metadata().source = "external" if dir_type == "external" else "user"
                         skill.get_metadata().category = category_dir
+                        
+                        # 安全扫描
+                        scan_result = self._scan_skill_security(
+                            skill.get_metadata().id,
+                            skill_path,
+                            skill.get_metadata().source,
+                        )
+                        
+                        if scan_result is None and self.is_skill_blocked(skill.get_metadata().id):
+                            self._decision_logger.warning(
+                                f"技能安全扫描阻止，跳过注册: {skill.get_metadata().id}"
+                            )
+                            continue
+                        
                         self.register_skill(skill)
-                        self.skill_paths[skill.get_metadata().id] = skill_path
+                        self.skill_paths[skill.get_metadata().id] = str(skill_path)
                         imported_count += 1
                         self._decision_logger.info(f"从 Hermes 风格目录导入技能: {skill.get_metadata().id}")
                 
                 except Exception as e:
                     self._decision_logger.error(f"从目录导入技能失败 {skill_dir}: {str(e)}")
         
-        self._decision_logger.info(f"从标准目录结构成功导入 {imported_count} 个技能")
         return imported_count
     
     def _create_skill_from_hermes_md(self, md_path: str) -> Optional[BaseSkill]:
@@ -700,18 +1124,11 @@ class SkillManager:
         try:
             with open(md_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
-            # 解析 YAML frontmatter
-            match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
-            if not match:
+
+            frontmatter, _ = parse_frontmatter(content)
+            if frontmatter == {}:
                 self._decision_logger.warning(f"SKILL.md 缺少 YAML frontmatter: {md_path}")
                 return None
-            
-            yaml_content = match.group(1)
-            if YAML_AVAILABLE:
-                frontmatter = yaml.safe_load(yaml_content)
-            else:
-                frontmatter = self._parse_yaml_fallback(yaml_content)
             
             skill_id = frontmatter.get('name', os.path.basename(os.path.dirname(md_path)))
             name = frontmatter.get('name', skill_id)
@@ -801,51 +1218,6 @@ class SkillManager:
         except Exception as e:
             self._decision_logger.error(f"解析 SKILL.md 失败 {md_path}: {str(e)}")
             return None
-    
-    def _parse_yaml_fallback(self, yaml_content: str) -> dict:
-        """简单的 YAML 解析回退（当 PyYAML 不可用时）"""
-        result = {}
-        lines = yaml_content.split('\n')
-        
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-            if not line or line.startswith('#'):
-                i += 1
-                continue
-            
-            if ':' in line:
-                key, value = line.split(':', 1)
-                key = key.strip()
-                value = value.strip()
-                
-                # 处理列表
-                if value.startswith('['):
-                    # 单行列表
-                    if value.endswith(']'):
-                        items = value[1:-1].split(',')
-                        result[key] = [item.strip().strip('"').strip("'") for item in items if item.strip()]
-                    else:
-                        # 多行列表
-                        items = []
-                        i += 1
-                        while i < len(lines):
-                            list_line = lines[i].strip()
-                            if list_line.endswith(']'):
-                                if '-' in list_line:
-                                    items.append(list_line.replace('-', '').replace(']', '').strip())
-                                break
-                            if '-' in list_line:
-                                items.append(list_line.replace('-', '').strip())
-                            i += 1
-                        result[key] = items
-                else:
-                    # 简单值
-                    result[key] = value.strip('"').strip("'")
-            
-            i += 1
-        
-        return result
     
     def import_skill_from_file(self, file_path: str) -> bool:
         """从 Python 文件导入技能"""
@@ -942,14 +1314,12 @@ class SkillManager:
     
     def import_skills_from_yaml(self, yaml_path: str) -> int:
         """从 YAML 配置文件导入技能"""
-        if not YAML_AVAILABLE:
-            self._decision_logger.error("PyYAML 未安装，请先安装: pip install pyyaml")
-            return 0
-        
+        import yaml
+
         if not os.path.isfile(yaml_path):
             self._decision_logger.error(f"YAML 文件不存在: {yaml_path}")
             return 0
-        
+
         try:
             with open(yaml_path, 'r', encoding='utf-8') as f:
                 skills_data = yaml.safe_load(f)
@@ -1116,132 +1486,9 @@ def skill(id: str, name: str, description: str, category: str = 'general',
     return decorator
 
 
-@skill(
-    id='greeting',
-    name='Greeting',
-    description='Handle greetings and introductions',
-    category='conversation',
-    examples=['Hello', 'Hi there', '你好'],
-    tags=['conversation', 'hello', 'greeting']
-)
-class GreetingSkill(BaseSkill):
-    """Skill for handling greetings."""
-    
-    def get_metadata(self) -> SkillMetadata:
-        return SkillMetadata(
-            id=self._skill_id,
-            name=self._skill_name,
-            description=self._skill_description,
-            category=self._skill_category,
-            parameters=self._skill_parameters,
-            requires_llm=self._skill_requires_llm,
-            requires_permission=self._skill_requires_permission,
-            aliases=self._skill_aliases,
-            examples=self._skill_examples,
-            version=self._skill_version,
-            tags=self._skill_tags,
-            source="system"
-        )
-    
-    async def execute(self, message: str = "") -> SkillResult:
-        """
-        Execute greeting skill.
-        
-        Note: 直接返回友好响应，不使用硬编码关键词判断意图
-        """
-        return SkillResult(
-            success=True,
-            output="你好！我是你的智能助手。有什么我可以帮助你的吗？"
-        )
-
-
-@skill(
-    id='farewell',
-    name='Farewell',
-    description='Handle farewells and goodbyes',
-    category='conversation',
-    examples=['Goodbye', 'See you later', '再见'],
-    tags=['conversation', 'goodbye', 'farewell']
-)
-class FarewellSkill(BaseSkill):
-    """Skill for handling farewells."""
-    
-    def get_metadata(self) -> SkillMetadata:
-        return SkillMetadata(
-            id=self._skill_id,
-            name=self._skill_name,
-            description=self._skill_description,
-            category=self._skill_category,
-            parameters=self._skill_parameters,
-            requires_llm=self._skill_requires_llm,
-            requires_permission=self._skill_requires_permission,
-            aliases=self._skill_aliases,
-            examples=self._skill_examples,
-            version=self._skill_version,
-            tags=self._skill_tags,
-            source="system"
-        )
-    
-    async def execute(self) -> SkillResult:
-        return SkillResult(
-            success=True,
-            output="再见！祝你有美好的一天！"
-        )
-
-
-@skill(
-    id='help',
-    name='Help',
-    description='Show available commands and skills',
-    category='system',
-    examples=['Help', 'What can you do?', 'Show commands'],
-    tags=['help', 'system', 'commands']
-)
-class HelpSkill(BaseSkill):
-    """Skill for showing help information."""
-    
-    def get_metadata(self) -> SkillMetadata:
-        return SkillMetadata(
-            id=self._skill_id,
-            name=self._skill_name,
-            description=self._skill_description,
-            category=self._skill_category,
-            parameters=self._skill_parameters,
-            requires_llm=self._skill_requires_llm,
-            requires_permission=self._skill_requires_permission,
-            aliases=self._skill_aliases,
-            examples=self._skill_examples,
-            version=self._skill_version,
-            tags=self._skill_tags,
-            source="system"
-        )
-    
-    async def execute(self) -> SkillResult:
-        categories = skill_manager.get_categories()
-        output = "我可以帮助你完成以下任务：\n\n"
-        
-        for category in categories:
-            skills = skill_manager.list_skills(category)
-            if skills:
-                output += f"**{category.capitalize()}:**\n"
-                for skill_meta in skills:
-                    source_tag = ""
-                    if skill_meta.source == "user":
-                        source_tag = " 📥"
-                    elif skill_meta.source == "external":
-                        source_tag = " 🌐"
-                    usage_tag = f" (使用 {skill_meta.usage_count} 次)" if skill_meta.usage_count > 0 else ""
-                    version_tag = f" v{skill_meta.version}" if skill_meta.version else ""
-                    tag_str = f" [{', '.join(skill_meta.tags[:3])}]" if skill_meta.tags else ""
-                    output += f"- {skill_meta.name}{source_tag}{version_tag}{usage_tag}{tag_str}: {skill_meta.description}\n"
-                output += "\n"
-        
-        output += "你可以直接向我提问，我会自动发现并调用合适的技能。"
-        
-        return SkillResult(
-            success=True,
-            output=output
-        )
+# 注意: Greeting/Farewell/Help 等简单对话技能已移除
+# 这些功能由 LLM 直接处理，不再需要硬编码
+# 如需创建领域特定技能，请使用 @skill 装饰器或 SKILL.md 格式
 
 
 class ToolWrapperSkill(BaseSkill):
@@ -1310,21 +1557,30 @@ def register_tools_as_skills():
     try:
         from tools import tool_registry
         
-        for tool_info in tool_registry.list_tools():
+        # Check if list_tools exists, otherwise use available methods
+        if hasattr(tool_registry, 'list_tools'):
+            list_method = tool_registry.list_tools
+        elif hasattr(tool_registry, 'list_toolsets'):
+            # Wrap list_toolsets for compatibility
+            list_method = lambda: [{"name": ts} for ts in tool_registry.list_toolsets()]
+        else:
+            list_method = lambda: []
+        
+        for tool_info in list_method():
             tool_name = tool_info["name"]
             tool = tool_registry.get(tool_name)
             
-            if tool and callable(tool["func"]):
+            if tool and callable(tool.get("func")):
                 skill = ToolWrapperSkill(
                     tool_func=tool["func"],
                     name=tool_name,
-                    description=tool["description"],
-                    parameters=tool["parameters"],
+                    description=tool.get("description", ""),
+                    parameters=tool.get("parameters", []),
                     category="tool"
                 )
                 skill_manager.register_skill(skill)
                 
-    except ImportError:
+    except (ImportError, AttributeError):
         pass
 
 
@@ -1333,5 +1589,7 @@ def load_skills_from_directory_structure():
     skill_manager.import_skill_from_directory_structure()
 
 
-register_tools_as_skills()
-load_skills_from_directory_structure()
+def init_skills():
+    """显式初始化技能系统（在应用入口调用一次）"""
+    register_tools_as_skills()
+    load_skills_from_directory_structure()
