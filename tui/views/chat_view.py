@@ -123,12 +123,13 @@ class ChatView(Container, can_focus=False):
     # 消息操作方法（保持 API 兼容性）
     # ========================================================================
 
-    def append_message(self, role: str, content: str) -> None:
+    def append_message(self, role: str, content: str, tool_name: str = None) -> None:
         """追加消息到聊天日志（兼容旧 API）.
 
         Args:
             role: 消息角色 (user/assistant/system/tool/error)
             content: 消息内容
+            tool_name: 工具名称（仅 role=tool 时使用）
         """
         if not self._message_list:
             self._logger.warning("MessageList not available")
@@ -138,7 +139,10 @@ class ChatView(Container, can_focus=False):
         self._message_history.append({"role": role, "content": content})
 
         # 使用 MessageList 添加消息
-        self._message_list.add_message(role, content)
+        if role == "tool" and tool_name:
+            self._message_list.add_tool_message(content, tool_name)
+        else:
+            self._message_list.add_message(role, content)
 
     def clear_messages(self) -> None:
         """清空聊天消息."""

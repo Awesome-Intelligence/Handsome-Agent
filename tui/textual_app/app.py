@@ -23,7 +23,7 @@ _TEXTUAL_IMPORT_ERROR: str | None = None
 try:
     from textual.app import App, ComposeResult
     from textual.widgets import Header, Footer, Static, RichLog, Tabs, Tab, TextArea, Button
-    from textual.widgets import Markdown, ProgressBar, LoadingIndicator, Select, Input
+    from textual.widgets import Markdown, LoadingIndicator, Select, Input
     from textual.binding import Binding
     from textual.containers import Container, Vertical, VerticalScroll, Horizontal
     from textual.screen import Screen as TextualScreen
@@ -398,6 +398,8 @@ class HandsomeAgentApp(App):
         self._markdown_enabled = True
         # Token 计数（方案B：消息完成后估算）
         self._current_token_count: int = 0
+        # 跟踪本次会话使用的工具
+        self._used_tools: set = set()
         # TUIConsumer（任务面板消费者）
         self._tui_consumer: Optional["TUIConsumer"] = None
         # 模型列表（动态从配置读取）
@@ -448,7 +450,6 @@ class HandsomeAgentApp(App):
                         compact=True,
                     )
                     yield Static("0/128K", id="status-tokens", classes="status-tokens")
-                    yield ProgressBar(id="status-progress", show_percentage=False)
                     yield Static("0:00", id="status-time", classes="status-time")
                     yield Static("🔧", id="status-tools", classes="status-tools")
             yield SubmitTextArea(
@@ -679,12 +680,7 @@ class HandsomeAgentApp(App):
                     )
                 else:
                     tokens_widget.update("│ n/a ")
-            
-            # 使用 Textual 原生 ProgressBar 组件
-            progress_widget = self._widget_cache.get("status_progress")
-            if progress_widget:
-                progress_widget.update(progress=0.0)
-            
+
             time_widget = self._widget_cache.get("status_time")
             if time_widget:
                 time_widget.update("│ 0m 0s ")
@@ -694,6 +690,27 @@ class HandsomeAgentApp(App):
                 tools_widget.update("🔧")
         except Exception as e:
             self._logger.debug(f"Failed to update status bar: {e}")
+
+    def _update_used_tools(self) -> None:
+        """更新已使用工具的显示."""
+        try:
+            tools_widget = self._widget_cache.get("status_tools")
+            if tools_widget:
+                count = len(self._used_tools)
+                if count > 0:
+                    # 显示工具名称（限制总长度）
+                    tools_str = ",".join(sorted(self._used_tools))
+                    if len(tools_str) > 15:
+                        # 如果太长，缩写
+                        sorted_tools = sorted(self._used_tools)
+                        tools_str = ",".join(sorted_tools[:3])
+                        if count > 3:
+                            tools_str += f",+{count-3}"
+                    tools_widget.update(f"🔧{tools_str}")
+                else:
+                    tools_widget.update("🔧")
+        except Exception as e:
+            self._logger.debug(f"Failed to update tools display: {e}")
 
     def _update_token_count(self) -> None:
         """更新 token 计数（方案B：消息完成后估算，不影响性能）."""
@@ -1099,7 +1116,6 @@ class HandsomeAgentApp(App):
             self._widget_cache["status_icon"] = self.query_one("#status-icon", Static)
             self._widget_cache["status_model"] = self.query_one("#status-model", Select)
             self._widget_cache["status_tokens"] = self.query_one("#status-tokens", Static)
-            self._widget_cache["status_progress"] = self.query_one("#status-progress", ProgressBar)
             self._widget_cache["status_time"] = self.query_one("#status-time", Static)
             self._widget_cache["status_tools"] = self.query_one("#status-tools", Static)
             self._widget_cache["status_bar"] = self.query_one("#status-bar")
@@ -1919,14 +1935,34 @@ class HandsomeAgentApp(App):
         if chat_area is None:
             chat_area = self.query_one("#chat-area", ChatView)
 
+        # 提取 tool_name 并跟踪工具
+        tool_name = None
+        if role == "tool" and content:
+            # 尝试从 content 中提取工具名
+            # 常见格式: "ToolName: result" 或 "Using tool: ToolName"
+            lines = content.split("\n")
+            first_line = lines[0] if lines else ""
+            if ": " in first_line:
+                tool_name = first_line.split(":")[0].strip()
+            elif "using tool" in first_line.lower():
+                # 格式: "Using tool: ToolName"
+                parts = first_line.lower().split("using tool")
+                if len(parts) > 1:
+                    tool_name = parts[1].strip().split()[0] if parts[1].strip() else None
+            if tool_name:
+                self._used_tools.add(tool_name)
+
         # ChatView 使用 append_message 正确传递 role
         if hasattr(chat_area, 'append_message'):
-            chat_area.append_message(role, content)
+            chat_area.append_message(role, content, tool_name=tool_name)
         elif hasattr(chat_area, 'write'):
             chat_area.write(f"{content}\n")
 
         # 同时保存到 session_store（用于 token 计数）
         self.save_message(role, content)
+
+        # 更新工具显示
+        self._update_used_tools()
 
     def _navigate_input_history(self, direction: int) -> None:
         """输入框上下键触发的历史导航回调。

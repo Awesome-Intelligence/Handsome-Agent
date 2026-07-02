@@ -13,10 +13,10 @@ from typing_extensions import Self
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Vertical, Horizontal
 from textual.events import Click
 from textual.message import Message
-from textual.widgets import Static, Log, TabbedContent, TabPane, DirectoryTree, Input
+from textual.widgets import Static, Log, TabbedContent, TabPane, DirectoryTree, Input, Button
 from textual.widgets import Tabs
 from textual import on
 
@@ -767,11 +767,8 @@ class SkillsPane(SidebarPane):
         padding: 1;
     }
 
-    SkillsPane #skills-header {
+    SkillsPane #skills-search {
         width: 100%;
-        padding: 1;
-        background: $accent 15%;
-        border: solid $accent;
         margin-bottom: 1;
     }
 
@@ -779,9 +776,39 @@ class SkillsPane(SidebarPane):
         width: 100%;
         height: auto;
         margin-bottom: 1;
+        layout: horizontal;
+    }
+
+    SkillsPane .skill-tab {
+        width: 1fr;
+        padding: 0 1;
+        color: $text-muted;
+        background: transparent;
+        border: none;
+    }
+
+    SkillsPane .skill-tab:hover {
+        background: $accent 15%;
+    }
+
+    SkillsPane .skill-tab.active {
+        color: $accent;
+        text-style: bold;
+        border-bottom: solid $accent;
+    }
+
+    SkillsPane #skills-tabs {
+        height: auto;
+        margin-bottom: 1;
     }
 
     SkillsPane #skills-list {
+        width: 100%;
+        height: 1fr;
+        padding: 1;
+    }
+
+    SkillsPane #bundles-list {
         width: 100%;
         height: 1fr;
         padding: 1;
@@ -799,35 +826,17 @@ class SkillsPane(SidebarPane):
         color: $accent;
     }
 
-    SkillsPane .bundle-item {
-        padding: 0 1 0 2;
-        border-left: solid $accent;
-    }
-
-    SkillsPane .bundle-item:hover {
-        background: $accent 15%;
-    }
-
-    SkillsPane .skill-desc {
-        color: $text-muted;
-        padding-left: 2;
-    }
-
-    SkillsPane #skills-empty {
+    SkillsPane #skills-empty, #bundles-empty {
         color: $text-muted;
         text-style: italic;
         padding: 1;
     }
 
-    SkillsPane #skills-search {
+    SkillsPane #skills-hint {
         width: 100%;
-        margin-bottom: 1;
-    }
-
-    SkillsPane #skills-filter {
-        width: 100%;
-        margin-bottom: 1;
+        padding: 1;
         color: $text-muted;
+        text-style: italic;
     }
     """
 
@@ -848,6 +857,7 @@ class SkillsPane(SidebarPane):
         self._search_input = None
         self._tab_skills = None
         self._tab_bundles = None
+        self._bundles_empty = None
         super().__init__(id="skills", title="技能")
 
     def compose(self) -> ComposeResult:
@@ -855,10 +865,14 @@ class SkillsPane(SidebarPane):
         with Vertical(id="skills-container"):
             # 搜索框
             yield Input(placeholder="搜索技能...", id="skills-search")
-            # Tab 选择器
-            yield Static("[b]技能[/b]  |  Bundle", id="skills-tabs")
+            # Tab 选择器（真正的 Tab 切换）
+            with Horizontal(id="skills-tabs"):
+                Button("[b]技能[/b]", id="tab-skills", classes="skill-tab active", variant="default")
+                Button("Bundle", id="tab-bundles", classes="skill-tab", variant="default")
             # 技能列表
             yield Static("[dim]暂无技能[/dim]", id="skills-list")
+            # Bundle 列表
+            yield Static("", id="bundles-list")
             # 底部提示
             yield Static("[dim]使用 /skill-name 激活技能[/dim]", id="skills-hint")
 
@@ -872,7 +886,12 @@ class SkillsPane(SidebarPane):
 
         # 缓存 DOM 组件引用
         self._skills_list = self.query_one("#skills-list", Static)
+        self._bundles_list = self.query_one("#bundles-list", Static)
         self._search_input = self.query_one("#skills-search", Input)
+
+        # 初始化 Tab 显示状态（技能 Tab 激活）
+        self._current_tab = "skills"
+        self._update_tab_appearance()
 
         # 加载数据
         self._load_skills()
@@ -890,6 +909,46 @@ class SkillsPane(SidebarPane):
             self._filter_data()
             self._refresh_display()
 
+    @on(Button.Pressed, "#tab-skills")
+    def _show_skills_tab(self) -> None:
+        """切换到技能 Tab"""
+        if self._current_tab == "skills":
+            return
+        self._current_tab = "skills"
+        self._refresh_skills_list()
+        self._update_tab_appearance()
+
+    @on(Button.Pressed, "#tab-bundles")
+    def _show_bundles_tab(self) -> None:
+        """切换到 Bundle Tab"""
+        if self._current_tab == "bundles":
+            return
+        self._current_tab = "bundles"
+        self._refresh_bundles_list()
+        self._update_tab_appearance()
+
+    def _update_tab_appearance(self) -> None:
+        """更新 Tab 样式和列表显示"""
+        tabs_container = self.query_one("#skills-tabs", Horizontal)
+        buttons = tabs_container.query(Button)
+        tab_skills = buttons.nodes[0] if len(buttons.nodes) > 0 else None
+        tab_bundles = buttons.nodes[1] if len(buttons.nodes) > 1 else None
+
+        if self._current_tab == "skills":
+            if tab_skills:
+                tab_skills.label = "[b]技能[/b]"
+            if tab_bundles:
+                tab_bundles.label = "Bundle"
+            self._skills_list.display = True
+            self._bundles_list.display = False
+        else:
+            if tab_skills:
+                tab_skills.label = "技能"
+            if tab_bundles:
+                tab_bundles.label = "[b]Bundle[/b]"
+            self._skills_list.display = False
+            self._bundles_list.display = True
+
     def _start_refresh_timer(self) -> None:
         """启动定时刷新"""
         self._refresh_timer = self.set_interval(5.0, self._refresh_data)
@@ -897,59 +956,98 @@ class SkillsPane(SidebarPane):
     def _load_skills(self) -> None:
         """加载技能列表"""
         try:
-            from agent.skill_usage_tracker import get_skill_telemetry
             from common.config import get_skills_dir
 
             skills_dir = get_skills_dir()
+            if self._logger:
+                self._logger.debug(f"Loading skills from: {skills_dir}")
+
             if not skills_dir.exists():
                 self._skills = []
+                if self._logger:
+                    self._logger.debug("Skills dir does not exist")
                 return
 
-            telemetry = get_skill_telemetry()
+            # 尝试获取 telemetry，失败则使用默认值
+            telemetry = None
+            try:
+                from agent.skill_usage_tracker import get_skill_telemetry
+                telemetry = get_skill_telemetry()
+            except ImportError as e:
+                if self._logger:
+                    self._logger.debug(f"Telemetry not available: {e}")
+
             self._skills = []
 
-            # 遍历技能目录
-            for skill_path in skills_dir.iterdir():
-                if not skill_path.is_dir() or skill_path.name.startswith("."):
+            # 遍历技能目录（递归查找 SKILL.md）
+            skill_count = 0
+            for skill_path in skills_dir.rglob("SKILL.md"):
+                # 获取技能目录
+                skill_dir = skill_path.parent
+                # 跳过以 . 开头的目录
+                if any(p.startswith(".") for p in skill_dir.relative_to(skills_dir).parts):
                     continue
 
-                skill_md = skill_path / "SKILL.md"
-                if not skill_md.exists():
-                    skill_md = skill_path / "skill.md"
-
-                if not skill_md.exists():
-                    continue
+                # 获取技能标识（使用相对路径）
+                rel_path = skill_dir.relative_to(skills_dir)
+                skill_id = str(rel_path).replace("\\", "/")
 
                 # 获取追踪数据
-                record = telemetry.get_record(skill_path.name)
-                state = record.state if record else "active"
-                pinned = record.pinned if record else False
-                use_count = record.use_count if record else 0
+                state = "active"
+                pinned = False
+                use_count = 0
+                if telemetry:
+                    try:
+                        record = telemetry.get_record(skill_id)
+                        if record:
+                            state = record.state
+                            pinned = record.pinned
+                            use_count = record.use_count
+                    except Exception:
+                        pass
 
                 # 读取技能描述
+                description = ""
+                category = "general"
+                name = skill_id
                 try:
-                    content = skill_md.read_text(encoding="utf-8")
+                    content = skill_path.read_text(encoding="utf-8")
                     from agent.skill_utils import parse_frontmatter
                     fm, _ = parse_frontmatter(content)
                     description = fm.get("description", "")
                     category = fm.get("category", "general")
-                    name = fm.get("name", skill_path.name)
+                    name = fm.get("name", skill_id)
                 except Exception:
-                    description = ""
-                    category = "general"
-                    name = skill_path.name
+                    pass
 
                 self._skills.append({
                     "name": name,
-                    "path": skill_path.name,
+                    "path": skill_id,
                     "description": description,
                     "category": category,
                     "state": state,
                     "pinned": pinned,
                     "use_count": use_count,
                 })
+                skill_count += 1
+
+            if self._logger:
+                self._logger.debug(f"Loaded {skill_count} skills")
 
         except ImportError as e:
+            if self._logger:
+                self._logger.warning(f"Failed to load skills (ImportError): {e}")
+            self._skills = []
+        except Exception as e:
+            if self._logger:
+                self._logger.warning(f"Failed to load skills: {e}")
+            self._skills = []
+
+        except ImportError as e:
+            if self._logger:
+                self._logger.warning(f"Failed to load skills (ImportError): {e}")
+            self._skills = []
+        except Exception as e:
             if self._logger:
                 self._logger.warning(f"Failed to load skills: {e}")
             self._skills = []
@@ -1005,58 +1103,76 @@ class SkillsPane(SidebarPane):
 
     def _refresh_display(self) -> None:
         """刷新显示"""
-        if not self._skills_list:
+        if not self._skills_list or not self._bundles_list:
             return
 
         self._filter_data()
 
-        # 根据当前 Tab 显示内容
-        lines = []
+        # 刷新技能列表
+        self._refresh_skills_list()
+        # 刷新 Bundle 列表
+        self._refresh_bundles_list()
 
-        # 显示技能 Tab 内容
-        if not self._filtered_skills and not self._filtered_bundles:
-            lines.append("[dim]暂无技能[/dim]")
+    def _refresh_skills_list(self) -> None:
+        """刷新技能列表显示"""
+        if not self._filtered_skills:
+            msg = "[dim]暂无技能[/dim]"
             if self._search_query:
-                lines.append(f"[dim]搜索 '{self._search_query}' 无结果[/dim]")
-        else:
-            # 分类显示技能
-            categories = {}
-            for skill in self._filtered_skills:
-                cat = skill.get("category", "general")
-                if cat not in categories:
-                    categories[cat] = []
-                categories[cat].append(skill)
+                msg = f"[dim]搜索 '{self._search_query}' 无结果[/dim]"
+            self._skills_list.update(msg)
+            return
 
-            for cat, skills in sorted(categories.items()):
-                cat_icon = self.CATEGORY_ICONS.get(cat, "📦")
-                lines.append(f"[bold]{cat_icon} {cat.upper()}[/bold]")
+        lines = []
+        categories = {}
+        for skill in self._filtered_skills:
+            cat = skill.get("category", "general")
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(skill)
 
-                for skill in skills[:10]:  # 限制每个分类显示数量
-                    pinned_mark = "📌 " if skill.get("pinned") else "   "
-                    state_icon = self.SKILL_ICONS.get(skill.get("state", "active"), "🟢")
-                    lines.append(f"  {pinned_mark}{state_icon} {skill['name']}")
-                    if skill.get("description"):
-                        desc = skill["description"]
-                        if len(desc) > 30:
-                            desc = desc[:30] + "..."
-                        lines.append(f"       [dim]{desc}[/dim]")
+        for cat, skills in sorted(categories.items()):
+            cat_icon = self.CATEGORY_ICONS.get(cat, "📦")
+            lines.append(f"[bold]{cat_icon} {cat.upper()}[/bold]")
 
-                if len(skills) > 10:
-                    lines.append(f"       [dim]... 还有 {len(skills) - 10} 个[/dim]")
+            for skill in skills[:10]:
+                pinned_mark = "📌 " if skill.get("pinned") else "   "
+                state_icon = self.SKILL_ICONS.get(skill.get("state", "active"), "🟢")
+                lines.append(f"  {pinned_mark}{state_icon} {skill['name']}")
+                if skill.get("description"):
+                    desc = skill["description"]
+                    if len(desc) > 35:
+                        desc = desc[:35] + "..."
+                    lines.append(f"       [dim]{desc}[/dim]")
 
-            # 显示 Bundle
-            if self._filtered_bundles:
-                lines.append("")
-                lines.append("[bold]📚 BUNDLE[/bold]")
-                for bundle in self._filtered_bundles[:5]:
-                    lines.append(f"  📦 /{bundle['slug']}")
-                    lines.append(f"       [dim]{bundle.get('description', 'N/A')}[/dim]")
-                    lines.append(f"       [dim]技能: {', '.join(bundle.get('skills', [])[:3])}[/dim]")
-
-                if len(self._filtered_bundles) > 5:
-                    lines.append(f"       [dim]... 还有 {len(self._filtered_bundles) - 5} 个[/dim]")
+            if len(skills) > 10:
+                lines.append(f"       [dim]... 还有 {len(skills) - 10} 个[/dim]")
 
         self._skills_list.update("\n".join(lines).strip())
+
+    def _refresh_bundles_list(self) -> None:
+        """刷新 Bundle 列表显示"""
+        if not self._filtered_bundles:
+            msg = "[dim]暂无 Bundle[/dim]"
+            if self._search_query:
+                msg = f"[dim]搜索 '{self._search_query}' 无结果[/dim]"
+            self._bundles_list.update(msg)
+            return
+
+        lines = []
+        for bundle in self._filtered_bundles[:10]:
+            lines.append(f"[accent]📦 {bundle['name']}[/accent]")
+            if bundle.get("description"):
+                desc = bundle["description"]
+                if len(desc) > 40:
+                    desc = desc[:40] + "..."
+                lines.append(f"   [dim]{desc}[/dim]")
+            skills_count = len(bundle.get("skills", []))
+            lines.append(f"   [dim]{skills_count} 个技能[/dim]")
+
+        if len(self._filtered_bundles) > 10:
+            lines.append(f"[dim]... 还有 {len(self._filtered_bundles) - 10} 个[/dim]")
+
+        self._bundles_list.update("\n".join(lines).strip())
 
     def set_focus_within(self) -> None:
         """设置面板内部焦点"""
