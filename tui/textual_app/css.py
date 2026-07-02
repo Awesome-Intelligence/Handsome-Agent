@@ -67,7 +67,7 @@ Screen {
 
 /* 自定义 Header - 模型信息显示 + 欢迎横幅 */
 #app-header {
-    height: auto;
+    height: 4;
     width: 100%;
     dock: top;
     background: rgba(177, 128, 215, 0.2);
@@ -75,42 +75,40 @@ Screen {
 }
 
 #header-content {
-    height: auto;
+    height: 4;
     width: 100%;
     layout: horizontal;
-}
-
-#banner-left {
-    height: auto;
-    width: auto;
+    align: left top;
 }
 
 #welcome-banner {
     height: auto;
     width: auto;
     padding: 0 2;
+    margin-right: 4;
     background: transparent;
 }
 
 #header-info-right {
-    height: 100%;
+    height: 4;
     width: 1fr;
-    align: right middle;
+    align: right top;
 }
 
-.header-info-text {
+#version-info,
+#skills-info,
+#tools-info {
     height: auto;
     width: 100%;
     padding: 0 2;
     background: transparent;
-    align: right middle;
 }
 
 .header-content {
     height: 100%;
     layout: horizontal;
     padding: 0 2;
-    align: left middle;
+    align: left bottom;
 }
 
 .header-model {

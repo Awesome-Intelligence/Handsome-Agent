@@ -53,6 +53,8 @@ class TuiLogHandler(logging.Handler):
         self._batch_size = batch_size  # 达到此数量时立即写入
         self._flush_interval_ms = flush_interval_ms  # 刷新间隔（毫秒）
         self._flush_timer = None  # 刷新定时器引用
+        self._all_logs: list[str] = []  # 完整日志历史
+        self._logs_at_last_mount: int = 0  # 上次挂载时的历史长度
 
     def set_widget(self, widget: Log) -> None:
         """设置目标 Log 组件并刷新缓冲区。
@@ -61,11 +63,30 @@ class TuiLogHandler(logging.Handler):
             widget: Log 组件实例
         """
         self._widget = widget
-        # 组件就绪后刷新缓冲区的日志
+
+        # 刷新组件就绪前的缓冲日志
         if self._buffer:
             for record in self._buffer:
-                self._write_log(record)
+                msg = self.format(record)
+                self._all_logs.append(msg)
+                try:
+                    self._widget.write_line(msg)
+                except Exception:
+                    pass
             self._buffer.clear()
+
+        # 重现上次挂载后新到的日志（避免关闭重开后历史丢失）
+        if self._all_logs and self._logs_at_last_mount < len(self._all_logs):
+            for msg in self._all_logs[self._logs_at_last_mount:]:
+                try:
+                    self._widget.write_line(msg)
+                except Exception:
+                    pass
+
+        # 更新挂载标记（只在首次挂载时重置，后续 set_widget 时保留已读位置）
+        if self._logs_at_last_mount == 0:
+            self._logs_at_last_mount = len(self._all_logs)
+
         # 启动批量刷新定时器
         self._start_flush_timer()
 
@@ -128,6 +149,7 @@ class TuiLogHandler(logging.Handler):
             # 将日志格式化并加入待写入队列
             msg = self.format(record)
             self._pending_logs.append(msg)
+            self._all_logs.append(msg)
 
             # 如果队列达到批量大小，立即写入
             if len(self._pending_logs) >= self._batch_size:
@@ -162,8 +184,9 @@ class TuiLogHandler(logging.Handler):
         """
         if self._widget is None:
             return
-        
+
         msg = self.format(record)
+        self._all_logs.append(msg)
         # write_line() 会自动在消息末尾添加换行符
         self._widget.write_line(msg)
 
@@ -183,6 +206,9 @@ class TuiLogHandler(logging.Handler):
 
         # 停止刷新定时器
         self._stop_flush_timer()
+
+        # 重置挂载标记，下次打开时从 _all_logs[0] 开始重现
+        self._logs_at_last_mount = 0
 
         # 清理引用
         self._widget = None

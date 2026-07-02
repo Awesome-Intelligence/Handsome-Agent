@@ -67,6 +67,12 @@ try:
 except ImportError:
     SettingsScreen = None
 
+# 日志窗口（带降级机制）
+try:
+    from .log_screen import LogScreen
+except ImportError:
+    LogScreen = None
+
 __all__ = [
     "ChatView",
     "HelpScreen",
@@ -86,4 +92,6 @@ __all__ = [
     "ConfigurationSaved",
     # 设置界面
     "SettingsScreen",
+    # 日志窗口
+    "LogScreen",
 ]

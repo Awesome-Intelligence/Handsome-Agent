@@ -76,6 +76,12 @@ except ImportError:
     ThemeManager = None
     get_theme_manager = None
 
+# Token 估算（Hermes 风格，不影响性能）
+try:
+    from agent.context.token_estimator import estimate_messages_tokens_rough
+except ImportError:
+    estimate_messages_tokens_rough = None
+
 try:
     from tui.views.chat_view import ChatView
 except ImportError:
@@ -135,6 +141,11 @@ try:
     from tui.views.settings_screen import SettingsScreen
 except ImportError:
     SettingsScreen = None
+
+try:
+    from tui.views.log_screen import LogScreen
+except ImportError:
+    LogScreen = None
 
 try:
     from tui.core.keybindings import (
@@ -257,8 +268,7 @@ class HandsomeAgentApp(App):
         Binding("f2", "open_settings", "Settings"),
         Binding("alt+1", "switch_to_file_tree", "", show=False),
         Binding("alt+2", "switch_to_tasks", "", show=False),
-        Binding("alt+3", "switch_to_agent", "", show=False),
-        Binding("alt+4", "switch_to_logs", "", show=False),
+        Binding("alt+l", "open_log_screen", "Logs", priority=True),
         Binding("alt+g", "switch_to_goal", "", show=False),  # Goal 面板快捷键
         Binding("ctrl+shift+a", "change_theme", "", show=False),
         Binding("ctrl+shift+b", "toggle_transparency", "", show=False),
@@ -321,6 +331,13 @@ class HandsomeAgentApp(App):
         self.provider = provider
         self.cwd = cwd or os.getcwd()
         self.session_id = session_id
+        # 如果没有传入 context_length，从配置读取
+        if context_length is None:
+            try:
+                from common.config import get_model_config
+                context_length = get_model_config().context_window
+            except Exception:
+                context_length = None
         self.context_length = context_length
         self._logger = get_access_logger("TextualUI", sublayer="tui")
 
@@ -379,6 +396,8 @@ class HandsomeAgentApp(App):
         self._agent_status = "online"
         # 使用 Textual 原生 Markdown 组件，无需初始化
         self._markdown_enabled = True
+        # Token 计数（方案B：消息完成后估算）
+        self._current_token_count: int = 0
         # TUIConsumer（任务面板消费者）
         self._tui_consumer: Optional["TUIConsumer"] = None
         # 模型列表（动态从配置读取）
@@ -402,13 +421,12 @@ class HandsomeAgentApp(App):
         with Container(id="app-header"):
             with Horizontal(id="header-content"):
                 # 左侧：ASCII Banner
-                with Vertical(id="banner-left"):
-                    yield Static("", id="welcome-banner")
+                yield Static("", id="welcome-banner")
                 # 右侧：版本、skills、工具信息
                 with Vertical(id="header-info-right"):
-                    yield Static("", id="version-info", classes="header-info-text")
-                    yield Static("", id="skills-info", classes="header-info-text")
-                    yield Static("", id="tools-info", classes="header-info-text")
+                    yield Static("", id="version-info")
+                    yield Static("", id="skills-info")
+                    yield Static("", id="tools-info")
 
         with Horizontal(id="main-area"):
             yield ChatView(id="chat-area")
@@ -441,14 +459,39 @@ class HandsomeAgentApp(App):
             yield Footer()
 
     def on_key(self, event: KeyEvent) -> None:
-        self._logger.debug(f"[on_key] key={repr(event.key)}, control={event.control}")
+        key = event.key
+        self._logger.debug(f"[on_key] key={repr(key)}, control={event.control}, alt={getattr(event, 'alt', False)}")
 
-        # Ctrl+B 单独处理（因为 BINDINGS 中的 ctrl+b 可能被覆盖）
-        if event.key == "b" and event.control:
+        # Ctrl+B 切换侧边栏
+        if key == "b" and event.control:
             self._toggle_sidebar()
             event.prevent_default()
             event.stop()
             return
+
+        # Alt+数字/G 切换侧边栏面板（避免终端快捷键冲突）
+        is_alt = getattr(event, 'alt', False)
+        if is_alt:
+            if key in ("1", "f1"):
+                self.action_switch_to_file_tree()
+                event.prevent_default()
+                event.stop()
+            elif key in ("2", "f2"):
+                self.action_switch_to_tasks()
+                event.prevent_default()
+                event.stop()
+            elif key in ("3", "f3"):
+                self.action_switch_to_skills()
+                event.prevent_default()
+                event.stop()
+            elif key in ("l", "L"):
+                self.action_open_log_screen()
+                event.prevent_default()
+                event.stop()
+            elif key in ("g", "G"):
+                self.action_switch_to_goal()
+                event.prevent_default()
+                event.stop()
 
     def on_mount(self) -> None:
         self._logger.info("Textual UI mounted")
@@ -472,14 +515,6 @@ class HandsomeAgentApp(App):
         self.call_later(self._load_stylesheets)
         # 延迟初始化模型选择下拉菜单，确保 Select widget 已完全 mount
         self.call_later(self._init_model_select)
-
-        if self._tui_log_handler is not None:
-            try:
-                from textual.widgets import Log
-                log_widget = self.query_one("#log-output", Log)
-                self._tui_log_handler.set_widget(log_widget)
-            except Exception:
-                pass
 
         if self._theme_manager and self._theme_manager.is_transparency_enabled():
             self._logger.info("Applying saved transparency settings")
@@ -522,6 +557,9 @@ class HandsomeAgentApp(App):
                 )
 
         self.set_focus(self.query_one("#user-input", TextArea))
+
+        # 初始化 token 计数（加载历史会话的 token）
+        self.call_later(self._update_token_count)
 
     async def _load_stylesheets(self) -> None:
         if get_stylesheets is None:
@@ -635,7 +673,10 @@ class HandsomeAgentApp(App):
             tokens_widget = self._widget_cache.get("status_tokens")
             if tokens_widget:
                 if self.context_length:
-                    tokens_widget.update(f"│ 0/{self._format_context(self.context_length)} ")
+                    tokens_widget.update(
+                        f"│ {self._format_context(self._current_token_count)}"
+                        f"/{self._format_context(self.context_length)} "
+                    )
                 else:
                     tokens_widget.update("│ n/a ")
             
@@ -653,6 +694,41 @@ class HandsomeAgentApp(App):
                 tools_widget.update("🔧")
         except Exception as e:
             self._logger.debug(f"Failed to update status bar: {e}")
+
+    def _update_token_count(self) -> None:
+        """更新 token 计数（方案B：消息完成后估算，不影响性能）."""
+        if not estimate_messages_tokens_rough:
+            self._logger.info("[token_count] estimate_messages_tokens_rough not available")
+            return
+
+        if not self._session_store:
+            self._logger.info("[token_count] _session_store not available")
+            return
+
+        if not self.session_id:
+            self._logger.info("[token_count] session_id not available")
+            return
+
+        try:
+            messages = self._session_store.get_messages(self.session_id, limit=1000)
+            self._logger.info(f"[token_count] got {len(messages)} messages")
+
+            # 使用 Hermes 风格的 rough 估算
+            message_dicts = [
+                {"role": msg.role, "content": msg.content or ""}
+                for msg in messages
+            ]
+            self._current_token_count = estimate_messages_tokens_rough(message_dicts)
+            self._logger.info(f"[token_count] estimated: {self._current_token_count}")
+
+            tokens_widget = self._widget_cache.get("status_tokens")
+            if tokens_widget and self.context_length:
+                tokens_widget.update(
+                    f"│ {self._format_context(self._current_token_count)}"
+                    f"/{self._format_context(self.context_length)} "
+                )
+        except Exception as e:
+            self._logger.info(f"[token_count] Failed: {e}")
 
     def _get_configured_models(self) -> list[tuple[str, str]]:
         """从用户配置中获取已配置的模型列表."""
@@ -1100,6 +1176,15 @@ class HandsomeAgentApp(App):
         return "#C9A0E0"  # 默认紫色
 
     def _render_welcome_banner(self) -> None:
+        """渲染欢迎 Banner 和右侧信息。
+
+        布局：
+        ┌─────────────────────────────────────────────────────────────────┐
+        │ ░█░█░█▀█░█▀█░█▀▄░█▀▀░█▀█░█▄█░█▀▀    │  v1.0.0                   │
+        │ ░█▀█░█▀█░█░█░█░█░▀▀█░█░█░█░█░█▀▀    │  Agent · my-project       │
+        │ ░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀▀▀░▀░▀░▀▀▀    │  代码写得好，bug 少...    │
+        └─────────────────────────────────────────────────────────────────┘
+        """
         # 初始化缓存（首次调用时）
         if not self._banner_cache_initialized:
             self._init_banner_cache()
@@ -1107,54 +1192,65 @@ class HandsomeAgentApp(App):
         # 从 CSS 主题文件读取 Banner 颜色
         banner_color = self._get_theme_banner_color()
 
-        # 渲染左侧 ASCII Banner（不缓存，每次都重新生成因为颜色可能变化）
+        # 渲染左侧 ASCII Banner
         welcome_lines = [
             f"[bold {banner_color}]░█░█░█▀█░█▀█░█▀▄░█▀▀░█▀█░█▄█░█▀▀[/]",
             f"[bold {banner_color}]░█▀█░█▀█░█░█░█░█░▀▀█░█░█░█░█░█▀▀[/]",
             f"[bold {banner_color}]░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀▀▀░▀░▀░▀▀▀[/]",
         ]
 
-        # 使用缓存的 widgets（优化性能）
+        # 使用缓存的 widgets
         welcome_widget = self._widget_cache.get("welcome_banner")
         if welcome_widget:
             from rich.text import Text as RichText
             welcome_text = RichText.from_markup("\n".join(welcome_lines))
             welcome_widget.update(welcome_text)
 
-        # 渲染右侧信息栏（使用缓存）
+        # 获取随机问候语
+        try:
+            from common.i18n import get_random_greeting
+            greeting = get_random_greeting()
+        except Exception:
+            greeting = "代码改变世界。"
+
+        # 渲染右侧信息栏
         from rich.text import Text as RichText
 
-        # 版本信息 + 项目路径（使用缓存）
+        # 尝试获取当前模式
+        current_mode = "Agent"  # 默认模式
+        try:
+            if hasattr(self, '_agent') and self._agent and hasattr(self._agent, 'get_mode'):
+                current_mode = self._agent.get_mode()
+        except Exception:
+            pass
+
+        # 获取工作目录（绝对路径）
+        cwd_path = self.cwd or "unknown"
+
+        # 路径太长时截断显示（单行）
+        max_chars = 40
+        if len(cwd_path) > max_chars:
+            half = max_chars - 3  # 留3位给 "..."
+            cwd_path = cwd_path[:half] + "..."
+
+        # 第1行：版本号 + 俏皮话（不要引号）
         version_widget = self._widget_cache.get("version_info")
-        if version_widget and self._banner_cache["version"]:
+        if version_widget and self._banner_cache.get("version"):
             version_text = RichText.from_markup(
-                f"[dim]{self._banner_cache['version']}[/] "
-                f"[bright_black]@[/] "
-                f"[bright_black]{self._banner_cache['project_path']}[/]"
+                f"[dim]{self._banner_cache['version']}[/] [dim]·[/] [italic dim]{greeting}[/]"
             )
             version_widget.update(version_text)
 
-        # Skill 数量 + 路径（使用缓存）
-        skills_widget = self._widget_cache.get("skills_info")
-        if skills_widget and self._banner_cache["skills_count"] is not None:
-            skills_text = RichText.from_markup(
-                f"[bold #f0c040]⭐[/] "
-                f"[dim]{self._banner_cache['skills_count']}[/] "
-                f"[bright_black]@[/] "
-                f"[bright_black]{self._banner_cache['skills_path']}[/]"
-            )
-            skills_widget.update(skills_text)
+        # 第2行：工作目录（单行显示）
+        mode_widget = self._widget_cache.get("skills_info")
+        if mode_widget:
+            mode_text = RichText.from_markup(f"[bright_black]{cwd_path}[/]")
+            mode_widget.update(mode_text)
 
-        # 工具数量 + 路径（使用缓存）
-        tools_widget = self._widget_cache.get("tools_info")
-        if tools_widget and self._banner_cache["tools_count"] is not None:
-            tools_text = RichText.from_markup(
-                f"[bold #58a6ff]🔧[/] "
-                f"[dim]{self._banner_cache['tools_count']}[/] "
-                f"[bright_black]@[/] "
-                f"[bright_black]{self._banner_cache['tools_path']}[/]"
-            )
-            tools_widget.update(tools_text)
+        # 第3行：留空（不再使用）
+        greeting_widget = self._widget_cache.get("tools_info")
+        if greeting_widget:
+            greeting_widget.update("")
 
     def _get_tools_count(self) -> int:
         """获取已注册的工具数量"""
@@ -1731,11 +1827,23 @@ class HandsomeAgentApp(App):
     def action_switch_to_tasks(self) -> None:
         self._get_sidebar_and_switch("tasks")
 
-    def action_switch_to_agent(self) -> None:
-        self._get_sidebar_and_switch("agent")
+    def action_switch_to_skills(self) -> None:
+        self._get_sidebar_and_switch("skills")
 
     def action_switch_to_logs(self) -> None:
         self._get_sidebar_and_switch("logs")
+
+    def action_open_log_screen(self) -> None:
+        """打开全局日志窗口 (Alt+L)."""
+        if LogScreen:
+            # 检查是否已经打开（直接判断当前屏幕）
+            if isinstance(self.screen, LogScreen):
+                self.pop_screen()
+                return
+            self.push_screen(LogScreen())
+            self._logger.debug("Log screen opened")
+        else:
+            self.notify("日志窗口不可用")
 
     def action_switch_to_goal(self) -> None:
         self._get_sidebar_and_switch("goal")
@@ -1754,7 +1862,9 @@ class HandsomeAgentApp(App):
 
     def action_open_command_palette(self) -> None:
         if CommandPaletteScreen:
-            self.push_screen(CommandPaletteScreen())
+            self.push_screen(CommandPaletteScreen(
+                key_binding_manager=self._key_binding_manager
+            ))
             self._logger.debug("Command palette opened")
         else:
             self.notify("Command palette not available")
@@ -1814,6 +1924,9 @@ class HandsomeAgentApp(App):
             chat_area.append_message(role, content)
         elif hasattr(chat_area, 'write'):
             chat_area.write(f"{content}\n")
+
+        # 同时保存到 session_store（用于 token 计数）
+        self.save_message(role, content)
 
     def _navigate_input_history(self, direction: int) -> None:
         """输入框上下键触发的历史导航回调。
@@ -1986,6 +2099,12 @@ class HandsomeAgentApp(App):
                 time_widget = self._widget_cache.get("status_time")
                 if time_widget:
                     time_widget.update(f"│ {elapsed_minutes}m {elapsed_seconds}s ")
+
+                # 更新 token 计数（方案B：消息完成后估算，不影响性能）
+                # 先 flush 确保消息已保存到 store
+                if self._session_store:
+                    self._session_store.flush_pending_messages()
+                self.call_later(self._update_token_count)
             except Exception as e:
                 self._stop_loading_animation()
                 self.set_agent_status("error")

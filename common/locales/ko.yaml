@@ -356,6 +356,18 @@ banner:
   setup_subtitle: "당신의 만능 AI 어시스턴트"
   config_status: "설정 상태"
   run_commands: "실행 명령："
+  # Random greeting messages separated by | (pipe character)
+  random_greeting: >
+    "코드시는 시이다. 커피를 마시며 쓰여진 예술. |
+    Talk is cheap, show me the code. |
+    단순함이 궁극적인 세련됨이다. |
+    먼저 작동시켜라. 그 다음 올바르게 만들어라. |
+    최고의 오류 메시지는 오류가 없는 것이다. |
+    읽을 수 있는 코드는 유지보수하기 좋은 코드다. |
+    반복하지 마라. 하지만 반복한다면 일관성을 유지하라. |
+    현명한 사람은 문제를 해결하고, 지혜로운 사람은 문제를 피한다. |
+    디버깅은 코딩보다 두 배 어렵다. |
+    좋은 소프트웨어의 기능은 복잡한 것이 단순해 보이게 하는 것이다."
 
 # =============================================================================
 # Provider Display Names
@@ -556,6 +568,38 @@ onboarding:
     finish: "✓ 완료"
     start_using: "▶ 사용 시작"
     configure_more: "⚙ 추가 구성"
+
+# =============================================================================
+# Message Role Labels (TUI)
+# =============================================================================
+
+# =============================================================================
+# Command Palette (TUI)
+# =============================================================================
+
+tui:
+  command_palette:
+    title: "명령 팔레트"
+    search_hint: "명령 검색..."
+    hint_up: "↑/k"
+    hint_down: "↓/j"
+    hint_enter: "Enter"
+    hint_esc: "Esc"
+  command:
+    new_tab: "새 탭"
+    new_tab_desc: "새 탭을 생성합니다"
+    close_tab: "탭 닫기"
+    close_tab_desc: "현재 탭을 닫습니다"
+    toggle_theme: "테마 전환"
+    toggle_theme_desc: "라이트/다크 테마를 전환합니다"
+    clear_screen: "화면 지우기"
+    clear_screen_desc: "화면 내용을 지웁니다"
+    show_help: "도움말 표시"
+    show_help_desc: "도움말 패널을 엽니다"
+    quit: "앱 종료"
+    quit_desc: "Handsome Agent 를 종료합니다"
+    settings: "설정"
+    settings_desc: "앱 설정을 엽니다"
 
 # =============================================================================
 # Message Role Labels (TUI)

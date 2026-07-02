@@ -506,6 +506,108 @@ class I18n:
         return LAYER_EMOJI.copy()
 
 
+# =============================================================================
+# Random Greeting for Banner
+# =============================================================================
+
+# Fallback greetings when YAML config is unavailable
+_FALLBACK_GREETINGS: dict[str, list[str]] = {
+    "zh": [
+        "代码写得好，bug 少；注释写得妙，问题早知道。",
+        "Talk is cheap, show me the code.",
+        "一个优秀的程序员是在穿过地狱时还在写注释的人。",
+        "Debug 比写代码难两倍，所以如果你写代码时很聪明，Debug 时就更难了。",
+        "先把事情做对，再把事情做巧。",
+        "好的代码是最好的文档。",
+        "不要只会 Ctrl+C/Ctrl+V，要理解背后的逻辑。",
+        "程序员的三大谎言：我明天就改、注释以后补、这是最后一版。",
+        "代码之美在于简洁，智慧之美在于分享。",
+        "学会阅读他人代码，是成长的捷径。",
+        "保持代码简洁，避免不必要的复杂性。",
+        "写代码时想着维护你代码的人，可能就是你自己。",
+    ],
+    "en": [
+        "Code is poetry, written by caffeinated artists.",
+        "Talk is cheap, show me the code.",
+        "Simplicity is the ultimate sophistication.",
+        "First, make it work. Then, make it right.",
+        "The best error message is no error at all.",
+        "Readable code is maintainable code.",
+        "Don't repeat yourself, but when you do, keep it consistent.",
+        "A clever person solves problems, a wise person avoids them.",
+        "Debugging is twice as hard as writing code, so write clever code.",
+        "The function of good software is to make the complex appear simple.",
+        "Programs must be written for people to read, and only incidentally for machines.",
+        "Perfection is achieved not when there is nothing more to add, but when there is nothing left to take away.",
+    ],
+    "ja": [
+        "コードは詩である。コーヒーを飲みながら書かれた芸術だ。",
+        "Talk is cheap, show me the code.",
+        "シンプルさは究極の洗練だ。",
+        "まず動かせ。それから正しくしろ。",
+        "最高のエラーメッセージはエラーがないことだ。",
+        "読めるコードは保守しやすいコードだ。",
+        "複製するな。だが複製する場合は、一貫性を保て。",
+        "聪明人は問題を解決し、賢い人は問題を避ける。",
+        "デバッグはコードを書くことの2倍難しい。",
+        "良いソフトウェアの本質は、複雑なことをシンプルに見せること。",
+        "プログラムは人が読むために書くものであり、偶然にも機械のためにある。",
+    ],
+    "ko": [
+        "코드시는 시이다. 커피를 마시며 쓰여진 예술.",
+        "Talk is cheap, show me the code.",
+        "단순함이 궁극적인 세련됨이다.",
+        "먼저 작동시켜라. 그 다음 올바르게 만들어라.",
+        "최고의 오류 메시지는 오류가 없는 것이다.",
+        "읽을 수 있는 코드는 유지보수하기 좋은 코드다.",
+        "반복하지 마라. 하지만 반복한다면 일관성을 유지하라.",
+        "현명한 사람은 문제를 해결하고, 지혜로운 사람은 문제를 피한다.",
+        "디버깅은 코딩보다 두 배 어렵다.",
+        "좋은 소프트웨어의 기능은 복잡한 것이 단순해 보이게 하는 것이다.",
+    ],
+}
+
+
+def get_random_greeting(lang: str | None = None) -> str:
+    """Get a random greeting for Banner display.
+
+    Attempts to read from YAML config first, falls back to hardcoded list.
+
+    Args:
+        lang: Optional language code. Defaults to resolved language.
+
+    Returns:
+        A random greeting string in the appropriate language.
+    """
+    import random
+
+    target = _normalize_lang(lang) if lang else get_language()
+
+    # Try to read from YAML catalog
+    try:
+        greeting_key = "banner.random_greeting"
+        catalog = _load_catalog(target)
+        value = catalog.get(greeting_key)
+
+        if value is None and target != DEFAULT_LANGUAGE:
+            value = _load_catalog(DEFAULT_LANGUAGE).get(greeting_key)
+
+        if value:
+            greetings = [g.strip() for g in value.split("|") if g.strip()]
+            if greetings:
+                return random.choice(greetings)
+    except Exception:
+        pass
+
+    # Fallback to hardcoded list
+    greetings = _FALLBACK_GREETINGS.get(target, _FALLBACK_GREETINGS.get(DEFAULT_LANGUAGE, []))
+    if greetings:
+        return random.choice(greetings)
+
+    # Ultimate fallback
+    return "Hello, World!"
+
+
 # Global instance
 i18n = I18n()
 
@@ -528,6 +630,7 @@ __all__ = [
     "t",
     "get_language",
     "reset_language_cache",
+    "get_random_greeting",
     "I18n",
     "i18n",
     "get_i18n",

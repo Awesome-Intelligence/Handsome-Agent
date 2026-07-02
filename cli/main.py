@@ -158,21 +158,15 @@ async def interactive_mode(agent: Agent, model_name: str = "Agent"):
         }
 
         # 获取配置信息
-        provider = None
-        context_length = None
         try:
-            from common.config import load_config
-            cfg = load_config()
-            if cfg.get('llm', {}).get('provider'):
-                provider = cfg.get('llm', {}).get('provider')
-            if cfg.get('model', {}).get('context_window'):
-                context_length = cfg.get('model', {}).get('context_window')
-        except:
-            pass
+            from common.config import get_model_config
+            context_length = get_model_config().context_window
+        except Exception:
+            context_length = None
 
         build_welcome_banner(
             model=model_name,
-            provider=provider,
+            provider=None,
             cwd=os.getcwd(),
             tools_count=4,
             skills_count=0,
@@ -763,18 +757,14 @@ def run_textual_mode(args: argparse.Namespace, agent: Agent, model_name: str) ->
     provider = None
     context_length = None
     try:
-        from common.config import load_config
-        cfg = load_config()
-        if cfg.get('llm', {}).get('provider'):
-            provider = cfg.get('llm', {}).get('provider')
-        if cfg.get('model', {}).get('context_window'):
-            context_length = cfg.get('model', {}).get('context_window')
+        from common.config import get_model_config
+        context_length = get_model_config().context_window
     except Exception:
         pass
-    
+
     return run_textual_app(
         model_name=model_name,
-        provider=provider,
+        provider=None,
         cwd=os.getcwd(),
         session_id=session_id,
         context_length=context_length,

@@ -365,6 +365,18 @@ banner:
   setup_subtitle: "Your AI assistant for everything"
   config_status: "Configuration Status"
   run_commands: "Run commands:"
+  # Random greeting messages separated by | (pipe character)
+  random_greeting: >
+    "Code is poetry, written by caffeinated artists. |
+    Talk is cheap, show me the code. |
+    Simplicity is the ultimate sophistication. |
+    First, make it work. Then, make it right. |
+    The best error message is no error at all. |
+    Readable code is maintainable code. |
+    Don't repeat yourself, but when you do, keep it consistent. |
+    A clever person solves problems, a wise person avoids them. |
+    Debugging is twice as hard as writing code, so write clever code. |
+    Programs must be written for people to read, and only incidentally for machines."
 
 # =============================================================================
 # Provider Display Names
@@ -591,6 +603,38 @@ onboarding:
     finish: "✓ Finish"
     start_using: "▶ Start Using"
     configure_more: "⚙ Configure More"
+
+# =============================================================================
+# Message Role Labels (TUI)
+# =============================================================================
+
+# =============================================================================
+# Command Palette (TUI)
+# =============================================================================
+
+tui:
+  command_palette:
+    title: "Command Palette"
+    search_hint: "Search commands..."
+    hint_up: "↑/k"
+    hint_down: "↓/j"
+    hint_enter: "Enter"
+    hint_esc: "Esc"
+  command:
+    new_tab: "New Tab"
+    new_tab_desc: "Create a new tab"
+    close_tab: "Close Tab"
+    close_tab_desc: "Close the current tab"
+    toggle_theme: "Toggle Theme"
+    toggle_theme_desc: "Switch between light and dark theme"
+    clear_screen: "Clear Screen"
+    clear_screen_desc: "Clear screen content"
+    show_help: "Show Help"
+    show_help_desc: "Open the help panel"
+    quit: "Quit Application"
+    quit_desc: "Exit Handsome Agent"
+    settings: "Settings"
+    settings_desc: "Open application settings"
 
 # =============================================================================
 # Message Role Labels (TUI)

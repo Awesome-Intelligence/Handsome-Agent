@@ -1069,17 +1069,39 @@ class SkillsPane(SidebarPane):
 # ============================================================================
 
 
-class AgentPane(SidebarPane):
-    """Agent 面板."""
+# ============================================================================
+# 日志面板
+# ============================================================================
 
-    def __init__(self, agent=None) -> None:
-        self._agent = agent
-        super().__init__(id="agent", title="Agent")
 
-    def compose(self) -> ComposeResult:
-        """组合子组件."""
-        idle_icon = AGENT_STATUS_ICONS.get("idle", "🟢")
-        yield Static(f"[green]{idle_icon} 空闲[/green]", id="agent-content")
+class WrappedLog(Static):
+    """支持自动换行的日志显示组件。
+
+    使用 Static 的 text_wrap 实现换行，支持：
+    - 自动换行
+    - 鼠标可选中文本
+    - 自动追加日志行
+    """
+
+    def __init__(self, max_lines: int = 1000, **kwargs):
+        super().__init__(**kwargs)
+        self._lines: list[str] = []
+        self._max_lines = max_lines
+
+    def write_line(self, text: str) -> None:
+        """追加一行日志文本，自动换行."""
+        self._lines.append(text)
+
+        # 限制最大行数，超出则截断前面部分
+        if len(self._lines) > self._max_lines:
+            self._lines = self._lines[-(self._max_lines // 2):]
+
+        self.update("\n".join(self._lines))
+
+    def clear(self) -> None:
+        """清空日志."""
+        self._lines.clear()
+        self.update("")
 
 
 # ============================================================================
@@ -1088,14 +1110,27 @@ class AgentPane(SidebarPane):
 
 
 class LogsPane(SidebarPane):
-    """日志面板."""
+    """日志面板（使用 WrappedLog 支持自动换行）."""
+
+    DEFAULT_CSS = """
+    LogsPane {
+        width: 100%;
+        height: 100%;
+    }
+
+    LogsPane #log-output {
+        width: 100%;
+        height: 100%;
+        overflow-y: auto;
+    }
+    """
 
     def __init__(self) -> None:
         super().__init__(id="logs", title="日志")
 
     def compose(self) -> ComposeResult:
         """组合子组件."""
-        yield Log(id="log-output", auto_scroll=True, max_lines=1000, highlight=True)
+        yield WrappedLog(id="log-output", markup=False)
 
 
 # ============================================================================
@@ -1158,15 +1193,11 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         self._goal_pane = GoalPane(self._goal_manager)
         self._file_tree_pane = FileTreePane(self._cwd)
         self._skills_pane = SkillsPane()
-        self._agent_pane = AgentPane(self._agent)
-        self._logs_pane = LogsPane()
 
         with TabbedContent():
             yield self._goal_pane
             yield self._file_tree_pane
             yield self._skills_pane
-            yield self._agent_pane
-            yield self._logs_pane
 
     @property
     def goal_pane(self) -> GoalPane:
@@ -1183,25 +1214,20 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         """技能面板."""
         return self._skills_pane
 
-    @property
-    def agent_pane(self) -> AgentPane:
-        """Agent 面板."""
-        return self._agent_pane
-
-    @property
-    def logs_pane(self) -> LogsPane:
-        """日志面板."""
-        return self._logs_pane
-
     def switch_to_panel(self, panel_id: str) -> None:
         """切换到指定面板.
 
         Args:
-            panel_id: 面板 ID (goal, file_tree, agent, logs)
+            panel_id: 面板 ID (goal, file_tree, skills)
         """
-        tabs = self.query_one(Tabs)
-        if panel_id in ["goal", "file_tree", "agent", "logs"]:
-            tabs.active = panel_id
+        pane_map = {
+            "goal": self._goal_pane,
+            "file_tree": self._file_tree_pane,
+            "skills": self._skills_pane,
+        }
+        pane = pane_map.get(panel_id)
+        if pane:
+            pane.activate()
 
     def set_goal_manager(self, goal_manager) -> None:
         """设置 GoalManager 实例并更新 Goal 面板"""
@@ -1350,8 +1376,7 @@ __all__ = [
     "FileTreePane",
     "FilteredDirectoryTree",
     "SkillsPane",
-    "AgentPane",
-    "LogsPane",
+    "WrappedLog",
     "SidebarTabBar",
     "get_log_level_icon",
     "format_log_entry",

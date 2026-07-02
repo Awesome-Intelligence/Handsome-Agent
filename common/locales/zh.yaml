@@ -356,6 +356,18 @@ banner:
   setup_subtitle: "你的全能 AI 助手"
   config_status: "配置状态"
   run_commands: "运行命令："
+  # Random greeting messages separated by | (pipe character)
+  random_greeting: >
+    "代码写得好，bug 少；注释写得妙，问题早知道。 |
+    Talk is cheap, show me the code。 |
+    一个优秀的程序员是在穿过地狱时还在写注释的人。 |
+    Debug 比写代码难两倍，所以如果你写代码时很聪明，Debug 时就更难了。 |
+    先把事情做对，再把事情做巧。 |
+    好的代码是最好的文档。 |
+    不要只会 Ctrl+C/Ctrl+V，要理解背后的逻辑。 |
+    程序员的三大谎言：我明天就改、注释以后补、这是最后一版。 |
+    代码之美在于简洁，智慧之美在于分享。 |
+    学会阅读他人代码，是成长的捷径。"
 
 # =============================================================================
 # Provider Display Names
@@ -571,6 +583,38 @@ onboarding:
     finish: "✓ 完成"
     start_using: "▶ 开始使用"
     configure_more: "⚙ 进一步配置"
+
+# =============================================================================
+# Message Role Labels (TUI)
+# =============================================================================
+
+# =============================================================================
+# Command Palette (TUI)
+# =============================================================================
+
+tui:
+  command_palette:
+    title: "命令面板"
+    search_hint: "搜索命令..."
+    hint_up: "↑/k"
+    hint_down: "↓/j"
+    hint_enter: "Enter"
+    hint_esc: "Esc"
+  command:
+    new_tab: "新建标签"
+    new_tab_desc: "创建新标签页"
+    close_tab: "关闭标签"
+    close_tab_desc: "关闭当前标签页"
+    toggle_theme: "切换主题"
+    toggle_theme_desc: "在浅色/深色主题间切换"
+    clear_screen: "清屏"
+    clear_screen_desc: "清除屏幕内容"
+    show_help: "显示帮助"
+    show_help_desc: "打开帮助面板"
+    quit: "退出应用"
+    quit_desc: "退出 Handsome Agent"
+    settings: "设置"
+    settings_desc: "打开应用设置"
 
 # =============================================================================
 # Message Role Labels (TUI)

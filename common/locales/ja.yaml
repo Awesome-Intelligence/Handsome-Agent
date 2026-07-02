@@ -356,6 +356,18 @@ banner:
   setup_subtitle: "あなたの万能AIアシスタント"
   config_status: "設定ステータス"
   run_commands: "実行コマンド："
+  # Random greeting messages separated by | (pipe character)
+  random_greeting: >
+    "コードは詩である。コーヒーを飲みながら書かれる芸術だ。 |
+    Talk is cheap, show me the code. |
+    シンプルさは究極の洗練だ。 |
+    まず動かせ。それから正しくしろ。 |
+    最高のエラーメッセージはエラーがないことだ。 |
+    読めるコードは保守しやすいコードだ。 |
+    複製するな。だが複製する場合は、一貫性を保て。 |
+    聪明人は問題を解決し、賢い人は問題を避ける。 |
+    デバッグはコードを書くことの2倍難しい。 |
+    良いソフトウェアの本質は、複雑なことをシンプルに見せることだ。"
 
 # =============================================================================
 # Provider Display Names
@@ -556,6 +568,38 @@ onboarding:
     finish: "✓ 完了"
     start_using: "▶ 使い始める"
     configure_more: "⚙ 詳細設定"
+
+# =============================================================================
+# Message Role Labels (TUI)
+# =============================================================================
+
+# =============================================================================
+# Command Palette (TUI)
+# =============================================================================
+
+tui:
+  command_palette:
+    title: "コマンドパレット"
+    search_hint: "コマンドを検索..."
+    hint_up: "↑/k"
+    hint_down: "↓/j"
+    hint_enter: "Enter"
+    hint_esc: "Esc"
+  command:
+    new_tab: "新規タブ"
+    new_tab_desc: "新しいタブを作成する"
+    close_tab: "タブを閉じる"
+    close_tab_desc: "現在のタブを閉じる"
+    toggle_theme: "テーマ切替"
+    toggle_theme_desc: "ライト/ダークテーマを切り替える"
+    clear_screen: "画面をクリア"
+    clear_screen_desc: "画面の内容を消去"
+    show_help: "ヘルプを表示"
+    show_help_desc: "ヘルプパネルを開く"
+    quit: "アプリを終了"
+    quit_desc: "Handsome Agent を終了"
+    settings: "設定"
+    settings_desc: "アプリ設定を開く"
 
 # =============================================================================
 # Message Role Labels (TUI)
