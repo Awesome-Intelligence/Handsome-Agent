@@ -231,7 +231,6 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     BINDINGS = [
         Binding("escape", "close", "关闭", show=False),
-        Binding("q", "close", "关闭", show=False),
         Binding("tab", "next_category", "下一分类", show=False),
         Binding("shift+tab", "prev_category", "上一分类", show=False),
         Binding("s", "save", "保存", show=False),

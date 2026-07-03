@@ -148,16 +148,6 @@ except ImportError:
     LogScreen = None
 
 try:
-    from tui.core.keybindings import (
-        KeyBinding, KeyBindingManager, KeyBindingCategory, create_default_keybindings,
-    )
-except ImportError:
-    KeyBinding = None
-    KeyBindingManager = None
-    KeyBindingCategory = None
-    create_default_keybindings = None
-
-try:
     from tui.theming.css import get_stylesheets
 except ImportError:
     get_stylesheets = None
@@ -261,24 +251,25 @@ class HandsomeAgentApp(App):
     log = LogDescriptor()
 
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
+        # --- 核心快捷键 ---
+        Binding("ctrl+q", "quit", "Quit"),
         Binding("ctrl+k", "open_command_palette", "Command"),
         Binding("ctrl+b", "toggle_sidebar", "Sidebar"),
         Binding("f1", "open_help", "Help"),
         Binding("f2", "open_settings", "Settings"),
-        Binding("alt+1", "switch_to_file_tree", "", show=False),
-        Binding("alt+2", "switch_to_tasks", "", show=False),
-        Binding("alt+l", "open_log_screen", "Logs", priority=True),
-        Binding("alt+g", "switch_to_goal", "", show=False),  # Goal 面板快捷键
-        Binding("ctrl+shift+a", "change_theme", "", show=False),
-        Binding("ctrl+shift+b", "toggle_transparency", "", show=False),
-        Binding("ctrl+shift+m", "toggle_markdown", "", show=False),
-        Binding("f10", "toggle_dark_mode", "", show=False),
-        Binding("ctrl+/", "open_help", "", show=False),
-        Binding("ctrl+r", "open_session_selector", "", show=False),
-        Binding("ctrl+l", "clear_screen", "", show=False),
-        Binding("j", "scroll_down", "", show=False),
-        Binding("k", "scroll_up", "", show=False),
+        Binding("f3", "open_log_screen", "Logs"),
+        Binding("escape", "close", "关闭"),
+
+        # --- 标签管理快捷键 ---
+        Binding("ctrl+t", "new_tab", "New Tab", show=False),
+        Binding("ctrl+w", "close_tab", "Close Tab", show=False),
+        Binding("ctrl+tab", "next_tab", "Next Tab", show=False),
+        Binding("ctrl+shift+tab", "prev_tab", "Prev Tab", show=False),
+
+        # --- 面板切换快捷键 (ctrl+方向键) ---
+        Binding("ctrl+left", "prev_panel", "Prev Panel", show=False),
+        Binding("ctrl+right", "next_panel", "Next Panel", show=False),
+
     ]
 
     # Textual 主题系统 - 定义为类属性
@@ -388,9 +379,6 @@ class HandsomeAgentApp(App):
         self._input_history: list[str] = []
         self._history_index: int = -1
         self._current_input: str = ""
-        self._key_binding_manager: Optional[KeyBindingManager] = None
-        if KeyBindingManager:
-            self._init_keybinding_manager()
         self._init_session_store()
         self._init_approval_manager(approval_mode)
         self._agent_status = "online"
@@ -421,7 +409,7 @@ class HandsomeAgentApp(App):
 
     def compose(self) -> ComposeResult:
         with Container(id="app-header"):
-            with Horizontal(id="header-content"):
+            with Horizontal():
                 # 左侧：ASCII Banner
                 yield Static("", id="welcome-banner")
                 # 右侧：版本、skills、工具信息
@@ -460,41 +448,6 @@ class HandsomeAgentApp(App):
                 placeholder="输入消息...Enter 发送",
             )
             yield Footer()
-
-    def on_key(self, event: KeyEvent) -> None:
-        key = event.key
-        self._logger.debug(f"[on_key] key={repr(key)}, control={event.control}, alt={getattr(event, 'alt', False)}")
-
-        # Ctrl+B 切换侧边栏
-        if key == "b" and event.control:
-            self._toggle_sidebar()
-            event.prevent_default()
-            event.stop()
-            return
-
-        # Alt+数字/G 切换侧边栏面板（避免终端快捷键冲突）
-        is_alt = getattr(event, 'alt', False)
-        if is_alt:
-            if key in ("1", "f1"):
-                self.action_switch_to_file_tree()
-                event.prevent_default()
-                event.stop()
-            elif key in ("2", "f2"):
-                self.action_switch_to_tasks()
-                event.prevent_default()
-                event.stop()
-            elif key in ("3", "f3"):
-                self.action_switch_to_skills()
-                event.prevent_default()
-                event.stop()
-            elif key in ("l", "L"):
-                self.action_open_log_screen()
-                event.prevent_default()
-                event.stop()
-            elif key in ("g", "G"):
-                self.action_switch_to_goal()
-                event.prevent_default()
-                event.stop()
 
     def on_mount(self) -> None:
         self._logger.info("Textual UI mounted")
@@ -1363,27 +1316,6 @@ class HandsomeAgentApp(App):
             return f"{val:.1f}K"
         return str(tokens)
 
-    def _init_keybinding_manager(self) -> None:
-        self._key_binding_manager = KeyBindingManager()
-
-        if create_default_keybindings:
-            bindings = create_default_keybindings(
-                on_new_tab=self.action_new_tab,
-                on_close_tab=self.action_close_tab,
-                on_next_tab=self.action_next_tab,
-                on_prev_tab=self.action_prev_tab,
-                on_open_command_palette=self.action_open_command_palette,
-                on_scroll_up=self.action_scroll_up,
-                on_scroll_down=self.action_scroll_down,
-                on_open_help=self.action_open_help,
-                on_open_session_selector=self.action_open_session_selector,
-                on_clear_screen=self.action_clear_screen,
-                on_quit=self.action_quit,
-            )
-            self._key_binding_manager.register_batch(bindings)
-
-        self._logger.debug("KeyBindingManager initialized")
-
     def _init_session_store(self) -> None:
         if SessionStore:
             try:
@@ -1874,6 +1806,36 @@ class HandsomeAgentApp(App):
     def action_switch_to_file_tree(self) -> None:
         self._get_sidebar_and_switch("file_tree")
 
+    def action_next_panel(self) -> None:
+        """切换到下一个面板."""
+        panel_order = ["goal", "file_tree", "skills"]
+        try:
+            inner = self.query_one("#sidebar-container-inner", SidebarContainer)
+            # 获取 TabbedContent 的当前活动面板
+            tabbed = inner.query_one("TabbedContent")
+            current_tab = tabbed.active
+            if current_tab in panel_order:
+                idx = panel_order.index(current_tab)
+                next_panel = panel_order[(idx + 1) % len(panel_order)]
+                self._get_sidebar_and_switch(next_panel)
+        except Exception as e:
+            self._logger.debug(f"action_next_panel: {e}")
+
+    def action_prev_panel(self) -> None:
+        """切换到上一个面板."""
+        panel_order = ["goal", "file_tree", "skills"]
+        try:
+            inner = self.query_one("#sidebar-container-inner", SidebarContainer)
+            # 获取 TabbedContent 的当前活动面板
+            tabbed = inner.query_one("TabbedContent")
+            current_tab = tabbed.active
+            if current_tab in panel_order:
+                idx = panel_order.index(current_tab)
+                prev_panel = panel_order[(idx - 1) % len(panel_order)]
+                self._get_sidebar_and_switch(prev_panel)
+        except Exception as e:
+            self._logger.debug(f"action_prev_panel: {e}")
+
     def action_switch_to_tasks(self) -> None:
         self._get_sidebar_and_switch("tasks")
 
@@ -1904,7 +1866,7 @@ class HandsomeAgentApp(App):
     def action_open_help(self) -> None:
         if HelpScreen:
             self.push_screen(HelpScreen(
-                key_binding_manager=self._key_binding_manager
+                key_binding_manager=None
             ))
             self._logger.debug("Help screen opened")
         else:
@@ -1913,7 +1875,7 @@ class HandsomeAgentApp(App):
     def action_open_command_palette(self) -> None:
         if CommandPaletteScreen:
             self.push_screen(CommandPaletteScreen(
-                key_binding_manager=self._key_binding_manager
+                key_binding_manager=None
             ))
             self._logger.debug("Command palette opened")
         else:

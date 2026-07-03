@@ -730,6 +730,10 @@ def get_task_logger(name: str = "task", sublayer: str = None) -> LayerLogger:
     """Get task layer logger"""
     return LayerLogger(name, "decision", sublayer)
 
+def get_tui_logger(name: str = "tui", sublayer: str = None) -> LayerLogger:
+    """Get TUI layer logger (alias for get_access_logger)"""
+    return LayerLogger(name, "access", sublayer)
+
 
 def configure_logging(config: Optional[Dict[str, Any]] = None) -> None:
     """Configure logging system
@@ -796,6 +800,7 @@ __all__ = [
     "get_postprocess_logger",
     "get_memory_logger",
     "get_task_logger",
+    "get_tui_logger",
     "configure_logging",
     "set_log_level",
     "get_log_level",

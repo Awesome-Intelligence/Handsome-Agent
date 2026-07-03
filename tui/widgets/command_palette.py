@@ -373,6 +373,31 @@ class CommandPaletteScreen(ModalScreen):
             ),
         ]
 
+    def _get_action_map(self) -> dict[str, callable]:
+        """获取快捷键命令到 action 的映射
+
+        KeyBinding.action 已废弃（始终为 None），此方法提供从
+        app 实例获取真实 action 的能力。
+
+        Returns:
+            {cmd_key: action_lambda} 字典
+        """
+        return {
+            "new_tab": lambda: self.app.post_message(self.CommandExecuted(
+                self, Command("", "", "", None)
+            )),
+            "close_tab": lambda: self.app.post_message(self.CommandExecuted(
+                self, Command("", "", "", None)
+            )),
+            "clear_screen": lambda: self.app.post_message(self.CommandExecuted(
+                self, Command("", "", "", None)
+            )),
+            "show_help": lambda: self.app.post_message(self.CommandExecuted(
+                self, Command("", "", "", None)
+            )),
+            "quit": lambda: self.app.action_quit(),
+        }
+
     def _build_commands_from_bindings(self) -> list[Command]:
         """从 KeyBindingManager 的绑定生成命令列表
 
@@ -393,7 +418,6 @@ class CommandPaletteScreen(ModalScreen):
             ("ctrl+l", "clear_screen"),
             ("f1", "show_help"),
             ("ctrl+q", "quit"),
-            ("q", "quit"),
         ]
 
         try:
@@ -405,10 +429,17 @@ class CommandPaletteScreen(ModalScreen):
         # 建立 key -> binding 的映射
         key_to_binding = {b.key.lower(): b for b in bindings}
 
+        # 从 app 获取 action 方法的映射（KeyBinding.action 已废弃）
+        action_map = self._get_action_map()
+
         commands = []
         for key, cmd_key in predefined:
             binding = key_to_binding.get(key.lower())
             if binding is None:
+                continue
+
+            action = action_map.get(cmd_key)
+            if action is None:
                 continue
 
             name = i18n.t(f"tui.command.{cmd_key}")
@@ -420,11 +451,9 @@ class CommandPaletteScreen(ModalScreen):
                 name=name,
                 description=desc,
                 shortcut=shortcut,
-                action=binding.action,
+                action=action,
                 category=binding.category,
             ))
-
-        return commands
 
         return commands
 

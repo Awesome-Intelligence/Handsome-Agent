@@ -76,9 +76,7 @@ class LogScreen(ModalScreen):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "关闭", show=False),
-        Binding("q", "close", "关闭", show=False),
-        Binding("l", "close", "关闭", show=False),
+        Binding("escape", "close", "关闭", show=True),
     ]
 
     def __init__(self, **kwargs):
@@ -92,10 +90,10 @@ class LogScreen(ModalScreen):
         from textual.containers import ScrollableContainer
 
         with Vertical(id="log-window"):
-            yield Static("📜 日志查看器  (Esc/q/Alt+L 关闭)", id="log-header")
+            yield Static("📜 日志查看器  (Esc/F3 关闭)", id="log-header")
             with ScrollableContainer(id="log-scroll"):
                 yield WrappedLog(id="log-content", markup=False)
-            yield Static("↑↓ 滚动  |  鼠标可选中文本  |  Esc 关闭", id="log-footer")
+            yield Static("↑↓ 滚动  |  鼠标可选中文本  |  Esc/F3 关闭", id="log-footer")
 
     def on_mount(self) -> None:
         """挂载时注册到 TuiLogHandler."""

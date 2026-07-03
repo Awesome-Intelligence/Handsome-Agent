@@ -290,26 +290,26 @@ class HelpScreen(ModalScreen):
         if self._key_binding_manager:
             return self._key_binding_manager.bindings
         
-        # 返回硬编码的默认快捷键
+        # 返回硬编码的默认快捷键（action 已废弃，始终为 None）
         return [
-            KeyBinding("up", "上移", lambda: None, "navigation"),
-            KeyBinding("down", "下移", lambda: None, "navigation"),
-            KeyBinding("j", "下移 (vim)", lambda: None, "navigation"),
-            KeyBinding("k", "上移 (vim)", lambda: None, "navigation"),
-            KeyBinding("ctrl+t", "新建标签", lambda: None, "tab"),
-            KeyBinding("ctrl+w", "关闭标签", lambda: None, "tab"),
-            KeyBinding("ctrl+tab", "切换到下一个标签", lambda: None, "tab"),
-            KeyBinding("ctrl+shift+tab", "切换到上一个标签", lambda: None, "tab"),
-            KeyBinding("ctrl+k", "打开命令面板", lambda: None, "command"),
-            KeyBinding("ctrl+l", "清屏", lambda: None, "command"),
-            KeyBinding("ctrl+c", "复制", lambda: None, "command"),
-            KeyBinding("ctrl+v", "粘贴", lambda: None, "command"),
-            KeyBinding("escape", "关闭/取消", lambda: None, "command"),
-            KeyBinding("ctrl+q", "退出应用", lambda: None, "command"),
-            KeyBinding("q", "退出应用", lambda: None, "command"),
-            KeyBinding("f1", "打开帮助", lambda: None, "help"),
-            KeyBinding("ctrl+/", "打开帮助", lambda: None, "help"),
-            KeyBinding("ctrl+r", "打开会话选择器", lambda: None, "session"),
+            KeyBinding("up", "上移", category="navigation"),
+            KeyBinding("down", "下移", category="navigation"),
+            KeyBinding("j", "下移 (vim)", category="navigation"),
+            KeyBinding("k", "上移 (vim)", category="navigation"),
+            KeyBinding("ctrl+t", "新建标签", category="tab"),
+            KeyBinding("ctrl+w", "关闭标签", category="tab"),
+            KeyBinding("ctrl+tab", "切换到下一个标签", category="tab"),
+            KeyBinding("ctrl+shift+tab", "切换到上一个标签", category="tab"),
+            KeyBinding("ctrl+k", "打开命令面板", category="command"),
+            KeyBinding("ctrl+l", "清屏", category="command"),
+            KeyBinding("ctrl+c", "复制", category="command"),
+            KeyBinding("ctrl+v", "粘贴", category="command"),
+            KeyBinding("escape", "关闭/取消", category="command"),
+            KeyBinding("ctrl+q", "退出应用", category="command"),
+            KeyBinding("q", "退出应用", category="command"),
+            KeyBinding("f1", "打开帮助", category="help"),
+            KeyBinding("ctrl+/", "打开帮助", category="help"),
+            KeyBinding("ctrl+r", "打开会话选择器", category="session"),
         ]
     
     def _format_key(self, key: str) -> str:

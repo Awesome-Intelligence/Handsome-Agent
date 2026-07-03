@@ -149,7 +149,7 @@ class GoalPane(SidebarPane):
         '_goal_manager', '_logger', '_todo_store', '_config',
         '_refresh_interval', '_spinner_index', '_spinner_frames',
         '_refresh_timer', '_has_active_goal', '_tasks',
-        '_goal_header', '_goal_progress', '_goal_empty', '_tasks_list',
+        '_goal_progress', '_goal_empty', '_tasks_list',
         '_last_goal_state', '_last_tasks_hash'
     )
     
@@ -182,15 +182,7 @@ class GoalPane(SidebarPane):
         height: 100%;
         padding: 1;
     }
-    
-    GoalPane #goal-header {
-        width: 100%;
-        padding: 1;
-        background: $accent 15%;
-        border: solid $accent;
-        margin-bottom: 1;
-    }
-    
+
     GoalPane #goal-progress {
         width: 100%;
         padding: 1;
@@ -279,7 +271,6 @@ class GoalPane(SidebarPane):
         self._last_goal_state = None
         self._last_tasks_hash = None
         # DOM 缓存初始化
-        self._goal_header = None
         self._goal_progress = None
         self._goal_empty = None
         self._tasks_list = None
@@ -303,16 +294,14 @@ class GoalPane(SidebarPane):
     def compose(self) -> ComposeResult:
         """组合子组件."""
         with Vertical(id="goal-container"):
-            # Goal 头部（状态+目标描述）
-            yield Static("", id="goal-header")
             # 进度条
             yield Static("", id="goal-progress")
-            # 空状态提示
-            yield Static("[dim]暂无活跃的目标[/dim]\n\n使用 /goal <目标> 创建新目标", id="goal-empty")
             # 任务列表区域
             with Vertical(id="tasks-section"):
                 yield Static("📋 任务列表", id="tasks-header")
                 yield Static("[dim]暂无任务[/dim]", id="tasks-list")
+            # 空状态提示（置底）
+            yield Static("[dim]暂无活跃的目标[/dim]\n\n使用 /goal <目标> 创建新目标", id="goal-empty")
     
     def on_mount(self) -> None:
         """组件挂载时初始化."""
@@ -321,17 +310,23 @@ class GoalPane(SidebarPane):
             self._logger = get_tui_logger("GoalPane")
         except ImportError:
             self._logger = None
-        
+
         # 缓存 DOM 组件引用
-        self._goal_header = self.query_one("#goal-header", Static)
-        self._goal_progress = self.query_one("#goal-progress", Static)
-        self._goal_empty = self.query_one("#goal-empty", Static)
-        self._tasks_list = self.query_one("#tasks-list", Static)
-        
+        try:
+            self._goal_progress = self.query_one("#goal-progress", Static)
+            self._goal_empty = self.query_one("#goal-empty", Static)
+            self._tasks_list = self.query_one("#tasks-list", Static)
+            self._logger.info(
+                f"on_mount: widgets cached - progress={id(self._goal_progress)}, "
+                f"empty={id(self._goal_empty)}, tasks={id(self._tasks_list)}"
+            )
+        except Exception as e:
+            self._logger.error(f"on_mount: failed to cache widgets: {e}")
+
         # 初始化 SessionTodoStore
         self._init_todo_store()
-        
-        # 启动定时刷新
+
+        # 启动定时刷新（_refresh_all 会在首次调用时立即刷新）
         self._start_refresh_timer()
     
     def _init_todo_store(self) -> None:
@@ -404,28 +399,41 @@ class GoalPane(SidebarPane):
     def _refresh_all(self) -> None:
         """刷新 Goal 和任务状态（智能刷新）"""
         try:
+            # 动态获取最新的 goal_manager（从 app 层面获取，支持运行时更新）
+            old_goal_manager = self._goal_manager
+            self._update_goal_manager_from_app()
+            gm_changed = old_goal_manager is not self._goal_manager
+
             # 计算当前状态的哈希
             current_goal_hash = self._get_goal_state_hash()
             current_tasks_hash = self._get_tasks_hash()
-            
-            # 只有哈希变化时才更新 DOM
-            goal_changed = current_goal_hash != self._last_goal_state
+
+            # gm_changed 时强制刷新（goal_manager 发生变化）
+            goal_changed = gm_changed or (current_goal_hash != self._last_goal_state)
             tasks_changed = current_tasks_hash != self._last_tasks_hash
-            
+
+            if self._logger:
+                self._logger.debug(
+                    f"_refresh_all: gm_changed={gm_changed}, goal_changed={goal_changed}, "
+                    f"current_hash={current_goal_hash}, last_hash={self._last_goal_state}, "
+                    f"tasks_changed={tasks_changed}, "
+                    f"_goal_manager={id(self._goal_manager) if self._goal_manager else None}"
+                )
+
             if goal_changed:
                 self._refresh_goal()
                 self._last_goal_state = current_goal_hash
-            
+
             if tasks_changed:
                 self._refresh_tasks()
                 self._last_tasks_hash = current_tasks_hash
-            
+
             # 检查是否有 active goal（使用公共方法）
             has_active_goal = (
-                self._goal_manager is not None 
+                self._goal_manager is not None
                 and self._goal_manager.is_active()
             )
-            
+
             # 根据 goal 状态控制定时器
             if has_active_goal and not self._has_active_goal:
                 # 从无 goal 变为有 goal，启动定时器
@@ -437,73 +445,128 @@ class GoalPane(SidebarPane):
                 self._ensure_timer_stopped()
         except Exception as e:
             self._log_warning(f"Refresh failed: {e}")
-        
+
         # 更新旋转图标帧（始终执行，UX 需要）
         self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
+
+    def _update_goal_manager_from_app(self) -> None:
+        """从 app 动态获取最新的 goal_manager"""
+        try:
+            app = getattr(self, 'app', None)
+            if app is None:
+                self._logger.warning("_update_goal_manager_from_app: app is None")
+                return
+
+            agent = getattr(app, '_agent', None)
+            if agent is None:
+                self._logger.warning("_update_goal_manager_from_app: agent is None")
+                return
+
+            # 从 agent 获取 goal_manager（GoalManager 始终存在，即使没有 goal）
+            new_goal_manager = getattr(agent, '_goal_manager', None)
+            if new_goal_manager is None:
+                self._logger.warning("_update_goal_manager_from_app: agent._goal_manager is None")
+                return
+
+            # 只有当 goal_manager 引用变化时才更新
+            if new_goal_manager is not self._goal_manager:
+                old_id = id(self._goal_manager) if self._goal_manager else None
+                self._goal_manager = new_goal_manager
+                self._logger.info(
+                    f"GoalManager updated: {old_id} -> {id(new_goal_manager)}, "
+                    f"goal={new_goal_manager.state.goal[:30] if new_goal_manager.state else 'None'}"
+                )
+        except Exception as e:
+            self._logger.error(f"_update_goal_manager_from_app error: {e}")
     
     def _refresh_goal(self) -> None:
         """从 GoalManager 刷新 Goal 状态"""
         if not self._goal_manager:
+            self._logger.warning("_refresh_goal: _goal_manager is None, showing empty state")
             self._show_goal_empty_state()
             return
-        
+
         try:
             goal_state = self._goal_manager.state
-            
+            self._logger.info(
+                f"_refresh_goal: goal_state={goal_state is not None}, "
+                f"status={goal_state.status if goal_state else 'N/A'}, "
+                f"goal={getattr(goal_state, 'goal', 'N/A')[:30] if goal_state else 'N/A'}"
+            )
+
             if not goal_state:
                 self._show_goal_empty_state()
                 return
-            
+
             self._update_goal_display(goal_state)
         except Exception as e:
             if self._logger:
-                self._logger.warning(f"Failed to refresh Goal state: {e}")
+                self._logger.error(f"_refresh_goal failed: {e}")
             self._show_goal_empty_state()
     
     def _show_goal_empty_state(self) -> None:
         """显示 Goal 空状态"""
         try:
-            if self._goal_header:
-                self._goal_header.update("")
-            if self._goal_progress:
-                self._goal_progress.update("")
-            if self._goal_empty:
-                self._goal_empty.display = True
-        except Exception:
-            pass
+            # 确保 DOM 组件已缓存
+            if not self._goal_progress or not self._goal_empty:
+                try:
+                    self._goal_progress = self.query_one("#goal-progress", Static)
+                    self._goal_empty = self.query_one("#goal-empty", Static)
+                except Exception:
+                    return
+
+            self._goal_progress.update("")
+            self._goal_empty.display = True
+        except Exception as e:
+            self._logger.error(f"_show_goal_empty_state error: {e}")
     
     def _update_goal_display(self, goal_state) -> None:
         """更新 Goal 状态显示"""
         try:
-            if not self._goal_header or not self._goal_progress or not self._goal_empty:
-                return
-            
+            # 确保 DOM 组件已缓存（可能在 on_mount 之前被调用）
+            if not self._goal_progress or not self._goal_empty or not self._tasks_list:
+                try:
+                    self._goal_progress = self.query_one("#goal-progress", Static)
+                    self._goal_empty = self.query_one("#goal-empty", Static)
+                    self._tasks_list = self.query_one("#tasks-list", Static)
+                    self._logger.debug(
+                        f"Lazy cache: progress={id(self._goal_progress)}, "
+                        f"empty={id(self._goal_empty)}, tasks={id(self._tasks_list)}"
+                    )
+                except Exception as e:
+                    self._logger.warning(f"Failed to cache widgets: {e}")
+                    return
+
             self._goal_empty.display = False
-            
-            # 获取状态信息
-            status = goal_state.status
-            status_icon = self.GOAL_STATUS_ICONS.get(status, "❓")
-            status_text = self._get_goal_status_text(status)
-            
-            # 获取目标描述（截断过长文本）
-            goal_text = goal_state.goal
-            max_len = self._config.MAX_GOAL_DISPLAY_LENGTH
-            display_goal = goal_text[:max_len] + "..." if len(goal_text) > max_len else goal_text
-            
-            # 获取轮次信息（优先使用 get_display_info）
+
+            # 获取目标内容（优先使用 get_display_info）
+            goal_text = ""
+            current_turn = 0
+            max_turns = 0
+            goal_status_icon = "🎯"
+
             try:
                 display_info = self._goal_manager.get_display_info()
                 if display_info:
+                    goal_text = display_info.goal_truncated or display_info.goal or ""
                     current_turn = display_info.current_turn
                     max_turns = display_info.max_turns
+                    goal_status_icon = display_info.status_icon or "🎯"
                 else:
+                    goal_text = goal_state.goal or ""
                     current_turn = goal_state.current_turn
                     max_turns = goal_state.max_turns
             except AttributeError:
                 # 兼容旧版 GoalManager
+                goal_text = getattr(goal_state, 'goal', '') or ""
                 current_turn = getattr(goal_state, 'current_turn', 0)
                 max_turns = getattr(goal_state, 'max_turns', 0)
-            
+
+            # 截断过长的目标文本
+            max_goal_len = self._config.MAX_GOAL_DISPLAY_LENGTH
+            if len(goal_text) > max_goal_len:
+                goal_text = goal_text[:max_goal_len] + "..."
+
             # 获取任务进度信息
             total_tasks = 0
             completed_tasks = 0
@@ -512,23 +575,23 @@ class GoalPane(SidebarPane):
                     total_tasks += 1
                     if getattr(subtask, 'status', '') == 'completed':
                         completed_tasks += 1
-            
+
             # 计算任务完成进度
             if total_tasks > 0:
                 task_progress = int((completed_tasks / total_tasks) * 100)
             else:
                 task_progress = 0
-            
-            # 更新头部
-            self._goal_header.update(f"""[bold]{status_icon} {status_text}[/bold]  [accent]{display_goal}[/accent]""")
-            
+
             # 更新进度条（基于任务完成情况）+ 轮次信息
             progress_bar = self._make_progress_bar(task_progress)
             if total_tasks > 0:
-                self._goal_progress.update(f"""[dim]任务:[/dim] {completed_tasks}/{total_tasks} {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
+                progress_line = f"[dim]任务:[/dim] {completed_tasks}/{total_tasks} {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}"
             else:
-                self._goal_progress.update(f"""[dim]任务:[/dim] 0/0 {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}""")
-            
+                progress_line = f"[dim]任务:[/dim] 0/0 {progress_bar} | [dim]轮次:[/dim] {current_turn}/{max_turns}"
+
+            # 组装完整显示内容（目标内容在第一行，进度在第二行）
+            self._goal_progress.update(f"{goal_status_icon} {goal_text}\n{progress_line}")
+
         except Exception as e:
             self._log_warning(f"Failed to update Goal display: {e}")
     
@@ -1173,11 +1236,6 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         height: 1fr;
     }
     """
-
-    BINDINGS = [
-        Binding("ctrl+left", "previous_tab", "Previous tab", show=False),
-        Binding("ctrl+right", "next_tab", "Next tab", show=False),
-    ]
 
     def __init__(self, cwd: str = None, agent=None, goal_manager=None):
         super().__init__(id="sidebar-container-inner")

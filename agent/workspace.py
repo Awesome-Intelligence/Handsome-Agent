@@ -11,7 +11,6 @@ Workspace Management Module
 配置文件：
 - agent.md / SOUL.md - Agent 身份和性格
 - user.md / USER.md - 用户画像
-- capabilities.md / TOOLS.md - 能力清单
 - memory.md / MEMORY.md - 记忆系统
 - heartbeat.md / HEARTBEAT.md - 状态监测
 """
@@ -32,7 +31,6 @@ DEFAULT_TEMPLATE_DIR = Path(__file__).parent.parent / "agent" / "templates"
 BOOTSTRAP_FILES = {
     "agent": "agent.md",
     "user": "user.md",
-    "capabilities": "capabilities.md",
     "memory": "memory.md",
     "tools": "tools.md",
 }

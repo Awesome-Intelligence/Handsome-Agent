@@ -595,8 +595,8 @@ class SessionPickerScreen(ModalScreen):
                 self._close()
             event.prevent_default()
         
-        # D - 删除
-        elif key.lower() == "d":
+        # Ctrl+D - 删除
+        elif key == "ctrl+d":
             self._confirm_delete()
             event.prevent_default()
 

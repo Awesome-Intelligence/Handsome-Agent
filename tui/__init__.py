@@ -65,7 +65,6 @@ from tui.widgets import (
 )
 
 # 核心模块
-import tui.core.keybindings as keybindings
 import tui.core.markdown_renderer as markdown_renderer
 from common.terminal.curses_ui import (
     has_curses,
@@ -114,7 +113,6 @@ __all__ = [
     "StreamingText",
     "ApprovalDialog",
     # 核心模块
-    "keybindings",
     "markdown_renderer",
     "has_curses",
     "curses_radiolist",

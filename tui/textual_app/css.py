@@ -69,18 +69,12 @@ Screen {
 
 /* 自定义 Header - 模型信息显示 + 欢迎横幅 */
 #app-header {
-    height: 4;
+    height: 3;
     width: 100%;
     dock: top;
     background: rgba(177, 128, 215, 0.2);
     outline-bottom: solid $primary;
-}
-
-#header-content {
-    height: 4;
-    width: 100%;
     layout: horizontal;
-    align: left top;
 }
 
 #welcome-banner {

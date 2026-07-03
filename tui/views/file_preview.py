@@ -267,7 +267,6 @@ class FilePreviewScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     BINDINGS = [
         Binding("escape", "close", "关闭", show=True),
-        Binding("q", "close", "关闭", show=False),
     ]
 
     def __init__(self, file_path: Path, **kwargs):
