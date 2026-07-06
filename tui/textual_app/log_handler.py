@@ -59,6 +59,8 @@ class TuiLogHandler(logging.Handler):
     def set_widget(self, widget: Log) -> None:
         """设置目标 Log 组件并刷新缓冲区。
 
+        每次调用时新 widget 都是空的，因此 replay 全部历史日志。
+
         Args:
             widget: Log 组件实例
         """
@@ -75,17 +77,12 @@ class TuiLogHandler(logging.Handler):
                     pass
             self._buffer.clear()
 
-        # 重现上次挂载后新到的日志（避免关闭重开后历史丢失）
-        if self._all_logs and self._logs_at_last_mount < len(self._all_logs):
-            for msg in self._all_logs[self._logs_at_last_mount:]:
-                try:
-                    self._widget.write_line(msg)
-                except Exception:
-                    pass
-
-        # 更新挂载标记（只在首次挂载时重置，后续 set_widget 时保留已读位置）
-        if self._logs_at_last_mount == 0:
-            self._logs_at_last_mount = len(self._all_logs)
+        # 新 widget 每次都是空的，replay 全部历史日志
+        for msg in self._all_logs:
+            try:
+                self._widget.write_line(msg)
+            except Exception:
+                pass
 
         # 启动批量刷新定时器
         self._start_flush_timer()

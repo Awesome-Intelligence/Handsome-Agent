@@ -79,12 +79,13 @@ except ImportError:
 SETTINGS_SCREEN_CSS = """
 SettingsScreen {
     align: center middle;
+    background: $boost 40%;
 }
 
 #settings-container {
-    width: 95%;
-    height: 90%;
-    border: solid $primary;
+    width: 90%;
+    height: 80%;
+    border: solid $accent;
     background: $surface;
 }
 
@@ -241,21 +242,22 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def compose(self) -> ComposeResult:
         """组合组件"""
-        # 头部
-        with Container(id="settings-header"):
-            yield Static("⚙ 设置", id="settings-title")
+        with Container(id="settings-container"):
+            # 头部
+            with Container(id="settings-header"):
+                yield Static("⚙ 设置", id="settings-title")
 
-        # 主体：左侧分类树 + 右侧内容
-        with Horizontal(id="settings-body"):
-            # 侧边栏分类导航
-            with Container(id="sidebar"):
-                yield from self._compose_sidebar_tree()
+            # 主体：左侧分类树 + 右侧内容
+            with Horizontal(id="settings-body"):
+                # 侧边栏分类导航
+                with Container(id="sidebar"):
+                    yield from self._compose_sidebar_tree()
 
-            # 内容区
-            with VerticalScroll(id="content-area"):
-                yield from self._compose_content()
+                # 内容区
+                with VerticalScroll(id="content-area"):
+                    yield from self._compose_content()
 
-        yield Static("Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭", id="settings-footer")
+            yield Static("Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭", id="settings-footer")
 
     def _compose_sidebar_tree(self) -> ComposeResult:
         """生成侧边栏分类树"""

@@ -183,3 +183,13 @@
     color: #58a6ff;
     text-style: bold;
 }
+
+/* ========== 状态栏呼吸效果 ========== */
+@keyframes breathing {
+    0%, 100% { background: rgba(177, 128, 215, 1); }
+    50%       { background: rgba(177, 128, 215, 0.3); }
+}
+
+#status-bar.breathing {
+    animation: breathing 3s ease-in-out infinite;
+}

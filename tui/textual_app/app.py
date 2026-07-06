@@ -22,7 +22,16 @@ _TEXTUAL_IMPORT_ERROR: str | None = None
 
 try:
     from textual.app import App, ComposeResult
-    from textual.widgets import Header, Footer, Static, RichLog, Tabs, Tab, TextArea, Button
+    from textual.widgets import (
+        Header,
+        Footer,
+        Static,
+        RichLog,
+        Tabs,
+        Tab,
+        TextArea,
+        Button,
+    )
     from textual.widgets import Markdown, LoadingIndicator, Select, Input
     from textual.binding import Binding
     from textual.containers import Container, Vertical, VerticalScroll, Horizontal
@@ -32,6 +41,7 @@ try:
     from textual.events import Key, Click
     from textual import events as textual_events
     from textual.theme import Theme
+
     # NewLine 在 Textual 0.x 中已被移除，使用 Rich.Text 替代
     try:
         from textual.widgets._text_area import NewLine
@@ -40,6 +50,7 @@ try:
         class NewLine:
             def __init__(self, count: int = 1):
                 self.count = count
+
     KeyEvent = Key
 except ImportError as e:
     TEXTUAL_AVAILABLE = False
@@ -47,9 +58,12 @@ except ImportError as e:
 
 # TextualScreen 后备定义（当 Textual 不可用时）
 if not TEXTUAL_AVAILABLE:
+
     class TextualScreen:
         """Textual Screen 的后备类."""
+
         pass
+
 
 # Rich 库导入
 try:
@@ -68,6 +82,7 @@ from .helpers import CompatibleLog, LogDescriptor, _COMPATIBLE_LOG
 from .log_handler import TuiLogHandler
 from .notifications import NotificationType
 from .text_area import SubmitTextArea
+from tui.widgets.slash_completion import SlashCompletionList
 
 # 跨模块导入 - Textual 组件 (使用绝对导入，因为这些模块仍在 cli/tui/ 下)
 try:
@@ -104,8 +119,13 @@ except ImportError:
 
 try:
     from tui.widgets.approval_dialog import (
-        ApprovalDialog, ApprovalMode, RiskLevel, ApprovalManager,
-        ApprovalConfirmed, ApprovalRejected, create_approval_dialog,
+        ApprovalDialog,
+        ApprovalMode,
+        RiskLevel,
+        ApprovalManager,
+        ApprovalConfirmed,
+        ApprovalRejected,
+        create_approval_dialog,
     )
 except ImportError:
     ApprovalDialog = None
@@ -150,22 +170,29 @@ except ImportError:
 try:
     from common.i18n import get_i18n, t
 except ImportError:
+
     def get_i18n():
         class SimpleI18n:
             def t(self, key, default=None, **kwargs):
                 return default or key
+
         return SimpleI18n()
+
     def t(key, default=None, **kwargs):
         return default or key
+
 
 # 日志支持
 try:
     from common.logging_manager import get_access_logger, LogManager
 except ImportError:
     import logging
+
     logging.basicConfig(level=logging.INFO)
+
     def get_access_logger(*args, **kwargs):
         return logging.getLogger("HandsomeAgent")
+
     LogManager = None
 
 # 颜色常量（用于横幅等 Rich 标记）- 高雅紫
@@ -186,6 +213,7 @@ def _patch_textual_logger():
     """Patch Textual's LayerLogger to be compatible."""
     try:
         from textual._log import LayerLogger
+
         LayerLogger.system = lambda *args, **kwargs: None
         LayerLogger.info = lambda *args, **kwargs: None
         LayerLogger.debug = lambda *args, **kwargs: None
@@ -194,6 +222,7 @@ def _patch_textual_logger():
         LayerLogger.critical = lambda *args, **kwargs: None
     except ImportError:
         pass
+
 
 _patch_textual_logger()
 
@@ -251,17 +280,15 @@ class HandsomeAgentApp(App):
         Binding("f1", "open_help", "Help"),
         Binding("f2", "open_settings", "Settings"),
         Binding("f3", "open_log_screen", "Logs"),
-
+        Binding("ctrl+shift+t", "toggle_theme", "Toggle Theme", show=False),
         # --- 标签管理快捷键 ---
         Binding("ctrl+t", "new_tab", "New Tab", show=False),
         Binding("ctrl+w", "close_tab", "Close Tab", show=False),
         Binding("ctrl+tab", "next_tab", "Next Tab", show=False),
         Binding("ctrl+shift+tab", "prev_tab", "Prev Tab", show=False),
-
         # --- 面板切换快捷键 (ctrl+方向键) ---
         Binding("ctrl+left", "prev_panel", "Prev Panel", show=False),
         Binding("ctrl+right", "next_panel", "Next Panel", show=False),
-
     ]
 
     # Textual 主题系统 - 定义为类属性
@@ -281,7 +308,7 @@ class HandsomeAgentApp(App):
         approval_mode: str | ApprovalMode = "suggest",
         initial_theme: str | None = None,
         agent=None,
-        **kwargs
+        **kwargs,
     ):
         _patch_textual_logger()
 
@@ -292,8 +319,10 @@ class HandsomeAgentApp(App):
                 lm = LogManager.get_instance()
                 if lm._console_handler is not None:
                     self._tui_log_handler = TuiLogHandler(self)
-                    if hasattr(lm._console_handler, 'formatter'):
-                        self._tui_log_handler.setFormatter(lm._console_handler.formatter)
+                    if hasattr(lm._console_handler, "formatter"):
+                        self._tui_log_handler.setFormatter(
+                            lm._console_handler.formatter
+                        )
                     self._tui_log_handler.setLevel(lm._console_handler.level)
                     if lm._console_handler in logging.root.handlers:
                         logging.root.removeHandler(lm._console_handler)
@@ -318,6 +347,7 @@ class HandsomeAgentApp(App):
         if context_length is None:
             try:
                 from common.config import get_model_config
+
                 context_length = get_model_config().context_window
             except Exception:
                 context_length = None
@@ -331,10 +361,10 @@ class HandsomeAgentApp(App):
         self._loading_indicator: Optional[LoadingIndicator] = None
         # 状态图标配置
         self._STATUS_ICONS = {
-            "online": "😄",   # 在线
+            "online": "😄",  # 在线
             "busy": ["🤔", "🤨", "😲", "🤯"],  # 思考中/忙碌（循环动画）
             "warning": "😕",  # 警告
-            "error": "😐",    # 错误/离线
+            "error": "😐",  # 错误/离线
         }
         self._current_status: str = "online"
         self._busy_frame_index: int = 0  # busy 状态动画帧索引
@@ -409,14 +439,22 @@ class HandsomeAgentApp(App):
                     yield Static("", id="version-info")
                     yield Static("", id="skills-info")
                     yield Static("", id="tools-info")
+                # 最右下角：主题切换按钮
+                yield Static("🎨", id="theme-toggle", classes="theme-toggle")
 
         with Horizontal(id="main-area"):
             yield ChatView(id="chat-area")
             if SidebarContainer:
                 with Container(id="sidebar-container"):
                     # 获取 Agent 的 GoalManager（如果存在）
-                    goal_manager = getattr(self._agent, '_goal_manager', None) if self._agent else None
-                    yield SidebarContainer(cwd=self.cwd, agent=self._agent, goal_manager=goal_manager)
+                    goal_manager = (
+                        getattr(self._agent, "_goal_manager", None)
+                        if self._agent
+                        else None
+                    )
+                    yield SidebarContainer(
+                        cwd=self.cwd, agent=self._agent, goal_manager=goal_manager
+                    )
 
         with Container(id="input-area"):
             with Container(id="status-bar"):
@@ -433,32 +471,40 @@ class HandsomeAgentApp(App):
                     yield Static("0:00", id="status-time", classes="status-time")
                     yield Static("🔧", id="status-tools", classes="status-tools")
                     with Horizontal(id="status-right"):
-                        yield Static(t("tui.status_bar.mode_iter"), id="status-mode-toggle", classes="status-mode-toggle")
+                        yield Static(
+                            t("tui.status_bar.mode_iter"),
+                            id="status-mode-toggle",
+                            classes="status-mode-toggle",
+                        )
             yield SubmitTextArea(
                 id="user-input",
                 classes="input-field",
                 placeholder="输入消息...Enter 发送",
             )
             yield Footer()
+            yield SlashCompletionList(id="slash-completion")
 
     def on_mount(self) -> None:
         self._logger.info("Textual UI mounted")
-        
+
         # 注册自定义主题（Textual 8.x 需要手动注册）
         if TEXTUAL_AVAILABLE:
             for theme in THEMES:
                 self.register_theme(theme)
-            self._logger.info(f"Registered {len(THEMES)} themes: {[t.name for t in THEMES]}")
-            
+            self._logger.info(
+                f"Registered {len(THEMES)} themes: {[t.name for t in THEMES]}"
+            )
+
             # 设置默认主题为 "default"（紫色）
             self.theme = "default"
             self._logger.info(f"Set default theme to: {self.theme}")
-        
+
         # 缓存常用 Widget 引用（优化性能）
         self._cache_widgets()
-        
+
         self._render_welcome_banner()
         self._update_status_bar()
+        self._update_theme_toggle_tooltip()
         # 异步生成哲学语录（不阻塞 UI）
         self.call_later(self._generate_wisdom_async)
         self._register_event_listeners()
@@ -475,24 +521,32 @@ class HandsomeAgentApp(App):
             try:
                 # TUIConsumer 现在只需要用于日志，不再需要 tasks_pane
                 self._tui_consumer = TUIConsumer()
-                
+
                 # 尝试获取 Agent 的 registry 并注册消费者
-                if hasattr(self._agent, '_stream_emitter') and self._agent._stream_emitter is not None:
+                if (
+                    hasattr(self._agent, "_stream_emitter")
+                    and self._agent._stream_emitter is not None
+                ):
                     emitter = self._agent._stream_emitter
-                    if hasattr(emitter, 'registry'):
+                    if hasattr(emitter, "registry"):
                         emitter.registry.register(self._tui_consumer)
-                        self._logger.info("TUIConsumer registered to agent registry (for logging)")
+                        self._logger.info(
+                            "TUIConsumer registered to agent registry (for logging)"
+                        )
             except Exception as e:
-                    self._logger.warning(f"Failed to initialize TUIConsumer: {e}")
+                self._logger.warning(f"Failed to initialize TUIConsumer: {e}")
 
         # 加载持久化的输入历史（跨会话）
         try:
             from tui.services.session_store import SessionStore
+
             session_store = SessionStore()
             persisted_history = session_store.load_input_history(limit=100)
             if persisted_history:
                 self._input_history = persisted_history
-                self._logger.info(f"Loaded {len(persisted_history)} persisted input history items")
+                self._logger.info(
+                    f"Loaded {len(persisted_history)} persisted input history items"
+                )
         except Exception as e:
             self._logger.warning(f"Failed to load persisted input history: {e}")
 
@@ -502,9 +556,10 @@ class HandsomeAgentApp(App):
                 text_area = self.query_one("#user-input", SubmitTextArea)
                 text_area.history_navigate = self._navigate_input_history
             except Exception as e:
-                self._logger.warning(
-                    f"Failed to wire up history navigation: {e}"
-                )
+                self._logger.warning(f"Failed to wire up history navigation: {e}")
+
+        # 绑定斜杠命令补全回调
+        self._bind_slash_completion()
 
         self.set_focus(self.query_one("#user-input", TextArea))
 
@@ -528,7 +583,7 @@ class HandsomeAgentApp(App):
                     self._logger.debug(f"Stylesheet not found: {css_path}")
 
             self._theme_css_loaded = True
-            
+
             # 预加载所有主题的 CSS（避免切换时闪烁）
             if self._theme_manager:
                 for tid in self._theme_manager.list_theme_ids():
@@ -536,14 +591,16 @@ class HandsomeAgentApp(App):
                     if css_path and css_path.exists():
                         await self.add_stylesheet(str(css_path))
                         self._logger.debug(f"Preloaded theme CSS: {css_path.name}")
-            
+
             # 应用初始主题 class
             self._apply_theme_class()
         except Exception as e:
             self._logger.debug(f"Failed to load stylesheets: {e}")
 
     def _apply_theme_class(self) -> None:
-        self._logger.debug(f"[_apply_theme_class] Called, _theme_css_loaded={self._theme_css_loaded}, theme_id={self.theme_id}")
+        self._logger.debug(
+            f"[_apply_theme_class] Called, _theme_css_loaded={self._theme_css_loaded}, theme_id={self.theme_id}"
+        )
 
         if not self._theme_css_loaded:
             self.set_timer(0.5, self._apply_theme_class)
@@ -555,7 +612,7 @@ class HandsomeAgentApp(App):
             if not screen:
                 self._logger.warning("[_apply_theme_class] No screen found")
                 return
-            
+
             # 获取所有主题 ID 并移除旧主题 class
             if self._theme_manager:
                 theme_ids = self._theme_manager.list_theme_ids()
@@ -594,13 +651,16 @@ class HandsomeAgentApp(App):
     def _load_theme_css_sync(self, theme_id: str) -> None:
         """切换主题 CSS（CSS 已预加载，只需记录当前主题）."""
         # CSS 在初始化时已全部预加载，这里只需记录即可
-        self._logger.info(f"[SYNC] Theme CSS already preloaded, switching to: {theme_id}")
+        self._logger.info(
+            f"[SYNC] Theme CSS already preloaded, switching to: {theme_id}"
+        )
 
     def _on_theme_changed(self, theme_id: str) -> None:
         """主题变更回调（CSS 已预加载，只需更新 class）."""
         # CSS 在初始化时已全部预加载，这里只需更新 class
         self.theme_id = theme_id
         self._apply_theme_class()
+        self._update_theme_toggle_tooltip()
 
     def update_theme_css(self) -> None:
         self._apply_theme_class()
@@ -611,7 +671,7 @@ class HandsomeAgentApp(App):
             icon_widget = self._widget_cache.get("status_icon")
             if icon_widget:
                 icon_widget.update(self._STATUS_ICONS.get(self._current_status, "😐"))
-            
+
             tokens_widget = self._widget_cache.get("status_tokens")
             if tokens_widget:
                 if self.context_length:
@@ -625,7 +685,7 @@ class HandsomeAgentApp(App):
             time_widget = self._widget_cache.get("status_time")
             if time_widget:
                 time_widget.update("│ 0m 0s ")
-            
+
             tools_widget = self._widget_cache.get("status_tools")
             if tools_widget:
                 tools_widget.update("🔧")
@@ -656,7 +716,11 @@ class HandsomeAgentApp(App):
     def _toggle_budget_mode(self) -> None:
         """切换 Goal 模式和迭代模式."""
         try:
-            if hasattr(self, '_agent') and self._agent and hasattr(self._agent, 'state'):
+            if (
+                hasattr(self, "_agent")
+                and self._agent
+                and hasattr(self._agent, "state")
+            ):
                 state = self._agent.state
                 from agent.state import BudgetMode
 
@@ -684,10 +748,52 @@ class HandsomeAgentApp(App):
         self._logger.info("Mode toggle clicked!")
         self._toggle_budget_mode()
 
+    @on(Click, "#theme-toggle")
+    def _on_theme_toggle_click(self, event: Click | None = None) -> None:
+        """处理主题切换按钮点击事件."""
+        self._logger.info("Theme toggle clicked!")
+        if not self._theme_manager:
+            self._logger.warning("Theme manager not available")
+            return
+
+        current_theme = self._theme_manager.get_current_theme_id()
+        available_themes = self._theme_manager.list_theme_ids()
+        if len(available_themes) < 2:
+            self._logger.warning("Not enough themes available to toggle")
+            return
+
+        current_index = available_themes.index(current_theme)
+        next_index = (current_index + 1) % len(available_themes)
+        next_theme = available_themes[next_index]
+
+        self.set_theme(next_theme)
+
+    def action_toggle_theme(self) -> None:
+        """切换主题（快捷键 Ctrl+Shift+T）."""
+        self._on_theme_toggle_click(None)
+
+    def _update_theme_toggle_tooltip(self) -> None:
+        """更新主题切换按钮的 tooltip，显示当前主题名称."""
+        if not self._theme_manager:
+            return
+
+        theme_toggle = self._widget_cache.get("theme_toggle")
+        if not theme_toggle:
+            try:
+                theme_toggle = self.query_one("#theme-toggle", Static)
+                self._widget_cache["theme_toggle"] = theme_toggle
+            except Exception:
+                return
+
+        display_name = self._theme_manager.get_current_display_name()
+        theme_toggle.tooltip = f"{display_name} (Ctrl+Shift+T)"
+
     def _update_token_count(self) -> None:
         """更新 token 计数（方案B：消息完成后估算，不影响性能）."""
         if not estimate_messages_tokens_rough:
-            self._logger.info("[token_count] estimate_messages_tokens_rough not available")
+            self._logger.info(
+                "[token_count] estimate_messages_tokens_rough not available"
+            )
             return
 
         if not self._session_store:
@@ -704,8 +810,7 @@ class HandsomeAgentApp(App):
 
             # 使用 Hermes 风格的 rough 估算
             message_dicts = [
-                {"role": msg.role, "content": msg.content or ""}
-                for msg in messages
+                {"role": msg.role, "content": msg.content or ""} for msg in messages
             ]
             self._current_token_count = estimate_messages_tokens_rough(message_dicts)
             self._logger.info(f"[token_count] estimated: {self._current_token_count}")
@@ -726,6 +831,7 @@ class HandsomeAgentApp(App):
         # 1. 从 cli.config 读取
         try:
             from cli.config.config import load_config
+
             config = load_config()
             llm = config.get("llm", {})
             provider = llm.get("provider", "")
@@ -739,6 +845,7 @@ class HandsomeAgentApp(App):
         if not models:
             try:
                 from common.config import get_settings
+
                 providers = get_settings().llm_providers
                 for p_name, p_cfg in providers.items():
                     if isinstance(p_cfg, dict) and p_cfg.get("enabled"):
@@ -768,7 +875,9 @@ class HandsomeAgentApp(App):
             current_label = None
             for value, label in self._builtin_models:
                 if value != "not_configured":
-                    current_label = label  # 使用 label，因为 allow_blank=False 时 label 即 value
+                    current_label = (
+                        label  # 使用 label，因为 allow_blank=False 时 label 即 value
+                    )
                     break
 
             # 如果没有配置任何有效模型，使用 not_configured
@@ -810,8 +919,14 @@ class HandsomeAgentApp(App):
                 model_values = [opt[0] for opt in self._builtin_models]
                 if custom_model not in model_values:
                     # 在 "其他..." 选项前插入自定义模型
-                    custom_index = model_values.index("custom") if "custom" in model_values else len(self._builtin_models)
-                    self._builtin_models.insert(custom_index, (custom_model, custom_model))
+                    custom_index = (
+                        model_values.index("custom")
+                        if "custom" in model_values
+                        else len(self._builtin_models)
+                    )
+                    self._builtin_models.insert(
+                        custom_index, (custom_model, custom_model)
+                    )
                     select_widget.set_options(self._builtin_models)
                 select_widget.value = custom_model
             except Exception:
@@ -821,6 +936,8 @@ class HandsomeAgentApp(App):
 
     @on(SubmitTextArea.InputSubmitted)
     def _on_input_submitted(self, event: SubmitTextArea.InputSubmitted) -> None:
+        # 关闭斜杠补全浮层
+        self._dismiss_slash_palette()
         # 使用缓存的 widget（优化性能）
         text_area = self._widget_cache.get("user_input")
         if text_area is None:
@@ -837,6 +954,7 @@ class HandsomeAgentApp(App):
 
             try:
                 from tui.services.session_store import SessionStore
+
                 session_store = SessionStore()
                 session_store.save_input_history(user_input)
             except Exception as e:
@@ -849,18 +967,87 @@ class HandsomeAgentApp(App):
         self._logger.debug(f"User input: {user_input[:50]}...")
         self.call_later(lambda: self._call_agent_async(user_input))
 
+    def _dismiss_slash_palette(self) -> None:
+        """关闭斜杠补全浮层。"""
+        try:
+            completion = self.query_one("#slash-completion", SlashCompletionList)
+            text_area = self.query_one("#user-input", SubmitTextArea)
+            completion.set_class(False, "visible")
+            completion.clear()
+            text_area._slash_snapshot = None
+        except Exception:
+            pass
+
+    def _bind_slash_completion(self) -> None:
+        """绑定斜杠命令补全浮层的回调。"""
+        try:
+            text_area = self.query_one("#user-input", SubmitTextArea)
+            completion = self.query_one("#slash-completion", SlashCompletionList)
+        except Exception as e:
+            self._logger.warning(f"Failed to bind slash completion: {e}")
+            return
+
+        def show_palette():
+            completion.dismiss()  # 先清空再显示
+            completion.set_class(True, "visible")
+
+        def update_filter(query: str):
+            completion.filter_commands(query)
+
+        def confirm_and_insert() -> str | None:
+            cmd = completion.insert_selected()
+            if cmd:
+                snapshot = text_area._slash_snapshot
+                if snapshot:
+                    snapshot_text, _ = snapshot
+                    # 用快照长度定位 / 位置，截断 / 之后的内容并替换为完整命令
+                    slash_text_len = len(snapshot_text)
+                    text_area.text = text_area.text[:slash_text_len] + cmd
+                    text_area.cursor_location = slash_text_len + len(cmd)
+                completion.dismiss()
+                text_area._slash_snapshot = None
+            return cmd
+
+        def dismiss_palette():
+            completion.dismiss()
+            text_area._slash_snapshot = None
+
+        text_area.slash_show = show_palette
+        text_area.slash_update = update_filter
+        text_area.slash_complete = confirm_and_insert
+        text_area.slash_dismiss = dismiss_palette
+
+        completion.on_dismiss = dismiss_palette
+
     def _register_event_listeners(self) -> None:
         pass
+
+    @on(Click, "#input-area")
+    def _on_input_area_click(self, event: Click) -> None:
+        """点击输入区域时，若点击的不是补全列表则关闭浮层。"""
+        try:
+            completion = self.query_one("#slash-completion", SlashCompletionList)
+            if not completion.has_class("visible"):
+                return
+            # query_one 会抛出如果点击目标在 completion 内
+            self.query_one("#slash-completion", SlashCompletionList)
+        except Exception:
+            # 点击不在 completion 内，关闭浮层
+            self._dismiss_slash_palette()
 
     def _start_loading_animation(self) -> None:
         if self._is_loading:
             return
         self._is_loading = True
-        
+
         # 更新状态为忙碌
         self._current_status = "busy"
         self._busy_frame_index = 0
-        
+
+        # 开启呼吸效果
+        status_bar = self.query_one("#status-bar")
+        status_bar.set_class(True, "breathing")
+
         if self._use_native_loading and LoadingIndicator is not None:
             # 使用 Textual 原生 LoadingIndicator
             try:
@@ -875,7 +1062,7 @@ class HandsomeAgentApp(App):
             # 使用状态图标动画
             self._update_status_icon()
             self._update_busy_animation()
-    
+
     def _update_busy_animation(self) -> None:
         """更新 busy 状态的动画图标"""
         if not self._is_loading or self._current_status != "busy":
@@ -886,11 +1073,15 @@ class HandsomeAgentApp(App):
 
     def _stop_loading_animation(self) -> None:
         self._is_loading = False
-        
+
         # 更新状态为在线
         self._current_status = "online"
         self._busy_frame_index = 0
-        
+
+        # 停止呼吸效果
+        status_bar = self.query_one("#status-bar")
+        status_bar.set_class(False, "breathing")
+
         if self._use_native_loading and self._loading_indicator is not None:
             # 移除 Textual 原生 LoadingIndicator
             try:
@@ -938,6 +1129,7 @@ class HandsomeAgentApp(App):
         log = self.query_one(f"#{widget_id}", RichLog)
         if log:
             from rich.text import Text as RichText
+
             header = RichText.from_markup("[bold #3fb950]**Assistant**[/]\n\n")
             log.write(header)
 
@@ -956,6 +1148,7 @@ class HandsomeAgentApp(App):
         self._remove_streaming_widget()
 
         from textual.widgets import Static
+
         streaming_widget = Static(
             id="streaming-output",
             classes="typewriter-output",
@@ -971,8 +1164,7 @@ class HandsomeAgentApp(App):
         self._streaming_chars_since_scroll = 0
 
         self._streaming_timer = self.set_interval(
-            self._streaming_delay_ms / 1000.0,
-            self._update_typewriter_frame
+            self._streaming_delay_ms / 1000.0, self._update_typewriter_frame
         )
 
     def _remove_streaming_widget(self) -> None:
@@ -991,7 +1183,7 @@ class HandsomeAgentApp(App):
         except Exception:
             return
 
-        current_displayed = getattr(self, '_streaming_displayed', 0)
+        current_displayed = getattr(self, "_streaming_displayed", 0)
         chars_to_add = self._streaming_chars_per_tick
         end_index = min(current_displayed + chars_to_add, len(self._streaming_text))
         new_chars = self._streaming_text[current_displayed:end_index]
@@ -1001,18 +1193,22 @@ class HandsomeAgentApp(App):
             streaming_widget.update(self._streaming_current_content)
             self._streaming_displayed = end_index
             # 更新滚动计数器
-            self._streaming_chars_since_scroll = getattr(self, '_streaming_chars_since_scroll', 0) + len(new_chars)
+            self._streaming_chars_since_scroll = getattr(
+                self, "_streaming_chars_since_scroll", 0
+            ) + len(new_chars)
 
         # 滚动节流：每累积一定字符数才滚动一次（优化性能）
-        should_scroll = self._streaming_chars_since_scroll >= self._streaming_scroll_threshold
+        should_scroll = (
+            self._streaming_chars_since_scroll >= self._streaming_scroll_threshold
+        )
         if should_scroll:
             self._streaming_chars_since_scroll = 0
             try:
                 chat_area = self._widget_cache.get("chat_area")
                 if chat_area:
-                    if hasattr(chat_area, 'scroll_home'):
+                    if hasattr(chat_area, "scroll_home"):
                         chat_area.scroll_home(animate=False)
-                    elif hasattr(chat_area, 'scroll_to'):
+                    elif hasattr(chat_area, "scroll_to"):
                         chat_area.scroll_to(0, animate=False)
             except Exception:
                 pass
@@ -1027,7 +1223,7 @@ class HandsomeAgentApp(App):
             self._streaming_timer.stop()
             self._streaming_timer = None
 
-        full_content = getattr(self, '_streaming_current_content', "") or ""
+        full_content = getattr(self, "_streaming_current_content", "") or ""
         full_content = full_content.replace("[blink]▋[/]", "")
 
         if full_content and self._streaming_widget_id:
@@ -1073,6 +1269,7 @@ class HandsomeAgentApp(App):
             # 缓存版本
             try:
                 from cli import __version__ as app_version
+
                 self._banner_cache["version"] = app_version
             except ImportError:
                 self._banner_cache["version"] = "unknown"
@@ -1087,50 +1284,61 @@ class HandsomeAgentApp(App):
             # 状态栏 widgets
             self._widget_cache["status_icon"] = self.query_one("#status-icon", Static)
             self._widget_cache["status_model"] = self.query_one("#status-model", Select)
-            self._widget_cache["status_tokens"] = self.query_one("#status-tokens", Static)
+            self._widget_cache["status_tokens"] = self.query_one(
+                "#status-tokens", Static
+            )
             self._widget_cache["status_time"] = self.query_one("#status-time", Static)
             self._widget_cache["status_tools"] = self.query_one("#status-tools", Static)
-            self._widget_cache["status_mode_toggle"] = self.query_one("#status-mode-toggle", Static)
+            self._widget_cache["status_mode_toggle"] = self.query_one(
+                "#status-mode-toggle", Static
+            )
             self._widget_cache["status_bar"] = self.query_one("#status-bar")
-            
+
             # 聊天区域
             self._widget_cache["chat_area"] = self.query_one("#chat-area", ChatView)
-            
+
             # 输入框
             self._widget_cache["user_input"] = self.query_one("#user-input", TextArea)
-            
+
             # Banner widgets
-            self._widget_cache["welcome_banner"] = self.query_one("#welcome-banner", Static)
+            self._widget_cache["welcome_banner"] = self.query_one(
+                "#welcome-banner", Static
+            )
             self._widget_cache["version_info"] = self.query_one("#version-info", Static)
             self._widget_cache["skills_info"] = self.query_one("#skills-info", Static)
             self._widget_cache["tools_info"] = self.query_one("#tools-info", Static)
-            
+            self._widget_cache["theme_toggle"] = self.query_one("#theme-toggle", Static)
+
             # 侧边栏
             try:
-                self._widget_cache["sidebar_container"] = self.query_one("#sidebar-container", Container)
+                self._widget_cache["sidebar_container"] = self.query_one(
+                    "#sidebar-container", Container
+                )
             except Exception:
                 pass
-                
+
             self._logger.debug(f"Cached {len(self._widget_cache)} widgets")
         except Exception as e:
             self._logger.warning(f"Failed to cache widgets: {e}")
 
     def _get_cached_widget(self, key: str, widget_class=None):
         """获取缓存的 Widget 引用
-        
+
         Args:
             key: Widget 缓存键
             widget_class: 可选的 widget 类型，用于回退到 query_one
-            
+
         Returns:
             Widget 引用或 None
         """
         if key in self._widget_cache:
             return self._widget_cache[key]
-        
+
         # 回退到 query_one（如果 widget 未被缓存）
         try:
-            widget = self.query_one(f"#{key}" if not key.startswith("#") else key, widget_class)
+            widget = self.query_one(
+                f"#{key}" if not key.startswith("#") else key, widget_class
+            )
             self._widget_cache[key] = widget
             return widget
         except Exception:
@@ -1144,14 +1352,21 @@ class HandsomeAgentApp(App):
             return getattr(self, cache_key)
 
         import re
-        themes_dir = Path(__file__).resolve().parent.parent / "theming" / "css" / "themes"
+
+        themes_dir = (
+            Path(__file__).resolve().parent.parent / "theming" / "css" / "themes"
+        )
         css_file = themes_dir / f"{self.theme_id}.css"
 
         color = "#C9A0E0"  # 默认紫色
         if css_file.exists():
             try:
                 content = css_file.read_text(encoding="utf-8")
-                pattern = r'\.' + re.escape(self.theme_id) + r'.*?--banner-color\s*:\s*([^;]+);'
+                pattern = (
+                    r"\."
+                    + re.escape(self.theme_id)
+                    + r".*?--banner-color\s*:\s*([^;]+);"
+                )
                 match = re.search(pattern, content, re.DOTALL)
                 if match:
                     color = match.group(1).strip()
@@ -1189,12 +1404,14 @@ class HandsomeAgentApp(App):
         welcome_widget = self._widget_cache.get("welcome_banner")
         if welcome_widget:
             from rich.text import Text as RichText
+
             welcome_text = RichText.from_markup("\n".join(welcome_lines))
             welcome_widget.update(welcome_text)
 
         # 获取随机问候语（先显示 fallback，LLM 生成后再更新）
         try:
             from common.i18n import get_random_greeting
+
             greeting = get_random_greeting()
         except Exception:
             greeting = "存在先于本质。"
@@ -1205,7 +1422,11 @@ class HandsomeAgentApp(App):
         # 尝试获取当前模式
         current_mode = "Agent"  # 默认模式
         try:
-            if hasattr(self, '_agent') and self._agent and hasattr(self._agent, 'get_mode'):
+            if (
+                hasattr(self, "_agent")
+                and self._agent
+                and hasattr(self._agent, "get_mode")
+            ):
                 current_mode = self._agent.get_mode()
         except Exception:
             pass
@@ -1246,10 +1467,12 @@ class HandsomeAgentApp(App):
                 return
 
             from common.i18n import get_language
+
             lang = get_language()
             lang_prompt = {"zh": "中文", "en": "English"}.get(lang, "English")
 
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -1261,7 +1484,9 @@ class HandsomeAgentApp(App):
                         temperature=1.0,
                     )
                 )
-                wisdom = response.content.strip() if response and response.content else None
+                wisdom = (
+                    response.content.strip() if response and response.content else None
+                )
             finally:
                 loop.close()
 
@@ -1269,20 +1494,22 @@ class HandsomeAgentApp(App):
                 version_widget = self._widget_cache.get("version_info")
                 if version_widget and self._banner_cache.get("version"):
                     from rich.text import Text as RichText
+
                     version_text = RichText.from_markup(
                         f"[dim]{self._banner_cache['version']}[/] [dim]·[/] [italic dim]{wisdom}[/]"
                     )
                     version_widget.update(version_text)
         except Exception:
-            pass  #静默失败，用户看到的是 fallback
+            pass  # 静默失败，用户看到的是 fallback
 
     def _get_tools_count(self) -> int:
         """获取已注册的工具数量"""
         try:
             from tools.tool_registry import get_tool_registry
+
             registry = get_tool_registry()
             if registry:
-                return len(registry._tools) if hasattr(registry, '_tools') else 0
+                return len(registry._tools) if hasattr(registry, "_tools") else 0
         except ImportError:
             pass
         return 0
@@ -1291,6 +1518,7 @@ class HandsomeAgentApp(App):
         """获取已加载的 Skill 数量"""
         try:
             from agent.skills.skill_manager import skill_manager
+
             return len(skill_manager.skills)
         except ImportError:
             pass
@@ -1299,6 +1527,7 @@ class HandsomeAgentApp(App):
     def _get_project_path(self) -> str:
         """获取项目根目录（Handsome Agent 所在目录）"""
         from pathlib import Path
+
         # 获取当前文件所在目录，然后取上级目录
         current_file = Path(__file__).resolve()
         # tui/textual_app/app.py -> tui/textual_app -> tui -> 项目根目录
@@ -1308,6 +1537,7 @@ class HandsomeAgentApp(App):
     def _get_skills_path(self) -> str:
         """获取 skills 目录路径"""
         from pathlib import Path
+
         project_root = Path(__file__).resolve().parent.parent.parent
         skills_dir = project_root / "skills"
         return str(skills_dir)
@@ -1315,6 +1545,7 @@ class HandsomeAgentApp(App):
     def _get_tools_path(self) -> str:
         """获取 tools 目录路径"""
         from pathlib import Path
+
         project_root = Path(__file__).resolve().parent.parent.parent
         tools_dir = project_root / "tools"
         return str(tools_dir)
@@ -1371,7 +1602,9 @@ class HandsomeAgentApp(App):
                     mode = approval_mode
 
                 self._approval_manager = ApprovalManager(mode=mode)
-                self._logger.info(f"ApprovalManager initialized with mode: {mode.value}")
+                self._logger.info(
+                    f"ApprovalManager initialized with mode: {mode.value}"
+                )
             except Exception as e:
                 self._logger.error(f"Failed to initialize ApprovalManager: {e}")
                 self._approval_manager = None
@@ -1453,7 +1686,11 @@ class HandsomeAgentApp(App):
         self.notify(
             animated_msg,
             timeout=duration,
-            title=notification_type.upper() if notification_type != NotificationType.INFO else "通知",
+            title=(
+                notification_type.upper()
+                if notification_type != NotificationType.INFO
+                else "通知"
+            ),
         )
 
         self._logger.debug(f"Animated notification: [{notification_type}] {message}")
@@ -1537,7 +1774,11 @@ class HandsomeAgentApp(App):
             self._handle_approval_result(False)
             return
 
-        risk_level = self._approval_manager.get_risk_level(tool_name) if self._approval_manager else RiskLevel.MEDIUM
+        risk_level = (
+            self._approval_manager.get_risk_level(tool_name)
+            if self._approval_manager
+            else RiskLevel.MEDIUM
+        )
         preview = self._generate_tool_preview(tool_name, tool_args)
 
         dialog = create_approval_dialog(
@@ -1546,7 +1787,9 @@ class HandsomeAgentApp(App):
             risk_level=risk_level,
         )
 
-        self._logger.info(f"Showing approval dialog for: {tool_name} (risk: {risk_level.value})")
+        self._logger.info(
+            f"Showing approval dialog for: {tool_name} (risk: {risk_level.value})"
+        )
         self.screen.mount(dialog)
 
     def _generate_tool_preview(self, tool_name: str, tool_args: dict) -> str:
@@ -1571,8 +1814,14 @@ class HandsomeAgentApp(App):
 
     def _handle_approval_result(self, approved: bool) -> None:
         if self._approval_callback:
-            operation = self._pending_tool_call["name"] if self._pending_tool_call else "unknown"
-            self._logger.info(f"Approval result for '{operation}': {'approved' if approved else 'rejected'}")
+            operation = (
+                self._pending_tool_call["name"]
+                if self._pending_tool_call
+                else "unknown"
+            )
+            self._logger.info(
+                f"Approval result for '{operation}': {'approved' if approved else 'rejected'}"
+            )
 
             try:
                 self._approval_callback(approved)
@@ -1609,10 +1858,7 @@ class HandsomeAgentApp(App):
 
         try:
             messages = self._session_store.get_messages(session_id, limit=100)
-            return [
-                {"role": msg.role, "content": msg.content}
-                for msg in messages
-            ]
+            return [{"role": msg.role, "content": msg.content} for msg in messages]
         except Exception as e:
             self._logger.error(f"Failed to restore session: {e}")
             return []
@@ -1642,7 +1888,7 @@ class HandsomeAgentApp(App):
                 role=role,
                 content=content,
                 flush=False,
-                **kwargs
+                **kwargs,
             )
             self._auto_save_check()
         except Exception as e:
@@ -1654,7 +1900,10 @@ class HandsomeAgentApp(App):
         self._restore_console_handler()
 
     def _restore_console_handler(self) -> None:
-        if self._tui_log_handler is not None and self._saved_console_handler is not None:
+        if (
+            self._tui_log_handler is not None
+            and self._saved_console_handler is not None
+        ):
             try:
                 if self._tui_log_handler in logging.root.handlers:
                     logging.root.removeHandler(self._tui_log_handler)
@@ -1686,7 +1935,9 @@ class HandsomeAgentApp(App):
                 else:
                     sidebar.styles.display = "none"
                     self.notify("侧边栏已隐藏")
-                self._logger.debug(f"Sidebar toggled, display: {sidebar.styles.display}")
+                self._logger.debug(
+                    f"Sidebar toggled, display: {sidebar.styles.display}"
+                )
         except Exception as e:
             self._logger.debug(f"Sidebar toggle failed: {e}")
 
@@ -1696,12 +1947,16 @@ class HandsomeAgentApp(App):
         try:
             # 先显示外层容器（如果隐藏的话）
             outer = self.query_one("#sidebar-container", Container)
-            self._logger.debug(f"[_get_sidebar_and_switch] outer display={outer.styles.display}")
+            self._logger.debug(
+                f"[_get_sidebar_and_switch] outer display={outer.styles.display}"
+            )
             if outer.styles.display == "none":
                 outer.styles.display = "block"
             # 再切换内部 SidebarContainer 的面板
             inner = self.query_one("#sidebar-container-inner", SidebarContainer)
-            self._logger.debug(f"[_get_sidebar_and_switch] inner={type(inner).__name__}")
+            self._logger.debug(
+                f"[_get_sidebar_and_switch] inner={type(inner).__name__}"
+            )
             inner.switch_to_panel(panel_type)
         except Exception as e:
             self._logger.error(f"[_get_sidebar_and_switch] Failed: {e}", exc_info=True)
@@ -1771,26 +2026,29 @@ class HandsomeAgentApp(App):
 
     def _render_markdown_content(self, content: str) -> str:
         """使用 Textual 原生 Markdown 组件渲染内容.
-        
+
         Args:
             content: Markdown 格式的文本
-            
+
         Returns:
             渲染后的 Rich 格式文本
         """
         if not content:
             return content
-            
+
         try:
             # 使用 Textual 原生 Markdown 组件渲染
             markdown_widget = Markdown(content)
             # 获取渲染结果（返回 Rich Text 对象）
             from rich.console import RenderableType
+
             return markdown_widget._content  # Markdown widget 的内部内容已经是渲染好的
         except Exception:
             return content
-    
-    def _append_message(self, role: str, content: str, render_markdown: bool = True) -> None:
+
+    def _append_message(
+        self, role: str, content: str, render_markdown: bool = True
+    ) -> None:
         # 使用缓存的 widget（优化性能）
         chat_area = self._widget_cache.get("chat_area")
         if chat_area is None:
@@ -1809,14 +2067,16 @@ class HandsomeAgentApp(App):
                 # 格式: "Using tool: ToolName"
                 parts = first_line.lower().split("using tool")
                 if len(parts) > 1:
-                    tool_name = parts[1].strip().split()[0] if parts[1].strip() else None
+                    tool_name = (
+                        parts[1].strip().split()[0] if parts[1].strip() else None
+                    )
             if tool_name:
                 self._used_tools.add(tool_name)
 
         # ChatView 使用 append_message 正确传递 role
-        if hasattr(chat_area, 'append_message'):
+        if hasattr(chat_area, "append_message"):
             chat_area.append_message(role, content, tool_name=tool_name)
-        elif hasattr(chat_area, 'write'):
+        elif hasattr(chat_area, "write"):
             chat_area.write(f"{content}\n")
 
         # 同时保存到 session_store（用于 token 计数）
@@ -1911,7 +2171,7 @@ class HandsomeAgentApp(App):
 
         def on_stream_delta(text: str):
             self.app.call_later(self._on_agent_stream_delta, text)
-        
+
         def on_thinking(text: str):
             self.app.call_later(self._on_agent_thinking, text)
 
@@ -1922,7 +2182,7 @@ class HandsomeAgentApp(App):
                 if agent:
                     agent.set_stream_callback(on_stream_delta)
                     agent.set_thinking_callback(on_thinking)
-                    
+
                     # 获取或创建线程局部的事件循环
                     try:
                         loop = asyncio.get_event_loop()
@@ -1932,7 +2192,7 @@ class HandsomeAgentApp(App):
                     except RuntimeError:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
-                    
+
                     try:
                         response = agent.chat(user_input, enable_stream=True)
                         if asyncio.iscoroutine(response):
@@ -1963,21 +2223,22 @@ class HandsomeAgentApp(App):
     def _agent_result_callback(self) -> None:
         """Called on main thread when agent future completes."""
         import time
-        future = getattr(self, '_agent_future', None)
+
+        future = getattr(self, "_agent_future", None)
         if future is None:
             return
 
         self._stop_loading_animation()
         self.set_agent_status("online")
 
-        elapsed = time.time() - getattr(self, '_agent_start_time', time.time())
+        elapsed = time.time() - getattr(self, "_agent_start_time", time.time())
         elapsed_minutes = int(elapsed // 60)
         elapsed_seconds = int(elapsed % 60)
 
         try:
             response = future.result()
             if response:
-                if hasattr(response, 'content'):
+                if hasattr(response, "content"):
                     content = str(response.content)
                 else:
                     content = str(response)
@@ -1986,7 +2247,7 @@ class HandsomeAgentApp(App):
 
             self._complete_agent_stream()
 
-            if not getattr(self, '_current_streaming_id', None):
+            if not getattr(self, "_current_streaming_id", None):
                 self._show_typewriter_message(content)
 
             time_widget = self._widget_cache.get("status_time")
@@ -2008,62 +2269,71 @@ class HandsomeAgentApp(App):
         self._agent_future = None
 
     def _get_agent(self):
-        if hasattr(self, '_agent') and self._agent:
+        if hasattr(self, "_agent") and self._agent:
             return self._agent
-        return getattr(self, '_agent', None)
+        return getattr(self, "_agent", None)
 
     def _on_agent_stream_delta(self, text: str) -> None:
         """处理 Agent 流式输出增量"""
         chat_area = self._widget_cache.get("chat_area")
         if chat_area is None:
             chat_area = self.query_one("#chat-area", ChatView)
-        
-        if chat_area and hasattr(chat_area, 'start_streaming'):
-            if not hasattr(self, '_current_streaming_id') or not self._current_streaming_id:
+
+        if chat_area and hasattr(chat_area, "start_streaming"):
+            if (
+                not hasattr(self, "_current_streaming_id")
+                or not self._current_streaming_id
+            ):
                 self._current_streaming_id = chat_area.start_streaming("assistant")
-            
-            if hasattr(chat_area, 'append_streaming_text'):
+
+            if hasattr(chat_area, "append_streaming_text"):
                 chat_area.append_streaming_text(text)
-    
+
     def _on_agent_thinking(self, text: str) -> None:
         """处理 Agent 思考内容"""
-        self._current_thinking = getattr(self, '_current_thinking', "") + text
-        
+        self._current_thinking = getattr(self, "_current_thinking", "") + text
+
         chat_area = self._widget_cache.get("chat_area")
         if chat_area is None:
             chat_area = self.query_one("#chat-area", ChatView)
-        
-        if chat_area and hasattr(chat_area, 'append_streaming_thinking'):
+
+        if chat_area and hasattr(chat_area, "append_streaming_thinking"):
             chat_area.append_streaming_thinking(text)
-    
+
     def _complete_agent_stream(self) -> None:
         """完成 Agent 流式输出"""
         chat_area = self._widget_cache.get("chat_area")
         if chat_area is None:
             chat_area = self.query_one("#chat-area", ChatView)
-        
-        if chat_area and hasattr(chat_area, 'complete_streaming') and hasattr(self, '_current_streaming_id'):
+
+        if (
+            chat_area
+            and hasattr(chat_area, "complete_streaming")
+            and hasattr(self, "_current_streaming_id")
+        ):
             chat_area.complete_streaming()
-        
+
         self._current_streaming_id = None
-    
+
     def _show_typewriter_message(self, content: str) -> None:
         """显示 Agent 回复消息"""
         chat_area = self._widget_cache.get("chat_area")
         if chat_area is None:
             chat_area = self.query_one("#chat-area", ChatView)
-        
+
         if chat_area:
-            if hasattr(chat_area, 'add_assistant_message'):
+            if hasattr(chat_area, "add_assistant_message"):
                 chat_area.add_assistant_message(content)
-            elif hasattr(chat_area, 'write'):
+            elif hasattr(chat_area, "write"):
                 chat_area.write(f"\nAgent: {content}\n")
 
     def action_quit(self) -> None:
         self._logger.info("User requested quit")
         self.app.exit()
 
-    def _on_session_selected(self, event: "SessionPickerScreen.SessionSelected") -> None:
+    def _on_session_selected(
+        self, event: "SessionPickerScreen.SessionSelected"
+    ) -> None:
         old_session_id = self.session_id
         self.session_id = event.session_id
         self._logger.info(f"Session switched: {old_session_id} -> {event.session_id}")
@@ -2078,7 +2348,11 @@ class HandsomeAgentApp(App):
             if not history:
                 chat_view.show_greeting()
 
-        self.notify(t("session.switched", "已切换到会话: {title}").format(title=event.session_title))
+        self.notify(
+            t("session.switched", "已切换到会话: {title}").format(
+                title=event.session_title
+            )
+        )
 
     def _on_session_deleted(self, event: "SessionPickerScreen.SessionDeleted") -> None:
         if event.session_id == self.session_id:
@@ -2138,17 +2412,17 @@ class HandsomeAgentApp(App):
         chat_area = self.query_one("#chat-area", ChatView)
         if chat_area:
             label = "You" if role == "user" else "Agent"
-            if hasattr(chat_area, 'write'):
+            if hasattr(chat_area, "write"):
                 chat_area.write(f"{label}: {content}\n")
-            elif hasattr(chat_area, 'append_message'):
+            elif hasattr(chat_area, "append_message"):
                 chat_area.append_message(role, content)
 
     def clear_chat(self) -> None:
         chat_area = self.query_one("#chat-area", ChatView)
         if chat_area:
-            if hasattr(chat_area, 'clear'):
+            if hasattr(chat_area, "clear"):
                 chat_area.clear()
-            elif hasattr(chat_area, 'clear_messages'):
+            elif hasattr(chat_area, "clear_messages"):
                 chat_area.clear_messages()
 
     def add_tab(self) -> str | None:
@@ -2326,6 +2600,7 @@ def is_textual_compatible() -> tuple[bool, str | None]:
 
     try:
         import shutil
+
         terminal_size = shutil.get_terminal_size()
         if terminal_size.columns < 40:
             return False, "Terminal too narrow (minimum 40 columns)"

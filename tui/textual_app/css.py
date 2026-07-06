@@ -100,6 +100,21 @@ Screen {
     background: transparent;
 }
 
+#theme-toggle {
+    width: 4;
+    height: auto;
+    padding: 0 1;
+    margin-left: 2;
+    background: transparent;
+    color: $accent;
+    align: right middle;
+}
+
+#theme-toggle:hover {
+    background: $surface;
+    color: $primary;
+}
+
 .header-content {
     height: 100%;
     layout: horizontal;
@@ -401,6 +416,30 @@ Screen {
 #user-input:focus,
 #user-input:hover {
     border: blank;
+}
+
+/* === 斜杠命令补全浮层 === */
+#slash-completion {
+    display: none;
+    height: auto;
+    max-height: 5;
+    background: $surface;
+    border: solid $accent;
+    padding: 0 1;
+    width: 60%;
+}
+
+#slash-completion.visible {
+    display: block;
+}
+
+#slash-completion > ListItem {
+    padding: 0 1;
+}
+
+#slash-completion > ListItem:hover,
+#slash-completion > ListItem.selected {
+    background: $primary 20%;
 }
 
 /* 按钮通用样式 */

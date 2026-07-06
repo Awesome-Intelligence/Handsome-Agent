@@ -57,6 +57,16 @@
 
 
 
+/* 主题切换按钮样式 */
+.theme-default #theme-toggle {
+    color: #C9A0E0;
+}
+
+.theme-default #theme-toggle:hover {
+    color: #B180D7;
+    background: rgba(177, 128, 215, 0.2);
+}
+
 /* 侧边栏 Tab 选中样式 */
 .theme-default #sidebar-container-inner SidebarContainer Tabs Tab.active,
 .theme-default #sidebar-container-inner SidebarContainer Tabs .active {

@@ -206,6 +206,11 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._last_scroll_time: float = 0  # 上次滚动时间
         self._suppress_scroll_event: bool = False  # ponytail: prevent scroll feedback loop
 
+        # ponytail: max_scroll_y 缓存优化 — 避免每次滚动事件都触发布局计算
+        self._cached_max_scroll_y: float = 0.0  # 缓存的 max_scroll_y 值
+        self._max_scroll_dirty: bool = True  # 脏标记，True 表示需要重新计算
+        self._scroll_dirty: bool = False  # 滚动事件脏标记，延迟处理
+
     # ========================================================================
     # 消息添加方法
     # ========================================================================
@@ -240,6 +245,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._trim_messages()
 
         self._render_message(msg)
+        # ponytail: 标记 max_scroll_y 需要重新计算
+        self._invalidate_max_scroll()
         self._post_message(MessageListUpdated(self, len(self._messages)))
 
         return msg_id
@@ -291,6 +298,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._trim_messages()
 
         self._render_message(msg)
+        # ponytail: 标记 max_scroll_y 需要重新计算
+        self._invalidate_max_scroll()
         return msg_id
 
     def append_streaming_text(self, message_id: str, text: str) -> None:
@@ -333,17 +342,23 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         if not buffered_text:
             return
 
-        # 使用索引快速查找消息（索引在 add_message/start_streaming 时已维护）
         msg = self._message_index.get(message_id)
         if msg is None:
             return
 
         msg.content += buffered_text
-        self._streaming_buffer[message_id] = ""  # 清空缓冲区
-        self._update_message_widget(msg)
+        self._streaming_buffer[message_id] = ""
 
-        # 如果 thinking 在 content flush 之前就到达了，但 Collapsible 还未创建
-        #（widget 还没 mount 时升级会静默失败），此时补创建
+        widget = self._message_widgets.get(message_id)
+        if isinstance(widget, Static):
+            # 流式期间用 Static，只需 update() 文本替换（O(n)）
+            header = self._format_message_header(msg)
+            widget.update(header + msg.content + " ▌")
+        elif isinstance(widget, Markdown):
+            widget.append(buffered_text)
+        else:
+            self._update_message_widget(msg)
+
         if (
             msg.thinking and msg.thinking.strip()
             and msg.role == MessageRole.ASSISTANT
@@ -383,11 +398,11 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         if collapsible is None:
             return
 
-        # 查找 Collapsible 内的思考内容 widget
-        thinking_widget_id = f"msg-thinking-content-{message_id}"
         for child in collapsible.children:
-            if hasattr(child, 'update'):
-                # 流式输出时使用 Static
+            if isinstance(child, Markdown):
+                child.update(msg.thinking)
+                break
+            elif hasattr(child, 'update'):
                 child.update(msg.thinking + (" ▌" if msg.is_streaming else ""))
                 break
 
@@ -397,15 +412,41 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             return
 
         old_widget = self._message_widgets[msg.id]
-        
+        container = self._message_containers.get(msg.id)
+
         def _do_upgrade():
             try:
-                old_widget.remove()
+                # 创建 Collapsible
+                thinking_title = f"💭 {self._i18n.t('message.thinking', '思考过程')}"
+                thinking_content = msg.thinking if msg.thinking else ""
+                collapsible = Collapsible(
+                    title=thinking_title,
+                    collapsed=msg.thinking_collapsed,
+                    collapsed_symbol="▶",
+                    expanded_symbol="▼",
+                    classes="thinking-collapsible"
+                )
+                collapsible.id = f"msg-thinking-{msg.id}"
+                thinking_widget = Markdown(thinking_content, classes="thinking-content")
+                collapsible.mount(thinking_widget)
+                self._message_collapsibles[msg.id] = collapsible
+
+                if container is not None:
+                    # 已有 Container，直接添加 Collapsible（无需重建）
+                    container.mount(collapsible)
+                else:
+                    # 没有 Container，回退到完整重渲染
+                    try:
+                        old_widget.remove()
+                    except Exception as e:
+                        self._logger.debug(f"Failed to remove old widget: {e}")
+                    self._message_widgets.pop(msg.id, None)
+                    self._render_message(msg)
             except Exception as e:
-                self._logger.debug(f"Failed to remove old widget during upgrade: {e}")
-            
-            self._render_message(msg)
-        
+                self._logger.error(f"Failed to upgrade to thinking message: {e}")
+                # 回退到完整重渲染
+                self._render_message(msg)
+
         self.call_later(_do_upgrade)
 
     def _upgrade_thinking_to_markdown(self, message_id: str) -> None:
@@ -430,33 +471,45 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         if message_id not in self._streaming_active:
             return
 
-        # 先刷新剩余的缓冲区内容
         if message_id in self._streaming_buffer and self._streaming_buffer.get(message_id, ""):
             self._flush_streaming_buffer(message_id)
 
-        # 使用索引快速查找（索引在 start_streaming 时已维护）
         msg = self._message_index.get(message_id)
         if msg:
             msg.is_streaming = False
             msg.is_complete = True
-            
-            # 如果有思考内容，升级 Collapsible 内的内容为 Markdown
-            if message_id in self._message_collapsibles:
-                self._upgrade_thinking_to_markdown(message_id)
-            
-            # 如果消息有思考内容，不调用 _upgrade_to_markdown，而是重新渲染整个消息
-            if msg.thinking is not None and msg.role == MessageRole.ASSISTANT:
-                self._render_message(msg)
-            else:
-                self._upgrade_to_markdown(msg)
 
-        # 清理流式状态
         self._streaming_active.pop(message_id, None)
         self._last_streaming_update.pop(message_id, None)
         self._streaming_buffer.pop(message_id, None)
         self._streaming_timers.pop(message_id, None)
 
+        # 流式完成后，将 Static 升级为 Markdown（一次性渲染）
+        self._upgrade_streaming_to_markdown(message_id)
+
         self._post_message(StreamingComplete(self, message_id))
+
+    def _upgrade_streaming_to_markdown(self, message_id: str) -> None:
+        """流式完成后将 Static 升级为 Markdown（一次性渲染，避免流式期间频繁解析）"""
+        msg = self._message_index.get(message_id)
+        if msg is None:
+            return
+
+        old_widget = self._message_widgets.get(message_id)
+        if old_widget is None or not isinstance(old_widget, Static):
+            return
+
+        def _do_upgrade():
+            try:
+                old_widget.remove()
+            except Exception as e:
+                self._logger.debug(f"Failed to remove streaming Static widget: {e}")
+
+            # 重新渲染为 Markdown
+            self._message_widgets.pop(message_id, None)
+            self._render_message(msg)
+
+        self.call_later(_do_upgrade)
 
     # ========================================================================
     # 消息操作方法
@@ -493,6 +546,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             self._streaming_active.pop(message_id, None)
             self._streaming_buffer.pop(message_id, None)
             self._last_streaming_update.pop(message_id, None)
+            # ponytail: 标记 max_scroll_y 需要重新计算
+            self._invalidate_max_scroll()
             self._post_message(MessageListUpdated(self, len(self._messages)))
             return True
         return False
@@ -513,6 +568,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         for container in self._message_containers.values():
             container.remove()
         self._message_containers.clear()
+        # ponytail: 标记 max_scroll_y 需要重新计算
+        self._invalidate_max_scroll()
         self._post_message(MessageListUpdated(self, 0))
 
     def get_messages(self) -> list[MessageItem]:
@@ -552,10 +609,10 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
     def _check_if_at_bottom(self) -> bool:
         """检查滚动区域是否在底部附近（用于检测用户是否在底部）"""
-        # ponytail: only read scroll_y (cheap) — max_scroll_y triggers layout
+        # ponytail: 使用缓存的 max_scroll_y 避免频繁触发布局计算
         try:
             current_y = self.scroll_y
-            max_scroll = self.max_scroll_y  # needed to compute distance to bottom
+            max_scroll = self._get_max_scroll_y_cached()
             return (max_scroll - current_y) < 50
         except Exception:
             return True
@@ -567,6 +624,39 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
     def _mark_scrolled_away(self) -> None:
         """标记用户已离开底部区域"""
         self._user_scrolled_to_bottom = False
+
+    # ========================================================================
+    # max_scroll_y 缓存优化方法 (ponytail)
+    # ========================================================================
+
+    def _invalidate_max_scroll(self) -> None:
+        """标记 max_scroll_y 需要重新计算
+
+        在以下情况调用：
+        - 添加新消息后
+        - 删除消息后
+        - 流式输出完成后
+        - 窗口大小改变时
+        """
+        self._max_scroll_dirty = True
+
+    def _get_max_scroll_y_cached(self) -> float:
+        """获取缓存的 max_scroll_y 值
+
+        只有在脏标记为 True 时才真正计算，否则直接返回缓存值。
+        这样可以避免在滚动事件中频繁触发布局计算。
+
+        Returns:
+            最大可滚动高度（以行为单位）
+        """
+        if self._max_scroll_dirty:
+            try:
+                self._cached_max_scroll_y = self.max_scroll_y
+            except Exception:
+                # 如果计算失败，返回一个安全的默认值
+                self._cached_max_scroll_y = 0.0
+            self._max_scroll_dirty = False
+        return self._cached_max_scroll_y
 
     # ========================================================================
     # 内部方法
@@ -676,6 +766,11 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             self.call_later(_do_mount)
             return
 
+        # 流式消息用 Static（轻量），完成后升级为 Markdown
+        if msg.is_streaming:
+            self._render_message_streaming(msg, full_content)
+            return
+
         # 如果消息有思考内容，使用 Container 包装
         # 防御性检查：确保 thinking 是有效字符串
         if (
@@ -695,13 +790,24 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         # 普通消息渲染
         self._render_message_plain(msg, full_content)
 
+    def _render_message_streaming(self, msg: MessageItem, full_content: str) -> None:
+        """渲染流式消息（使用轻量 Static，完成后升级为 Markdown）"""
+        widget = Static(full_content, classes=f"message-{msg.role.value}")
+        widget.id = f"msg-widget-{msg.id}"
+        self._message_widgets[msg.id] = widget
+
+        def _do_mount():
+            try:
+                self.mount(widget)
+                self._do_smart_scroll()
+            except Exception as e:
+                self._logger.error(f"Failed to mount streaming widget: {e}")
+
+        self.call_later(_do_mount)
+
     def _render_message_plain(self, msg: MessageItem, full_content: str) -> None:
         """渲染普通消息（无思考内容）"""
-        if msg.is_streaming:
-            widget = Static(full_content, classes=f"message-{msg.role.value}", markup=True)
-        else:
-            widget = Markdown(full_content, classes=f"message-{msg.role.value}")
-
+        widget = Markdown(full_content, classes=f"message-{msg.role.value}")
         widget.id = f"msg-widget-{msg.id}"
         self._message_widgets[msg.id] = widget
 
@@ -720,12 +826,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         container = Container(classes=f"message-container message-{msg.role.value}")
         container.id = container_id
 
-        # 创建消息内容 widget
-        if msg.is_streaming:
-            msg_widget = Static(full_content, classes="message-content", markup=True)
-        else:
-            msg_widget = Markdown(full_content, classes="message-content")
-
+        # 创建消息内容 widget - 始终使用 Markdown
+        msg_widget = Markdown(full_content, classes="message-content")
         msg_widget.id = f"msg-widget-{msg.id}"
         self._message_widgets[msg.id] = msg_widget
 
@@ -742,11 +844,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         )
         collapsible.id = f"msg-thinking-{msg.id}"
 
-        # 在 Collapsible 内创建 Markdown 显示思考内容
-        if msg.is_streaming:
-            thinking_widget = Static(thinking_content, classes="thinking-content", markup=True)
-        else:
-            thinking_widget = Markdown(thinking_content, classes="thinking-content")
+        # 在 Collapsible 内创建 Markdown 显示思考内容 - 始终使用 Markdown
+        thinking_widget = Markdown(thinking_content, classes="thinking-content")
 
         self._message_collapsibles[msg.id] = collapsible
 
@@ -773,25 +872,28 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
         widget = self._message_widgets[msg.id]
 
-        # ponytail: skip header rebuild during active streaming — only update content
-        if isinstance(widget, Static):
+        if isinstance(widget, Markdown):
             if msg.role == MessageRole.SYSTEM:
                 widget.update(f"--- {msg.content} ---")
             elif msg.is_streaming:
-                # During streaming, just append the new content (buffer was already merged into msg.content)
-                # Don't rebuild full_content with header every flush
+                pass
+            else:
+                header = self._format_message_header(msg)
+                content = self._format_message_content(msg)
+                widget.update(header + content)
+        elif isinstance(widget, Static):
+            if msg.role == MessageRole.SYSTEM:
+                widget.update(f"--- {msg.content} ---")
+            elif msg.is_streaming:
                 widget.update(msg.content + (" ▌" if msg.is_streaming else ""))
             else:
                 header = self._format_message_header(msg)
                 content = self._format_message_content(msg)
                 widget.update(header + content)
-        elif isinstance(widget, Markdown):
-            pass  # Markdown widget replaced on completion, not updated during stream
 
         if msg.thinking is not None and msg.id in self._message_collapsibles:
             self._update_thinking_collapsible(msg.id, msg)
 
-        # ponytail: only schedule smart scroll if user is at bottom — skip during manual scroll
         if self._user_scrolled_to_bottom:
             self.call_later(self._do_smart_scroll)
 
@@ -799,8 +901,12 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         if msg.id not in self._message_widgets:
             return
 
-        old_widget = self._message_widgets[msg.id]
+        widget = self._message_widgets[msg.id]
         
+        if isinstance(widget, Markdown):
+            return
+
+        old_widget = widget
         try:
             old_widget.remove()
         except Exception as e:
@@ -822,7 +928,6 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             def _do_mount():
                 try:
                     self.mount(new_widget)
-                    # 使用智能滚动 - 只在用户位于底部时自动滚动
                     self._do_smart_scroll()
                 except Exception as e:
                     self._logger.error(f"Failed to mount markdown widget: {e}")
@@ -841,22 +946,32 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
     def on_mount(self) -> None:
         self._logger.info("MessageList mounted")
+        # 启动滚动检查定时器（200ms 一次）
+        self.set_interval(0.2, self._scroll_check_timer)
 
     def on_scroll(self) -> None:
-        """监听滚动事件，检测用户是否在底部"""
+        """监听滚动事件，只设置脏标记，延迟处理"""
         if self._suppress_scroll_event:
             return
+        # 只标记脏，不立即处理（避免频繁触发布局计算）
+        self._scroll_dirty = True
+
+    def _scroll_check_timer(self) -> None:
+        """定时器回调：定期检查滚动位置（200ms 一次）"""
+        if not self._scroll_dirty:
+            return
+        self._scroll_dirty = False
         current_time = time.time() * 1000
         if current_time - self._last_scroll_time < self._scroll_throttle_ms:
             return
         self._last_scroll_time = current_time
-        # ponytail: max_scroll_y is layout-expensive — only read here, not on every scroll event
         self._do_deferred_scroll_check()
 
     def _do_deferred_scroll_check(self) -> None:
-        """Check if user is at bottom — reads max_scroll_y only when needed."""
+        """Check if user is at bottom — 使用缓存的 max_scroll_y"""
+        # ponytail: 使用缓存的 max_scroll_y 避免频繁触发布局计算
         try:
-            max_scroll = self.max_scroll_y
+            max_scroll = self._get_max_scroll_y_cached()
             current_y = self.scroll_y
             if (max_scroll - current_y) < 50:
                 self._mark_scrolled_to_bottom()

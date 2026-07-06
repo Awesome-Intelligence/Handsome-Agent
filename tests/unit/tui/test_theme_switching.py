@@ -508,5 +508,59 @@ class TestThemeIntegration:
         assert manager is ThemeManager.get_instance()
 
 
+class TestThemeToggleButton:
+    """Test theme toggle button functionality."""
+
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        """Reset ThemeManager singleton before each test."""
+        from tui.theming.theme_manager import ThemeManager
+        ThemeManager._instance = None
+        yield
+        ThemeManager._instance = None
+
+    def test_theme_toggle_cycle(self):
+        """Test theme toggle cycles through available themes."""
+        from tui.theming.theme_manager import ThemeManager
+
+        manager = ThemeManager()
+        initial_theme = manager.get_current_theme_id()
+
+        available_themes = manager.list_theme_ids()
+        if len(available_themes) >= 2:
+            current_index = available_themes.index(initial_theme)
+            expected_next = available_themes[(current_index + 1) % len(available_themes)]
+
+            manager.set_theme(expected_next)
+            assert manager.get_current_theme_id() == expected_next
+
+    def test_theme_toggle_with_two_themes(self):
+        """Test theme toggle specifically with two themes (default ↔ awesome)."""
+        from tui.theming.theme_manager import ThemeManager
+
+        manager = ThemeManager()
+
+        manager.set_theme("default")
+        assert manager.get_current_theme_id() == "default"
+
+        manager.set_theme("awesome")
+        assert manager.get_current_theme_id() == "awesome"
+
+        manager.set_theme("default")
+        assert manager.get_current_theme_id() == "default"
+
+    def test_theme_toggle_button_icon(self):
+        """Test theme toggle button icon and CSS classes."""
+        from tui.theming.css import get_theme_css
+
+        default_css = get_theme_css("default")
+        awesome_css = get_theme_css("awesome")
+
+        assert "#theme-toggle" in default_css
+        assert "#theme-toggle" in awesome_css
+        assert ".theme-default #theme-toggle" in default_css
+        assert ".theme-awesome #theme-toggle" in awesome_css
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

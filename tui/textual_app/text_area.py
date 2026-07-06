@@ -45,6 +45,13 @@ class SubmitTextArea(TextArea):
         self.history_navigate: Callable[[int], None] | None = None
         # 是否启用历史导航（默认开启）
         self.history_navigation_enabled: bool = True
+        # 斜杠命令补全回调
+        self.slash_show: Callable[[], None] | None = None
+        self.slash_update: Callable[[str], None] | None = None
+        self.slash_complete: Callable[[], str | None] | None = None
+        self.slash_dismiss: Callable[[], None] | None = None
+        # 记录当前 / 触发时的快照（文本 + 光标位置）
+        self._slash_snapshot: tuple[str, tuple[int, int]] | None = None
 
     async def _on_key(self, event: "textual_events.Key") -> None:
         """拦截 Enter 键与上下方向键。
@@ -52,11 +59,48 @@ class SubmitTextArea(TextArea):
         - 无修饰键的 Enter：触发提交
         - 带修饰键的 Enter：保持默认（插入换行）
         - Up / Down：在合适的边界位置触发历史导航
+        - Tab：触发斜杠命令补全确认（当 slash_completion 激活时）
 
         Args:
             event: 键盘事件
         """
         key = event.key
+
+        # DEBUG
+        print(f"[_on_key] key={repr(key)} slash_show={self.slash_show} text={repr(self.text[:20])}")
+
+        # Tab：确认斜杠命令补全
+        if key == "tab" and self.slash_complete is not None:
+            result = self.slash_complete()
+            if result:
+                event.stop()
+                return
+            # 没有选中项时继续默认行为（不插入\t）
+
+        # Esc：关闭斜杠补全浮层
+        if key == "escape" and self.slash_dismiss is not None:
+            self.slash_dismiss()
+            # 不 stop，让 Esc 继续（TextArea 自己的 esc 行为）
+
+        # 检测 / 键：第一次按下时触发补全浮层
+        if key == "/" and self.slash_show is not None:
+            print(f"[/] triggering slash_show, text={repr(self.text)}, cursor={self.cursor_location}")
+            self._slash_snapshot = (self.text, self.cursor_location)
+            self.slash_show()
+            print(f"[/] after slash_show, _slash_snapshot={self._slash_snapshot}")
+            # 让默认行为插入 /
+
+        # 检测普通可打印字符：更新补全过滤
+        # Textual 的 key 事件中，普通字符 key 就是那个字符本身
+        if (
+            self.slash_update is not None
+            and self._slash_snapshot is not None
+            and len(key) == 1
+            and key.isprintable()
+            and not key.isspace()
+        ):
+            # 插入后更新过滤
+            self.update_from_slash_query()
 
         # Enter without modifiers -> submit message
         # Textual 中修饰键编码在 key 字符串中：plain="enter", ctrl+enter="ctrl+enter"
@@ -120,3 +164,23 @@ class SubmitTextArea(TextArea):
             return row == 0
         # down
         return row >= line_count - 1
+
+    def update_from_slash_query(self) -> None:
+        """根据快照重建 /query 并触发过滤更新。"""
+        if self._slash_snapshot is None or self.slash_update is None:
+            return
+        snapshot_text, _ = self._slash_snapshot
+        # 快照之后新增的文本（/ 及其之后用户输入的内容）
+        query = self.text[len(snapshot_text) :]
+        if not query.startswith("/"):
+            if self.slash_dismiss:
+                self.slash_dismiss()
+            return
+        self.slash_update(query)
+
+    def _on_blur(self, event: "textual_events.Blurred") -> None:
+        """输入框丢失焦点时关闭补全浮层。"""
+        if self.slash_dismiss:
+            self.slash_dismiss()
+        self._slash_snapshot = None
+        super()._on_blur(event)

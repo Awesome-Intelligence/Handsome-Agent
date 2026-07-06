@@ -57,6 +57,16 @@
 
 
 
+/* 主题切换按钮样式 */
+.theme-awesome #theme-toggle {
+    color: #C5FF9E;
+}
+
+.theme-awesome #theme-toggle:hover {
+    color: #A9FC6E;
+    background: rgba(169, 252, 110, 0.2);
+}
+
 /* 侧边栏 Tab 选中样式 */
 .theme-awesome #sidebar-container-inner SidebarContainer Tabs Tab.active,
 .theme-awesome #sidebar-container-inner SidebarContainer Tabs .active {
