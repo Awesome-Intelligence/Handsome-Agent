@@ -15,15 +15,11 @@ if TYPE_CHECKING:
 
 # 条件导入 Textual 组件
 try:
-    from textual.app import App
     from textual.widgets import TextArea
     from textual.message import Message
-    from textual.binding import Binding
 except ImportError:
     TextArea = None
     Message = object
-    App = None
-    Binding = None
 
 
 class SubmitTextArea(TextArea):
@@ -36,9 +32,8 @@ class SubmitTextArea(TextArea):
     内部使用自定义的 InputSubmitted 消息事件。
     """
 
-    BINDINGS = [
-        Binding("ctrl+enter", "send_message", "发送消息"),
-    ]
+    # 不显式绑定 ctrl+enter，让 TextArea 内置的 Ctrl+Enter 换行行为自然生效
+    # Enter 提交逻辑在 _on_key 中通过 key == "enter" 处理
 
     class InputSubmitted(Message):
         """输入提交事件（按 Enter 触发）。"""
@@ -50,10 +45,6 @@ class SubmitTextArea(TextArea):
         self.history_navigate: Callable[[int], None] | None = None
         # 是否启用历史导航（默认开启）
         self.history_navigation_enabled: bool = True
-
-    def action_send_message(self) -> None:
-        """发送消息 - 由 Ctrl+Enter 触发."""
-        self.post_message(self.InputSubmitted())
 
     async def _on_key(self, event: "textual_events.Key") -> None:
         """拦截 Enter 键与上下方向键。
@@ -77,7 +68,11 @@ class SubmitTextArea(TextArea):
 
         # Ctrl+Enter / Shift+Enter / Alt+Enter -> insert newline (default behavior)
         # 这些 key 字符串包含 '+' 修饰符前缀
-        if key.startswith("ctrl+") or key.startswith("shift+") or key.startswith("alt+"):
+        if (
+            key.startswith("ctrl+")
+            or key.startswith("shift+")
+            or key.startswith("alt+")
+        ):
             await super()._on_key(event)
             return
 

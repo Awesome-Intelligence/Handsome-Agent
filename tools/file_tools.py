@@ -104,7 +104,7 @@ def search_files(pattern: str, path: str = ".", file_glob: Optional[str] = None,
                     
                     if len(matches) >= limit:
                         break
-            except:
+            except Exception:
                 continue
         
         if not matches:

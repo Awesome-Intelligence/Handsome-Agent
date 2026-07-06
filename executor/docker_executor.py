@@ -6,7 +6,7 @@ Docker 容器隔离执行
 import asyncio
 from typing import Optional
 from .base import BaseExecutor, ExecutorConfig, ExecutionResult
-from agent.schemas import ToolCall, SafetyLevel
+from executor.base import ToolCall, SafetyLevel
 
 
 class DockerExecutor(BaseExecutor):

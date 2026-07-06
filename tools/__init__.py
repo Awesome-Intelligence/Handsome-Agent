@@ -53,7 +53,7 @@ from typing import Any, Optional
 
 from .schema_registry import SchemaRegistry, UnifiedToolSchema, ToolSource
 from .registry import ToolRegistry, ToolEntry, registry, discover_builtin_tools
-from .model_tools import register_tool, tool_registry
+from .model_tools import register_tool, tool_registry, _run_async, _get_tool_loop, _get_worker_loop
 from .definitions.file_tools import FILE_TOOLS
 from .credential_manager import (
     CredentialManager,
@@ -165,6 +165,10 @@ __all__ = [
     "register_tool",
     "tool_registry",
     "ToolResult",
+    # 异步桥接
+    "_run_async",
+    "_get_tool_loop",
+    "_get_worker_loop",
     # 工具定义
     "FILE_TOOLS",
     "SHELL_TOOLS",

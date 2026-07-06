@@ -9,7 +9,7 @@ Toolsets are collections of tools that are commonly used together.
 
 from typing import List, Dict, Optional, Any, Set
 from dataclasses import dataclass, field
-from model_tools import ToolRegistry, ToolInfo
+from tools.registry import ToolRegistry, ToolEntry
 
 
 @dataclass
@@ -126,7 +126,7 @@ class ToolsetManager:
         """List all toolset names."""
         return list(self.toolsets.keys())
     
-    def get_toolset_tools(self, toolset_name: str) -> List[ToolInfo]:
+    def get_toolset_tools(self, toolset_name: str) -> List[ToolEntry]:
         """
         Get all tools in a toolset.
         
@@ -134,7 +134,7 @@ class ToolsetManager:
             toolset_name: Name of the toolset
         
         Returns:
-            List of ToolInfo objects
+            List of ToolEntry objects
         """
         toolset = self.get_toolset(toolset_name)
         if not toolset:
@@ -142,9 +142,9 @@ class ToolsetManager:
         
         tools = []
         for tool_name in toolset.tools:
-            tool_info = self.tool_registry.get_tool(tool_name)
-            if tool_info:
-                tools.append(tool_info)
+            tool_entry = self.tool_registry.get(tool_name)
+            if tool_entry:
+                tools.append(tool_entry)
         
         return tools
     

@@ -23,6 +23,7 @@ class MockMetadata:
         self.name = name
         self.description = "A mock skill for testing"
         self.category = "test"
+        self.source = "default"
         self.pinned = False
         self.pinned_at = None
         self.pinned_by = ""

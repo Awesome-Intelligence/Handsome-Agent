@@ -396,7 +396,7 @@ class LLMToolSelector:
                         if params_match:
                             try:
                                 params = json.loads(params_match.group(1))
-                            except:
+                            except json.JSONDecodeError:
                                 pass
                         else:
                             # 尝试从工具标签内容中提取参数

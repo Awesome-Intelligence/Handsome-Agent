@@ -352,6 +352,7 @@ class ChineseSemanticRetriever(SemanticRetriever):
         query_tokens: set,
         query_vec,
         entities: Optional[List[str]] = None,
+        min_score: Optional[float] = None,
     ) -> float:
         """
         使用中文优化的评分

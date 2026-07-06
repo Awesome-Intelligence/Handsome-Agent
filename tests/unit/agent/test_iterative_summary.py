@@ -133,8 +133,10 @@ class TestCompressionIntegration:
 
     def test_threshold_tokens_calculation(self, compressor):
         """测试阈值 tokens 计算"""
-        assert compressor.threshold_tokens == 64000
+        # gpt-4o context_length=128000, threshold=0.75 → 96000
+        assert compressor.threshold_tokens == 96000
 
     def test_tail_token_budget_calculation(self, compressor):
         """测试尾部 token 预算计算"""
-        assert compressor.tail_token_budget == 12800
+        # threshold_tokens=96000, summary_target_ratio=0.20 → 19200
+        assert compressor.tail_token_budget == 19200

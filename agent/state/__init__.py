@@ -47,6 +47,7 @@ from agent.state.agent_state import (
     ExitDecision,
     StateTransition,
 )
+from agent.state.session_store import SessionStore
 
 __all__ = [
     # 状态枚举
@@ -58,6 +59,8 @@ __all__ = [
     "ExitReason",
     # 状态管理
     "AgentState",
+    # 会话存储
+    "SessionStore",
     # 数据类
     "ExitDecision",
     "StateTransition",

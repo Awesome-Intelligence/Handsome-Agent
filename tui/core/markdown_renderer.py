@@ -126,7 +126,7 @@ class RichFormatter:
         if PYGMENTS_AVAILABLE and language:
             try:
                 lexer = get_lexer_by_name(language)
-            except:
+            except ClassNotFoundError:
                 lexer = TextLexer()
             formatter = Terminal256Formatter(style="monokai")
             highlighted = highlight(code, lexer, formatter)

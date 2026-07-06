@@ -605,14 +605,6 @@ class HandsomeAgentApp(App):
     def update_theme_css(self) -> None:
         self._apply_theme_class()
 
-    def action_toggle_dark_mode(self) -> None:
-        if self.theme == "textual-dark":
-            self.theme = "textual-light"
-            self.notify("切换到浅色模式")
-        else:
-            self.theme = "textual-dark"
-            self.notify("切换到深色模式")
-
     def _update_status_bar(self) -> None:
         try:
             # 使用缓存的 widgets（避免频繁 query_one）
@@ -1413,63 +1405,6 @@ class HandsomeAgentApp(App):
             return self._theme_manager.list_theme_ids()
         return ["default"]
 
-    def action_change_theme(self) -> None:
-        """使用 Textual 主题系统切换主题."""
-        if not TEXTUAL_AVAILABLE:
-            self.notify("Theme system not available")
-            return
-
-        # 获取我们支持的主题列表
-        theme_ids = [t.name for t in THEMES]
-        if not theme_ids:
-            self.notify("No themes available")
-            return
-
-        # 获取当前主题（可能是 textual-dark 或我们自定义的主题）
-        current_theme = self.theme
-        
-        # 如果当前主题不在我们的列表中，尝试在 available_themes 中查找
-        if current_theme not in theme_ids:
-            self._logger.info(f"[action_change_theme] current '{current_theme}' not in {theme_ids}")
-            # 尝试在可用主题中查找我们的主题
-            if current_theme in self.available_themes:
-                # 当前是 Textual 内置主题，切换到我们的第一个主题
-                current_index = -1  # 这样下一个会是 index 0
-            else:
-                current_index = -1
-        else:
-            current_index = theme_ids.index(current_theme)
-        
-        next_index = (current_index + 1) % len(theme_ids)
-        next_theme_id = theme_ids[next_index]
-        
-        self._logger.info(f"[action_change_theme] switching from '{current_theme}' to '{next_theme_id}'")
-        
-        # 使用 Textual 主题系统切换主题
-        self.theme = next_theme_id
-        
-        self._logger.info(f"[action_change_theme] after switch: {self.theme}")
-        
-        # 保存主题偏好
-        if self._theme_manager:
-            self._theme_manager.set_theme(next_theme_id)
-        
-        # 显示通知
-        self.notify_success(f"Theme: {next_theme_id}", duration=2.0)
-
-    def action_toggle_transparency(self) -> None:
-        if not self._theme_manager:
-            self.notify("Theme manager not available")
-            return
-
-        enabled = self._theme_manager.toggle_transparency()
-        self._update_transparency_styles(enabled)
-
-        if enabled:
-            self.notify("✓ 半透明背景已启用 (毛玻璃效果)")
-        else:
-            self.notify("✗ 半透明背景已禁用")
-
     def _update_transparency_styles(self, enabled: bool) -> None:
         transparent_mappings = {
             "#app-header": "transparent-header",
@@ -1500,67 +1435,6 @@ class HandsomeAgentApp(App):
         if self._theme_manager:
             return self._theme_manager.is_transparency_enabled()
         return False
-
-    def action_toggle_markdown(self) -> None:
-        self._markdown_enabled = not self._markdown_enabled
-
-        if self._markdown_enabled:
-            if TEXTUAL_AVAILABLE and Markdown is not None:
-                self.notify_info("✓ Markdown 渲染已启用")
-            else:
-                self.notify_warning("Textual Markdown 组件不可用")
-        else:
-            self.notify_info("✗ Markdown 渲染已禁用")
-
-        self._logger.debug(f"Markdown rendering: {self._markdown_enabled}")
-
-    def is_markdown_enabled(self) -> bool:
-        return self._markdown_enabled
-
-    def is_markdown_available(self) -> bool:
-        """检查 Textual 原生 Markdown 组件是否可用."""
-        return TEXTUAL_AVAILABLE and Markdown is not None
-
-    def get_markdown_features(self) -> dict:
-        """获取 Markdown 功能特性."""
-        return {
-            "textual_markdown": TEXTUAL_AVAILABLE and Markdown is not None,
-        }
-
-    def action_toggle_loading_style(self) -> None:
-        """切换加载动画样式（原生 LoadingIndicator / 状态栏动画）."""
-        self._use_native_loading = not self._use_native_loading
-        
-        if self._use_native_loading:
-            self.notify_info("✓ 使用原生 LoadingIndicator")
-        else:
-            self.notify_info("✓ 使用状态栏加载动画")
-
-    def set_use_native_loading(self, use_native: bool) -> None:
-        """设置是否使用原生 LoadingIndicator.
-        
-        Args:
-            use_native: True 使用原生 LoadingIndicator，False 使用状态栏动画
-        """
-        self._use_native_loading = use_native
-
-    def render_markdown(self, text: str) -> str:
-        """使用 Textual 原生 Markdown 组件渲染文本.
-        
-        Args:
-            text: Markdown 格式的文本
-            
-        Returns:
-            渲染后的 Rich 格式文本
-        """
-        if not self._markdown_enabled:
-            return text
-
-        try:
-            return self._render_markdown_content(text)
-        except Exception as e:
-            self._logger.debug(f"Markdown render failed: {e}")
-            return text
 
     def notify_animated(
         self,
@@ -1835,9 +1709,6 @@ class HandsomeAgentApp(App):
         except Exception as e:
             self._logger.error(f"[_get_sidebar_and_switch] Failed: {e}", exc_info=True)
 
-    def action_switch_to_file_tree(self) -> None:
-        self._get_sidebar_and_switch("file_tree")
-
     def action_next_panel(self) -> None:
         """切换到下一个面板."""
         panel_order = ["goal", "file_tree", "skills"]
@@ -1868,15 +1739,6 @@ class HandsomeAgentApp(App):
         except Exception as e:
             self._logger.debug(f"action_prev_panel: {e}")
 
-    def action_switch_to_tasks(self) -> None:
-        self._get_sidebar_and_switch("tasks")
-
-    def action_switch_to_skills(self) -> None:
-        self._get_sidebar_and_switch("skills")
-
-    def action_switch_to_logs(self) -> None:
-        self._get_sidebar_and_switch("logs")
-
     def action_open_log_screen(self) -> None:
         """打开全局日志窗口 (Alt+L)."""
         if LogScreen:
@@ -1889,27 +1751,12 @@ class HandsomeAgentApp(App):
         else:
             self.notify("日志窗口不可用")
 
-    def action_switch_to_goal(self) -> None:
-        self._get_sidebar_and_switch("goal")
-
-    def action_toggle_help(self) -> None:
-        self.action_open_help()
-
     def action_open_help(self) -> None:
         if HelpScreen:
             self.push_screen(HelpScreen())
             self._logger.debug("Help screen opened")
         else:
             self.notify("Help: q=quit, Ctrl+B=sidebar, Ctrl+T=new tab")
-
-    def action_open_session_selector(self) -> None:
-        if SessionPickerScreen:
-            self.push_screen(SessionPickerScreen(
-                current_session_id=self.session_id
-            ))
-            self._logger.debug("Session picker opened")
-        else:
-            self.notify(t("tui.session_selector.hint", "Session selector not available"))
 
     def action_open_settings(self) -> None:
         """打开设置界面."""
@@ -2151,7 +1998,10 @@ class HandsomeAgentApp(App):
                 # 使用缓存的 widget（优化性能）
                 time_widget = self._widget_cache.get("status_time")
                 if time_widget:
-                    time_widget.update(f"│ {elapsed_minutes}m {elapsed_seconds}s ")
+                    if elapsed_minutes > 0:
+                        time_widget.update(f"│ {elapsed_minutes}m {elapsed_seconds}s ")
+                    else:
+                        time_widget.update(f"│ {elapsed_seconds}s ")
 
                 # 更新 token 计数（方案B：消息完成后估算，不影响性能）
                 # 先 flush 确保消息已保存到 store
@@ -2226,25 +2076,6 @@ class HandsomeAgentApp(App):
             elif hasattr(chat_area, 'write'):
                 chat_area.write(f"\nAgent: {content}\n")
 
-    def action_clear_screen(self) -> None:
-        chat_area = self.query_one("#chat-area", ChatView)
-        if chat_area:
-            if hasattr(chat_area, 'clear'):
-                chat_area.clear()
-            elif hasattr(chat_area, 'clear_messages'):
-                chat_area.clear_messages()
-        self._logger.debug("Screen cleared")
-
-    def action_cancel_current(self) -> None:
-        self._logger.info("User requested cancel current operation")
-        try:
-            input_field = self.query_one("#user-input", TextArea)
-            input_field.text = ""
-            self.set_focus(input_field)
-        except:
-            pass
-        self.notify("已取消当前操作")
-
     def action_quit(self) -> None:
         self._logger.info("User requested quit")
         self.app.exit()
@@ -2281,20 +2112,6 @@ class HandsomeAgentApp(App):
                     self._tab_states[self._active_tab_id]["chat_view"].show_greeting()
 
         self._logger.info(f"Session deleted: {event.session_id}")
-
-    def action_scroll_up(self) -> None:
-        try:
-            content_area = self.query_one("#content-area", VerticalScroll)
-            content_area.scroll_up(animate=True)
-        except Exception:
-            pass
-
-    def action_scroll_down(self) -> None:
-        try:
-            content_area = self.query_one("#content-area", VerticalScroll)
-            content_area.scroll_down(animate=True)
-        except Exception:
-            pass
 
     def action_next_tab(self) -> None:
         tabs = self.query_one("Tabs", Tabs)

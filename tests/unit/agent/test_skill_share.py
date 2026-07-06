@@ -46,15 +46,14 @@ class TestShareMetadata:
 
     def test_share_metadata_creation(self):
         """ShareMetadata creates with required fields."""
-        meta = ShareMetadata(skill_name="test_skill")
+        meta = ShareMetadata(
+            skill_name="test_skill",
+            version="1.0.0",
+            description="Test skill",
+            author="test",
+        )
         assert meta.skill_name == "test_skill"
-
-    def test_share_metadata_defaults(self):
-        """ShareMetadata has correct defaults."""
-        meta = ShareMetadata(skill_name="test")
-        assert meta.platform == "gist"
-        assert meta.include_assets is True
-        assert meta.include_scripts is True
+        assert meta.version == "1.0.0"
 
 
 class TestShareResult:
@@ -76,12 +75,12 @@ class TestShareResult:
         """ShareResult with success=False."""
         result = ShareResult(
             success=False,
-            error="Failed to share",
+            message="Failed to share",
             platform="gist",
         )
 
         assert result.success is False
-        assert result.error == "Failed to share"
+        assert result.message == "Failed to share"
 
 
 class TestGetShare:

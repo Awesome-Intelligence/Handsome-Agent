@@ -3,136 +3,148 @@
 """
 Model Tools Module - Inspired by Hermes Agent
 
-This module handles tool discovery, schema collection, and dispatch.
-It provides utilities for working with tools in the agent system.
+This module provides utilities for working with tools in the agent system.
+Note: The ToolRegistry has been moved to tools/registry.py.
+This module now delegates to the unified registry.
+
+Key features:
+- Async bridging (_run_async, _get_tool_loop, _get_worker_loop) to prevent
+  "Event loop is closed" errors with cached httpx/AsyncOpenAI clients
+- ToolDispatcher for executing tools
+- register_tool decorator for registering tools
 """
 
+import asyncio
 import inspect
+import logging
+import threading
 from typing import Dict, List, Optional, Any, Callable, Type
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import json
 
+from .registry import registry, ToolEntry
 
-@dataclass
-class ToolSchema:
-    """JSON Schema definition for a tool."""
-    name: str
-    description: str
-    parameters: Dict[str, Any]
-    returns: Optional[Dict[str, Any]] = None
-    
-    def to_json(self) -> str:
-        """Convert to JSON string."""
-        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary format."""
-        result = {
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters
-        }
-        if self.returns:
-            result["returns"] = self.returns
-        return result
+logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ToolInfo:
-    """Information about a registered tool."""
-    name: str
-    func: Callable
-    description: str
-    parameters: List[Dict[str, Any]]
-    schema: ToolSchema
-    requires_permission: bool = False
-    category: str = "general"
+# =============================================================================
+# Async Bridging  (single source of truth -- used by registry.execute too)
+# =============================================================================
+
+_tool_loop = None
+_tool_loop_lock = threading.Lock()
+_worker_thread_local = threading.local()
 
 
-class ToolRegistry:
+def _get_tool_loop():
+    """Return a long-lived event loop for running async tool handlers.
+
+    Using a persistent loop (instead of asyncio.run() which creates and
+    *closes* a fresh loop every time) prevents "Event loop is closed"
+    errors that occur when cached httpx/AsyncOpenAI clients attempt to
+    close their transport on a dead loop during garbage collection.
     """
-    Registry for managing tools.
-    
-    Inspired by Hermes Agent's model_tools.py and registry.py
+    global _tool_loop
+    with _tool_loop_lock:
+        if _tool_loop is None or _tool_loop.is_closed():
+            _tool_loop = asyncio.new_event_loop()
+        return _tool_loop
+
+
+def _get_worker_loop():
+    """Return a persistent event loop for the current worker thread.
+
+    Each worker thread (e.g., delegate_task's ThreadPoolExecutor threads)
+    gets its own long-lived loop stored in thread-local storage.  This
+    prevents the "Event loop is closed" errors that occurred when
+    asyncio.run() was used per-call: asyncio.run() creates a loop, runs
+    the coroutine, then *closes* the loop — but cached httpx/AsyncOpenAI
+    clients remain bound to that now-dead loop and raise RuntimeError
+    during garbage collection or subsequent use.
+
+    By keeping the loop alive for the thread's lifetime, cached clients
+    stay valid and their cleanup runs on a live loop.
     """
-    
-    def __init__(self):
-        self.tools: Dict[str, ToolInfo] = {}
-        self.categories: Dict[str, List[str]] = {}
-    
-    def register_tool(self, name: str, func: Callable, description: str, 
-                      parameters: List[Dict[str, Any]], requires_permission: bool = False,
-                      category: str = "general"):
-        """
-        Register a tool.
-        
-        Args:
-            name: Tool name
-            func: Tool function
-            description: Tool description
-            parameters: List of parameter dictionaries
-            requires_permission: Whether permission is required
-            category: Tool category
-        """
-        # Build schema
-        params_schema = {}
-        for param in parameters:
-            param_name = param.get("name")
-            if param_name:
-                params_schema[param_name] = {
-                    "type": param.get("type", "string"),
-                    "description": param.get("description", ""),
-                    "required": param.get("required", False)
-                }
-        
-        schema = ToolSchema(
-            name=name,
-            description=description,
-            parameters=params_schema
-        )
-        
-        tool_info = ToolInfo(
-            name=name,
-            func=func,
-            description=description,
-            parameters=parameters,
-            schema=schema,
-            requires_permission=requires_permission,
-            category=category
-        )
-        
-        self.tools[name] = tool_info
-        
-        # Add to category
-        if category not in self.categories:
-            self.categories[category] = []
-        if name not in self.categories[category]:
-            self.categories[category].append(name)
-    
-    def get_tool(self, name: str) -> Optional[ToolInfo]:
-        """Get tool information by name."""
-        return self.tools.get(name)
-    
-    def get_tools_by_category(self, category: str) -> List[ToolInfo]:
-        """Get all tools in a category."""
-        tool_names = self.categories.get(category, [])
-        return [self.tools[name] for name in tool_names if name in self.tools]
-    
-    def list_tools(self) -> List[str]:
-        """List all registered tool names."""
-        return list(self.tools.keys())
-    
-    def get_all_schemas(self) -> List[ToolSchema]:
-        """Get schemas for all tools."""
-        return [tool.schema for tool in self.tools.values()]
-    
-    def get_tool_descriptions(self) -> List[Dict[str, str]]:
-        """Get descriptions for all tools in simple format."""
-        return [
-            {"name": name, "description": tool.description}
-            for name, tool in self.tools.items()
-        ]
+    loop = getattr(_worker_thread_local, 'loop', None)
+    if loop is None or loop.is_closed():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        _worker_thread_local.loop = loop
+    return loop
+
+
+def _run_async(coro):
+    """Run an async coroutine from a sync context.
+
+    If the current thread already has a running event loop (e.g., inside
+    the gateway's async stack), we spin up a disposable thread so
+    asyncio.run() can create its own loop without conflicting.
+
+    For the common CLI path (no running loop), we use a persistent event
+    loop so that cached async clients (httpx / AsyncOpenAI) remain bound
+    to a live loop and don't trigger "Event loop is closed" on GC.
+
+    When called from a worker thread (parallel tool execution), we use a
+    per-thread persistent loop to avoid both contention with the main
+    thread's shared loop AND the "Event loop is closed" errors caused by
+    asyncio.run()'s create-and-destroy lifecycle.
+
+    This is the single source of truth for sync->async bridging in tool
+    handlers. Each handler is self-protecting via this function.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+
+        worker_loop: Optional[asyncio.AbstractEventLoop] = None
+        loop_ready = threading.Event()
+
+        def _run_in_worker():
+            nonlocal worker_loop
+            worker_loop = asyncio.new_event_loop()
+            loop_ready.set()
+            try:
+                asyncio.set_event_loop(worker_loop)
+                return worker_loop.run_until_complete(coro)
+            finally:
+                try:
+                    pending = asyncio.all_tasks(worker_loop)
+                    for t in pending:
+                        t.cancel()
+                    if pending:
+                        worker_loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+                except Exception:
+                    pass
+                worker_loop.close()
+
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = pool.submit(_run_in_worker)
+        try:
+            return future.result(timeout=300)
+        except concurrent.futures.TimeoutError:
+            if loop_ready.wait(timeout=1.0) and worker_loop is not None:
+                try:
+                    for t in asyncio.all_tasks(worker_loop):
+                        worker_loop.call_soon_threadsafe(t.cancel)
+                except RuntimeError:
+                    pass
+            raise
+        finally:
+            pool.shutdown(wait=False)
+
+    if threading.current_thread() is not threading.main_thread():
+        worker_loop = _get_worker_loop()
+        return worker_loop.run_until_complete(coro)
+
+    tool_loop = _get_tool_loop()
+    return tool_loop.run_until_complete(coro)
 
 
 class ToolDispatcher:
@@ -146,8 +158,8 @@ class ToolDispatcher:
     - Result formatting
     """
     
-    def __init__(self, registry: ToolRegistry):
-        self.registry = registry
+    def __init__(self, tool_registry=None):
+        self.registry = tool_registry if tool_registry is not None else registry
     
     async def dispatch(self, tool_name: str, **kwargs) -> Dict[str, Any]:
         """
@@ -160,7 +172,7 @@ class ToolDispatcher:
         Returns:
             Dictionary with 'success', 'output', and optionally 'error'
         """
-        tool_info = self.registry.get_tool(tool_name)
+        tool_info = self.registry.get(tool_name)
         
         if not tool_info:
             return {
@@ -168,12 +180,12 @@ class ToolDispatcher:
                 "error": f"Tool not found: {tool_name}"
             }
         
-        # Check permission (stub implementation)
-        if tool_info.requires_permission:
-            # In production, this would check user permissions
-            pass
+        if not tool_info.is_available():
+            return {
+                "success": False,
+                "error": f"Tool not available: {tool_name}"
+            }
         
-        # Validate parameters
         validation = self._validate_parameters(tool_info, kwargs)
         if not validation["valid"]:
             return {
@@ -181,13 +193,11 @@ class ToolDispatcher:
                 "error": validation["error"]
             }
         
-        # Execute tool
         try:
-            # Support both sync and async functions
-            if inspect.iscoroutinefunction(tool_info.func):
-                result = await tool_info.func(**kwargs)
+            if tool_info.is_async:
+                result = await tool_info.handler(**kwargs)
             else:
-                result = tool_info.func(**kwargs)
+                result = tool_info.handler(**kwargs)
             
             return {
                 "success": True,
@@ -200,26 +210,26 @@ class ToolDispatcher:
                 "error": str(e)
             }
     
-    def _validate_parameters(self, tool_info: ToolInfo, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_parameters(self, tool_info: ToolEntry, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validate tool parameters.
         
         Returns:
             Dict with 'valid' (bool) and 'error' (str if invalid)
         """
-        for param in tool_info.parameters:
-            param_name = param.get("name")
-            required = param.get("required", False)
-            
-            if required and param_name not in kwargs:
+        schema = tool_info.get_schema()
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        
+        for param_name, prop in properties.items():
+            if param_name in required and param_name not in kwargs:
                 return {
                     "valid": False,
                     "error": f"Missing required parameter: {param_name}"
                 }
             
             if param_name in kwargs:
-                # Type validation (simplified)
-                expected_type = param.get("type", "string")
+                expected_type = prop.get("type", "string")
                 value = kwargs[param_name]
                 
                 if expected_type == "integer" and not isinstance(value, int):
@@ -241,18 +251,7 @@ class ToolDispatcher:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # 统一使用 registry.py 中的 registry
-# 延迟导入避免循环依赖
-_tool_registry = None
-
-
-def _get_tool_registry():
-    """获取统一的工具注册表"""
-    global _tool_registry
-    if _tool_registry is None:
-        # 从 registry.py 导入统一的注册表
-        from .registry import registry
-        _tool_registry = registry
-    return _tool_registry
+# 已在文件顶部导入
 
 
 def register_tool(name: str, description: str, parameters: List[Dict[str, Any]],
@@ -274,11 +273,29 @@ def register_tool(name: str, description: str, parameters: List[Dict[str, Any]],
             # implementation
     """
     def decorator(func):
-        reg = _get_tool_registry()
-        reg.register(
+        props = {}
+        required = []
+        for param in parameters:
+            param_name = param.get("name")
+            if param_name:
+                props[param_name] = {
+                    "type": param.get("type", "string"),
+                    "description": param.get("description", ""),
+                }
+                if param.get("required", False):
+                    required.append(param_name)
+        
+        schema = {
+            "type": "object",
+            "properties": props,
+            "required": required,
+            "description": description,
+        }
+        
+        registry.register(
             name=name,
             toolset=category,
-            schema={"type": "object", "properties": {}, "description": description},
+            schema=schema,
             handler=func,
             description=description,
         )
@@ -290,13 +307,13 @@ def register_tool(name: str, description: str, parameters: List[Dict[str, Any]],
 class _ToolRegistryProxy:
     """tool_registry 的兼容层"""
     def __getattr__(self, name):
-        return getattr(_get_tool_registry(), name)
+        return getattr(registry, name)
 
     def __len__(self):
-        return len(_get_tool_registry())
+        return len(registry.get_all_tools())
 
     def __iter__(self):
-        return iter(_get_tool_registry())
+        return iter(registry.get_all_tools())
 
 
 tool_registry = _ToolRegistryProxy()

@@ -51,6 +51,19 @@ from agent.rails.registry import (
 
 from agent.rails.task_event_rail import TaskEventRail
 
+# Tool Guardrails
+from agent.rails.tool_guardrails import (
+    ToolCallGuardrailConfig,
+    ToolCallSignature,
+    ToolGuardrailDecision,
+    ToolCallGuardrailController,
+    IDEMPOTENT_TOOL_NAMES,
+    MUTATING_TOOL_NAMES,
+    classify_tool_failure,
+    toolguard_synthetic_result,
+    append_toolguard_guidance,
+)
+
 __all__ = [
     # 核心类
     "Rail",
@@ -62,6 +75,16 @@ __all__ = [
     "InterruptType",
     # Rails
     "TaskEventRail",
+    # Tool Guardrails
+    "ToolCallGuardrailConfig",
+    "ToolCallSignature",
+    "ToolGuardrailDecision",
+    "ToolCallGuardrailController",
+    "IDEMPOTENT_TOOL_NAMES",
+    "MUTATING_TOOL_NAMES",
+    "classify_tool_failure",
+    "toolguard_synthetic_result",
+    "append_toolguard_guidance",
     # 全局函数
     "get_rail_registry",
     "reset_rail_registry",

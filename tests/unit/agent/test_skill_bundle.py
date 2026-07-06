@@ -18,18 +18,7 @@ import os
 import sys
 from pathlib import Path
 
-# 直接从 skill_bundle.py 导入，避免触发 agent.skills 模块的完整初始化
-import importlib.util
-spec = importlib.util.spec_from_file_location(
-    "skill_bundle",
-    Path(__file__).parent.parent.parent.parent / "agent" / "skill_bundle.py"
-)
-skill_bundle_module = importlib.util.module_from_spec(spec)
-sys.modules["skill_bundle"] = skill_bundle_module
-spec.loader.exec_module(skill_bundle_module)
-
-SkillBundleManager = skill_bundle_module.SkillBundleManager
-SkillBundle = skill_bundle_module.SkillBundle
+from agent.skills.skill_command_bundle import SkillBundleManager, SkillBundle
 
 
 class TestSkillBundleManagerInit:

@@ -601,6 +601,7 @@ class Curator:
             except Exception as e:
                 logger.debug(f"Failed to run curator: {e}")
 
+        curator_report = None
         telemetry_summary = None
         if self.telemetry:
             telemetry_summary = self.telemetry.get_usage_summary()

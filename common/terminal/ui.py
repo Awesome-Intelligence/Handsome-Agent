@@ -196,7 +196,7 @@ class StatusBar:
         """Render the status bar."""
         try:
             terminal_width = shutil.get_terminal_size().columns
-        except:
+        except OSError:
             terminal_width = 80
 
         conn_icon = f"{Theme.SUCCESS}●{Colors.RESET}" if self.connected else f"{Theme.WARNING}○{Colors.RESET}"
@@ -526,7 +526,7 @@ def print_rich_panel(content: str, title: str = None,
     if width is None:
         try:
             width = min(shutil.get_terminal_size().columns, 80)
-        except:
+        except OSError:
             width = 80
 
     panel = Panel(

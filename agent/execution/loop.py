@@ -536,7 +536,7 @@ class AgentLoop:
                 if isinstance(arguments, str):
                     try:
                         arguments = json.loads(arguments)
-                    except:
+                    except json.JSONDecodeError:
                         arguments = {"input": arguments}
 
                 args_str = str(arguments)

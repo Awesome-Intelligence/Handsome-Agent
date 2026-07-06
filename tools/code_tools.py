@@ -108,7 +108,7 @@ def web_search(query, limit=5):
         finally:
             try:
                 os.unlink(temp_file)
-            except:
+            except OSError:
                 pass
                 
     except subprocess.TimeoutExpired:

@@ -140,14 +140,22 @@ class Trajectory:
     def from_session(cls, session, metadata: Optional[Dict[str, Any]] = None) -> "Trajectory":
         """从 Session 转换"""
         timestamp = datetime.now().timestamp()
+        if session is None:
+            return cls(
+                id=f"traj_{int(timestamp)}_none",
+                session_id="none",
+                messages=[],
+                metadata=metadata or {},
+                start_time=timestamp,
+            )
         trajectory_id = f"traj_{int(timestamp)}_{session.session_id[:8]}"
-        
+
         # 转换消息为 Hermes 格式
         messages = []
         for msg in session.get_history():
             step = ExecutionStep.from_message(msg)
             messages.append(step.to_hermes_entry())
-        
+
         return cls(
             id=trajectory_id,
             session_id=session.session_id,

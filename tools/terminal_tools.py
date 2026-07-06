@@ -255,7 +255,7 @@ def run_python(code: str, timeout: int = 30) -> ToolResult:
         finally:
             try:
                 os.unlink(temp_file)
-            except:
+            except OSError:
                 pass
                 
     except subprocess.TimeoutExpired:

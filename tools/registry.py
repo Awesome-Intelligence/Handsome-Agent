@@ -284,7 +284,7 @@ class ToolRegistry:
         return definitions
 
     async def execute(self, name: str, parameters: Dict[str, Any]) -> Any:
-        """执行工具"""
+        """执行工具（异步版本）"""
         entry = self.get(name)
         if not entry:
             raise ValueError(f"工具未找到: {name}")
@@ -294,6 +294,25 @@ class ToolRegistry:
 
         if entry.is_async:
             return await entry.handler(**parameters)
+        else:
+            return entry.handler(**parameters)
+
+    def execute_sync(self, name: str, parameters: Dict[str, Any]) -> Any:
+        """执行工具（同步版本）
+
+        使用异步桥接来执行异步工具，防止"Event loop is closed"错误。
+        同步工具直接执行，异步工具通过 _run_async 桥接执行。
+        """
+        entry = self.get(name)
+        if not entry:
+            raise ValueError(f"工具未找到: {name}")
+
+        if not entry.is_available():
+            raise RuntimeError(f"工具不可用: {name}")
+
+        if entry.is_async:
+            from .model_tools import _run_async
+            return _run_async(entry.handler(**parameters))
         else:
             return entry.handler(**parameters)
 

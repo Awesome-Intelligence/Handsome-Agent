@@ -75,13 +75,18 @@ class TestToolValidation:
             "required": ["name"]
         }
         
-        # Valid case
+        # Valid case (note: schema is first parameter)
         params = {"name": "Alice"}
-        assert validate_parameters(params, schema) is True
+        result = validate_parameters(schema, params)
+        assert result is not None
         
         # Missing required parameter
         params = {"age": 25}
-        assert validate_parameters(params, schema) is False
+        try:
+            validate_parameters(schema, params)
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
     
     def test_validate_parameter_types(self):
         """Test validation of parameter types."""
@@ -95,11 +100,16 @@ class TestToolValidation:
             }
         }
         
-        # Valid types
-        assert validate_parameters({"count": 5, "active": True}, schema) is True
+        # Valid types (note: schema is first parameter)
+        result = validate_parameters(schema, {"count": 5, "active": True})
+        assert result is not None
         
         # Invalid type
-        assert validate_parameters({"count": "five"}, schema) is False
+        try:
+            validate_parameters(schema, {"count": "five"})
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
 
 
 class TestToolInvocation:
@@ -122,15 +132,13 @@ class TestToolInvocation:
     
     def test_tool_call_with_invalid_name(self):
         """Test tool call with invalid tool name."""
-        from tools.schema_registry import SchemaRegistry as BaseToolRegistry
+        from tools.registry import ToolRegistry
         
-        registry = BaseToolRegistry()
+        registry = ToolRegistry()
         
-        # Should return None or raise for invalid tool
-        result = registry.get_tool("nonexistent_tool")
+        result = registry.get("nonexistent_tool")
         
-        # Result should be None or raise ValueError
-        assert result is None or isinstance(result, Exception)
+        assert result is None
 
 
 class TestToolResultParsing:
@@ -188,55 +196,82 @@ class TestToolRegistry:
     
     def test_registry_initialization(self):
         """Test registry initialization."""
-        from tools.schema_registry import SchemaRegistry as BaseToolRegistry
+        from tools.registry import ToolRegistry
         
-        registry = BaseToolRegistry()
+        registry = ToolRegistry()
         
         assert registry is not None
     
     def test_register_tool(self):
         """Test registering a tool."""
-        from tools.schema_registry import SchemaRegistry as BaseToolRegistry
+        from tools.registry import ToolRegistry
         
-        registry = BaseToolRegistry()
+        registry = ToolRegistry()
         
-        tool_schema = {
-            "name": "test_tool",
-            "description": "A test tool",
-            "parameters": {"type": "object"}
-        }
+        def handler(params):
+            return "result"
         
-        registry.register(tool_schema)
+        registry.register(
+            name="test_tool",
+            toolset="test",
+            schema={"type": "object", "properties": {}, "description": "A test tool"},
+            handler=handler,
+            description="A test tool"
+        )
         
-        assert registry.get_tool("test_tool") is not None
+        assert registry.get("test_tool") is not None
     
     def test_list_tools(self):
         """Test listing all registered tools."""
-        from tools.schema_registry import SchemaRegistry as BaseToolRegistry
+        from tools.registry import ToolRegistry
         
-        registry = BaseToolRegistry()
+        registry = ToolRegistry()
         
-        # Register multiple tools
-        registry.register({"name": "tool1", "description": "Tool 1", "parameters": {}})
-        registry.register({"name": "tool2", "description": "Tool 2", "parameters": {}})
+        def handler(params):
+            return "result"
         
-        tools = registry.list_tools()
+        registry.register(
+            name="tool1",
+            toolset="test",
+            schema={"type": "object", "properties": {}, "description": "Tool 1"},
+            handler=handler,
+            description="Tool 1"
+        )
+        registry.register(
+            name="tool2",
+            toolset="test",
+            schema={"type": "object", "properties": {}, "description": "Tool 2"},
+            handler=handler,
+            description="Tool 2"
+        )
+        
+        tools = registry.get_all_tools()
         
         assert len(tools) >= 2
-        assert "tool1" in tools
-        assert "tool2" in tools
+        tool_names = [t.name for t in tools]
+        assert "tool1" in tool_names
+        assert "tool2" in tool_names
     
     def test_unregister_tool(self):
         """Test unregistering a tool."""
-        from tools.schema_registry import SchemaRegistry as BaseToolRegistry
+        from tools.registry import ToolRegistry
         
-        registry = BaseToolRegistry()
+        registry = ToolRegistry()
         
-        registry.register({"name": "temp_tool", "description": "Temp", "parameters": {}})
-        assert registry.get_tool("temp_tool") is not None
+        def handler(params):
+            return "result"
+        
+        registry.register(
+            name="temp_tool",
+            toolset="test",
+            schema={"type": "object", "properties": {}, "description": "Temp"},
+            handler=handler,
+            description="Temp"
+        )
+        assert registry.get("temp_tool") is not None
         
         registry.unregister("temp_tool")
-        assert registry.get_tool("temp_tool") is None
+        assert registry.get("temp_tool") is None
 
 
 class TestToolExecution:

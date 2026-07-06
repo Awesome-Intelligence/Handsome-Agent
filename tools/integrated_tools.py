@@ -69,7 +69,7 @@ def register_integrated_tools(engine):
                         if isinstance(result, str):
                             try:
                                 return json.loads(result)
-                            except:
+                            except json.JSONDecodeError:
                                 return {"result": result}
                         return result
                     except Exception as e:
@@ -129,7 +129,7 @@ def get_all_tools_as_simplified() -> List[Tool]:
                         if isinstance(result, str):
                             try:
                                 return json.loads(result)
-                            except:
+                            except json.JSONDecodeError:
                                 return {"result": result}
                         return result
                     except Exception as e:

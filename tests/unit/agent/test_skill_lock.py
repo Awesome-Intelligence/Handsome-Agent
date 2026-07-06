@@ -160,7 +160,7 @@ class TestHubLockFile:
             lock = HubLockFile(skills_dir=tmpdir)
             lock._load()
 
-            assert lock.has("nonexistent_skill") is False
+            assert lock.has_entry("nonexistent_skill") is False
 
     def test_add_entry(self):
         """add_entry() adds a new entry to lock."""
@@ -174,12 +174,15 @@ class TestHubLockFile:
                 origin_hash="abc123",
             )
 
-            lock.add_entry(entry)
+            lock.add_entry(
+                entry.skill_name, entry.source, entry.identifier,
+                version="1.0.0",
+            )
 
             assert lock.has_entry("new_skill") is True
 
     def test_get_entry(self):
-        """get() returns entry if installed."""
+        """get_entry() returns entry if installed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             lock = HubLockFile(skills_dir=tmpdir)
             entry = HubLockEntry(
@@ -189,26 +192,29 @@ class TestHubLockFile:
                 installed_at="2024-01-01T00:00:00Z",
                 origin_hash="abc123",
             )
-            lock.add(entry)
+            lock.add_entry(
+                entry.skill_name, entry.source, entry.identifier,
+                version="1.0.0",
+            )
 
-            retrieved = lock.get("my_skill")
+            retrieved = lock.get_entry("my_skill")
 
             assert retrieved is not None
             assert retrieved.skill_name == "my_skill"
             assert retrieved.source == "github"
 
     def test_get_entry_returns_none_when_not_found(self):
-        """get() returns None when skill not installed."""
+        """get_entry() returns None when skill not installed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             lock = HubLockFile(skills_dir=tmpdir)
             lock._load()
 
-            result = lock.get("nonexistent")
+            result = lock.get_entry("nonexistent")
 
             assert result is None
 
     def test_remove_entry(self):
-        """remove() deletes an entry from lock."""
+        """remove_entry() deletes an entry from lock."""
         with tempfile.TemporaryDirectory() as tmpdir:
             lock = HubLockFile(skills_dir=tmpdir)
             entry = HubLockEntry(
@@ -218,15 +224,18 @@ class TestHubLockFile:
                 installed_at="2024-01-01T00:00:00Z",
                 origin_hash="abc123",
             )
-            lock.add(entry)
-            assert lock.has("to_remove") is True
+            lock.add_entry(
+                entry.skill_name, entry.source, entry.identifier,
+                version="1.0.0",
+            )
+            assert lock.has_entry("to_remove") is True
 
-            lock.remove("to_remove")
+            lock.remove_entry("to_remove")
 
-            assert lock.has("to_remove") is False
+            assert lock.has_entry("to_remove") is False
 
     def test_list_entries(self):
-        """list() returns all installed skill names."""
+        """list_entries() returns all installed skill names."""
         with tempfile.TemporaryDirectory() as tmpdir:
             lock = HubLockFile(skills_dir=tmpdir)
 
@@ -244,11 +253,12 @@ class TestHubLockFile:
                 installed_at="2024-01-01T00:00:00Z",
                 origin_hash="h2",
             )
-            lock.add(entry1)
-            lock.add(entry2)
+            lock.add_entry(entry1.skill_name, entry1.source, entry1.identifier, version="1.0.0")
+            lock.add_entry(entry2.skill_name, entry2.source, entry2.identifier, version="1.0.0")
 
-            names = lock.list()
+            entries = lock.list_entries()
 
+            names = [e.skill_name for e in entries]
             assert "skill_1" in names
             assert "skill_2" in names
             assert len(names) == 2
@@ -265,16 +275,16 @@ class TestHubLockFile:
                 installed_at="2024-01-01T00:00:00Z",
                 origin_hash="h",
             )
-            lock.add(entry)
-            assert lock.has("to_clear") is True
+            lock.add_entry(entry.skill_name, entry.source, entry.identifier, version="1.0.0")
+            assert lock.has_entry("to_clear") is True
 
             lock.clear()
 
-            assert lock.has("to_clear") is False
-            assert len(lock.list()) == 0
+            assert lock.has_entry("to_clear") is False
+            assert len(lock.list_entries()) == 0
 
     def test_save_and_load_persistence(self):
-        """save() and load() maintain persistence."""
+        """_load() maintains persistence across instances."""
         with tempfile.TemporaryDirectory() as tmpdir:
             lock1 = HubLockFile(skills_dir=tmpdir)
             entry = HubLockEntry(
@@ -284,15 +294,14 @@ class TestHubLockFile:
                 installed_at="2024-01-01T00:00:00Z",
                 origin_hash="h",
             )
-            lock1.add(entry)
-            lock1.save()
+            lock1.add_entry(entry.skill_name, entry.source, entry.identifier, version="1.0.0")
 
             # Create new instance to simulate restart
             lock2 = HubLockFile(skills_dir=tmpdir)
             lock2._load()
 
-            assert lock2.has("persistent") is True
-            assert lock2.get("persistent").source == "github"
+            assert lock2.has_entry("persistent") is True
+            assert lock2.get_entry("persistent").source == "github"
 
 
 class TestLockVersion:

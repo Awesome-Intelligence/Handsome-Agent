@@ -133,7 +133,7 @@ class TUIGateway:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
     
     async def _handle_message(self, session: Session, data: bytes):

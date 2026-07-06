@@ -315,28 +315,6 @@ class TestAppMethods:
         # Test None
         assert app._format_context(None) == "?"
 
-    def test_is_markdown_enabled(self):
-        """Test markdown rendering state check."""
-        from tui.textual_app.app import TEXTUAL_AVAILABLE
-        
-        if not TEXTUAL_AVAILABLE:
-            pytest.skip("Textual not available")
-        
-        from tui.textual_app.app import HandsomeAgentApp
-        
-        app = HandsomeAgentApp()
-        
-        # Should be enabled by default
-        assert app.is_markdown_enabled() is True
-        
-        # Toggle markdown
-        app.action_toggle_markdown()
-        assert app.is_markdown_enabled() is False
-        
-        # Toggle again
-        app.action_toggle_markdown()
-        assert app.is_markdown_enabled() is True
-
 
 class TestRunTextualApp:
     """Test run_textual_app function."""

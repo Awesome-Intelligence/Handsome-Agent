@@ -27,7 +27,7 @@ class TestSettings:
         assert settings.app_version == "1.0.0"
         assert settings.debug is False
         assert settings.brain_service_host == "0.0.0.0"
-        assert settings.brain_service_port == 8001
+        assert settings.brain_service_port == 8000
         assert settings.gateway_host == "0.0.0.0"
         assert settings.gateway_port == 8000
         assert settings.executor_port == 8002
@@ -40,7 +40,7 @@ class TestSettings:
             'BRAIN_SERVICE_PORT': '9000'
         }):
             # Clear cached settings
-            from shared import config
+            from common import config
             config.get_settings.cache_clear()
             
             settings = config.get_settings()
@@ -100,7 +100,7 @@ class TestWorkspaceConfiguration:
             with patch.dict(os.environ, {'HANDSOME_HOME': str(custom_home)}):
                 # Reload module to pick up new environment
                 import importlib
-                from shared import config
+                from common import config
                 importlib.reload(config)
                 
                 from common.config import HANDSOME_HOME
@@ -151,7 +151,7 @@ class TestEnsureWorkspaceDirs:
             with patch.dict(os.environ, {'HANDSOME_HOME': str(custom_home)}):
                 # Reload module
                 import importlib
-                from shared import config
+                from common import config
                 importlib.reload(config)
                 
                 from common.config import ensure_workspace_dirs, get_sessions_dir, get_memories_dir
@@ -169,7 +169,7 @@ class TestEnsureWorkspaceDirs:
             
             with patch.dict(os.environ, {'HANDSOME_HOME': str(custom_home)}):
                 import importlib
-                from shared import config
+                from common import config
                 importlib.reload(config)
                 
                 from common.config import ensure_workspace_dirs

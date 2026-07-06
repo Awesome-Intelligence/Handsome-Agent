@@ -12,7 +12,6 @@ from agent.context.strategies import (
     PathPreservationStrategy,
     SemanticMergeStrategy,
     ErrorPreservationStrategy,
-    AdaptiveCompressionStrategy,
     InstructionResultSeparationStrategy,
     KeywordPriorityConfig,
     TurnImportanceConfig,
@@ -20,7 +19,6 @@ from agent.context.strategies import (
     PathPreservationConfig,
     SemanticMergeConfig,
     ErrorPreservationConfig,
-    AdaptiveCompressionConfig,
     InstructionResultConfig,
 )
 
@@ -227,29 +225,6 @@ ValueError: test error"""
         
         assert result[0]["_has_error"] == True
         assert result[1]["_has_error"] == False
-
-
-class TestAdaptiveCompressionStrategy:
-    """自适应压缩策略测试"""
-    
-    def test_tier_determination(self):
-        """层级确定"""
-        strategy = AdaptiveCompressionStrategy()
-        
-        assert strategy.determine_tier(5000) == strategy.TIER_NONE
-        assert strategy.determine_tier(10000) == strategy.TIER_PRUNE
-        assert strategy.determine_tier(25000) == strategy.TIER_LIGHT
-        assert strategy.determine_tier(50000) == strategy.TIER_AGGRESSIVE
-    
-    def test_tier_strategies(self):
-        """层级策略选择"""
-        strategy = AdaptiveCompressionStrategy()
-        
-        prune_strategies = strategy.get_tier_strategies(strategy.TIER_PRUNE)
-        aggressive_strategies = strategy.get_tier_strategies(strategy.TIER_AGGRESSIVE)
-        
-        assert "keyword_priority" in prune_strategies
-        assert len(aggressive_strategies) > len(prune_strategies)
 
 
 class TestInstructionResultSeparationStrategy:

@@ -226,7 +226,7 @@ class SkillShare:
                 "",
                 "## Usage",
                 "",
-            }
+            ]
 
             if include_code and body:
                 lines.append("```markdown")
