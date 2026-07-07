@@ -198,6 +198,27 @@ Input {
     background: $accent 5%;
     border-bottom: solid $border;
 }
+
+/* 侧边栏按钮样式 */
+#sidebar Button {
+    width: 100%;
+    height: 3;
+    padding: 0 2;
+    margin: 0;
+    background: $panel;
+    border: none;
+    content-align: left middle;
+}
+
+#sidebar Button:hover {
+    background: $accent 20%;
+}
+
+#sidebar Button.selected {
+    background: $primary 40%;
+    color: $text;
+    border: none;
+}
 """
 
 
@@ -247,11 +268,11 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             with Container(id="settings-header"):
                 yield Static("⚙ 设置", id="settings-title")
 
-            # 主体：左侧分类树 + 右侧内容
+            # 主体：左侧分类按钮列表 + 右侧内容
             with Horizontal(id="settings-body"):
                 # 侧边栏分类导航
-                with Container(id="sidebar"):
-                    yield from self._compose_sidebar_tree()
+                with VerticalScroll(id="sidebar"):
+                    yield from self._compose_sidebar_buttons()
 
                 # 内容区
                 with VerticalScroll(id="content-area"):
@@ -259,19 +280,12 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
             yield Static("Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭", id="settings-footer")
 
-    def _compose_sidebar_tree(self) -> ComposeResult:
-        """生成侧边栏分类树"""
-        tree = Tree("Categories", id="category-tree")
-        tree.show_root = False  # Textual 8.x 用属性设置
-        tree.show_guides = False
-        # 添加分类节点
+    def _compose_sidebar_buttons(self) -> ComposeResult:
+        """生成侧边栏分类按钮列表"""
         if CategoryMeta:
             for cat_id, icon, name, _ in CategoryMeta.CATEGORIES:
                 label = f"{icon}  {name}"
-                node = tree.root.add(label, data=cat_id)
-                if cat_id == self._current_category:
-                    tree.select_node(node)
-        yield tree
+                yield Button(label, id=f"btn-{cat_id}", classes="sidebar-btn selected" if cat_id == self._current_category else "sidebar-btn")
 
     def _compose_content(self) -> ComposeResult:
         """生成设置内容区"""
@@ -548,23 +562,26 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     # 事件处理
     # ========================================================================
 
-    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
-        """处理分类树节点选择"""
-        if event.node.data and isinstance(event.node.data, str):
-            cat_id = event.node.data
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """处理侧边栏按钮点击"""
+        btn_id = event.button.id or ""
+        if btn_id.startswith("btn-"):
+            cat_id = btn_id[4:]
             if cat_id != self._current_category:
+                self._update_sidebar_selection(cat_id)
                 self._switch_category(cat_id)
+
+    def _update_sidebar_selection(self, cat_id: str) -> None:
+        """更新侧边栏按钮选中状态"""
+        for btn in self.query("#sidebar Button"):
+            if btn.id == f"btn-{cat_id}":
+                btn.add_class("selected")
+            else:
+                btn.remove_class("selected")
 
     def _switch_category(self, category: str) -> None:
         """切换到指定分类"""
         self._current_category = category
-
-        # 更新树的选择
-        tree = self.query_one("#category-tree", Tree)
-        for node in tree.root.children:
-            if node.data == category:
-                tree.select_node(node)
-                break
 
         # 刷新内容区
         content_area = self.query_one("#content-area", VerticalScroll)
@@ -875,7 +892,4 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def on_mount(self) -> None:
         """挂载时初始化"""
-        # 设置默认选中分类
-        tree = self.query_one("#category-tree", Tree)
-        if tree.root.children:
-            tree.select_node(tree.root.children[0])
+        # 默认选中按钮已在 compose 时通过 classes 设置
