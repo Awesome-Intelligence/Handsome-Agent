@@ -232,40 +232,25 @@ _patch_textual_logger()
 # ============================================================================
 
 if TEXTUAL_AVAILABLE:
-    # Default 主题 - 高雅紫
-    THEME_DEFAULT = Theme(
-        name="default",
-        primary="#B180D7",
-        secondary="#C9A0E0",
-        accent="#B180D7",
-        foreground="#FFFFFF",
-        background="#1a1a1a",
-        surface="#2a2a2a",
-        panel="#1a1a1a",
-        success="#4CAF50",
-        warning="#FF9800",
-        error="#F44336",
-        dark=True,
-    )
+    from tui.theming.preset_themes import _PRESET_THEMES
 
-    # Awesome 主题 - 活力绿
-    THEME_AWESOME = Theme(
-        name="awesome",
-        primary="#1a4d1a",
-        secondary="#C5FF9E",
-        accent="#A9FC6E",
-        foreground="#FFFFFF",
-        background="#1A2E0A",
-        surface="#2a2a2a",
-        panel="#1a1a1a",
-        success="#4CAF50",
-        warning="#FF9800",
-        error="#F44336",
-        dark=True,
-    )
-
-    # 主题列表
-    THEMES = [THEME_DEFAULT, THEME_AWESOME]
+    THEMES = [
+        Theme(
+            name=t.theme_id,
+            primary=t.primary,
+            secondary=t.secondary,
+            accent=t.accent,
+            foreground=t.foreground,
+            background=t.background,
+            surface=t.surface,
+            panel=t.panel,
+            success=t.success,
+            warning=t.warning,
+            error=t.error,
+            dark=True,
+        )
+        for t in _PRESET_THEMES.values()
+    ]
 
 
 class HandsomeAgentApp(App):
@@ -496,9 +481,10 @@ class HandsomeAgentApp(App):
                 f"Registered {len(THEMES)} themes: {[t.name for t in THEMES]}"
             )
 
-            # 设置默认主题为 "default"（紫色）
-            self.theme = "default"
-            self._logger.info(f"Set default theme to: {self.theme}")
+            # 从保存的偏好恢复主题
+            saved_theme = self._theme_manager.get_current_theme_id()
+            self.theme = saved_theme
+            self._logger.info(f"Restored theme: {self.theme}")
 
         # 缓存常用 Widget 引用（优化性能）
         self._cache_widgets()
@@ -1353,37 +1339,11 @@ class HandsomeAgentApp(App):
             return None
 
     def _get_theme_banner_color(self) -> str:
-        """从 CSS 主题文件读取 --banner-color 变量."""
-        # ponytail: cache per theme — avoid reading CSS file on every render
-        cache_key = f"_banner_color_{self.theme_id}"
-        if hasattr(self, cache_key):
-            return getattr(self, cache_key)
-
-        import re
-
-        themes_dir = (
-            Path(__file__).resolve().parent.parent / "theming" / "css" / "themes"
-        )
-        css_file = themes_dir / f"{self.theme_id}.css"
-
-        color = "#C9A0E0"  # 默认紫色
-        if css_file.exists():
-            try:
-                content = css_file.read_text(encoding="utf-8")
-                # 匹配选择器块内的 --banner-color（支持多行 CSS）
-                # .theme-default { ... --banner-color: #C9A0E0; ... }
-                pattern = (
-                    r"\.theme-" + re.escape(self.theme_id)
-                    + r"\s*\{[\s\S]*?--banner-color\s*:\s*([^;]+);"
-                )
-                match = re.search(pattern, content, re.DOTALL)
-                if match:
-                    color = match.group(1).strip()
-            except Exception:
-                pass
-
-        setattr(self, cache_key, color)
-        return color
+        """从当前 Theme 对象获取 banner 颜色."""
+        if self._theme_manager:
+            theme = self._theme_manager.get_current_theme()
+            return theme.banner_color
+        return "#C9A0E0"  # 默认紫色
 
     def _render_welcome_banner(self) -> None:
         """渲染欢迎 Banner 和右侧信息。

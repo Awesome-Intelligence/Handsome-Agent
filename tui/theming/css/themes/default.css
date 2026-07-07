@@ -4,29 +4,7 @@
  */
 
 /* ============================================================================
-   主题变量覆盖
-   ============================================================================ */
-
-.theme-default {
-    --accent: #B180D7;
-    --accent-bright: #C9A0E0;
-    --accent-dim: #9A6BC2;
-    --accent-dark: #7A4DA8;
-    --accent-10: rgba(177, 128, 215, 0.1);
-    --accent-25: rgba(177, 128, 215, 0.25);
-    --accent-50: rgba(177, 128, 215, 0.5);
-    --border: #B180D7;
-    --banner-color: #C9A0E0;
-    --input-border: #B180D7;
-    --input-border-focus: #C9A0E0;
-    --tab-indicator: #B180D7;
-    --tab-active-color: #C9A0E0;
-    --sidebar-focus-border: #B180D7;
-    --frame-border: #B180D7;
-}
-
-/* ============================================================================
-   组件样式覆盖
+   组件样式覆盖（结构样式，颜色由 preset_themes.py 驱动 Textual Theme 提供）
    ============================================================================ */
 
 /* Screen 外边框 */
@@ -54,8 +32,6 @@
 .theme-default #user-input:hover {
     border: heavy #B180D7;
 }
-
-
 
 /* 主题切换按钮样式 */
 .theme-default #theme-toggle {
