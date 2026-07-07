@@ -228,18 +228,18 @@ class ACPServer:
         # Add current message
         self._session_manager.add_message(session_id, "user", message)
 
-        # Run agent if available
+        # Run agent via chat() interface
+        # ponytail: sync-to-async bridge, Agent.chat is async
         response_content = ""
         if self._agent:
             try:
-                if hasattr(self._agent, "respond"):
-                    response = await self._agent.respond(message, context)
-                    response_content = getattr(response, "content", str(response))
-                elif hasattr(self._agent, "run"):
-                    response = await self._agent.run(message)
-                    response_content = getattr(response, "content", str(response))
+                loop = asyncio.get_event_loop()
+                response = loop.run_until_complete(
+                    self._agent.chat(message, conversation_history=session.history.copy())
+                )
+                response_content = getattr(response, "content", str(response))
             except Exception as e:
-                logger.error(f"Error running agent: {e}")
+                logger.error(f"Error running agent: {e}", exc_info=True)
                 response_content = f"Error: {e}"
 
         # Add response to history
@@ -446,7 +446,7 @@ def main():
     if args.transport == "stdio":
         asyncio.run(run_stdio_server())
     else:
-        asyncio.run(run_http_server(host=args.host, port=args.port))
+        asyncio.run(run_http_server(None, host=args.host, port=args.port))
 
 
 if __name__ == "__main__":

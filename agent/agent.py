@@ -69,6 +69,15 @@ def create_agent_from_config() -> Optional["Agent"]:
     api_key = llm.get("api_key", "")
     base_url = llm.get("base_url")
 
+    # Fallback: if api_key/ base_url empty, try providers[provider]
+    if not api_key or not base_url:
+        providers = cfg.get("providers", {})
+        provider_cfg = providers.get(provider, {})
+        if not api_key:
+            api_key = provider_cfg.get("api_key", "")
+        if not base_url:
+            base_url = provider_cfg.get("base_url")
+
     if not (provider and model and api_key):
         return None
 
