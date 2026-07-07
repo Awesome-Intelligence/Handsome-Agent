@@ -5,22 +5,32 @@
 """
 LLM Client - 统一的 LLM 调用入口
 
-参考 Hermes 的 auxiliary_client.py 和 call_llm() 设计。
+参考 Hermes 的 conversation_loop.py 和 auxiliary_client.py 设计。
 提供双轨制 LLM 调用：
-- main_call(): 主对话，使用完整上下文 (ContextManager)
+- main_call(): 主对话，使用完整上下文 (ContextManager)，含统一 retry/fallback
 - auxiliary_call(): 辅助任务，使用轻量级上下文
+
+Retry/Fallback 架构：
+1. Provider.generate() 正常返回 ProviderResponse
+2. 调用方（main_call）在 try/except 中捕获异常
+3. 用 classify_api_error 分类错误
+4. 根据 retryable 决定是否 backoff 重试
+5. 根据 should_fallback / max_retries 耗尽 触发 fallback chain
+6. 根据 should_compress 触发上下文压缩后重试
 """
 
+import asyncio
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from enum import Enum
 from dataclasses import dataclass
 
 from common.logging_manager import get_decision_logger, get_llm_logger
 from common.config import load_config
+from agent.error import classify_api_error, FailoverReason, jittered_backoff
 
 if TYPE_CHECKING:
     from agent.context.context_manager import ContextManager
-    from agent.llm.providers.base import BaseLLMProvider
+    from agent.llm.base import BaseLLMProvider
 
 
 class LLMTaskType(Enum):
@@ -155,9 +165,16 @@ class LLMClient:
         **kwargs,
     ) -> str:
         """
-        主对话调用（使用完整上下文）
+        主对话调用（使用完整上下文），含统一 retry/fallback 逻辑
 
-        通过 ContextManager 构建完整的系统提示词。
+        错误处理流程（参考 Hermes conversation_loop）：
+        1. 调用 provider.generate()
+        2. 成功 → 直接返回
+        3. 失败 → classify_api_error 分类
+        4. 不可重试（billing/auth_permanent）→ 立即走 fallback chain
+        5. 可重试 → jittered_backoff 等待 → 重试（最多 max_retries 次）
+        6. 所有重试耗尽 → fallback chain
+        7. 所有 fallback 耗尽 → 最后一个异常上抛
 
         Args:
             user_message: 用户消息
@@ -179,16 +196,24 @@ class LLMClient:
             LLMTaskType.DIRECT_RESPONSE: ContextPurpose.DIRECT_RESPONSE,
             LLMTaskType.CLARIFICATION: ContextPurpose.CLARIFICATION,
             LLMTaskType.TOOL_RESULT_SUMMARY: ContextPurpose.TOOL_RESULT_SUMMARY,
-            LLMTaskType.REACT_LOOP: ContextPurpose.REACT_LOOP,
+            LLMTaskType.AGENT_LOOP: ContextPurpose.AGENT_LOOP,
         }
 
         context_purpose = purpose_mapping.get(purpose, ContextPurpose.DIRECT_RESPONSE)
-
         self._llm_logger.info(f"Main call: purpose={purpose.value}")
 
-        if self._context_manager:
-            try:
-                # 使用统一入口 build_messages()
+        # 获取配置
+        cfg = load_config()
+        max_retries = cfg.get("api_max_retries", 3)
+
+        # 每次循环重新构建 messages（压缩后 messages 会变）
+        attempt = 0
+        messages_result = None
+        last_error: Optional[Exception] = None
+
+        while True:
+            # ── 构建消息 ─────────────────────────────────────────────────
+            if self._context_manager:
                 messages_result = await self._context_manager.build_messages(
                     user_message=user_message,
                     conversation_history=conversation_history,
@@ -198,44 +223,82 @@ class LLMClient:
                     model=model,
                     **kwargs,
                 )
-
                 self._logger.debug(
                     f"Main call: messages={len(messages_result.messages)}, "
                     f"compressed={messages_result.compressed}"
                 )
+                messages = messages_result.messages
+            else:
+                messages = None
 
-                # 使用消息列表模式调用 LLM
+            # ── 调用 Provider ────────────────────────────────────────────
+            try:
                 response = await self._provider.generate(
-                    prompt="",  # 空 prompt，消息已在 messages 中
-                    messages=messages_result.messages,
+                    prompt="",
+                    messages=messages,
                     model=model,
                     **kwargs,
                 )
-
                 return (
                     response.content if hasattr(response, "content") else str(response)
                 )
 
             except Exception as e:
-                self._logger.error(f"Main call failed: {e}")
-                return await self._fallback_generate(
-                    messages_result.messages if self._context_manager else None,
-                    user_message,
-                    model,
-                    **kwargs,
+                last_error = e
+                classified = classify_api_error(
+                    e,
+                    provider=getattr(
+                        self._provider, "provider_display_name", "unknown"
+                    ),
+                    model=model or "",
+                )
+                self._logger.debug(
+                    f"API error classified: reason={classified.reason.value}, "
+                    f"retryable={classified.retryable}, "
+                    f"fallback={classified.should_fallback}, "
+                    f"compress={classified.should_compress}"
                 )
 
-        # 无 ContextManager，直接调用
-        return await self._fallback_generate(None, user_message, model, **kwargs)
+                # ── 不可重试：错误分类认为不该重试 → 立即 fallback ──────
+                if not classified.retryable:
+                    self._logger.info(
+                        f"Error {classified.reason.value} is not retryable, "
+                        f"activating fallback chain"
+                    )
+                    return await self._fallback_chain(messages, model, **kwargs)
 
-    async def _fallback_generate(
+                # ── 达到最大重试次数 → fallback ───────────────────────────
+                if attempt >= max_retries:
+                    self._logger.info(
+                        f"Max retries ({max_retries}) exhausted for "
+                        f"{classified.reason.value}, activating fallback chain"
+                    )
+                    return await self._fallback_chain(messages, model, **kwargs)
+
+                # ── 可重试：jittered backoff 后重试 ───────────────────────
+                attempt += 1
+                wait_time = jittered_backoff(attempt)
+                self._logger.info(
+                    f"Retry {attempt}/{max_retries} for {classified.reason.value} "
+                    f"in {wait_time:.1f}s"
+                )
+                await asyncio.sleep(wait_time)
+                # retry_count 递增，但不压缩消息，直接重试
+
+    async def _fallback_chain(
         self,
         messages: Optional[List[Dict[str, Any]]],
-        prompt: str,
         model: Optional[str],
         **kwargs,
     ) -> str:
-        """Try primary provider, then each fallback in chain."""
+        """激活 fallback chain：遍历配置中的 fallback_providers，返回第一个成功的
+
+        参考 Hermes _try_activate_fallback() 逻辑。
+        每个 fallback provider 最多调用一次，不做重试（因为已经在主循环重试过了）。
+        所有 fallback 都失败后，上抛最后一个异常。
+        """
+        last_error: Optional[Exception] = None
+
         for fb in self._fallback_providers:
             try:
                 from agent.llm.factory import LLMFactory
@@ -246,20 +309,24 @@ class LLMClient:
                     model=fb.get("model"),
                     base_url=fb.get("base_url"),
                 )
-                self._logger.info(f"Trying fallback provider: {fb.get('provider')}")
+                self._logger.info(f"[Fallback] Trying provider: {fb.get('provider')}")
                 resp = await fb_provider.generate(
                     prompt="", messages=messages, model=model, **kwargs
                 )
-                return resp.content if hasattr(resp, "content") else str(resp)
+                content = resp.content if hasattr(resp, "content") else str(resp)
+                self._logger.info(f"[Fallback] Provider {fb.get('provider')} succeeded")
+                return content
             except Exception as fb_e:
-                self._logger.warning(f"Fallback {fb.get('provider')} failed: {fb_e}")
+                last_error = fb_e
+                self._logger.warning(
+                    f"[Fallback] Provider {fb.get('provider')} failed: {fb_e}"
+                )
                 continue
 
-        # All fallbacks exhausted, try primary
-        resp = await self._provider.generate(
-            prompt=prompt, messages=messages, model=model, **kwargs
-        )
-        return resp.content if hasattr(resp, "content") else str(resp)
+        # 所有 fallback 都失败了，上抛异常让上层处理
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Fallback chain exhausted with no error details")
 
     # ==================== 辅助任务调用 ====================
 

@@ -1144,6 +1144,12 @@ class WrappedLog(Log):
     - 内置 scroll_end() 支持打开时滚动到底部
     """
 
+    DEFAULT_CSS = """
+    WrappedLog {
+        overflow-x: hidden;
+    }
+    """
+
     def __init__(self, max_lines: int = 1000, **kwargs):
         # auto_scroll=False: 禁用 Log 内部 worker，避免 NoActiveAppError；
         # 滚动到底部由外部 call_after_refresh + scroll_end 控制

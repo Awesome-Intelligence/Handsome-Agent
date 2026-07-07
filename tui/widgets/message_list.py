@@ -29,6 +29,8 @@ try:
     from textual.widgets import Markdown, Static, Collapsible
     from textual.containers import VerticalScroll, Container
     from textual.message import Message
+    from textual.widget import MountError
+    from textual._node_list import DuplicateIds
     from textual import on
     from textual.events import Key
 except ImportError:
@@ -40,6 +42,8 @@ except ImportError:
     Message = object  # type: ignore
     Collapsible = object  # type: ignore
     Key = object  # type: ignore
+    MountError = object  # type: ignore
+    DuplicateIds = object  # type: ignore
     
     def on(*args, **kwargs):
         """Mock on decorator when textual is not available."""
@@ -279,6 +283,13 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         else:
             role_enum = role
 
+        # ponytail: avoid duplicate streaming message if one already exists for this role
+        # (append_streaming_thinking may have already called start_streaming)
+        for msg_id, role_val in self._streaming_active.items():
+            if role_val == role_enum.value:
+                return msg_id
+
+        # No existing streaming message — create one (only now increment counter)
         self._message_counter += 1
         msg_id = f"msg-{self._message_counter}"
 
@@ -411,13 +422,13 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         if msg.id not in self._message_widgets:
             return
 
-        old_widget = self._message_widgets[msg.id]
-        container = self._message_containers.get(msg.id)
-
         def _do_upgrade():
             try:
+                old_widget = self._message_widgets.get(msg.id)
+                container = self._message_containers.get(msg.id)
+
                 # 创建 Collapsible
-                thinking_title = f"💭 {self._i18n.t('message.thinking', '思考过程')}"
+                thinking_title = f"💭 {self._i18n.t('message.thinking') or '思考过程'}"
                 thinking_content = msg.thinking if msg.thinking else ""
                 collapsible = Collapsible(
                     title=thinking_title,
@@ -432,20 +443,28 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 self._message_collapsibles[msg.id] = collapsible
 
                 if container is not None:
-                    # 已有 Container，直接添加 Collapsible（无需重建）
+                    # 已有 Container，直接添加 Collapsible
                     container.mount(collapsible)
                 else:
                     # 没有 Container，回退到完整重渲染
-                    try:
-                        old_widget.remove()
-                    except Exception as e:
-                        self._logger.debug(f"Failed to remove old widget: {e}")
+                    if old_widget is not None:
+                        try:
+                            old_widget.remove()
+                        except Exception as e:
+                            self._logger.debug(f"Failed to remove old widget: {e}")
                     self._message_widgets.pop(msg.id, None)
                     self._render_message(msg)
+            except (MountError, DuplicateIds):
+                # parent 未 mount 或 widget 已存在，回退到完整重渲染
+                self._logger.debug(f"MountError/DuplicateIds in upgrade, re-rendering: {msg.id}")
+                if msg.id in self._message_widgets:
+                    self._message_widgets.pop(msg.id, None)
+                self._render_message(msg)
             except Exception as e:
                 self._logger.error(f"Failed to upgrade to thinking message: {e}")
-                # 回退到完整重渲染
                 self._render_message(msg)
+
+        self.call_later(_do_upgrade)
 
         self.call_later(_do_upgrade)
 
@@ -752,6 +771,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         full_content = header + content
 
         if msg.role == MessageRole.SYSTEM:
+            # ponytail: guard against duplicate mount
+            if msg.id in self._message_widgets:
+                return
             widget = Static(f"--- {msg.content} ---", classes=f"message-{msg.role.value}")
             widget.id = f"msg-widget-{msg.id}"
             self._message_widgets[msg.id] = widget
@@ -760,6 +782,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 try:
                     self.mount(widget)
                     self._do_smart_scroll()
+                except MountError:
+                    # widget already mounted, ignore
+                    pass
                 except Exception as e:
                     self._logger.error(f"Failed to mount widget: {e}")
 
@@ -792,6 +817,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
     def _render_message_streaming(self, msg: MessageItem, full_content: str) -> None:
         """渲染流式消息（使用轻量 Static，完成后升级为 Markdown）"""
+        # ponytail: guard against duplicate mount if already scheduled/rendered
+        if msg.id in self._message_widgets:
+            return
         widget = Static(full_content, classes=f"message-{msg.role.value}")
         widget.id = f"msg-widget-{msg.id}"
         self._message_widgets[msg.id] = widget
@@ -800,6 +828,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             try:
                 self.mount(widget)
                 self._do_smart_scroll()
+            except (MountError, DuplicateIds):
+                pass
             except Exception as e:
                 self._logger.error(f"Failed to mount streaming widget: {e}")
 
@@ -807,12 +837,17 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
     def _render_message_plain(self, msg: MessageItem, full_content: str) -> None:
         """渲染普通消息（无思考内容）"""
+        # ponytail: guard against duplicate mount if already scheduled/rendered
+        if msg.id in self._message_widgets:
+            return
         widget = Markdown(full_content, classes=f"message-{msg.role.value}")
         widget.id = f"msg-widget-{msg.id}"
         self._message_widgets[msg.id] = widget
 
         def _do_mount():
             try:
+                if widget.parent is not None:
+                    return
                 self.mount(widget)
                 self._do_smart_scroll()
             except Exception as e:
@@ -822,6 +857,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
     def _render_message_with_thinking(self, msg: MessageItem, full_content: str) -> None:
         """渲染带有思考内容的消息，使用 Collapsible 嵌套"""
+        # ponytail: guard against duplicate render if already scheduled/rendered
+        if msg.id in self._message_widgets:
+            return
         container_id = f"msg-container-{msg.id}"
         container = Container(classes=f"message-container message-{msg.role.value}")
         container.id = container_id
@@ -832,7 +870,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._message_widgets[msg.id] = msg_widget
 
         # 创建思考内容的 Collapsible
-        thinking_title = f"💭 {self._i18n.t('message.thinking', '思考过程')}"
+        thinking_title = f"💭 {self._i18n.t('message.thinking') or '思考过程'}"
         thinking_content = msg.thinking if msg.thinking else ""
 
         collapsible = Collapsible(
@@ -860,6 +898,12 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 collapsible.mount(thinking_widget)
                 self._message_containers[msg.id] = container
                 self._do_smart_scroll()
+            except MountError:
+                # parent 尚未 mount，回退到完整重渲染
+                self._logger.debug(f"MountError in thinking render, re-rendering: {msg.id}")
+                if msg.id in self._message_widgets:
+                    self._message_widgets.pop(msg.id, None)
+                self._render_message(msg)
             except Exception as e:
                 self._logger.error(f"Failed to mount message with thinking: {e}")
 
@@ -929,6 +973,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 try:
                     self.mount(new_widget)
                     self._do_smart_scroll()
+                except MountError:
+                    pass
                 except Exception as e:
                     self._logger.error(f"Failed to mount markdown widget: {e}")
 
