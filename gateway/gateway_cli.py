@@ -8,6 +8,7 @@ from gateway.adapters import HTTPAdapter, CLIAdapter
 from gateway.message import MessageChannel
 from gateway.memory_monitor import start_memory_monitoring, stop_memory_monitoring
 from common.logging import setup_logging
+from common.logging_manager import get_access_logger
 
 
 def parse_args():
