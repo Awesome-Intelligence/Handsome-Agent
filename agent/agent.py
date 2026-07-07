@@ -120,6 +120,7 @@ class Agent:
 
         # 初始化 TodoStore（参考 Hermes）
         from tools.todo_tool import get_session_todo_store
+
         self._todo_store = get_session_todo_store()
 
         self.engine = get_integrated_engine(llm_provider=llm_provider)
@@ -183,17 +184,26 @@ class Agent:
         tool_loop_config = None
         try:
             from common.config import get_settings
+
             settings = get_settings()
-            if hasattr(settings, "tool_loop_guardrail") and settings.tool_loop_guardrail:
+            if (
+                hasattr(settings, "tool_loop_guardrail")
+                and settings.tool_loop_guardrail
+            ):
                 from agent.rails.tool_loop import ToolLoopConfig
-                tool_loop_config = ToolLoopConfig.from_mapping(settings.tool_loop_guardrail)
+
+                tool_loop_config = ToolLoopConfig.from_mapping(
+                    settings.tool_loop_guardrail
+                )
                 self._decision_logger.debug(f"ToolLoopConfig loaded from settings")
         except Exception as e:
             self._decision_logger.debug(f"Failed to load ToolLoopConfig: {e}")
 
         # 统一状态管理器（替代 InterruptController, BudgetController, LoopExitChecker）
         # 参考 Hermes：父代理默认 90 次迭代
-        self._state = AgentState(max_iterations=90, max_turns=90, tool_loop_config=tool_loop_config)
+        self._state = AgentState(
+            max_iterations=90, max_turns=90, tool_loop_config=tool_loop_config
+        )
 
         from tools.todo_tool import get_session_todo_store
 
@@ -207,8 +217,10 @@ class Agent:
             default_max_turns=90,  # 参考 Hermes：父代理默认 90 次
             on_state_change=self._state.sync_from_goal_state,
         )
-        self._decision_logger.debug(f"GoalManager initialized for session: {session_id}")
-        
+        self._decision_logger.debug(
+            f"GoalManager initialized for session: {session_id}"
+        )
+
         # 将 GoalManager 关联到 AgentState
         self._state.set_goal_manager(self._goal_manager)
 
@@ -259,31 +271,58 @@ class Agent:
 
         try:
             from agent.rails.registry import get_rail_registry
+
             rail_registry = get_rail_registry()
 
             # 创建并注册 TaskEventRail（如果未注册）
             if not rail_registry.has_rail(session_id, "task_event"):
                 from agent.rails import TaskEventRail
+
                 task_rail = TaskEventRail(session_id)
                 rail_registry.register(session_id, task_rail)
-                self._decision_logger.debug(f"Registered TaskEventRail for session: {session_id}")
+                self._decision_logger.debug(
+                    f"Registered TaskEventRail for session: {session_id}"
+                )
 
             # 创建并注册 CheckpointRail（如果未注册）
             if not rail_registry.has_rail(session_id, "checkpoint"):
                 from agent.rails.checkpoint_rail import CheckpointRail
+
                 checkpoint_rail = CheckpointRail(
                     session_id,
                     enabled=self._checkpoint_manager.is_enabled(),
                     checkpoint_manager=self._checkpoint_manager,
                 )
                 rail_registry.register(session_id, checkpoint_rail)
-                self._decision_logger.debug(f"Registered CheckpointRail for session: {session_id}")
+                self._decision_logger.debug(
+                    f"Registered CheckpointRail for session: {session_id}"
+                )
 
             # 标记为已注册
             self._rails_registered_sessions.add(session_id)
 
         except Exception as e:
             self._decision_logger.warning(f"Rail 初始化失败: {e}")
+
+    def set_model(
+        self,
+        provider: str,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ) -> None:
+        """运行时切换主模型（无需重启 Agent）。"""
+        self._llm_client.set_active_model(provider, model, api_key, base_url)
+        self._llm_logger.info(
+            f"Agent model switched to {provider}/{model or 'default'}"
+        )
+
+    def set_fallback_chain(self, chain: list[dict]) -> None:
+        """运行时设置 fallback chain。"""
+        self._llm_client.set_fallback_chain(chain)
+        self._decision_logger.info(
+            f"Agent fallback chain updated: {[p.get('provider') for p in chain]}"
+        )
 
     @property
     def state(self) -> AgentState:
@@ -339,7 +378,9 @@ class Agent:
         }
 
         # 一次性从 Session 创建 Trajectory 对象
-        trajectory = Trajectory.from_session(self._session, metadata=trajectory_metadata)
+        trajectory = Trajectory.from_session(
+            self._session, metadata=trajectory_metadata
+        )
 
         # Curator 处理轨迹（不保存）
         if self._curator and self.enable_curator:
@@ -353,7 +394,9 @@ class Agent:
                 if result:
                     trajectory_metadata["curator_result"] = {
                         "skill_synthesized": len(result.get("skills", [])) > 0,
-                        "skill_name": result["skills"][0].name if result.get("skills") else None,
+                        "skill_name": (
+                            result["skills"][0].name if result.get("skills") else None
+                        ),
                     }
                     self._decision_logger.info("Trajectory processed by Curator")
             except Exception as e:
@@ -361,7 +404,9 @@ class Agent:
                 trajectory_metadata["curator_error"] = str(e)
 
         # 使用 TrajectoryManager 保存轨迹
-        save_path = self._trajectory_manager.save(trajectory, metadata=trajectory_metadata)
+        save_path = self._trajectory_manager.save(
+            trajectory, metadata=trajectory_metadata
+        )
         self._decision_logger.debug(f"Trajectory saved to {save_path}")
 
     async def chat(
@@ -420,7 +465,7 @@ class Agent:
         if self._session:
             # 先添加用户输入消息
             self._session.add_message("user", user_input)
-            
+
             full_messages = result.get("full_messages", [])
             if full_messages:
                 # 只添加新生成的消息（超出原始历史的那些）
@@ -439,7 +484,7 @@ class Agent:
                         )
             else:
                 self._session.add_message("assistant", str(final_result))
-            
+
             # 调用 session.end() 确保会话保存，同时触发 MemoryCurator 自动摘要
             self._session.end(trigger_curator=True)
 
@@ -501,12 +546,20 @@ class Agent:
             if user_input.startswith("/goal clear"):
                 self._goal_manager.clear()
                 self._emit_stream("🗑️ Goal 已清除\n\n")
-                return {"success": True, "state": "goal_cleared", "final_result": "Goal cleared"}
+                return {
+                    "success": True,
+                    "state": "goal_cleared",
+                    "final_result": "Goal cleared",
+                }
             elif user_input.startswith("/goal pause"):
                 reason = user_input[11:].strip() or None
                 self._goal_manager.pause(reason)
                 self._emit_stream("⏸️ Goal 已暂停\n\n")
-                return {"success": True, "state": "goal_paused", "final_result": "Goal paused"}
+                return {
+                    "success": True,
+                    "state": "goal_paused",
+                    "final_result": "Goal paused",
+                }
             elif user_input.startswith("/goal resume"):
                 self._goal_manager.resume()
                 # 同步预算信息到 AgentState
@@ -535,7 +588,11 @@ class Agent:
                     # /goal 无参数，显示状态
                     status = self._goal_manager.status_line()
                     self._emit_stream(f"{status}\n")
-                    return {"success": True, "state": "goal_status", "final_result": status}
+                    return {
+                        "success": True,
+                        "state": "goal_status",
+                        "final_result": status,
+                    }
 
         # ─────────────────────────────────────────────────────────────────
         # 2. 尝试加载已保存的 Goal（参考 Hermes）
@@ -545,7 +602,9 @@ class Agent:
             if saved_goal and saved_goal.status == "active":
                 # 同步预算信息到 AgentState
                 self._state.sync_from_goal_state(saved_goal)
-                self._decision_logger.info(f"Resumed saved goal: {saved_goal.goal[:50]}...")
+                self._decision_logger.info(
+                    f"Resumed saved goal: {saved_goal.goal[:50]}..."
+                )
 
         # ─────────────────────────────────────────────────────────────────
         # 3. 初始化 Rails（统一使用 _ensure_rails_registered）

@@ -120,11 +120,23 @@ class LLMClient:
         """
         self._provider = llm_provider
         self._context_manager = context_manager
-        self._aux_config = aux_config or LLMAuxConfig()
 
         # Fallback provider chain from config
         cfg = load_config()
         self._fallback_providers: list[dict] = cfg.get("fallback_providers", [])
+
+        # Build aux config from config file, with hardcoded defaults as fallback
+        if aux_config:
+            self._aux_config = aux_config
+        else:
+            ms = cfg.get("model_settings", {})
+            self._aux_config = LLMAuxConfig(
+                compression_model=ms.get("compression_model") or None,
+                title_model=ms.get("title_model") or None,
+                synthesis_model=ms.get("synthesis_model") or None,
+                memory_model=ms.get("memory_model") or None,
+                default_lightweight_model=ms.get("auxiliary_model") or None,
+            )
 
         self._logger = get_decision_logger(self.__class__.__name__)
         self._llm_logger = get_llm_logger(self.__class__.__name__)
@@ -151,6 +163,48 @@ class LLMClient:
     def set_context_manager(self, manager: "ContextManager") -> None:
         """设置上下文管理器"""
         self._context_manager = manager
+
+    def set_active_model(
+        self,
+        provider: str,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ) -> None:
+        """运行时切换主模型（无需重启 Agent）。
+
+        重建 _provider 实例，context_manager 保持不变。
+        """
+        from agent.llm.factory import LLMFactory
+
+        # 优先从 providers 字典读凭证，api_key 参数覆盖
+        cfg = load_config()
+        providers_cfg = cfg.get("providers", {})
+        pconf = providers_cfg.get(provider, {})
+        resolved_key = api_key or pconf.get("api_key") or ""
+        resolved_url = base_url or pconf.get("base_url")
+
+        self._provider = LLMFactory.create(
+            provider=provider,
+            api_key=resolved_key,
+            model=model or pconf.get("model"),
+            base_url=resolved_url,
+        )
+        self.invalidate_cache()
+        self._logger.info(
+            f"Switched to provider={provider}, " f"model={model or pconf.get('model')}"
+        )
+
+    def set_fallback_chain(self, chain: list[dict]) -> None:
+        """运行时设置 fallback chain。
+
+        Args:
+            chain: [{provider, model, api_key, base_url}, ...]
+        """
+        self._fallback_providers = chain
+        self._logger.info(
+            f"Fallback chain updated: {[p.get('provider') for p in chain]}"
+        )
 
     # ==================== 主对话调用 ====================
 

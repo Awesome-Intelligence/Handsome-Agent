@@ -47,20 +47,26 @@ except ImportError:
 try:
     from common.i18n import get_i18n
 except ImportError:
+
     def get_i18n():
         class SimpleI18n:
             def t(self, key, default=None, **kwargs):
                 return default or key
+
         return SimpleI18n()
+
 
 # 日志支持
 try:
     from common.logging_manager import get_access_logger
 except ImportError:
     import logging
+
     logging.basicConfig(level=logging.INFO)
+
     def get_access_logger(*args, **kwargs):
         return logging.getLogger("HandsomeAgent")
+
 
 # 设置模块导入
 try:
@@ -219,6 +225,56 @@ Input {
     color: $text;
     border: none;
 }
+
+/* Provider 配置列表 */
+.llm-providers-list {
+    height: 8;
+    width: 100%;
+    border: solid $border;
+    padding: 0 1;
+}
+
+.provider-config-item {
+    height: 2;
+    width: 100%;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+.provider-config-item.active {
+    color: $text;
+    text-style: bold;
+}
+
+.provider-config-item:hover {
+    background: $accent 20%;
+}
+
+#llm-provider-details {
+    height: auto;
+    width: 100%;
+    border: solid $border;
+    padding: 1 2;
+}
+
+/* Fallback 列表 */
+.fallback-list {
+    height: 10;
+    width: 100%;
+    border: solid $border;
+    padding: 0 1;
+}
+
+.fallback-item {
+    height: 2;
+    width: 100%;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+.fallback-item:hover {
+    background: $accent 20%;
+}
 """
 
 
@@ -226,13 +282,16 @@ Input {
 # 消息类型
 # ============================================================================
 
+
 class SettingsClosed(Message):
     """设置界面关闭消息"""
+
     pass
 
 
 class SettingsSaved(Message):
     """设置已保存消息"""
+
     def __init__(self, sender) -> None:
         super().__init__()
 
@@ -240,6 +299,7 @@ class SettingsSaved(Message):
 # ============================================================================
 # SettingsScreen 主类
 # ============================================================================
+
 
 class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     """TUI 设置界面模态窗口 - 使用 Textual 原生组件"""
@@ -260,6 +320,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         self._current_category: str = "language"
         self._setting_controls: dict[str, tuple] = {}  # 保存设置控件引用
         self._logger = get_access_logger("SettingsScreen", sublayer="tui")
+        self._content_built: bool = False  # guard: only build content once on mount
 
     def compose(self) -> ComposeResult:
         """组合组件"""
@@ -278,22 +339,38 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                 with VerticalScroll(id="content-area"):
                     yield from self._compose_content()
 
-            yield Static("Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭", id="settings-footer")
+            yield Static(
+                "Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭",
+                id="settings-footer",
+            )
 
     def _compose_sidebar_buttons(self) -> ComposeResult:
         """生成侧边栏分类按钮列表"""
         if CategoryMeta:
             for cat_id, icon, name, _ in CategoryMeta.CATEGORIES:
                 label = f"{icon}  {name}"
-                yield Button(label, id=f"btn-{cat_id}", classes="sidebar-btn selected" if cat_id == self._current_category else "sidebar-btn")
+                yield Button(
+                    label,
+                    id=f"btn-{cat_id}",
+                    classes=(
+                        "sidebar-btn selected"
+                        if cat_id == self._current_category
+                        else "sidebar-btn"
+                    ),
+                )
 
     def _compose_content(self) -> ComposeResult:
         """生成设置内容区"""
         yield from self._build_category_content(self._current_category)
+        self._content_built = True
 
     def _build_category_content(self, category: str) -> ComposeResult:
         """根据分类构建内容"""
-        settings = self._settings_manager.get_settings() if self._settings_manager else SettingsDocument()
+        settings = (
+            self._settings_manager.get_settings()
+            if self._settings_manager
+            else SettingsDocument()
+        )
 
         # 根据分类生成不同的设置项
         if category == "language":
@@ -314,6 +391,8 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             yield from self._build_tools_content(settings)
         elif category == "logging":
             yield from self._build_logging_content(settings)
+        elif category == "fallback":
+            yield from self._build_fallback_content(settings)
         elif category == "about":
             yield from self._build_about_content(settings)
         else:
@@ -326,72 +405,206 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             ("中文", "中文"),
             ("English", "English"),
         ]
-        current = settings.display.language.value if hasattr(settings.display, 'language') else "zh"
+        current = (
+            settings.display.language.value
+            if hasattr(settings.display, "language")
+            else "zh"
+        )
         current_label = "中文" if current == "zh" else "English"
         yield Select(
             options=language_options,
             value=current_label,
             id="language-select",
             allow_blank=False,
-            classes="setting-row"
+            classes="setting-row",
         )
 
     def _build_llm_content(self, settings: SettingsDocument) -> ComposeResult:
-        """构建 LLM 设置内容"""
+        """构建 LLM 设置内容 - 支持多 Provider 配置"""
         yield Static("🤖 大模型配置", classes="setting-group-title")
 
-        # Provider 选择
-        yield Static("Provider", classes="setting-row")
+        # 当前激活的 provider
+        active_provider = (
+            settings.llm.provider if hasattr(settings.llm, "provider") else ""
+        )
+
+        # 已配置的 providers 列表
+        providers_items = (
+            settings.providers.items if hasattr(settings, "providers") else {}
+        )
+
         try:
-            from cli.cli_commands.providers import PROVIDERS
-            provider_options = [(p["name"], p["name"]) for p in PROVIDERS.values()]
-            # 通过 provider id 查找显示名称
-            provider_id = settings.llm.provider if hasattr(settings.llm, 'provider') else "openai"
-            current_provider = "OpenAI"
-            for p in PROVIDERS.values():
-                if p.get("name", "").lower() == provider_id.lower():
-                    current_provider = p["name"]
-                    break
-            else:
-                # 没找到对应 name，可能是 id 本身
-                current_provider = PROVIDERS.get(provider_id, {}).get("name", provider_id.title())
+            from cli.cli_commands.providers import PROVIDERS as CATALOG
         except ImportError:
-            provider_options = [("OpenAI", "OpenAI")]
-            current_provider = "OpenAI"
-        # 空值保护
-        if not current_provider:
-            current_provider = provider_options[0][1]
-        yield Select(
-            options=provider_options,
-            value=current_provider,
-            id="llm-provider-select",
-            allow_blank=False,
-            classes="setting-row"
+            CATALOG = {}
+
+        # 构建 provider 选项列表（id -> display name）
+        available = []
+        for pid in CATALOG:
+            available.append((CATALOG[pid]["name"], pid))
+        for pid in providers_items:
+            if pid not in CATALOG:
+                available.append((pid.title(), pid))
+        available.sort(key=lambda x: x[0])
+
+        # ── 添加 / 编辑 Provider 表单（始终可见）────────────────────
+        # 预填当前激活 provider 的已有配置
+        cur_pconf = (
+            providers_items.get(active_provider)
+            if active_provider in providers_items
+            else None
         )
+        cur_key = getattr(cur_pconf, "api_key", "") or ""
+        cur_model = getattr(cur_pconf, "model", "") or ""
+        cur_url = getattr(cur_pconf, "base_url", "") or ""
+        # Select value must be the pid (option tuple's 2nd element), not display name
+        cur_pid = active_provider if active_provider in dict(available) else None
 
-        # Model 输入
-        yield Static("模型名称", classes="setting-row")
-        current_model = settings.llm.model if hasattr(settings.llm, 'model') else ""
-        placeholder_model = current_model if current_model else "gpt-4o-mini"
-        yield Input(current_model, id="llm-model-input", placeholder=f"当前: {placeholder_model}", classes="setting-row")
+        yield Static("添加 / 编辑 Provider", classes="setting-group-title")
 
-        # Base URL 输入
-        yield Static("Base URL (可选)", classes="setting-row")
-        current_url = settings.llm.base_url if hasattr(settings.llm, 'base_url') else ""
-        placeholder_url = current_url if current_url else "https://api.example.com/v1"
-        yield Input(current_url, id="llm-url-input", placeholder=f"当前: {placeholder_url}", classes="setting-row")
+        yield Static("Provider", classes="setting-row")
+        select_kwargs = {"id": "llm-provider-select", "allow_blank": True, "classes": "setting-row"}
+        if cur_pid:
+            select_kwargs["value"] = cur_pid
+        yield Select(options=[(name, pid) for name, pid in available], **select_kwargs)
 
-        # API Key 输入（密码模式）
-        yield Static("API Key (可选)", classes="setting-row")
-        current_api_key = settings.llm.api_key if hasattr(settings.llm, 'api_key') else ""
-        display_api_key = "********" if current_api_key else ""
+        yield Static("API Key", classes="setting-row")
         yield Input(
-            display_api_key,
+            value=cur_key,
+            placeholder="输入 API Key",
             id="llm-apikey-input",
-            placeholder="输入新 API Key（不填则保留原值）",
             password=True,
-            classes="setting-row"
+            classes="setting-row",
         )
+
+        yield Static("模型名称", classes="setting-row")
+        yield Input(
+            value=cur_model,
+            placeholder="留空用 provider 默认",
+            id="llm-model-input",
+            classes="setting-row",
+        )
+
+        yield Static("Base URL", classes="setting-row")
+        yield Input(
+            value=cur_url,
+            placeholder="留空用 provider 默认",
+            id="llm-baseurl-input",
+            classes="setting-row",
+        )
+
+        # ── 已配置的 providers 列表（可点击编辑）──────────────────
+        yield Static("已配置模型", classes="setting-row")
+        if providers_items:
+            yield VerticalScroll(
+                *(
+                    self._iter_provider_items(
+                        providers_items, CATALOG, active_provider
+                    )
+                ),
+                id="llm-providers-list",
+                classes="llm-providers-list",
+            )
+        else:
+            yield Static(
+                "[dim]尚未配置任何 Provider[/dim]",
+                classes="provider-config-item",
+            )
+
+        # 编辑详情区（点击列表项后挂载）
+        yield Container(id="llm-provider-details")
+
+    def _iter_provider_items(self, providers_items, CATALOG, active_provider):
+        """生成 provider 列表项（供 VerticalScroll compose 使用）。"""
+        has_any = False
+        for pid, pconf in providers_items.items():
+            has_any = True
+            cat_info = CATALOG.get(pid, {})
+            display_name = cat_info.get("display_name", pid.title())
+            model = pconf.model if hasattr(pconf, "model") and pconf.model else ""
+            has_key = bool(pconf.api_key if hasattr(pconf, "api_key") else False)
+            status = "✓" if has_key else "○"
+            is_active = "●" if pid == active_provider else "○"
+            label = f"{is_active} {status} {display_name}"
+            if model:
+                label += f"  [dim]{model}[/]"
+            item = Static(
+                label,
+                classes=f"provider-config-item{' active' if pid == active_provider else ''}",
+            )
+            item._provider_id = pid
+            yield item
+
+        if not has_any:
+            yield Static(
+                "[dim]尚未配置任何 Provider，请在下方添加[/]",
+                classes="provider-config-item",
+            )
+
+    def _on_provider_item_click(self, provider_id: str) -> None:
+        """点击 provider 条目 → 挂载编辑表单到 details 区"""
+        settings = self._settings_manager.get_settings()
+        providers_items = (
+            settings.providers.items if hasattr(settings, "providers") else {}
+        )
+        pconf = providers_items.get(provider_id, {})
+        api_key = getattr(pconf, "api_key", "") or ""
+        model = getattr(pconf, "model", "") or ""
+        base_url = getattr(pconf, "base_url", "") or ""
+
+        details_container = self.query_one("#llm-provider-details", Container)
+        details_container.remove_children()
+
+        # Provider ID (只读标签)
+        from tui.views.settings.models import ProviderItemConfig
+
+        # 保存当前编辑的 provider ID
+        self._editing_provider_id = provider_id
+
+        details_container.mount(
+            Static(f"[bold]编辑:[/bold] {provider_id}", id="provider-edit-title")
+        )
+        details_container.mount(
+            Static("API Key", classes="setting-row")
+        )
+        details_container.mount(
+            Input(
+                api_key,
+                id="provider-apikey-input",
+                placeholder="输入 API Key（不填则保留原值）",
+                password=True,
+                classes="setting-row",
+            )
+        )
+        details_container.mount(
+            Static("模型名称", classes="setting-row")
+        )
+        details_container.mount(
+            Input(
+                model,
+                id="provider-model-input",
+                placeholder="留空使用 provider 默认模型",
+                classes="setting-row",
+            )
+        )
+        details_container.mount(
+            Static("Base URL（可选）", classes="setting-row")
+        )
+        details_container.mount(
+            Input(
+                base_url,
+                id="provider-baseurl-input",
+                placeholder="留空使用 provider 默认地址",
+                classes="setting-row",
+            )
+        )
+
+        # 隐藏添加 select
+        try:
+            add_sel = self.query_one("#llm-add-provider-select", Select)
+            add_sel.value = None
+        except Exception:
+            pass
 
     def _build_model_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建模型参数设置内容"""
@@ -404,7 +617,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             str(model.temperature),
             id="model-temperature-input",
             placeholder=f"当前: {model.temperature} (范围: 0.0-1.0)",
-            classes="setting-row"
+            classes="setting-row",
         )
 
         yield Static("Max Tokens", classes="setting-row")
@@ -412,7 +625,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             str(model.max_tokens),
             id="model-maxtokens-input",
             placeholder=f"当前: {model.max_tokens}",
-            classes="setting-row"
+            classes="setting-row",
         )
 
         yield Static("Context Window", classes="setting-row")
@@ -420,7 +633,81 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             str(model.context_window),
             id="model-contextwindow-input",
             placeholder=f"当前: {model.context_window}",
-            classes="setting-row"
+            classes="setting-row",
+        )
+
+        # 辅助任务专用模型
+        yield Static("辅助任务模型配置", classes="setting-row")
+        yield Static("[dim]为空则使用主模型 gpt-4o-mini[/dim]", classes="setting-row")
+
+        aux_fields = [
+            ("compression_model", "压缩模型", model.compression_model),
+            ("title_model", "标题生成", model.title_model),
+            ("synthesis_model", "技能合成", model.synthesis_model),
+            ("memory_model", "记忆摘要", model.memory_model),
+            ("auxiliary_model", "其他辅助任务", model.auxiliary_model),
+        ]
+        for fid, label, current in aux_fields:
+            yield Static(label, classes="setting-row")
+            yield Input(
+                current or "",
+                id=f"model-{fid}-input",
+                placeholder=f"当前: {current or '(default: 主模型)'}",
+                classes="setting-row",
+            )
+
+    def _build_fallback_content(self, settings: SettingsDocument) -> ComposeResult:
+        """构建 Fallback 配置内容"""
+        yield Static("🔄 Fallback 链", classes="setting-group-title")
+        yield Static(
+            "[dim]主模型失败时按顺序尝试的备选模型（从上到下）[/dim]",
+            classes="setting-row",
+        )
+
+        # 已有 fallback 条目
+        fb_items = (
+            settings.fallback_providers.items
+            if hasattr(settings, "fallback_providers")
+            else []
+        )
+        fb_widgets = []
+        if fb_items:
+            for i, fb in enumerate(fb_items):
+                provider = getattr(fb, "provider", "") or ""
+                model = getattr(fb, "model", "") or ""
+                base_url = getattr(fb, "base_url", "") or ""
+                label = f"○ {provider}"
+                if model:
+                    label += f"  [dim]{model}[/]"
+                if base_url:
+                    label += f"  [dim]({base_url})[/]"
+                item = Static(label, classes="fallback-item")
+                item._fb_index = i
+                fb_widgets.append(item)
+        else:
+            fb_widgets.append(
+                Static(
+                    "[dim]尚未配置 Fallback，请添加备选模型[/dim]",
+                    classes="fallback-item",
+                )
+            )
+        yield VerticalScroll(*fb_widgets, id="fallback-list", classes="fallback-list")
+
+        # 添加 Fallback 选择
+        yield Static("添加 Fallback Provider", classes="setting-row")
+        try:
+            from cli.cli_commands.providers import PROVIDERS as CATALOG
+        except ImportError:
+            CATALOG = {}
+        fb_options = [
+            (CATALOG[p]["name"], p) for p in CATALOG if p != settings.llm.provider
+        ]
+        fb_options.append(("+ 添加...", "__add__"))
+        yield Select(
+            options=fb_options,
+            id="fallback-add-select",
+            allow_blank=True,
+            classes="setting-row",
         )
 
     def _build_terminal_content(self, settings: SettingsDocument) -> ComposeResult:
@@ -431,13 +718,18 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             ("本地执行", "本地执行"),
             ("Docker 容器", "Docker 容器"),
         ]
-        current_backend = "本地执行" if hasattr(settings.terminal, 'backend') and settings.terminal.backend == 'local' else "Docker 容器"
+        current_backend = (
+            "本地执行"
+            if hasattr(settings.terminal, "backend")
+            and settings.terminal.backend == "local"
+            else "Docker 容器"
+        )
         yield Select(
             options=backend_options,
             value=current_backend,
             id="terminal-backend-select",
             allow_blank=False,
-            classes="setting-row"
+            classes="setting-row",
         )
 
     def _build_agent_content(self, settings: SettingsDocument) -> ComposeResult:
@@ -451,7 +743,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             str(agent.max_turns),
             id="agent-maxiterations-input",
             placeholder=f"当前: {agent.max_turns}",
-            classes="setting-row"
+            classes="setting-row",
         )
 
         yield Static("超时时间 (秒)", classes="setting-row")
@@ -459,7 +751,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             str(agent.gateway_timeout),
             id="agent-timeout-input",
             placeholder=f"当前: {agent.gateway_timeout}s",
-            classes="setting-row"
+            classes="setting-row",
         )
 
     def _build_session_content(self, settings: SettingsDocument) -> ComposeResult:
@@ -472,7 +764,9 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
         # 会话开关
         yield Static("启用会话", classes="setting-row")
-        yield Switch(session.enabled, id="session-enabled-switch", classes="setting-row")
+        yield Switch(
+            session.enabled, id="session-enabled-switch", classes="setting-row"
+        )
 
         # 记忆系统开关
         yield Static("启用记忆系统", classes="setting-row")
@@ -480,11 +774,17 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
         # 语义检索开关
         yield Static("启用语义检索", classes="setting-row")
-        yield Switch(memory.semantic_retrieval_enabled, id="semantic-switch", classes="setting-row")
+        yield Switch(
+            memory.semantic_retrieval_enabled,
+            id="semantic-switch",
+            classes="setting-row",
+        )
 
         # Context 压缩开关
         yield Static("启用 Context 压缩", classes="setting-row")
-        yield Switch(compression.enabled, id="compression-switch", classes="setting-row")
+        yield Switch(
+            compression.enabled, id="compression-switch", classes="setting-row"
+        )
 
     def _build_preferences_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建响应偏好设置内容"""
@@ -498,7 +798,11 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             ("普通", "普通"),
             ("详细", "详细"),
         ]
-        current_depth = prefs.explanation_depth.value if hasattr(prefs, 'explanation_depth') else "普通"
+        current_depth = (
+            prefs.explanation_depth.value
+            if hasattr(prefs, "explanation_depth")
+            else "普通"
+        )
         depth_label_map = {"brief": "简洁", "normal": "普通", "detailed": "详细"}
         depth_label = depth_label_map.get(current_depth, "普通")
         yield Static("详细程度", classes="setting-row")
@@ -507,7 +811,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             value=depth_label,
             id="depth-select",
             allow_blank=False,
-            classes="setting-row"
+            classes="setting-row",
         )
 
         # 响应格式
@@ -516,7 +820,11 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             ("Markdown", "Markdown"),
             ("纯文本", "纯文本"),
         ]
-        current_format = prefs.response_format.value if hasattr(prefs, 'response_format') else "markdown"
+        current_format = (
+            prefs.response_format.value
+            if hasattr(prefs, "response_format")
+            else "markdown"
+        )
         format_label_map = {"auto": "自动", "markdown": "Markdown", "plain": "纯文本"}
         format_label = format_label_map.get(current_format, "Markdown")
         yield Static("响应格式", classes="setting-row")
@@ -525,7 +833,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             value=format_label,
             id="format-select",
             allow_blank=False,
-            classes="setting-row"
+            classes="setting-row",
         )
 
     def _build_tools_content(self, settings: SettingsDocument) -> ComposeResult:
@@ -548,7 +856,9 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         yield Static("📄 日志设置", classes="setting-group-title")
 
         yield Static("启用文件日志", classes="setting-row")
-        yield Switch(settings.logging.file_enabled, id="file-log-switch", classes="setting-row")
+        yield Switch(
+            settings.logging.file_enabled, id="file-log-switch", classes="setting-row"
+        )
 
     def _build_about_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建关于内容"""
@@ -562,6 +872,20 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     # 事件处理
     # ========================================================================
 
+    def on_click(self, event: Click) -> None:
+        """处理 provider 配置项点击"""
+        if self._current_category != "llm":
+            return
+        target = getattr(event, "widget", None) or getattr(event, "target", None)
+        if target is None:
+            return
+        for widget in self.query(".provider-config-item"):
+            if widget == target and hasattr(widget, "_provider_id"):
+                pid = widget._provider_id
+                self._on_provider_item_click(pid)
+                self.call_later(lambda: self._switch_category("llm"))
+                return
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """处理侧边栏按钮点击"""
         btn_id = event.button.id or ""
@@ -569,7 +893,9 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             cat_id = btn_id[4:]
             if cat_id != self._current_category:
                 self._update_sidebar_selection(cat_id)
-                self._switch_category(cat_id)
+                # Defer: compose() must finish before _switch_category
+                # to avoid generator exhaustion and duplicate IDs
+                self.call_later(lambda: self._switch_category(cat_id))
 
     def _update_sidebar_selection(self, cat_id: str) -> None:
         """更新侧边栏按钮选中状态"""
@@ -581,13 +907,17 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def _switch_category(self, category: str) -> None:
         """切换到指定分类"""
+        if category == self._current_category:
+            return
         self._current_category = category
 
-        # 刷新内容区
+        # Guard: if content hasn't been built yet (during compose),
+        # let compose() handle it to avoid generator exhaustion
+        if not getattr(self, "_content_built", False):
+            return
+
         content_area = self.query_one("#content-area", VerticalScroll)
-        # 清除旧内容（同步移除，不等异步）
         content_area.remove_children()
-        # 重新构建内容（先完全构建，再一次性挂载）
         new_widgets = list(self._build_category_content(category))
         for widget in new_widgets:
             content_area.mount(widget)
@@ -651,51 +981,119 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         except Exception:
             pass
 
-        # LLM Provider：label → provider id
+        # LLM Provider: handle quick-add from dropdown
+        # LLM Provider 表单：provider 下拉 + api key / model / base url
         try:
-            from cli.cli_commands.providers import PROVIDERS
-            provider_select = self.query_one("#llm-provider-select", Select)
-            provider_id = next(
-                (k for k, p in PROVIDERS.items() if p["name"] == provider_select.value),
-                provider_select.value.lower()
-            )
-            if settings.llm.provider != provider_id:
-                settings.llm.provider = provider_id
-                changed_settings.append(f"Provider: {provider_id}")
+            from tui.views.settings.models import ProviderItemConfig
+
+            provider_sel = self.query_one("#llm-provider-select", Select)
+            key_inp = self.query_one("#llm-apikey-input", Input)
+            model_inp = self.query_one("#llm-model-input", Input)
+            url_inp = self.query_one("#llm-baseurl-input", Input)
+
+            pid = provider_sel.value
+            new_key = key_inp.value.strip()
+            new_model = model_inp.value.strip()
+            new_url = url_inp.value.strip()
+
+            if pid:
+                if not hasattr(settings.providers, "items"):
+                    settings.providers.items = {}
+                if pid not in settings.providers.items:
+                    settings.providers.items[pid] = ProviderItemConfig(enabled=True)
+                    changed_settings.append(f"添加 Provider: {pid}")
+                if settings.llm.provider != pid:
+                    settings.llm.provider = pid
+                    changed_settings.append(f"激活 Provider: {pid}")
+                # 同步 llm.model：若 providers 里存了 model 则用它
+                pconf = settings.providers.items.get(pid)
+                stored_model = getattr(pconf, "model", "") or ""
+                if stored_model and settings.llm.model != stored_model:
+                    settings.llm.model = stored_model
+
+            # 始终尝试保存凭证（无论是否从下拉选）
+            if new_key or new_model or new_url:
+                target_pid = pid if pid else settings.llm.provider
+                if target_pid and hasattr(settings.providers, "items"):
+                    pconf = settings.providers.items.get(target_pid)
+                    if pconf is None and target_pid:
+                        settings.providers.items[target_pid] = ProviderItemConfig()
+                        changed_settings.append(f"添加 Provider: {target_pid}")
+                        pconf = settings.providers.items[target_pid]
+                    if pconf:
+                        if new_key and new_key != "********":
+                            pconf.api_key = new_key
+                            changed_settings.append(f"API Key 已更新")
+                        if new_model:
+                            pconf.model = new_model
+                            # 同步写 llm.model 让 is_configured() 生效
+                            settings.llm.model = new_model
+                            changed_settings.append(f"Model: {new_model}")
+                        if new_url:
+                            pconf.base_url = new_url
+                            changed_settings.append(f"Base URL: {new_url}")
         except Exception:
             pass
 
-        # API Key（如果用户修改了才保存）
+        # 点击已配置的 provider 条目 → 设为激活
         try:
-            apikey_input = self.query_one("#llm-apikey-input", Input)
-            new_api_key = apikey_input.value.strip()
-            if new_api_key and new_api_key != "********":
-                settings.llm.api_key = new_api_key
-                changed_settings.append("API Key: 已修改")
-            elif new_api_key == "":
-                settings.llm.api_key = ""
+            for widget in self.query(".provider-config-item"):
+                if hasattr(widget, "_provider_id"):
+                    pid = widget._provider_id
+                    if settings.llm.provider != pid:
+                        settings.llm.provider = pid
+                        # 同步 model
+                        pconf = (
+                            settings.providers.items.get(pid)
+                            if hasattr(settings, "providers")
+                            else None
+                        )
+                        stored = getattr(pconf, "model", "") or ""
+                        if stored:
+                            settings.llm.model = stored
+                        elif not settings.llm.model:
+                            settings.llm.model = ""
+                        changed_settings.append(f"激活 Provider: {pid}")
         except Exception:
             pass
 
-        # Model 名称
-        try:
-            model_input = self.query_one("#llm-model-input", Input)
-            new_model = model_input.value.strip()
-            if settings.llm.model != new_model:
-                settings.llm.model = new_model
-                changed_settings.append(f"Model: {new_model}")
-        except Exception:
-            pass
+        # Provider 编辑表单保存
+        editing_pid = getattr(self, "_editing_provider_id", None)
+        if editing_pid:
+            from tui.views.settings.models import ProviderItemConfig
 
-        # Base URL
-        try:
-            url_input = self.query_one("#llm-url-input", Input)
-            new_url = url_input.value.strip()
-            if settings.llm.base_url != new_url:
-                settings.llm.base_url = new_url
-                changed_settings.append(f"Base URL: {new_url}")
-        except Exception:
-            pass
+            pconf = settings.providers.items.get(editing_pid)
+            if pconf is None:
+                pconf = ProviderItemConfig(enabled=True)
+                settings.providers.items[editing_pid] = pconf
+
+            changed = False
+            try:
+                key_inp = self.query_one("#provider-apikey-input", Input)
+                new_key = key_inp.value.strip()
+                if new_key and new_key != "********":
+                    pconf.api_key = new_key
+                    changed = True
+            except Exception:
+                pass
+            try:
+                model_inp = self.query_one("#provider-model-input", Input)
+                new_model = model_inp.value.strip()
+                if new_model != (pconf.model or ""):
+                    pconf.model = new_model
+                    changed = True
+            except Exception:
+                pass
+            try:
+                url_inp = self.query_one("#provider-baseurl-input", Input)
+                new_url = url_inp.value.strip()
+                if new_url != (pconf.base_url or ""):
+                    pconf.base_url = new_url
+                    changed = True
+            except Exception:
+                pass
+            if changed:
+                changed_settings.append(f"更新 Provider: {editing_pid}")
 
         # 模型参数（带范围验证）
         try:
@@ -706,20 +1104,26 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                     settings.model_settings.temperature = temp_val
                     changed_settings.append(f"Temperature: {temp_val}")
             else:
-                validation_errors.append(f"Temperature 必须在 0.0-1.0 范围内（当前: {temp_val}）")
+                validation_errors.append(
+                    f"Temperature 必须在 0.0-1.0 范围内（当前: {temp_val}）"
+                )
         except ValueError:
             validation_errors.append("Temperature 必须是数字")
         except Exception:
             pass
         try:
             maxtokens_input = self.query_one("#model-maxtokens-input", Input)
-            maxtokens_val = int(maxtokens_input.value) if maxtokens_input.value else 4096
+            maxtokens_val = (
+                int(maxtokens_input.value) if maxtokens_input.value else 4096
+            )
             if maxtokens_val > 0:
                 if settings.model_settings.max_tokens != maxtokens_val:
                     settings.model_settings.max_tokens = maxtokens_val
                     changed_settings.append(f"Max Tokens: {maxtokens_val}")
             else:
-                validation_errors.append(f"Max Tokens 必须是正整数（当前: {maxtokens_val}）")
+                validation_errors.append(
+                    f"Max Tokens 必须是正整数（当前: {maxtokens_val}）"
+                )
         except ValueError:
             validation_errors.append("Max Tokens 必须是整数")
         except Exception:
@@ -732,9 +1136,51 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                     settings.model_settings.context_window = context_val
                     changed_settings.append(f"Context Window: {context_val}")
             else:
-                validation_errors.append(f"Context Window 必须是正整数（当前: {context_val}）")
+                validation_errors.append(
+                    f"Context Window 必须是正整数（当前: {context_val}）"
+                )
         except ValueError:
             validation_errors.append("Context Window 必须是整数")
+        except Exception:
+            pass
+
+        # 辅助任务专用模型
+        aux_fields = [
+            ("compression_model", "压缩模型"),
+            ("title_model", "标题生成"),
+            ("synthesis_model", "技能合成"),
+            ("memory_model", "记忆摘要"),
+            ("auxiliary_model", "其他辅助任务"),
+        ]
+        for fid, label in aux_fields:
+            try:
+                inp = self.query_one(f"#model-{fid}-input", Input)
+                new_val = inp.value.strip()
+                old_val = getattr(settings.model_settings, fid, "") or ""
+                if new_val != old_val:
+                    setattr(settings.model_settings, fid, new_val)
+                    changed_settings.append(f"{label}: {new_val or '(default)'}")
+            except Exception:
+                pass
+
+        # Fallback chain: add from dropdown
+        try:
+            add_sel = self.query_one("#fallback-add-select", Select)
+            selected = add_sel.value
+            if selected and selected != "__add__":
+                from tui.views.settings.models import FallbackProviderItem
+
+                fb_items = (
+                    settings.fallback_providers.items
+                    if hasattr(settings, "fallback_providers")
+                    else []
+                )
+                # Avoid duplicates
+                existing = [getattr(fb, "provider", "") or "" for fb in fb_items]
+                if selected not in existing:
+                    fb_items.append(FallbackProviderItem(provider=selected))
+                    settings.fallback_providers.items = fb_items
+                    changed_settings.append(f"添加 Fallback: {selected}")
         except Exception:
             pass
 
@@ -747,7 +1193,9 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                     settings.agent.max_turns = maxiter_val
                     changed_settings.append(f"最大迭代次数: {maxiter_val}")
             else:
-                validation_errors.append(f"最大迭代次数 必须是正整数（当前: {maxiter_val}）")
+                validation_errors.append(
+                    f"最大迭代次数 必须是正整数（当前: {maxiter_val}）"
+                )
         except ValueError:
             validation_errors.append("最大迭代次数 必须是整数")
         except Exception:
@@ -782,7 +1230,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             depth_select = self.query_one("#depth-select", Select)
             depth_map = {"简洁": "brief", "普通": "normal", "详细": "detailed"}
             prefs = self._settings_manager.get_settings().preferences
-            if hasattr(prefs, 'explanation_depth'):
+            if hasattr(prefs, "explanation_depth"):
                 new_depth = depth_map.get(depth_select.value, "normal")
                 if prefs.explanation_depth.value != new_depth:
                     prefs.explanation_depth.value = new_depth
@@ -793,7 +1241,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             format_select = self.query_one("#format-select", Select)
             format_map = {"自动": "auto", "Markdown": "markdown", "纯文本": "plain"}
             prefs = self._settings_manager.get_settings().preferences
-            if hasattr(prefs, 'response_format'):
+            if hasattr(prefs, "response_format"):
                 new_format = format_map.get(format_select.value, "markdown")
                 if prefs.response_format.value != new_format:
                     prefs.response_format.value = new_format
@@ -833,7 +1281,9 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             new_comp = self.query_one("#compression-switch", Switch).value
             if settings.compression.enabled != new_comp:
                 settings.compression.enabled = new_comp
-                changed_settings.append(f"Context压缩: {'启用' if new_comp else '禁用'}")
+                changed_settings.append(
+                    f"Context压缩: {'启用' if new_comp else '禁用'}"
+                )
         except Exception:
             pass
 

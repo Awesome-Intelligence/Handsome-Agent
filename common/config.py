@@ -104,6 +104,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "context_window": 128000,
         "temperature": 0.7,
         "max_tokens": 4096,
+        # 辅助任务专用模型（空则用主模型）
+        "compression_model": "",
+        "title_model": "",
+        "synthesis_model": "",
+        "memory_model": "",
+        "auxiliary_model": "",
     },
     "agent": {
         # Maximum conversation turns before forcing stop.

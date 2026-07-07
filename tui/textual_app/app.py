@@ -2762,6 +2762,27 @@ class CustomModelInputScreen(TextualScreen if TEXTUAL_AVAILABLE else object):
         elif event.button.id == "btn-cancel":
             self.dismiss(None)
 
+    def on_settings_saved(self, event) -> None:
+        """Settings 保存后同步 Agent 运行时模型（无需重启）。"""
+        if not hasattr(self, "_agent") or not self._agent:
+            return
+        try:
+            from common.config import load_config
+
+            cfg = load_config()
+            llm = cfg.get("llm", {})
+            provider = llm.get("provider", "")
+            if provider:
+                self._agent.set_model(
+                    provider=provider,
+                    model=llm.get("model") or None,
+                    api_key=llm.get("api_key") or None,
+                    base_url=llm.get("base_url") or None,
+                )
+                self._logger.info(f"Agent model synced to {provider}")
+        except Exception as e:
+            self._logger.warning(f"Failed to sync agent model: {e}")
+
 
 if __name__ == "__main__":
     print("Testing HandsomeAgentApp...")

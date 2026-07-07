@@ -206,6 +206,11 @@ class ModelSettingsConfig(BaseModel):
     context_window: int = Field(default=128000, ge=1000, le=1000000)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, ge=1, le=32000)
+    compression_model: str = ""
+    title_model: str = ""
+    synthesis_model: str = ""
+    memory_model: str = ""
+    auxiliary_model: str = ""
 
 
 class DisplayConfig(BaseModel):
@@ -510,42 +515,56 @@ class SettingsDocument(BaseModel):
         Returns:
             可用于 save_config() 的完整字典
         """
-        config = self.model_dump()
+        import enum
+
+        def _enum_safe(obj):
+            """将 Enum 值转为字符串，避免 PyYAML 序列化产生 !!python/object 标签"""
+            if isinstance(obj, enum.Enum):
+                return obj.value
+            if isinstance(obj, dict):
+                return {k: _enum_safe(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_enum_safe(i) for i in obj]
+            return obj
+
+        config = _enum_safe(self.model_dump())
 
         # 移除 about（只读信息不保存）
         config.pop("about", None)
 
-        # 展开 providers.items -> providers (dict)
-        if "providers" in config and hasattr(config["providers"], "items"):
+        # 展开 ProvidersConfig: {"items": {...}} -> {...}
+        if "providers" in config and isinstance(config["providers"], dict):
+            inner = config["providers"].get("items", {})
             config["providers"] = (
                 {
-                    k: v.model_dump() if hasattr(v, "model_dump") else v
-                    for k, v in config["providers"].items
+                    k: (v.model_dump() if hasattr(v, "model_dump") else v)
+                    for k, v in inner.items()
                 }
-                if config["providers"]
+                if inner
                 else {}
             )
 
-        # 展开 fallback_providers.items -> fallback_providers (list)
-        if "fallback_providers" in config and hasattr(
-            config["fallback_providers"], "items"
+        # 展开 FallbackProvidersConfig: {"items": [...]} -> [...]
+        if "fallback_providers" in config and isinstance(
+            config["fallback_providers"], dict
         ):
-            fb = config.pop("fallback_providers")
+            fb_inner = config["fallback_providers"].get("items", [])
             config["fallback_providers"] = (
                 [
                     item.model_dump() if hasattr(item, "model_dump") else item
-                    for item in fb.items
+                    for item in fb_inner
                 ]
-                if fb and fb.items
+                if fb_inner
                 else []
             )
 
         # 展开 tool_loop_guardrails nested models
-        if "tool_loop_guardrails" in config:
+        if "tool_loop_guardrails" in config and isinstance(
+            config["tool_loop_guardrails"], dict
+        ):
             tlr = config["tool_loop_guardrails"]
             if hasattr(tlr, "model_dump"):
-                tlr_d = tlr.model_dump()
-                config["tool_loop_guardrails"] = tlr_d
+                config["tool_loop_guardrails"] = tlr.model_dump()
 
         return config
 
