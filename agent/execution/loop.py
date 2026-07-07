@@ -37,6 +37,10 @@ from agent.state import ExitReason
 AfterStepCallback = Callable[["LoopStepResult", Any], Awaitable[Optional[str]]]
 
 from common.logging_manager import get_task_logger
+from common.streaming.think_scrubber import (
+    strip_thinking_tags,
+    extract_thinking_content,
+)
 
 
 class LoopState(Enum):
@@ -538,12 +542,8 @@ class AgentLoop:
             provider_reasoning = getattr(response, "reasoning_content", None) or ""
             if provider_reasoning:
                 reasoning = provider_reasoning
-            elif content.strip():
-                import re
-                thinking_blocks = re.findall(r"<think>(.*?)\[/(?:INST|think)\]", content, re.DOTALL)
-                reasoning = "\n".join(b.strip() for b in thinking_blocks if b.strip())
             else:
-                reasoning = ""
+                reasoning = extract_thinking_content(content) or ""
 
             if function_call:
                 func_data = function_call.get("function", function_call)
@@ -570,9 +570,7 @@ class AgentLoop:
                 )
 
             if content.strip():
-                import re
-
-                cleaned = re.sub(r"<think>.*?\[/(?:INST|think)\]", "", content, flags=re.DOTALL).strip()
+                cleaned = strip_thinking_tags(content).strip()
 
                 if cleaned and "error" not in cleaned.lower():
                     return Decision(action="direct_response", content=cleaned, reasoning=reasoning)
@@ -658,6 +656,7 @@ class AgentLoop:
                 for s in self._steps
             ],
             "final_result": final_step.result if final_step else None,
+            "final_reasoning": final_step.reasoning if final_step else None,
             "final_action": final_step.action if final_step else None,
             "tool_call_count": len(context.tool_calls),
         }

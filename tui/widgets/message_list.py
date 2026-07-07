@@ -184,7 +184,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self.show_timestamps = show_timestamps
         self.show_role_icons = show_role_icons
         self.streaming_throttle_ms = streaming_throttle_ms
-        self.streaming_buffer_size = streaming_buffer_size
+        self.streaming_buffer_size = 100  # ponytail: 优化，从 30 改为 100，减少刷新频率
         self.streaming_max_delay_ms = streaming_max_delay_ms
 
         self._messages: list[MessageItem] = []

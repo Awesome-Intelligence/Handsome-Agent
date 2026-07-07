@@ -106,7 +106,7 @@ class ChatView(Container, can_focus=False):
                 auto_scroll=True,
                 show_timestamps=True,
                 show_role_icons=True,
-                streaming_throttle_ms=50,  # 优化：从 30ms 改为 50ms，减少刷新频率
+                streaming_throttle_ms=150,  # 优化：150ms 减少 UI 刷新频率，降低主线程压力
             )
         else:
             # 降级：如果 MessageList 不可用，使用占位符

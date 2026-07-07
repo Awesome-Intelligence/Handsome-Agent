@@ -70,8 +70,8 @@ class TestAgentLoopSingleLoop:
         assert result["iterations"] == 1
 
     @pytest.mark.asyncio
-    async def test_agent_loop_run_budget_exhaustion(self):
-        """Test AgentLoop.run() handles budget exhaustion."""
+    async def test_agent_loop_run_single_success(self):
+        """Test AgentLoop.run() exits after successful non-idempotent tool call."""
         from agent.execution.loop import AgentLoop, LoopState
         from agent.state import AgentState
 
@@ -124,10 +124,10 @@ class TestAgentLoopSingleLoop:
         # Run loop
         result = await loop.run(mock_context)
 
-        # Should stop due to budget exhaustion
-        assert result["iterations"] == 2  # Exhausted budget
-        # State should be RUNNING (budget exhaustion doesn't set COMPLETED)
-        assert result["state"] == LoopState.RUNNING.value
+        # Should exit after 1 iteration (successful non-idempotent tool → task complete)
+        assert result["iterations"] == 1
+        # State should be COMPLETED (clean exit on task success)
+        assert result["state"] == LoopState.COMPLETED.value
 
     @pytest.mark.asyncio
     async def test_agent_loop_run_interrupt(self):
