@@ -740,10 +740,7 @@ def run_textual_mode(args: argparse.Namespace, agent: Agent, model_name: str) ->
     if agent._session:
         session_id = agent._session.session_id
 
-    # Ensure workspace is bootstrapped (same as CLI)
-    from agent.workspace import get_workspace_manager
-    if not get_workspace_manager().is_workspace_setup_completed():
-        get_workspace_manager().ensure_workspace()
+    # Ensure workspace is bootstrapped (already done by CLI main's run_setup_if_needed)
 
     # Get model info
     provider = None

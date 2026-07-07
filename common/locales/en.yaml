@@ -637,6 +637,8 @@ tui:
     quit_desc: "Exit Handsome Agent"
     settings: "Settings"
     settings_desc: "Open application settings"
+  queue:
+    message_queued: "Message queued ({n} in queue)"
 
 # =============================================================================
 # Message Role Labels (TUI)

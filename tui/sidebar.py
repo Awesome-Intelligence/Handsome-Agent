@@ -1135,34 +1135,32 @@ class SkillsPane(SidebarPane):
 # ============================================================================
 
 
-class WrappedLog(Static):
-    """支持自动换行的日志显示组件。
+class WrappedLog(Log):
+    """日志显示组件，内部使用 Textual Log 控件。
 
-    使用 Static 的 text_wrap 实现换行，支持：
-    - 自动换行
-    - 鼠标可选中文本
-    - 自动追加日志行
+    使用 Textual 内置 Log 实现，特性：
+    - 懒渲染，只渲染可见行，不全文 rebuild
+    - 内置 max_lines 自动截断
+    - 内置 scroll_end() 支持打开时滚动到底部
     """
 
     def __init__(self, max_lines: int = 1000, **kwargs):
-        super().__init__(**kwargs)
-        self._lines: list[str] = []
-        self._max_lines = max_lines
+        # auto_scroll=False: 禁用 Log 内部 worker，避免 NoActiveAppError；
+        # 滚动到底部由外部 call_after_refresh + scroll_end 控制
+        super().__init__(max_lines=max_lines, auto_scroll=False, **kwargs)
 
     def write_line(self, text: str) -> None:
-        """追加一行日志文本，自动换行."""
-        self._lines.append(text)
+        """追加一行日志，跳过 Log 内部 @work 线程 worker（避免 NoActiveAppError）。"""
+        from textual.geometry import Size
 
-        # 限制最大行数，超出则截断前面部分
-        if len(self._lines) > self._max_lines:
-            self._lines = self._lines[-(self._max_lines // 2):]
-
-        self.update("\n".join(self._lines))
-
-    def clear(self) -> None:
-        """清空日志."""
-        self._lines.clear()
-        self.update("")
+        new_lines = text.splitlines()
+        start_line = len(self._lines)
+        self._lines.extend(new_lines)
+        if self.max_lines is not None and len(self._lines) > self.max_lines:
+            self._prune_max_lines()
+        self.virtual_size = Size(self._width, len(self._lines))
+        self.refresh_lines(start_line, len(new_lines))
+        self.refresh()
 
 
 # ============================================================================
@@ -1191,7 +1189,7 @@ class LogsPane(SidebarPane):
 
     def compose(self) -> ComposeResult:
         """组合子组件."""
-        yield WrappedLog(id="log-output", markup=False)
+        yield WrappedLog(id="log-output")
 
 
 # ============================================================================

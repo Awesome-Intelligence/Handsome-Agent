@@ -617,6 +617,8 @@ tui:
     quit_desc: "退出 Handsome Agent"
     settings: "设置"
     settings_desc: "打开应用设置"
+  queue:
+    message_queued: "消息已加入队列 (排队中: {n}条)"
 
 # =============================================================================
 # Message Role Labels (TUI)

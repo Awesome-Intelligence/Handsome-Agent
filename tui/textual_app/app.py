@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -398,6 +399,9 @@ class HandsomeAgentApp(App):
         self._used_tools: set = set()
         # TUIConsumer（日志消费者）
         self._tui_consumer: Optional["TUIConsumer"] = None
+        # 消息队列（防止并发 agent 调用）
+        self._pending_queue: "deque[str]" = deque()
+        self._agent_busy: bool = False
         # 模型列表（动态从配置读取）
         self._builtin_models: list[tuple[str, str]] = self._get_configured_models()
 
@@ -2130,6 +2134,17 @@ class HandsomeAgentApp(App):
         import asyncio
         from concurrent.futures import ThreadPoolExecutor
 
+        # 如果 agent 正忙，将消息加入队列
+        if self._agent_busy:
+            self._pending_queue.append(user_input)
+            queue_len = len(self._pending_queue)
+            self.notify_animated(
+                i18n.t("tui.queue.message_queued", "消息已加入队列 (排队中: {n}条)", n=queue_len),
+                NotificationType.INFO,
+            )
+            return
+
+        self._agent_busy = True
         self.set_agent_status("busy")
         self._start_loading_animation()
 
@@ -2231,6 +2246,13 @@ class HandsomeAgentApp(App):
             self._current_streaming_id = None
 
         self._agent_future = None
+        self._agent_busy = False
+
+        # 处理队列中的下一条消息
+        if self._pending_queue:
+            next_input = self._pending_queue.popleft()
+            self._append_message("user", next_input)
+            self._call_agent_async(next_input)
 
     def _get_agent(self):
         if hasattr(self, "_agent") and self._agent:

@@ -93,18 +93,20 @@ class LogScreen(ModalScreen):
         with Vertical(id="log-window"):
             yield Static("📜 日志查看器  (Esc/F3 关闭)", id="log-header")
             with ScrollableContainer(id="log-scroll"):
-                yield WrappedLog(id="log-content", markup=False)
+                yield WrappedLog(id="log-content")
             yield Static("↑↓ 滚动  |  鼠标可选中文本  |  Esc/F3 关闭", id="log-footer")
 
     def on_mount(self) -> None:
-        """挂载时注册到 TuiLogHandler."""
+        """挂载时注册到 TuiLogHandler 并滚动到底部."""
         self._logger.debug("Log screen mounted")
 
         from tui.sidebar import WrappedLog
+        from textual.containers import ScrollableContainer
+
         log_widget = self.query_one("#log-content", WrappedLog)
         self._wrapped_log = log_widget
 
-        # 注册到 TuiLogHandler
+        # 注册到 TuiLogHandler（会 replay 全部历史日志）
         try:
             app = self.app
             if hasattr(app, "_tui_log_handler") and app._tui_log_handler is not None:
@@ -112,6 +114,13 @@ class LogScreen(ModalScreen):
                 self._logger.debug("Log widget registered to TuiLogHandler")
         except Exception as e:
             self._logger.warning(f"Failed to register log widget: {e}")
+
+        # replay 完成后滚动到底部（call_after_refresh 确保 DOM 渲染完毕）
+        def _scroll_to_bottom() -> None:
+            scroll = self.query_one("#log-scroll", ScrollableContainer)
+            scroll.scroll_end(animate=False)
+
+        self.call_after_refresh(_scroll_to_bottom)
 
     def action_close(self) -> None:
         """关闭日志窗口."""
