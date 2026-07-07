@@ -460,6 +460,7 @@ class HandsomeAgentApp(App):
                     yield Static("0/128K", id="status-tokens", classes="status-tokens")
                     yield Static("0:00", id="status-time", classes="status-time")
                     yield Static("🔧", id="status-tools", classes="status-tools")
+                    yield Static("", id="status-queue", classes="status-queue")
                     with Horizontal(id="status-right"):
                         yield Static(
                             t("tui.status_bar.mode_iter"),
@@ -469,7 +470,7 @@ class HandsomeAgentApp(App):
             yield SubmitTextArea(
                 id="user-input",
                 classes="input-field",
-                placeholder="输入消息...Enter 发送",
+                placeholder=t("tui.input.placeholder", "输入消息...Enter 发送"),
             )
             yield Footer()
             yield SlashCompletionList(id="slash-completion")
@@ -708,6 +709,43 @@ class HandsomeAgentApp(App):
         except Exception as e:
             self._logger.debug(f"Failed to update tools display: {e}")
 
+    def _update_queue_display(self, queue_len_override: int | None = None) -> None:
+        """更新队列状态显示（状态栏 + 输入框内容）。
+
+        Args:
+            queue_len_override: 可选，强制使用指定队列长度（用于 pop 后准确反映剩余数量）
+        """
+        queue_len = (
+            queue_len_override
+            if queue_len_override is not None
+            else len(self._pending_queue)
+        )
+        try:
+            queue_widget = self._widget_cache.get("status_queue")
+            text_area = self._widget_cache.get("user_input")
+            if queue_len > 0:
+                # 状态栏显示排队数量
+                if queue_widget:
+                    queue_widget.update(f"⏳ {queue_len}")
+                    queue_widget.set_class(True, "has-queue")
+                # 输入框直接显示队首排队消息，禁用编辑
+                if text_area:
+                    text_area.text = self._pending_queue[0]
+                    text_area.disabled = True
+            else:
+                # 队列空：恢复空闲状态
+                if queue_widget:
+                    queue_widget.update("")
+                    queue_widget.set_class(False, "has-queue")
+                if text_area:
+                    text_area.text = ""
+                    text_area.disabled = False
+                    text_area.placeholder = t(
+                        "tui.input.placeholder", "输入消息...Enter 发送"
+                    )
+        except Exception as e:
+            self._logger.debug(f"Failed to update queue display: {e}")
+
     def _toggle_budget_mode(self) -> None:
         """切换 Goal 模式和迭代模式."""
         try:
@@ -942,6 +980,25 @@ class HandsomeAgentApp(App):
         if not user_input:
             return
 
+        # Agent 正忙时：消息入队、禁用输入框、直接返回
+        if self._agent_busy:
+            self._pending_queue.append(user_input)
+            queue_len = len(self._pending_queue)
+            text_area.disabled = True
+            self._update_queue_display()
+            self.notify_animated(
+                t(
+                    "tui.queue.message_queued",
+                    "消息已加入队列 (排队中: {n}条)",
+                    n=queue_len,
+                ),
+                NotificationType.INFO,
+            )
+            return
+
+        if not user_input:
+            return
+
         if user_input not in self._input_history:
             self._input_history.insert(0, user_input)
             if len(self._input_history) > 100:
@@ -960,6 +1017,8 @@ class HandsomeAgentApp(App):
         text_area.text = ""
         self._append_message("user", user_input)
         self._logger.debug(f"User input: {user_input[:50]}...")
+        # 同步加锁，确保后续消息立即进入队列
+        self._agent_busy = True
         self.call_later(lambda: self._call_agent_async(user_input))
 
     def _dismiss_slash_palette(self) -> None:
@@ -1284,6 +1343,7 @@ class HandsomeAgentApp(App):
             )
             self._widget_cache["status_time"] = self.query_one("#status-time", Static)
             self._widget_cache["status_tools"] = self.query_one("#status-tools", Static)
+            self._widget_cache["status_queue"] = self.query_one("#status-queue", Static)
             self._widget_cache["status_mode_toggle"] = self.query_one(
                 "#status-mode-toggle", Static
             )
@@ -2134,17 +2194,6 @@ class HandsomeAgentApp(App):
         import asyncio
         from concurrent.futures import ThreadPoolExecutor
 
-        # 如果 agent 正忙，将消息加入队列
-        if self._agent_busy:
-            self._pending_queue.append(user_input)
-            queue_len = len(self._pending_queue)
-            self.notify_animated(
-                i18n.t("tui.queue.message_queued", "消息已加入队列 (排队中: {n}条)", n=queue_len),
-                NotificationType.INFO,
-            )
-            return
-
-        self._agent_busy = True
         self.set_agent_status("busy")
         self._start_loading_animation()
 
@@ -2252,7 +2301,12 @@ class HandsomeAgentApp(App):
         if self._pending_queue:
             next_input = self._pending_queue.popleft()
             self._append_message("user", next_input)
+            # 更新队列显示（pop 后传入新的队列长度以正确反映剩余排队消息）
+            self._update_queue_display(queue_len_override=len(self._pending_queue))
             self._call_agent_async(next_input)
+        else:
+            # 队列已空，恢复输入框
+            self._update_queue_display()
 
     def _get_agent(self):
         if hasattr(self, "_agent") and self._agent:

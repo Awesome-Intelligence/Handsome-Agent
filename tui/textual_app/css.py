@@ -210,6 +210,17 @@ Screen {
     color: $foreground;
 }
 
+.status-queue {
+    width: auto;
+    margin-right: 2;
+    color: $warning;
+    display: none;
+}
+
+.status-queue.has-queue {
+    display: block;
+}
+
 #status-progress {
     width: 15;
     margin-right: 2;

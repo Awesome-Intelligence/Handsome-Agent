@@ -637,8 +637,11 @@ tui:
     quit_desc: "Exit Handsome Agent"
     settings: "Settings"
     settings_desc: "Open application settings"
+  input:
+    placeholder: "Type your message..."
   queue:
     message_queued: "Message queued ({n} in queue)"
+    placeholder: "⏳ (Queued) #1: {msg}"
 
 # =============================================================================
 # Message Role Labels (TUI)

@@ -602,8 +602,11 @@ tui:
     quit_desc: "Handsome Agent 를 종료합니다"
     settings: "설정"
     settings_desc: "앱 설정을 엽니다"
+  input:
+    placeholder: "메시지를 입력하세요...Enter으로 전송"
   queue:
     message_queued: "메시지가 큐에 추가되었습니다 (대기 중: {n}개)"
+    placeholder: "⏳ (대기 중) #1: {msg}"
 
 # =============================================================================
 # Message Role Labels (TUI)
