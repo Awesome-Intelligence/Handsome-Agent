@@ -396,7 +396,7 @@ class HandsomeAgentApp(App):
         self._current_token_count: int = 0
         # 跟踪本次会话使用的工具
         self._used_tools: set = set()
-        # TUIConsumer（任务面板消费者）
+        # TUIConsumer（日志消费者）
         self._tui_consumer: Optional["TUIConsumer"] = None
         # 模型列表（动态从配置读取）
         self._builtin_models: list[tuple[str, str]] = self._get_configured_models()
@@ -503,10 +503,9 @@ class HandsomeAgentApp(App):
             self._logger.info("Applying saved transparency settings")
             self._update_transparency_styles(True)
 
-        # 初始化 TUIConsumer 并注册到 Agent 的事件系统（用于日志）
+        # 初始化 TUIConsumer 并注册到 Agent 的事件系统（仅用于日志）
         if TUIConsumer and self._agent is not None:
             try:
-                # TUIConsumer 现在只需要用于日志，不再需要 tasks_pane
                 self._tui_consumer = TUIConsumer()
 
                 # 尝试获取 Agent 的 registry 并注册消费者
@@ -517,9 +516,7 @@ class HandsomeAgentApp(App):
                     emitter = self._agent._stream_emitter
                     if hasattr(emitter, "registry"):
                         emitter.registry.register(self._tui_consumer)
-                        self._logger.info(
-                            "TUIConsumer registered to agent registry (for logging)"
-                        )
+                        self._logger.info("TUIConsumer registered to agent registry")
             except Exception as e:
                 self._logger.warning(f"Failed to initialize TUIConsumer: {e}")
 
