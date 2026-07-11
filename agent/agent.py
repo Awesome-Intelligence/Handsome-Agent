@@ -59,25 +59,15 @@ class AgentResponse:
 
 def create_agent_from_config() -> Optional["Agent"]:
     """Create an Agent from unified config. Returns None if LLM not configured."""
-    from common.config import load_config
+    from common.config import load_config, resolve_llm_credentials
     from agent.llm.factory import LLMFactory
 
     cfg = load_config()
-    llm = cfg.get("llm", {})
-    provider = llm.get("provider", "")
-    model = llm.get("model", "")
-    api_key = llm.get("api_key", "")
-    base_url = llm.get("base_url")
+    provider = cfg.get("llm", {}).get("provider", "")
+    if not provider:
+        return None
 
-    # Fallback: if api_key/ base_url empty, try providers[provider]
-    if not api_key or not base_url:
-        providers = cfg.get("providers", {})
-        provider_cfg = providers.get(provider, {})
-        if not api_key:
-            api_key = provider_cfg.get("api_key", "")
-        if not base_url:
-            base_url = provider_cfg.get("base_url")
-
+    api_key, base_url, model, _ = resolve_llm_credentials(provider, cfg)
     if not (provider and model and api_key):
         return None
 

@@ -102,7 +102,9 @@ class ChatView(Container, can_focus=False):
         if MessageList:
             yield MessageList(
                 id="chat-list",
-                max_messages=200,
+                # ponytail: 200 -> 100 — 减半 DOM widget 数量直接减半 layout cost
+                # 滚动时 Textual 仍要给每个 child 算 get_content_height，100 足够聊天用
+                max_messages=100,
                 auto_scroll=True,
                 show_timestamps=True,
                 show_role_icons=True,

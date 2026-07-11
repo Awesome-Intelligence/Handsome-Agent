@@ -25,7 +25,7 @@ class LLMFactory:
         "kimi": "moonshot-v1-32k",
         "azure": "gpt-4o",
         "groq": "llama-3.3-70b-versatile",
-        "minimax": "MiniMax-M2.7",
+        "minimax": "MiniMax-M3",
         "zhipu": "glm-4-flash",
         "dashscope": "qwen-plus",
         "siliconflow": "Qwen/Qwen2.5-72B-Instruct",

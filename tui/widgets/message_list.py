@@ -137,6 +137,7 @@ class MessageItem:
     is_complete: bool = True
     thinking: Optional[str] = None
     thinking_collapsed: bool = True
+    cached_header: Optional[str] = None  # ponytail: 流式期间 header 不变，缓存避免每 150ms 重算
 
     @property
     def time_str(self) -> str:
@@ -735,6 +736,10 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 self._last_streaming_update.pop(msg_id, None)
 
     def _format_message_header(self, msg: MessageItem) -> str:
+        # ponytail: header 对一条消息不变，缓存复用 — 流式每 150ms 一次浪费
+        if msg.cached_header is not None:
+            return msg.cached_header
+
         msg_type = msg.role.value.upper()
         icon = MESSAGE_ICONS.get(msg_type, "💬")
 
@@ -754,8 +759,11 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             role_label = f"{role_label}({msg.tool_name})"
 
         if self.show_timestamps:
-            return f"{icon} **{role_label}** {msg.time_str}\n\n"
-        return f"{icon} **{role_label}**\n\n"
+            header = f"{icon} **{role_label}** {msg.time_str}\n\n"
+        else:
+            header = f"{icon} **{role_label}**\n\n"
+        msg.cached_header = header
+        return header
 
     def _format_message_content(self, msg: MessageItem) -> str:
         content = msg.content
@@ -840,7 +848,11 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         # ponytail: guard against duplicate mount if already scheduled/rendered
         if msg.id in self._message_widgets:
             return
-        widget = Markdown(full_content, classes=f"message-{msg.role.value}")
+        # USER/TOOL/ERROR 用 Static 避免无谓的 markdown 解析；ASSISTANT 保持 Markdown
+        if msg.role == MessageRole.ASSISTANT:
+            widget = Markdown(full_content, classes=f"message-{msg.role.value}")
+        else:
+            widget = Static(full_content, classes=f"message-{msg.role.value}")
         widget.id = f"msg-widget-{msg.id}"
         self._message_widgets[msg.id] = widget
 
@@ -882,8 +894,8 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         )
         collapsible.id = f"msg-thinking-{msg.id}"
 
-        # 在 Collapsible 内创建 Markdown 显示思考内容 - 始终使用 Markdown
-        thinking_widget = Markdown(thinking_content, classes="thinking-content")
+        # 在 Collapsible 内创建 Static 显示思考内容（ponytail: thinking 不需要 markdown 格式，纯文本即可）
+        thinking_widget = Static(thinking_content, classes="thinking-content")
 
         self._message_collapsibles[msg.id] = collapsible
 
@@ -992,18 +1004,44 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
     def on_mount(self) -> None:
         self._logger.info("MessageList mounted")
-        # 启动滚动检查定时器（200ms 一次）
-        self.set_interval(0.2, self._scroll_check_timer)
+        # ponytail: 懒启动 — 仅在首次 scroll 时才启动 200ms 检查定时器
+        # 无滚动时直接跳过，节省 5 次/秒 主线程唤醒
+        self._scroll_timer = None
+
+    def _ensure_scroll_timer(self) -> None:
+        """确保滚动检查定时器运行；已运行则 noop。"""
+        if self._scroll_timer is None or not getattr(self._scroll_timer, "_active", True):
+            self._scroll_timer = self.set_interval(0.2, self._scroll_check_timer)
+
+    def _stop_scroll_timer(self) -> None:
+        """停止滚动检查定时器（无滚动 1.5s 后调用）。"""
+        if self._scroll_timer is not None:
+            try:
+                self._scroll_timer.stop()
+            except Exception:
+                pass
+            self._scroll_timer = None
 
     def on_scroll(self) -> None:
         """监听滚动事件，只设置脏标记，延迟处理"""
         if self._suppress_scroll_event:
             return
+        # ponytail: 懒启动定时器 — 首次 scroll 时才开 200ms 检查循环
+        self._ensure_scroll_timer()
         # 只标记脏，不立即处理（避免频繁触发布局计算）
         self._scroll_dirty = True
 
     def _scroll_check_timer(self) -> None:
         """定时器回调：定期检查滚动位置（200ms 一次）"""
+        # ponytail: 空闲 1.5s 后自动停止定时器 — 滚完就关，省 5 次/秒唤醒
+        idle_window_ms = 1500
+        if (
+            not self._scroll_dirty
+            and self._last_scroll_time > 0
+            and (time.time() * 1000 - self._last_scroll_time) > idle_window_ms
+        ):
+            self._stop_scroll_timer()
+            return
         if not self._scroll_dirty:
             return
         self._scroll_dirty = False

@@ -850,6 +850,36 @@ def get_llm_provider_config(provider: str) -> dict:
     return {}
 
 
+def resolve_llm_credentials(
+    provider: str, config: Optional[dict] = None
+) -> tuple[str, str, str, str]:
+    """Resolve LLM credentials for a provider.
+
+    Returns (api_key, base_url, model, provider_model) preferring
+    provider-specific config over the legacy llm.* top-level keys.
+
+    Args:
+        provider: Provider name (e.g. 'minimax').
+        config: Optional pre-loaded config dict to avoid re-loading.
+
+    Returns:
+        (api_key, base_url, effective_model, provider_from_config)
+    """
+    if config is None:
+        config = load_config()
+
+    pconf = config.get("providers", {}).get(provider, {})
+    llm = config.get("llm", {})
+
+    api_key = pconf.get("api_key") or llm.get("api_key", "")
+    base_url = pconf.get("base_url") or llm.get("base_url") or ""
+    model = pconf.get("model") or llm.get("model", "")
+    # provider-level model overrides the top-level model
+    provider_model = pconf.get("model") or model
+
+    return api_key, base_url, provider_model, provider
+
+
 def get_model_config() -> dict:
     """Get model config."""
     config = load_config()

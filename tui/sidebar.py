@@ -853,7 +853,6 @@ class SkillsPane(SidebarPane):
         self._on_skill_activate = on_skill_activate
         self._on_bundle_activate = on_bundle_activate
         self._logger = None
-        self._refresh_timer = None
         self._skills = []
         self._bundles = []
         self._search_query = ""
@@ -898,8 +897,9 @@ class SkillsPane(SidebarPane):
         self._load_bundles()
         self._build_tree()
 
-        # 启动定时刷新
-        self._start_refresh_timer()
+        # ponytail: 停掉 5s 定时刷新 — _build_tree 无 hash gating，每 5s 无条件
+        # tree.clear() + 全量 add 节点，在用户切回聊天面板时仍会触发 layout/render，
+        # 是掉帧来源之一。需要手动重启 TUI 才能看到新装的 skill/bundle。
 
     @on(Input.Changed, "#skills-search")
     def _on_search_changed(self, event: Input.Changed) -> None:
@@ -933,10 +933,6 @@ class SkillsPane(SidebarPane):
             self._skills_expanded = False
         elif node == self._bundle_root:
             self._bundle_expanded = False
-
-    def _start_refresh_timer(self) -> None:
-        """启动定时刷新"""
-        self._refresh_timer = self.set_interval(5.0, self._refresh_data)
 
     def _load_skills(self) -> None:
         """加载技能列表"""
