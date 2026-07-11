@@ -125,6 +125,14 @@ class LogScreen(ModalScreen):
     def action_close(self) -> None:
         """关闭日志窗口."""
         self._logger.debug("Log screen closed")
+        # ponytail: 关闭时停掉 flush timer、清空 widget 引用，
+        # 否则定时器每 100ms 写一次孤儿 widget，下一次开 Modal 还会更慢。
+        try:
+            app = self.app
+            if getattr(app, "_tui_log_handler", None) is not None:
+                app._tui_log_handler.detach_widget()
+        except Exception as e:
+            self._logger.debug(f"detach_widget failed (ignored): {e}")
         self.dismiss()
 
 

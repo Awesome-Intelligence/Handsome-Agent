@@ -5,7 +5,6 @@ TUI 侧边栏组件 - 提供文件树、目标、Agent、日志面板
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Iterable
@@ -110,8 +109,8 @@ class GoalPaneConfig:
     MAX_VISIBLE_TASKS: int = 15
     PROGRESS_BAR_WIDTH: int = 10
     
-    # 刷新配置
-    REFRESH_INTERVAL: float = 1.0
+    # 刷新配置 — ponytail: 3s 而非 1s，无目标且无 agent 活动时由 _refresh_all 自动停掉
+    REFRESH_INTERVAL: float = 3.0
     
     # 旋转动画
     SPINNER_FRAMES: tuple = ("⚪", "🟡", "🟠")
@@ -343,10 +342,9 @@ class GoalPane(SidebarPane):
     
     def _start_refresh_timer(self) -> None:
         """启动定时刷新定时器"""
-        self._refresh_all()  # 立即刷新一次
-        # 始终启动定时器以保持任务列表刷新
-        # （无论是否有 goal，任务列表都需要显示）
-        self._ensure_timer_running()
+        self._refresh_all()  # 立即刷新一次（_refresh_all 内部会根据状态决定是否启动定时器）
+        # ponytail: 不再无条件 _ensure_timer_running() — 让 _refresh_all 拥有定时器生命周期，
+        # 无 goal 且 agent 空闲时不会每秒唤醒事件循环。
     
     def _ensure_timer_running(self) -> None:
         """确保定时器正在运行"""
@@ -368,86 +366,84 @@ class GoalPane(SidebarPane):
         if self._logger:
             self._logger.warning(msg)
     
-    def _get_goal_state_hash(self) -> Optional[str]:
-        """计算目标状态的哈希值，用于变化检测"""
+    def _get_goal_state(self) -> Optional[tuple]:
+        """获取目标状态的关键字段，用于变化检测。"""
         if not self._goal_manager:
             return None
         try:
             state = self._goal_manager.state
             if not state:
                 return None
-            # 组合关键状态字段生成哈希
-            hash_input = f"{state.status}:{state.goal}:{state.current_turn}:{state.max_turns}"
-            return hashlib.md5(hash_input.encode()).hexdigest()[:8]
+            return (state.status, state.goal, state.current_turn, state.max_turns)
         except Exception:
             return None
-    
-    def _get_tasks_hash(self) -> Optional[str]:
-        """计算任务列表的哈希值，用于变化检测"""
+
+    def _get_tasks_signature(self) -> Optional[tuple]:
+        """获取任务列表的签名（用于变化检测）。"""
         if not self._todo_store:
             return None
         try:
             todos = self._todo_store.read()
-            # 使用任务 ID 和状态生成哈希
-            task_str = "|".join(f"{t.get('id', '')}:{t.get('status', '')}" for t in todos)
-            if not task_str:
-                return "empty"
-            return hashlib.md5(task_str.encode()).hexdigest()[:8]
+            return tuple((t.get("id", ""), t.get("status", "")) for t in todos)
         except Exception:
             return None
     
     def _refresh_all(self) -> None:
         """刷新 Goal 和任务状态（智能刷新）"""
+        # ponytail: TabbedContent 切走时设 display:none,跳过整个 tick —
+        # 1s 主循环在 file_tree/skills tab 上的全部 CPU 浪费都在这
+        if not self.display:
+            return
         try:
             # 动态获取最新的 goal_manager（从 app 层面获取，支持运行时更新）
             old_goal_manager = self._goal_manager
             self._update_goal_manager_from_app()
             gm_changed = old_goal_manager is not self._goal_manager
 
-            # 计算当前状态的哈希
-            current_goal_hash = self._get_goal_state_hash()
-            current_tasks_hash = self._get_tasks_hash()
+            # 计算当前状态（用于变化检测）
+            current_goal = self._get_goal_state()
+            current_tasks = self._get_tasks_signature()
 
             # gm_changed 时强制刷新（goal_manager 发生变化）
-            goal_changed = gm_changed or (current_goal_hash != self._last_goal_state)
-            tasks_changed = current_tasks_hash != self._last_tasks_hash
+            goal_changed = gm_changed or (current_goal != self._last_goal_state)
+            tasks_changed = current_tasks != self._last_tasks_hash
 
             if self._logger:
                 self._logger.debug(
                     f"_refresh_all: gm_changed={gm_changed}, goal_changed={goal_changed}, "
-                    f"current_hash={current_goal_hash}, last_hash={self._last_goal_state}, "
                     f"tasks_changed={tasks_changed}, "
                     f"_goal_manager={id(self._goal_manager) if self._goal_manager else None}"
                 )
 
             if goal_changed:
                 self._refresh_goal()
-                self._last_goal_state = current_goal_hash
+                self._last_goal_state = current_goal
 
             if tasks_changed:
                 self._refresh_tasks()
-                self._last_tasks_hash = current_tasks_hash
+                self._last_tasks_hash = current_tasks
 
             # 检查是否有 active goal（使用公共方法）
             has_active_goal = (
                 self._goal_manager is not None
                 and self._goal_manager.is_active()
             )
+            # ponytail: 同时检查 agent 是否在忙 — 真正需要 1Hz tick 的只有这两种情况。
+            # 空闲聊天时定时器完全停掉，不再每秒唤醒事件循环。
+            agent_busy = bool(
+                getattr(self.app, "_agent_busy", False) if self.app else False
+            )
+            should_tick = has_active_goal or agent_busy
 
-            # 根据 goal 状态控制定时器
-            if has_active_goal and not self._has_active_goal:
-                # 从无 goal 变为有 goal，启动定时器
+            # 根据状态控制定时器
+            if should_tick and not self._has_active_goal:
                 self._has_active_goal = True
                 self._ensure_timer_running()
-            elif not has_active_goal and self._has_active_goal:
-                # 从有 goal 变为无 goal，停止定时器
+            elif not should_tick and self._has_active_goal:
                 self._has_active_goal = False
                 self._ensure_timer_stopped()
         except Exception as e:
             self._log_warning(f"Refresh failed: {e}")
-
-        # 更新旋转图标帧（始终执行，UX 需要）
-        self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
 
     def _update_goal_manager_from_app(self) -> None:
         """从 app 动态获取最新的 goal_manager"""

@@ -33,13 +33,12 @@ class TuiLogHandler(logging.Handler):
         "key", "binding", "shortcut",
     )
 
-    def __init__(self, app, buffer_size: int = 500, batch_size: int = 10, flush_interval_ms: int = 100):
+    def __init__(self, app, buffer_size: int = 500, flush_interval_ms: int = 100):
         """初始化日志处理器。
 
         Args:
             app: Textual App 实例
             buffer_size: 组件就绪前的最大缓冲条数
-            batch_size: 批量写入的日志条数
             flush_interval_ms: 批量刷新的时间间隔（毫秒）
         """
         super().__init__()
@@ -48,13 +47,14 @@ class TuiLogHandler(logging.Handler):
         self._buffer: list[logging.LogRecord] = []  # 组件就绪前的缓冲
         self._buffer_size = buffer_size
 
-        # 批量写入优化
+        # 写入优化
         self._pending_logs: list[str] = []  # 待写入的日志消息
-        self._batch_size = batch_size  # 达到此数量时立即写入
+        self._replay_lines = 200  # ponytail: hard cap, full history = render bomb
         self._flush_interval_ms = flush_interval_ms  # 刷新间隔（毫秒）
         self._flush_timer = None  # 刷新定时器引用
         self._all_logs: list[str] = []  # 完整日志历史
         self._logs_at_last_mount: int = 0  # 上次挂载时的历史长度
+        self._widget_active = False  # ponytail: gate writes while Modal is closed
 
     def set_widget(self, widget: Log) -> None:
         """设置目标 Log 组件并刷新缓冲区。
@@ -65,6 +65,7 @@ class TuiLogHandler(logging.Handler):
             widget: Log 组件实例
         """
         self._widget = widget
+        self._widget_active = True
 
         # 刷新组件就绪前的缓冲日志
         if self._buffer:
@@ -77,23 +78,36 @@ class TuiLogHandler(logging.Handler):
                     pass
             self._buffer.clear()
 
-        # 新 widget 每次都是空的，replay 全部历史日志
-        for msg in self._all_logs:
+        # ponytail: replay tail only — full history blows up render time
+        for msg in self._all_logs[-self._replay_lines:]:
             try:
                 self._widget.write_line(msg)
             except Exception:
                 pass
+        self._logs_at_last_mount = len(self._all_logs)
 
         # 启动批量刷新定时器
         self._start_flush_timer()
 
+    def detach_widget(self) -> None:
+        """ModalScreen 关闭时调用：暂停写入与定时器，保留历史供下次 replay。
+
+        ponytail: 不清 _all_logs（replay 需要），但必须停掉 flush 定时器
+        并把 _widget 置空，否则定时器每 100ms 写一次孤儿 widget。
+        """
+        self._widget_active = False
+        self._stop_flush_timer()
+        self._pending_logs.clear()
+        self._widget = None
+
     def _start_flush_timer(self) -> None:
         """启动批量刷新定时器"""
-        if self._flush_timer is None and self._widget is not None:
+        # ponytail: set_interval 自带周期，无需递归重启
+        if self._flush_timer is None and self._widget is not None and self._widget_active:
             try:
-                self._flush_timer = self._app.set_timer(
+                self._flush_timer = self._app.set_interval(
                     self._flush_interval_ms / 1000.0,
-                    self._flush_pending_logs
+                    self._flush_pending_logs,
                 )
             except Exception:
                 pass
@@ -109,22 +123,16 @@ class TuiLogHandler(logging.Handler):
 
     def _flush_pending_logs(self) -> None:
         """批量刷新待写入的日志（定时器回调）"""
-        if not self._pending_logs or self._widget is None:
-            self._flush_timer = None
-            self._start_flush_timer()
+        if not self._pending_logs or self._widget is None or not self._widget_active:
             return
 
         try:
-            # 批量写入所有待处理的日志
-            for msg in self._pending_logs:
+            # ponytail: swap list — emit() 在 flush 期间继续 append 不会丢
+            batch, self._pending_logs = self._pending_logs, []
+            for msg in batch:
                 self._widget.write_line(msg)
-            self._pending_logs.clear()
         except Exception:
             pass
-        finally:
-            self._flush_timer = None
-            # 继续调度下一次刷新
-            self._start_flush_timer()
 
     def emit(self, record: logging.LogRecord) -> None:
         """接收日志记录（任意线程），路由到 UI 线程写入。
@@ -136,8 +144,8 @@ class TuiLogHandler(logging.Handler):
         if record.levelno == logging.DEBUG and self._is_ui_debug_log(record):
             return
 
-        if self._widget is None:
-            # 组件未就绪，缓冲日志
+        if self._widget is None or not self._widget_active:
+            # 组件未就绪或 Modal 已关闭，缓冲日志
             if len(self._buffer) < self._buffer_size:
                 self._buffer.append(record)
             return
@@ -148,9 +156,7 @@ class TuiLogHandler(logging.Handler):
             self._pending_logs.append(msg)
             self._all_logs.append(msg)
 
-            # 如果队列达到批量大小，立即写入
-            if len(self._pending_logs) >= self._batch_size:
-                self._app.call_from_thread(self._flush_pending_logs)
+            # ponytail: 不再按 batch_size 立即触发 flush，set_interval 统一节流
         except Exception:
             pass
 

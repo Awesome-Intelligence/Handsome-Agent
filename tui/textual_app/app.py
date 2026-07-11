@@ -1946,16 +1946,25 @@ class HandsomeAgentApp(App):
     def action_toggle_sidebar(self) -> None:
         try:
             sidebar = self.query_one("#sidebar-container")
-            if sidebar:
-                if sidebar.styles.display == "none":
-                    sidebar.styles.display = "block"
-                    self.notify("侧边栏已显示")
+            if not sidebar:
+                return
+            hiding = sidebar.styles.display != "none"
+            sidebar.styles.display = "none" if hiding else "block"
+            self.notify("侧边栏已隐藏" if hiding else "侧边栏已显示")
+            self._logger.debug(f"Sidebar toggled, display: {sidebar.styles.display}")
+
+            # ponytail: stop GoalPane's 1s timer when sidebar is hidden so it
+            # doesn't wake the event loop every second while the user is in chat.
+            try:
+                inner = self.query_one("#sidebar-container-inner", SidebarContainer)
+                pane = inner.goal_pane
+                if hiding:
+                    pane._ensure_timer_stopped()
                 else:
-                    sidebar.styles.display = "none"
-                    self.notify("侧边栏已隐藏")
-                self._logger.debug(
-                    f"Sidebar toggled, display: {sidebar.styles.display}"
-                )
+                    pane._refresh_all()
+                    pane._ensure_timer_running()
+            except Exception:
+                pass
         except Exception as e:
             self._logger.debug(f"Sidebar toggle failed: {e}")
 

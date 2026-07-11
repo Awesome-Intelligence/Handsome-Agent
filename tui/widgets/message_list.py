@@ -747,13 +747,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             self.call_later(_do_mount)
             return
 
-        # 流式消息用 Static（轻量），完成后升级为 Markdown
-        if msg.is_streaming:
-            self._render_message_streaming(msg, full_content)
-            return
-
-        # 如果消息有思考内容，使用 Container 包装
-        # 防御性检查：确保 thinking 是有效字符串
+        # ponytail: thinking 优先于 streaming — upgrade 路径
+        # (_upgrade_to_thinking_message 在 is_streaming=True 时调用 _render_message)
+        # 必须走 thinking 分支挂上 thinking widgets
         if (
             msg.thinking is not None
             and msg.role == MessageRole.ASSISTANT
@@ -766,8 +762,12 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 self._logger.warning(
                     f"Failed to render message with thinking, falling back: {e}"
                 )
-                # 回退到普通渲染
                 self._render_message_plain(msg, full_content)
+            return
+
+        # 流式消息:Markdown + MarkdownStream 增量更新
+        if msg.is_streaming:
+            self._render_message_streaming(msg, full_content)
             return
 
         # 普通消息渲染
@@ -782,6 +782,19 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._message_widgets[msg.id] = widget
         # ponytail: MarkdownStream 懒初始化 — get_stream 内部调用 asyncio.create_task,
         # 需要 event loop；推迟到首次 append_streaming_text (必定在 event loop 上)
+
+        # ponytail: MessageList 已挂载时同步 mount — call_later 与 MarkdownStream.write
+        # 的 create_task 存在竞态:stream 任务先于 mount 回调触发,在未挂载 Markdown 上
+        # mount MarkdownParagraph 子节点会抛 MountError(msg-widget-msg-N)
+        if self.is_attached:
+            try:
+                self.mount(widget)
+                self._do_smart_scroll()
+            except (MountError, DuplicateIds):
+                pass
+            except Exception as e:
+                self._logger.error(f"Failed to mount streaming widget: {e}")
+            return
 
         def _do_mount():
             try:
@@ -873,6 +886,23 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 self._render_message(msg)
             except Exception as e:
                 self._logger.error(f"Failed to mount message with thinking: {e}")
+
+        # ponytail: 同步挂载以避免与后续 MarkdownStream.write 任务在未挂载 widget 上
+        # mount MarkdownParagraph 抛 MountError — upgrade 场景的窗口最危险
+        if self.is_attached:
+            try:
+                self.mount(container)
+                self._message_containers[msg.id] = container
+                self._do_smart_scroll()
+            except (MountError, DuplicateIds):
+                self._logger.debug(
+                    f"Mount error in thinking render, re-rendering: {msg.id}"
+                )
+                self._message_widgets.pop(msg.id, None)
+                self._render_message(msg)
+            except Exception as e:
+                self._logger.error(f"Failed to mount message with thinking: {e}")
+            return
 
         self.call_later(_do_mount)
 
