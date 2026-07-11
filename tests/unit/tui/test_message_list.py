@@ -482,38 +482,40 @@ class TestMarkdownRendering:
     def test_format_message_content_streaming(self):
         """Test streaming message content formatting."""
         from tui.widgets.message_list import MessageList, MessageItem, MessageRole
-        
+
         msg_list = MessageList()
-        
+
         msg = MessageItem(
             id="test-1",
             role=MessageRole.ASSISTANT,
             content="Streaming content",
             is_streaming=True,
         )
-        
+
         content = msg_list._format_message_content(msg)
-        
-        # Should include cursor indicator
-        assert "▌" in content
+
+        # ponytail: 游标字符已从 content 移除 — 流式期间只用纯文本渲染
+        assert content == "Streaming content"
+        assert "▌" not in content
 
     @patch('tui.widgets.message_list.TEXTUAL_AVAILABLE', True)
     def test_format_message_content_not_streaming(self):
         """Test non-streaming message content formatting."""
         from tui.widgets.message_list import MessageList, MessageItem, MessageRole
-        
+
         msg_list = MessageList()
-        
+
         msg = MessageItem(
             id="test-1",
             role=MessageRole.ASSISTANT,
             content="Complete content",
             is_streaming=False,
         )
-        
+
         content = msg_list._format_message_content(msg)
-        
+
         # Should not include cursor
+        assert content == "Complete content"
         assert "▌" not in content
 
 
