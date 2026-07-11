@@ -146,7 +146,6 @@ HelpScreen {
 
 CATEGORY_NAMES = {
     "navigation": "导航",
-    "tab": "标签页",
     "command": "命令",
     "help": "帮助",
     "session": "会话",
@@ -230,7 +229,6 @@ class HelpScreen(ModalScreen):
         # 分类显示快捷键
         categories = [
             ("navigation", i18n.t("tui.help.category.navigation")),
-            ("tab", i18n.t("tui.help.category.tab")),
             ("command", i18n.t("tui.help.category.command")),
             ("help", i18n.t("tui.help.category.help")),
             ("session", i18n.t("tui.help.category.session")),

@@ -28,14 +28,12 @@ try:
         Footer,
         Static,
         RichLog,
-        Tabs,
-        Tab,
         TextArea,
         Button,
     )
     from textual.widgets import Markdown, LoadingIndicator, Select, Input
     from textual.binding import Binding
-    from textual.containers import Container, Vertical, VerticalScroll, Horizontal
+    from textual.containers import Container, Vertical, Horizontal
     from textual.screen import Screen as TextualScreen
     from textual.message import Message
     from textual import on
@@ -266,11 +264,6 @@ class HandsomeAgentApp(App):
         Binding("f1", "open_help", "Help"),
         Binding("f2", "open_settings", "Settings"),
         Binding("f3", "open_log_screen", "Logs"),
-        # --- 标签管理快捷键 ---
-        Binding("ctrl+t", "new_tab", "New Tab", show=False),
-        Binding("ctrl+w", "close_tab", "Close Tab", show=False),
-        Binding("ctrl+tab", "next_tab", "Next Tab", show=False),
-        Binding("ctrl+shift+tab", "prev_tab", "Prev Tab", show=False),
         # --- 面板切换快捷键 (ctrl+方向键) ---
         Binding("ctrl+left", "prev_panel", "Prev Panel", show=False),
         Binding("ctrl+right", "next_panel", "Next Panel", show=False),
@@ -379,9 +372,6 @@ class HandsomeAgentApp(App):
         self._session_store: Optional[SessionStore] = None
         self._pending_message_count: int = 0
         self._auto_save_interval: int = 5
-        self._tab_counter = 0
-        self._tab_states: dict[str, dict] = {}
-        self._active_tab_id: str | None = None
         self._approval_manager: Optional[ApprovalManager] = None
         self._pending_tool_call: dict | None = None
         self._approval_callback: Optional[callable] = None
@@ -2389,14 +2379,13 @@ class HandsomeAgentApp(App):
         self._logger.info(f"Session switched: {old_session_id} -> {event.session_id}")
         self._render_welcome_banner()
 
-        if self._active_tab_id and self._active_tab_id in self._tab_states:
-            chat_view = self._tab_states[self._active_tab_id]["chat_view"]
-            chat_view.clear_messages()
-            history = self._restore_session(event.session_id)
-            for msg in history:
-                chat_view.append_message(msg["role"], msg["content"])
-            if not history:
-                chat_view.show_greeting()
+        chat_view = self.query_one("#chat-area", ChatView)
+        chat_view.clear_messages()
+        history = self._restore_session(event.session_id)
+        for msg in history:
+            chat_view.append_message(msg["role"], msg["content"])
+        if not history:
+            chat_view.show_greeting()
 
         self.notify(
             t("session.switched", "已切换到会话: {title}").format(
@@ -2414,49 +2403,11 @@ class HandsomeAgentApp(App):
                 )
                 self.session_id = new_id
                 self._render_welcome_banner()
-                if self._active_tab_id and self._active_tab_id in self._tab_states:
-                    self._tab_states[self._active_tab_id]["chat_view"].clear_messages()
-                    self._tab_states[self._active_tab_id]["chat_view"].show_greeting()
+                chat_view = self.query_one("#chat-area", ChatView)
+                chat_view.clear_messages()
+                chat_view.show_greeting()
 
         self._logger.info(f"Session deleted: {event.session_id}")
-
-    def action_next_tab(self) -> None:
-        tabs = self.query_one("Tabs", Tabs)
-        all_tabs = list(tabs.query("Tab"))
-        if not all_tabs:
-            return
-
-        current_index = -1
-        for i, tab in enumerate(all_tabs):
-            if tab.id == tabs.active:
-                current_index = i
-                break
-
-        next_index = (current_index + 1) % len(all_tabs)
-        next_tab = all_tabs[next_index]
-
-        if next_tab.id:
-            tabs.active = next_tab.id
-            self._logger.debug(f"Switched to next tab: {next_tab.id}")
-
-    def action_prev_tab(self) -> None:
-        tabs = self.query_one("Tabs", Tabs)
-        all_tabs = list(tabs.query("Tab"))
-        if not all_tabs:
-            return
-
-        current_index = -1
-        for i, tab in enumerate(all_tabs):
-            if tab.id == tabs.active:
-                current_index = i
-                break
-
-        prev_index = (current_index - 1) % len(all_tabs)
-        prev_tab = all_tabs[prev_index]
-
-        if prev_tab.id:
-            tabs.active = prev_tab.id
-            self._logger.debug(f"Switched to previous tab: {prev_tab.id}")
 
     def append_chat_message(self, role: str, content: str) -> None:
         chat_area = self.query_one("#chat-area", ChatView)
@@ -2474,96 +2425,6 @@ class HandsomeAgentApp(App):
                 chat_area.clear()
             elif hasattr(chat_area, "clear_messages"):
                 chat_area.clear_messages()
-
-    def add_tab(self) -> str | None:
-        if not ChatView:
-            self._logger.warning("ChatView not available")
-            return None
-
-        self._tab_counter += 1
-        tab_id = f"chat-tab-{self._tab_counter}"
-        tab_title = t("chat.tab.title", "Chat") + f" {self._tab_counter}"
-
-        tabs = self.query_one("Tabs", Tabs)
-        content_area = self.query_one("#content-area", VerticalScroll)
-
-        tabs.add_tab(Tab(tab_title, id=tab_id))
-        chat_view = ChatView(tab_id, tab_title)
-        content_area.mount(chat_view)
-
-        self._tab_states[tab_id] = {
-            "title": tab_title,
-            "chat_view": chat_view,
-        }
-
-        tabs.active = tab_id
-        self._active_tab_id = tab_id
-        self._show_tab_content(tab_id)
-
-        self._logger.info(f"Tab created: {tab_id}")
-        return tab_id
-
-    def close_tab(self, tab_id: str) -> bool:
-        tabs = self.query_one("Tabs", Tabs)
-        content_area = self.query_one("#content-area", VerticalScroll)
-
-        all_tabs = list(tabs.query("Tab"))
-
-        if len(all_tabs) <= 1:
-            self.notify(t("chat.tab.cannot_close_last", "Cannot close the last tab"))
-            return False
-
-        tab_to_close = tabs.query_one(f"#{tab_id}", Tab)
-        if not tab_to_close:
-            self._logger.warning(f"Tab not found: {tab_id}")
-            return False
-
-        was_active = tabs.active == tab_id
-        tab_to_close.remove()
-
-        if tab_id in self._tab_states:
-            chat_view = self._tab_states[tab_id]["chat_view"]
-            chat_view.remove()
-            del self._tab_states[tab_id]
-
-        if was_active:
-            remaining_tabs = list(tabs.query("Tab"))
-            if remaining_tabs:
-                new_active = remaining_tabs[0].id
-                tabs.active = new_active
-                self._active_tab_id = new_active
-                self._show_tab_content(new_active)
-
-        self._logger.info(f"Tab closed: {tab_id}")
-        return True
-
-    def _show_tab_content(self, tab_id: str) -> None:
-        content_area = self.query_one("#content-area", VerticalScroll)
-
-        for state in self._tab_states.values():
-            chat_view = state["chat_view"]
-            if chat_view.parent:
-                chat_view.display = False
-
-        if tab_id in self._tab_states:
-            chat_view = self._tab_states[tab_id]["chat_view"]
-            chat_view.display = True
-
-    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
-        if event.tab:
-            tab_id = event.tab.id
-            if tab_id:
-                self._active_tab_id = tab_id
-                self._show_tab_content(tab_id)
-                self._logger.debug(f"Tab activated: {tab_id}")
-
-    def action_new_tab(self) -> None:
-        self.add_tab()
-
-    def action_close_tab(self) -> None:
-        if self._active_tab_id:
-            self.close_tab(self._active_tab_id)
-
 
 def run_textual_app(
     model_name: str = "Handsome Agent",

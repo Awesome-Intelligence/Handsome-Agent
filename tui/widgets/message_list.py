@@ -31,6 +31,7 @@ try:
     from textual.message import Message
     from textual.widget import MountError
     from textual._node_list import DuplicateIds
+    from textual.widgets._markdown import MarkdownStream
     from textual import on
     from textual.events import Click, Key
 except ImportError:
@@ -47,9 +48,12 @@ except ImportError:
 
     def on(*args, **kwargs):
         """Mock on decorator when textual is not available."""
+
         def decorator(func):
             return func
+
         return decorator
+
 
 try:
     from tui.theming import MESSAGE_ICONS, MESSAGE_COLORS
@@ -76,17 +80,22 @@ except ImportError:
 try:
     from common.i18n import get_i18n
 except ImportError:
+
     def get_i18n():
         class SimpleI18n:
             def t(self, key, default=None, **kwargs):
                 return default or key
+
         return SimpleI18n()
+
 
 try:
     from common.logging_manager import get_access_logger
 except ImportError:
     import logging
+
     logging.basicConfig(level=logging.INFO)
+
     def get_access_logger(*args, **kwargs):
         return logging.getLogger("HandsomeAgent")
 
@@ -113,6 +122,7 @@ SURFACE = "#1a1a1a"
 # 消息类型枚举
 # ============================================================================
 
+
 class MessageRole(Enum):
     USER = "user"
     ASSISTANT = "assistant"
@@ -126,6 +136,7 @@ class MessageRole(Enum):
 # 消息数据结构
 # ============================================================================
 
+
 @dataclass
 class MessageItem:
     id: str
@@ -137,7 +148,9 @@ class MessageItem:
     is_complete: bool = True
     thinking: Optional[str] = None
     thinking_collapsed: bool = True
-    cached_header: Optional[str] = None  # ponytail: 流式期间 header 不变，缓存避免每 150ms 重算
+    cached_header: Optional[str] = (
+        None  # ponytail: 流式期间 header 不变，缓存避免每 150ms 重算
+    )
 
     @property
     def time_str(self) -> str:
@@ -147,6 +160,7 @@ class MessageItem:
 # ============================================================================
 # 消息事件
 # ============================================================================
+
 
 class MessageListUpdated(Message):
     def __init__(self, sender, message_count: int) -> None:
@@ -164,9 +178,10 @@ class StreamingComplete(Message):
 # MessageList Widget
 # ============================================================================
 
+
 class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=False):
     """消息列表组件 - 使用 VerticalScroll + Markdown 实现
-    
+
     注意：设置 can_focus=False 以避免 Textual 8.x 的自动聚焦问题。
     """
 
@@ -188,30 +203,36 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self.auto_scroll = auto_scroll
         self.show_timestamps = show_timestamps
         self.show_role_icons = show_role_icons
+        # ponytail: 保留旧参数属性以兼容现有调用方，不再用于流式逻辑
         self.streaming_throttle_ms = streaming_throttle_ms
-        self.streaming_buffer_size = 100  # ponytail: 优化，从 30 改为 100，减少刷新频率
+        self.streaming_buffer_size = streaming_buffer_size
         self.streaming_max_delay_ms = streaming_max_delay_ms
 
         self._messages: list[MessageItem] = []
         self._message_index: dict[str, MessageItem] = {}  # 消息索引，加速查找
         self._message_counter = 0
         self._streaming_active: dict[str, str] = {}
-        self._last_streaming_update: dict[str, float] = {}
-        self._streaming_buffer: dict[str, str] = {}  # 文本累积缓冲区
-        self._streaming_timers: dict[str, any] = {}  # 定时器引用
         self._message_widgets: dict[str, Static | Markdown] = {}
+        # ponytail: MarkdownStream 替代手动 buffering — Textual 内置异步批处理
+        self._markdown_streams: dict[str, MarkdownStream] = {}
         # ponytail: 思考内容用 sibling Static(label) + Markdown(body) 代替 Collapsible 嵌套
         self._message_thinking_labels: dict[str, Static] = {}
         self._message_thinking_bodies: dict[str, Markdown] = {}
         self._message_containers: dict[str, Vertical] = {}  # 消息容器引用
         self._logger = get_access_logger("MessageList", sublayer="tui")
-        self._i18n = get_i18n()  # ponytail: cache i18n instance — avoid per-message call
+        self._i18n = (
+            get_i18n()
+        )  # ponytail: cache i18n instance — avoid per-message call
 
         # 自动滚动优化
         self._user_scrolled_to_bottom: bool = True  # 用户是否在底部
-        self._scroll_throttle_ms: int = 300  # ponytail: increased from 100 — on_scroll entry has overhead even when throttled
+        self._scroll_throttle_ms: int = (
+            300  # ponytail: increased from 100 — on_scroll entry has overhead even when throttled
+        )
         self._last_scroll_time: float = 0  # 上次滚动时间
-        self._suppress_scroll_event: bool = False  # ponytail: prevent scroll feedback loop
+        self._suppress_scroll_event: bool = (
+            False  # ponytail: prevent scroll feedback loop
+        )
 
         # ponytail: max_scroll_y 缓存优化 — 避免每次滚动事件都触发布局计算
         self._cached_max_scroll_y: float = 0.0  # 缓存的 max_scroll_y 值
@@ -308,7 +329,6 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._messages.append(msg)
         self._message_index[msg_id] = msg  # 维护索引
         self._streaming_active[msg_id] = role_enum.value
-        self._streaming_buffer[msg_id] = ""  # 初始化缓冲区
         self._trim_messages()
 
         self._render_message(msg)
@@ -317,68 +337,28 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         return msg_id
 
     def append_streaming_text(self, message_id: str, text: str) -> None:
-        """流式追加文本 - 使用累积缓冲区减少 UI 刷新
-
-        优化策略:
-        1. 文本先累积到缓冲区，不立即更新 UI
-        2. 当缓冲区达到一定大小(streaming_buffer_size)时更新
-        3. 或者当距离上次更新超过最大延迟(streaming_max_delay_ms)时更新
-        """
+        """流式追加文本 — 通过 MarkdownStream 异步批处理，Textual 内部合并写入"""
         if message_id not in self._streaming_active:
             return
-
-        # 将文本累积到缓冲区
-        if message_id not in self._streaming_buffer:
-            self._streaming_buffer[message_id] = ""
-        self._streaming_buffer[message_id] += text
-
-        current_time = time.time() * 1000
-        last_update = self._last_streaming_update.get(message_id, 0)
-        time_since_last_update = current_time - last_update
-
-        # 检查是否需要立即更新
-        buffer_size = len(self._streaming_buffer[message_id])
-        should_update = (
-            buffer_size >= self.streaming_buffer_size or
-            time_since_last_update >= self.streaming_max_delay_ms
-        )
-
-        if should_update and time_since_last_update >= self.streaming_throttle_ms:
-            self._flush_streaming_buffer(message_id)
-            self._last_streaming_update[message_id] = current_time
-
-    def _flush_streaming_buffer(self, message_id: str) -> None:
-        """刷新流式缓冲区 - 将累积的文本增量追加到 Markdown widget"""
-        if message_id not in self._streaming_buffer:
-            return
-
-        buffered_text = self._streaming_buffer.get(message_id, "")
-        if not buffered_text:
-            return
-
-        self._streaming_buffer[message_id] = ""
 
         msg = self._message_index.get(message_id)
         if msg is None:
             return
 
-        msg.content += buffered_text
+        msg.content += text
 
+        stream = self._markdown_streams.get(message_id)
         widget = self._message_widgets.get(message_id)
-        if isinstance(widget, Markdown):
-            # ponytail: Markdown.append 增量解析,不再每帧拼 header
-            widget.append(buffered_text)
-        elif isinstance(widget, Static):
-            widget.update(msg.content)
-        else:
-            self._update_message_widget(msg)
-
-        if (
-            msg.thinking and msg.thinking.strip()
-            and msg.role == MessageRole.ASSISTANT
-            and message_id not in self._message_thinking_bodies
-        ):
-            self._render_message(msg)
+        if stream is None and isinstance(widget, Markdown):
+            try:
+                stream = Markdown.get_stream(widget)
+                self._markdown_streams[message_id] = stream
+            except RuntimeError:
+                # ponytail: 无 event loop 时(测试环境)回退到 widget.append
+                widget.append(text)
+                return
+        if stream is not None:
+            self._schedule_async(stream.write(text))
 
     def append_streaming_thinking(self, message_id: str, text: str) -> None:
         """流式追加思考内容到消息"""
@@ -422,6 +402,12 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
         def _do_upgrade():
             old_widget = self._message_widgets.pop(msg.id, None)
+            old_stream = self._markdown_streams.pop(msg.id, None)
+            # ponytail: cancel old stream task (private API, same as oterm cancel_streams)
+            if old_stream is not None:
+                task = getattr(old_stream, "_task", None)
+                if task is not None:
+                    task.cancel()
             if old_widget is not None:
                 try:
                     old_widget.remove()
@@ -449,7 +435,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         """点击思考标签切换展开/折叠"""
         widget = event.widget
         if widget.id and widget.id.startswith("msg-thinking-label-"):
-            msg_id = widget.id[len("msg-thinking-label-"):]
+            msg_id = widget.id[len("msg-thinking-label-") :]
             self._toggle_thinking(msg_id)
             event.stop()
 
@@ -457,28 +443,40 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         if message_id not in self._streaming_active:
             return
 
-        if message_id in self._streaming_buffer and self._streaming_buffer.get(message_id, ""):
-            self._flush_streaming_buffer(message_id)
-
         msg = self._message_index.get(message_id)
         if msg:
             msg.is_streaming = False
             msg.is_complete = True
 
         self._streaming_active.pop(message_id, None)
-        self._last_streaming_update.pop(message_id, None)
-        self._streaming_buffer.pop(message_id, None)
-        self._streaming_timers.pop(message_id, None)
 
-        # ponytail: 流式 widget 已经是 Markdown,无需升级;延迟做一次完整 update
-        # 让 markdown 完整重解析,收尾半开的 code fence 等块状态;call_later 与原版
-        # _upgrade_streaming_to_markdown 一致,无 active app 时不触发
+        stream = self._markdown_streams.pop(message_id, None)
         widget = self._message_widgets.get(message_id)
-        if isinstance(widget, Markdown) and msg is not None:
+        if widget is not None and msg is not None:
             full = self._format_message_header(msg) + msg.content
-            self.call_later(widget.update, full)
+            if stream is not None:
+                self._schedule_async(self._finish_stream(stream, widget, full))
+            else:
+                # ponytail: 无 stream 时(测试环境/未通过 append 创建)延迟 update
+                self.call_later(widget.update, full)
 
         self._post_message(StreamingComplete(self, message_id))
+
+    @staticmethod
+    def _schedule_async(coro) -> None:
+        """ponytail: 桥接 async → sync — 在 event loop 上调度协程"""
+        import asyncio
+
+        try:
+            asyncio.get_running_loop().create_task(coro)
+        except RuntimeError:
+            pass  # 无运行中的 loop,跳过(子线程中通过 call_later 间接到达)
+
+    @staticmethod
+    async def _finish_stream(stream, widget, full_text: str) -> None:
+        """停止 MarkdownStream 并强制完整重解析"""
+        await stream.stop()
+        await widget.update(full_text)
 
     # ========================================================================
     # 消息操作方法
@@ -515,8 +513,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 del self._message_containers[message_id]
             # 清理相关状态
             self._streaming_active.pop(message_id, None)
-            self._streaming_buffer.pop(message_id, None)
-            self._last_streaming_update.pop(message_id, None)
+            self._markdown_streams.pop(message_id, None)
             # ponytail: 标记 max_scroll_y 需要重新计算
             self._invalidate_max_scroll()
             self._post_message(MessageListUpdated(self, len(self._messages)))
@@ -527,9 +524,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._messages.clear()
         self._message_index.clear()
         self._streaming_active.clear()
-        self._last_streaming_update.clear()
-        self._streaming_buffer.clear()
-        self._streaming_timers.clear()
+        self._markdown_streams.clear()
         for widget in self._message_widgets.values():
             widget.remove()
         self._message_widgets.clear()
@@ -688,8 +683,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                     container.remove()
                     del self._message_containers[msg_id]
                 # 清理相关状态
-                self._streaming_buffer.pop(msg_id, None)
-                self._last_streaming_update.pop(msg_id, None)
+                self._markdown_streams.pop(msg_id, None)
 
     def _format_message_header(self, msg: MessageItem) -> str:
         # ponytail: header 对一条消息不变，缓存复用 — 流式每 150ms 一次浪费
@@ -734,7 +728,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             # ponytail: guard against duplicate mount
             if msg.id in self._message_widgets:
                 return
-            widget = Static(f"--- {msg.content} ---", classes=f"message-{msg.role.value}")
+            widget = Static(
+                f"--- {msg.content} ---", classes=f"message-{msg.role.value}"
+            )
             widget.id = f"msg-widget-{msg.id}"
             self._message_widgets[msg.id] = widget
 
@@ -767,7 +763,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             try:
                 self._render_message_with_thinking(msg, full_content)
             except Exception as e:
-                self._logger.warning(f"Failed to render message with thinking, falling back: {e}")
+                self._logger.warning(
+                    f"Failed to render message with thinking, falling back: {e}"
+                )
                 # 回退到普通渲染
                 self._render_message_plain(msg, full_content)
             return
@@ -776,14 +774,14 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._render_message_plain(msg, full_content)
 
     def _render_message_streaming(self, msg: MessageItem, full_content: str) -> None:
-        """渲染流式消息（直接用 Markdown widget,后续 append delta 不再升级）"""
+        """渲染流式消息（直接用 Markdown widget + MarkdownStream 增量更新）"""
         if msg.id in self._message_widgets:
             return
-        # ponytail: 流式就用 Markdown — 增量 append 比 Static.update 整段重画高效,
-        # 且避免流式完成后 Static→Markdown 升级造成的二次 layout
         widget = Markdown(full_content, classes=f"message-{msg.role.value}")
         widget.id = f"msg-widget-{msg.id}"
         self._message_widgets[msg.id] = widget
+        # ponytail: MarkdownStream 懒初始化 — get_stream 内部调用 asyncio.create_task,
+        # 需要 event loop；推迟到首次 append_streaming_text (必定在 event loop 上)
 
         def _do_mount():
             try:
@@ -820,7 +818,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
         self.call_later(_do_mount)
 
-    def _render_message_with_thinking(self, msg: MessageItem, full_content: str) -> None:
+    def _render_message_with_thinking(
+        self, msg: MessageItem, full_content: str
+    ) -> None:
         """渲染带思考内容的消息 — 用 sibling Markdown + Static(label) + Markdown(body) 代替嵌套 Collapsible
 
         widget 树:
@@ -853,7 +853,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
         self._message_thinking_bodies[msg.id] = thinking_body
 
         container = Vertical(
-            msg_widget, thinking_label, thinking_body,
+            msg_widget,
+            thinking_label,
+            thinking_body,
             classes=f"message-container message-{msg.role.value}",
         )
         container.id = f"msg-container-{msg.id}"
@@ -864,7 +866,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
                 self._message_containers[msg.id] = container
                 self._do_smart_scroll()
             except (MountError, DuplicateIds):
-                self._logger.debug(f"Mount error in thinking render, re-rendering: {msg.id}")
+                self._logger.debug(
+                    f"Mount error in thinking render, re-rendering: {msg.id}"
+                )
                 self._message_widgets.pop(msg.id, None)
                 self._render_message(msg)
             except Exception as e:
@@ -915,7 +919,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             return
 
         widget = self._message_widgets[msg.id]
-        
+
         if isinstance(widget, Markdown):
             return
 
@@ -956,7 +960,7 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
             self._render_message(msg)
 
     def _post_message(self, msg: Message) -> None:
-        if hasattr(self, 'post_message'):
+        if hasattr(self, "post_message"):
             self.post_message(msg)
 
     def on_mount(self) -> None:
@@ -967,7 +971,9 @@ class MessageList(VerticalScroll if TEXTUAL_AVAILABLE else object, can_focus=Fal
 
     def _ensure_scroll_timer(self) -> None:
         """确保滚动检查定时器运行；已运行则 noop。"""
-        if self._scroll_timer is None or not getattr(self._scroll_timer, "_active", True):
+        if self._scroll_timer is None or not getattr(
+            self._scroll_timer, "_active", True
+        ):
             self._scroll_timer = self.set_interval(0.2, self._scroll_check_timer)
 
     def _stop_scroll_timer(self) -> None:

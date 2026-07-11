@@ -137,9 +137,6 @@ class TestAppInitialization:
         assert app._is_loading is False
         assert app._is_streaming is False
         assert app._streaming_text == ""
-        assert app._tab_counter == 0
-        assert len(app._tab_states) == 0
-        assert app._active_tab_id is None
 
     def test_app_theme_attributes(self):
         """Test app theme-related attributes."""

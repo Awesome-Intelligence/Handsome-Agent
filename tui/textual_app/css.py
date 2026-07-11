@@ -319,6 +319,11 @@ Screen {
     border-left: solid #f0883e;
 }
 
+/* ponytail: 限制代码块高度，防止长代码撑爆布局 (oterm 做法) */
+MarkdownFence {
+    max-height: 50;
+}
+
 /* 滚动条样式 - 美化为细线 */
 
 /* ========== 焦点样式说明 ========== */
