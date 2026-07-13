@@ -113,32 +113,6 @@ Screen {
     background: $primary;
 }
 
-.header-content {
-    height: 100%;
-    layout: horizontal;
-    padding: 0 2;
-    align: left bottom;
-}
-
-.header-model {
-    color: $accent;
-    text-style: bold;
-}
-
-.header-context {
-    color: #8b949e;
-    margin-left: 4;
-}
-
-.header-cwd {
-    color: #6e7681;
-}
-
-.header-status {
-    color: $success;
-    margin-right: 1;
-}
-
 /* 流式输出指示器 - Textual CSS 不支持动画，使用静态样式 */
 .streaming-indicator {
     color: #8b949e;
@@ -151,6 +125,7 @@ Screen {
     background: $primary;
     padding: 0;
     margin: 0;
+    outline: thick solid $secondary;
 }
 
 #status-content {
@@ -246,6 +221,8 @@ Screen {
 
 .status-mode-toggle:hover {
     color: $accent;
+    background: $surface;
+    border: none;
 }
 
 #status-right {
@@ -254,84 +231,14 @@ Screen {
     align: right middle;
 }
 
-.status-mode-toggle:hover {
-    color: $accent;
-    background: $surface;
-    border: none;
-}
-
 .status-mode-toggle:focus {
     border: none;
-}
-
-/* 消息样式 - 用户消息 */
-#chat-area .message-user {
-    background: transparent;
-    color: $primary;
-    padding: 1 3;
-    margin: 1 0;
-    border-left: solid $primary;
-}
-
-/* 消息样式 - 助手消息 */
-#chat-area .message-assistant {
-    background: transparent;
-    color: #c9d1d9;
-    padding: 1 3;
-    margin: 1 0;
-    border-left: solid #ffffff;
-}
-
-/* 消息样式 - 系统消息 */
-#chat-area .message-system {
-    background: transparent;
-    color: #8b949e;
-    padding: 1 2;
-    margin: 2 0;
-    text-align: center;
-}
-
-/* 消息样式 - 工具消息 */
-#chat-area .message-tool {
-    background: rgba(163, 113, 247, 0.1);
-    color: #a371f7;
-    padding: 2 3;
-    margin: 2 0;
-    border-left: solid #a371f7;
-}
-
-/* 消息样式 - 错误消息 */
-#chat-area .message-error {
-    background: rgba(248, 81, 73, 0.1);
-    color: #f85149;
-    padding: 2 3;
-    margin: 2 0;
-    border-left: solid #f85149;
-}
-
-/* 消息样式 - 思考消息 */
-#chat-area .message-thinking {
-    background: rgba(240, 136, 62, 0.1);
-    color: #f0883e;
-    padding: 2 3;
-    margin: 2 0;
-    border-left: solid #f0883e;
 }
 
 /* ponytail: 限制代码块高度，防止长代码撑爆布局 (oterm 做法) */
 MarkdownFence {
     max-height: 50;
 }
-
-/* 滚动条样式 - 美化为细线 */
-
-/* ========== 焦点样式说明 ========== */
-/*
- * Frogmouth 风格焦点指示器设计：
- * - 默认状态：border: blank（无边框，保持简洁）
- * - 焦点状态：border: heavy $accent（粗边框强调色）
- * 这种设计让焦点状态更加清晰醒目
- */
 
 /* 输入区域样式 */
 #input-area {
@@ -358,46 +265,9 @@ MarkdownFence {
     margin-top: 0;
 }
 
-#status-bar {
-    margin: 0;
-    outline: thick solid $secondary;
-}
-
 #input-area Footer {
     dock: none;
     height: 1;
-}
-
-#input-field {
-    border: blank;
-    background: $background;
-    padding: 0;
-}
-
-#input-field:focus {
-    border: heavy $accent;
-}
-
-/* 发送按钮样式 */
-#send-button {
-    width: 5;
-    background: $success;
-    color: $background;
-    border: blank;
-}
-
-#send-button:hover {
-    background: $success;
-}
-
-#send-button:focus {
-    border: heavy $accent;
-}
-
-#input-row {
-    height: 100%;
-    width: 100%;
-    layout: horizontal;
 }
 
 .input-field {
@@ -413,17 +283,12 @@ MarkdownFence {
     border: heavy $accent;
 }
 
-/* TextArea (Composer) specific styles */
 #user-input {
     background: transparent;
     color: $foreground;
     margin: 0;
     height: 7;
     padding: 0;
-}
-
-/* 默认边框样式 */
-#user-input {
     border: blank;
 }
 
@@ -456,22 +321,6 @@ MarkdownFence {
     background: $primary 20%;
 }
 
-/* 按钮通用样式 */
-Button {
-    background: $surface;
-    color: $foreground;
-    border: blank;
-}
-
-Button:hover {
-    background: $surface;
-}
-
-Button:focus {
-    border: heavy $accent;
-    background: $surface;
-}
-
 /* === 侧边栏样式 === */
 #sidebar-container {
     width: 50;
@@ -480,40 +329,6 @@ Button:focus {
     border: blank;
     margin: 0;
     padding: 0;
-}
-
-
-
-#sidebar-container-inner {
-    width: 100%;
-    height: 100%;
-}
-
-#sidebar-tabs {
-    height: 3;
-    background: transparent;
-    border-bottom: solid $surface;
-    content-align: left bottom;
-}
-
-#sidebar-content-inner {
-    height: 1fr;
-    padding: 1;
-}
-
-.sidebar-panel {
-    height: 100%;
-    display: block;
-}
-
-.sidebar-panel.hidden {
-    display: none;
-}
-
-.panel-title {
-    color: $foreground;
-    text-style: bold;
-    margin-bottom: 1;
 }
 
 #log-output {
@@ -530,24 +345,10 @@ Button:focus {
     padding: 0;
 }
 
-#file-tree-title,
-#tasks-title,
-#agent-title,
-#context-title {
-    color: $foreground;
-    text-style: bold;
-    margin-bottom: 1;
-}
-
 /* ============================================================================
    半透明背景样式 (Frosted Glass Effect)
    支持 Ctrl+Shift+B 快捷键切换
    ============================================================================ */
-
-/* 透明度容器 - 基础样式 */
-.transparent-container {
-    /* 使用纯色背景作为降级方案 */
-}
 
 /* 半透明面板 - 毛玻璃效果 */
 .transparent-panel {
@@ -601,101 +402,6 @@ Button:focus {
 .transparency-indicator {
     color: $accent;
     text-style: bold;
-}
-
-/* ============================================================================
-   通知样式 (Notification Styles)
-   ============================================================================ */
-
-/* 通知样式 - 基础 */
-.notification-toast {
-    background: $surface;
-    border: solid $accent;
-    padding: 1 2;
-}
-
-/* 通知图标样式 */
-.notification-icon {
-    color: $accent;
-}
-
-.notification-icon.success {
-    color: $success;
-}
-
-.notification-icon.warning {
-    color: $warning;
-}
-
-.notification-icon.error {
-    color: $error;
-}
-
-.notification-icon.info {
-    color: $accent;
-}
-
-/* 进度条样式 */
-.progress-bar {
-    height: 1;
-    background: $surface;
-}
-
-.progress-bar-fill {
-    height: 100%;
-    background: $accent;
-}
-
-/* ============================================================================
-   打字机效果光标样式
-   ============================================================================ */
-
-/* 闪烁光标样式 - 用于流式输出 */
-.typewriter-cursor {
-    color: $accent;
-    text-style: bold;
-}
-
-/* 加载动画文字样式 */
-.loading-text {
-    color: #8b949e;
-}
-
-/* 打字机完成后的淡入效果 (使用纯色，不支持 @keyframes 动画) */
-.typewriter-complete {
-    color: $foreground;
-}
-
-/* 加载动画增强样式 */
-.loading-indicator {
-    color: $success;
-}
-
-/* 加载动画帧样式 */
-.loading-frame {
-    text-style: bold;
-}
-
-/* 打字机输出组件样式 */
-.typewriter-output {
-    width: 1fr;
-    height: auto;
-    max-width: 100%;
-    padding: 0 2;
-    background: $background;
-}
-
-/* 打字机速度控制 (通过 Python 代码控制，此处仅作标记) */
-.typewriter-fast {
-    color: $accent;
-}
-
-.typewriter-normal {
-    color: $accent;
-}
-
-.typewriter-slow {
-    color: $accent;
 }
 
 """

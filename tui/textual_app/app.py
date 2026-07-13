@@ -1802,7 +1802,7 @@ class HandsomeAgentApp(App):
 
         try:
             messages = self._session_store.get_messages(session_id, limit=100)
-            return [{"role": msg.role, "content": msg.content} for msg in messages]
+            return [{"role": msg.role, "content": msg.content, "thinking": msg.thinking_content} for msg in messages]
         except Exception as e:
             self._logger.error(f"Failed to restore session: {e}")
             return []
@@ -2280,6 +2280,10 @@ class HandsomeAgentApp(App):
 
         if chat_area and hasattr(chat_area, "append_streaming_thinking"):
             chat_area.append_streaming_thinking(text)
+            if hasattr(chat_area, "current_streaming_id"):
+                streaming_id = chat_area.current_streaming_id
+                if streaming_id and not getattr(self, "_current_streaming_id", None):
+                    self._current_streaming_id = streaming_id
 
     def _complete_agent_stream(self) -> None:
         """完成 Agent 流式输出"""
@@ -2287,12 +2291,11 @@ class HandsomeAgentApp(App):
         if chat_area is None:
             chat_area = self.query_one("#chat-area", ChatContainer)
 
-        if (
-            chat_area
-            and hasattr(chat_area, "complete_streaming")
-            and hasattr(self, "_current_streaming_id")
-        ):
-            chat_area.complete_streaming()
+        if chat_area and hasattr(chat_area, "complete_streaming"):
+            if hasattr(chat_area, "is_streaming") and chat_area.is_streaming():
+                chat_area.complete_streaming()
+            elif getattr(self, "_current_streaming_id", None):
+                chat_area.complete_streaming()
 
         self._current_streaming_id = None
 
@@ -2324,7 +2327,7 @@ class HandsomeAgentApp(App):
         chat_view.clear_messages()
         history = self._restore_session(event.session_id)
         for msg in history:
-            chat_view.append_message(msg["role"], msg["content"])
+            chat_view.append_message(msg["role"], msg["content"], thinking=msg.get("thinking"))
         if not history:
             chat_view.show_greeting()
 

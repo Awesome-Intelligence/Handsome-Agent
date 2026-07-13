@@ -94,6 +94,7 @@ class ChatContainer(Widget, can_focus=False):
         content: str,
         *,
         tool_name: str | None = None,
+        thinking: str | None = None,
     ) -> str:
         """添加一条已完成的非流式消息。
 
@@ -101,6 +102,7 @@ class ChatContainer(Widget, can_focus=False):
             role: 角色，取 ``Author`` 字面量之一。
             content: 文本内容。
             tool_name: 仅 role="tool" 时使用，渲染为头部标签。
+            thinking: 思考内容（仅 assistant 角色有效）。
 
         Returns:
             新建 ChatItem 的 id。
@@ -114,11 +116,13 @@ class ChatContainer(Widget, can_focus=False):
         item.text = content
         if tool_name:
             item.tool_name = tool_name
+        if thinking:
+            item.thinking = thinking
         # fire-and-forget mount；watcher 在 mount 之后异步触发首屏渲染。
         self._get_message_container().mount(item)
         self._items.append(item)
         self.messages = self.messages + [
-            {"role": role, "content": content, "tool_name": tool_name}
+            {"role": role, "content": content, "tool_name": tool_name, "thinking": thinking}
         ]
         self._schedule_follow_scroll()
         self._trim()
@@ -145,8 +149,9 @@ class ChatContainer(Widget, can_focus=False):
         content: str,
         *,
         tool_name: str | None = None,
+        thinking: str | None = None,
     ) -> str:
-        return self.add_message(role, content, tool_name=tool_name)
+        return self.add_message(role, content, tool_name=tool_name, thinking=thinking)
 
     def add_thinking_message(self, content: str) -> str:
         """追加一段独立的思考块（非流式）。
@@ -301,6 +306,10 @@ class ChatContainer(Widget, can_focus=False):
 
     def is_streaming(self) -> bool:
         return self._streaming_item is not None
+
+    @property
+    def current_streaming_id(self) -> str | None:
+        return self._streaming_item.id if self._streaming_item else None
 
     def scroll_to_bottom(self) -> None:
         self._schedule_follow_scroll()

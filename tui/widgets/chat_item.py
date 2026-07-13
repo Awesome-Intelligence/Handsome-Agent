@@ -58,7 +58,7 @@ class ChatItem(Widget):
 
     text: reactive[str] = reactive("")
     thinking: reactive[str] = reactive("")
-    thoughts_collapsed: reactive[bool] = reactive(False)
+    thoughts_collapsed: reactive[bool] = reactive(True)
     author: reactive[str] = reactive("")
     tool_name: reactive[str] = reactive("")
 
@@ -73,6 +73,15 @@ class ChatItem(Widget):
     ChatItem Horizontal {
         width: 100%;
         height: auto;
+        align: left middle;
+    }
+
+    ChatItem.user Horizontal {
+        width: auto;
+        max-width: 80%;
+        background: #3a3a3a;
+        padding: 0 1;
+        align: right middle;
     }
 
     ChatItem .prompt-marker {
@@ -105,12 +114,12 @@ class ChatItem(Widget):
         height: auto;
     }
 
-    ChatItem.tool ChatItem .tool-name {
+    ChatItem.tool .tool-name {
         color: $warning;
         text-style: bold;
     }
 
-    ChatItem.error ChatItem .prompt-marker {
+    ChatItem.error .prompt-marker {
         color: $error;
     }
     """
@@ -145,7 +154,6 @@ class ChatItem(Widget):
         author = self.author
         if author == "user":
             with Horizontal(classes="user chatItem"):
-                yield Static(_PROMPT_MARKER, classes="prompt-marker")
                 yield Static(self.text, markup=False, classes="text")
         elif author == "tool":
             with Horizontal(classes="tool chatItem"):
@@ -187,7 +195,6 @@ class ChatItem(Widget):
             except NoMatches:
                 return
             self._response_stream = Markdown.get_stream(response)
-        # set_reactive 同步状态但不触发 watch_text 的全文 Markdown.update。
         self.set_reactive(ChatItem.text, self.text + delta)
         if not self.thoughts_collapsed:
             self.set_reactive(ChatItem.thoughts_collapsed, True)
@@ -270,6 +277,9 @@ class ChatItem(Widget):
             frozen_body = Static(RichMarkdown(self.thinking), classes="thinking-body")
             # 保留当前显隐状态（折叠时 display=False）。
             frozen_body.display = body.display
+            # 如果有正文且思考已折叠，确保 frozen_body 也是隐藏的。
+            if self.text and self.thoughts_collapsed:
+                frozen_body.display = False
 
         # batch 内 4 个操作合并为 1 次 layout pass。
         with self.app.batch_update():
@@ -347,10 +357,7 @@ class ChatItem(Widget):
         if not has_thinking:
             body.display = False
             return
-        if not self.text:
-            label.update("thinking…")
-            body.display = True
-        elif self.thoughts_collapsed:
+        if self.thoughts_collapsed:
             label.update("▸ thoughts")
             body.display = False
         else:
