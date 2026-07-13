@@ -94,6 +94,18 @@ class SidebarPane(TabPane):
             self.parent.parent.active = self.id
         return self
 
+    def on_mount(self) -> None:
+        """挂载时调度懒加载.
+
+        鼠标点击 Tab 不会调用 ``set_focus_within``,因此必须在
+        ``on_mount`` 中通过 ``call_after_refresh`` 触发 ``_on_activated``,
+        保证占位符一定被替换为真实组件。
+        """
+        on_activated = getattr(self, "_on_activated", None)
+        if on_activated is None:
+            return
+        self.call_after_refresh(on_activated)
+
 
 # ============================================================================
 # 目标面板配置常量
@@ -796,8 +808,11 @@ class FileTreePane(SidebarPane):
         if not self._loaded:
             self._loaded = True
             # 移除占位符
-            placeholder = self.query_one("#file-tree-placeholder", Static, default=None)
-            if placeholder:
+            try:
+                placeholder = self.query_one("#file-tree-placeholder", Static)
+            except Exception:
+                placeholder = None
+            if placeholder is not None:
                 placeholder.remove()
             # 创建并挂载 DirectoryTree
             self._directory_tree = FilteredDirectoryTree(
