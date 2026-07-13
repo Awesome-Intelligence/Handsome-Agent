@@ -179,17 +179,20 @@ async def test_clear_messages_batches_removes():
     from tui.widgets.chat_item import ChatItem
 
     app = _Harness()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         container = ChatContainer()
         await app.mount(container)
+        await pilot.pause()
 
-        # 挂 5 条消息
+        # 挂 5 条消息到内部的 messageContainer
+        message_container = container._get_message_container()
         for i in range(5):
             item = ChatItem()
             item.author = "user"
             item.text = f"msg-{i}"
-            await container.mount(item)
+            await message_container.mount(item)
             container._items.append(item)
+        await pilot.pause()
 
         # 记录 _batch_count 在 clear_messages 期间的值
         observed: list[int] = []
@@ -210,11 +213,12 @@ async def test_clear_messages_batches_removes():
 
         try:
             container.clear_messages()
+            await pilot.pause()
         finally:
             app._begin_batch = original_begin  # type: ignore[method-assign]
             app._end_batch = original_end  # type: ignore[method-assign]
 
-        assert len(container.children) == 0
+        assert len(message_container.children) == 0
         assert container._items == []
         # 应当开过 1 个 batch_update 窗口（begin 把 count 推到 1，end 拉回 0）。
         assert 1 in observed, (

@@ -755,18 +755,27 @@ class FileTreePane(SidebarPane):
     FileTreePane DirectoryTree .tree--node-toggle {
         color: $accent;
     }
+
+    FileTreePane #file-tree-placeholder {
+        width: 100%;
+        height: 100%;
+        padding: 1;
+        color: $text-muted;
+    }
     """
 
     def __init__(self, cwd: str = None) -> None:
         self._cwd = Path(cwd) if cwd else Path.cwd()
+        # 懒加载标志
+        self._loaded = False
+        # DOM 缓存
+        self._directory_tree = None
         super().__init__(id="file_tree", title="文件")
 
     def compose(self) -> ComposeResult:
         """组合子组件."""
-        yield FilteredDirectoryTree(
-            self._cwd,
-            id="file-tree-widget",
-        )
+        # 懒加载：先显示占位符，首次激活时替换为 DirectoryTree
+        yield Static("[dim]加载中...[/dim]", id="file-tree-placeholder")
 
     @on(DirectoryTree.FileSelected)
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
@@ -782,8 +791,26 @@ class FileTreePane(SidebarPane):
         if FilePreviewScreen:
             self.app.push_screen(FilePreviewScreen(file_path))
 
+    def _on_activated(self) -> None:
+        """面板激活时触发（Tab 切换到该面板）"""
+        if not self._loaded:
+            self._loaded = True
+            # 移除占位符
+            placeholder = self.query_one("#file-tree-placeholder", Static, default=None)
+            if placeholder:
+                placeholder.remove()
+            # 创建并挂载 DirectoryTree
+            self._directory_tree = FilteredDirectoryTree(
+                self._cwd,
+                id="file-tree-widget",
+            )
+            self.mount(self._directory_tree)
+            self._directory_tree.focus(scroll_visible=False)
+
     def set_focus_within(self) -> None:
         """设置面板内部焦点."""
+        # 触发懒加载
+        self._on_activated()
         tree = self.query_one(DirectoryTree, None)
         if tree:
             tree.focus(scroll_visible=False)
@@ -861,6 +888,8 @@ class SkillsPane(SidebarPane):
         # 展开状态保存
         self._skills_expanded = True
         self._bundle_expanded = True
+        # 懒加载标志
+        self._loaded = False
         super().__init__(id="skills", title="技能")
 
     def compose(self) -> ComposeResult:
@@ -888,14 +917,9 @@ class SkillsPane(SidebarPane):
         self._tree.show_collapse = False
         self._tree.enable_expand = True
 
-        # 加载数据并构建树
-        self._load_skills()
-        self._load_bundles()
-        self._build_tree()
-
-        # ponytail: 停掉 5s 定时刷新 — _build_tree 无 hash gating，每 5s 无条件
-        # tree.clear() + 全量 add 节点，在用户切回聊天面板时仍会触发 layout/render，
-        # 是掉帧来源之一。需要手动重启 TUI 才能看到新装的 skill/bundle。
+        # 显示加载提示（懒加载前）
+        self._tree.clear()
+        self._tree.root.add("[dim]加载中...[/dim]")
 
     @on(Input.Changed, "#skills-search")
     def _on_search_changed(self, event: Input.Changed) -> None:
@@ -1111,8 +1135,21 @@ class SkillsPane(SidebarPane):
         from tui.views.skill_detail import SkillDetailScreen
         self.app.push_screen(SkillDetailScreen(item_data))
 
+    def _on_activated(self) -> None:
+        """面板激活时触发（Tab 切换到该面板）"""
+        if not self._loaded:
+            self._loaded = True
+            if self._logger:
+                self._logger.info("SkillsPane activated, loading skills and bundles...")
+            # 首次激活时加载数据
+            self._load_skills()
+            self._load_bundles()
+            self._build_tree()
+
     def set_focus_within(self) -> None:
         """设置面板内部焦点"""
+        # 触发懒加载
+        self._on_activated()
         if self._search_input:
             self._search_input.focus()
 

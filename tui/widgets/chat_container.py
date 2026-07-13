@@ -32,6 +32,7 @@ from typing import Any
 
 from textual.containers import VerticalScroll
 from textual.css.query import NoMatches
+from textual.widget import Widget
 from textual.widgets import Markdown
 
 from common.logging_manager import get_access_logger
@@ -48,7 +49,7 @@ def _near_bottom(container: VerticalScroll) -> bool:
     return container.max_scroll_y - container.scroll_y <= _SCROLL_FOLLOW_THRESHOLD
 
 
-class ChatContainer(VerticalScroll, can_focus=False):
+class ChatContainer(Widget, can_focus=False):
     """聊天消息列表容器。"""
 
     # ponytail: 原先是 reactive[list]，但全文无 watch_messages 订阅，每轮
@@ -61,6 +62,11 @@ class ChatContainer(VerticalScroll, can_focus=False):
         height: 1fr;
         background: transparent;
         padding: 1 2;
+    }
+
+    #messageContainer {
+        width: 100%;
+        height: 100%;
         scrollbar-gutter: stable;
     }
     """
@@ -71,6 +77,12 @@ class ChatContainer(VerticalScroll, can_focus=False):
         self._streaming_item: ChatItem | None = None
         self._items: list[ChatItem] = []
         self.messages = []
+
+    def compose(self) -> Iterable[Widget]:
+        yield VerticalScroll(id="messageContainer")
+
+    def _get_message_container(self) -> VerticalScroll:
+        return self.query_one("#messageContainer", VerticalScroll)
 
     # ------------------------------------------------------------------
     # 消息管理（同步入口；mount 是 fire-and-forget）
@@ -103,7 +115,7 @@ class ChatContainer(VerticalScroll, can_focus=False):
         if tool_name:
             item.tool_name = tool_name
         # fire-and-forget mount；watcher 在 mount 之后异步触发首屏渲染。
-        self.mount(item)
+        self._get_message_container().mount(item)
         self._items.append(item)
         self.messages = self.messages + [
             {"role": role, "content": content, "tool_name": tool_name}
@@ -127,6 +139,15 @@ class ChatContainer(VerticalScroll, can_focus=False):
     def add_error_message(self, content: str) -> str:
         return self.add_message("error", content)
 
+    def append_message(
+        self,
+        role: str,
+        content: str,
+        *,
+        tool_name: str | None = None,
+    ) -> str:
+        return self.add_message(role, content, tool_name=tool_name)
+
     def add_thinking_message(self, content: str) -> str:
         """追加一段独立的思考块（非流式）。
 
@@ -136,7 +157,7 @@ class ChatContainer(VerticalScroll, can_focus=False):
         item = ChatItem()
         item.author = "assistant"
         item.thinking = content
-        self.mount(item)
+        self._get_message_container().mount(item)
         self._items.append(item)
         self._schedule_follow_scroll()
         self._trim()
@@ -147,8 +168,10 @@ class ChatContainer(VerticalScroll, can_focus=False):
         self._cancel_current_stream()
         # ponytail: batch_update 把 N 次独立 remove 合并为 1 次 layout pass，
         # 不然会话切换时 200 个 child 各自触发 PostMessage + ancestor 失效。
-        with self.app.batch_update():
-            for child in list(self.children):
+        container = self._get_message_container()
+        app = self.app or container.app
+        with app.batch_update():
+            for child in list(container.children):
                 child.remove()
         self._items.clear()
         self.messages = []
@@ -172,7 +195,7 @@ class ChatContainer(VerticalScroll, can_focus=False):
             if role in ("user", "assistant", "system", "tool", "error")
             else "assistant"
         )
-        self.mount(item)
+        self._get_message_container().mount(item)
         self._items.append(item)
         self._streaming_item = item
         self._trim()
@@ -186,7 +209,7 @@ class ChatContainer(VerticalScroll, can_focus=False):
         """
         if not self._streaming_item or not text:
             return
-        follow = _near_bottom(self)
+        follow = _near_bottom(self._get_message_container())
         asyncio.create_task(self._do_append_text(self._streaming_item, text))
         if follow:
             self._schedule_follow_scroll()
@@ -283,7 +306,9 @@ class ChatContainer(VerticalScroll, can_focus=False):
         self._schedule_follow_scroll()
 
     def _schedule_follow_scroll(self) -> None:
-        self.call_after_refresh(self.scroll_end)
+        self._get_message_container().call_after_refresh(
+            lambda: self._get_message_container().scroll_end()
+        )
 
     # ------------------------------------------------------------------
     # 内部
