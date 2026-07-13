@@ -675,25 +675,13 @@ class AgentState:
                 message="继续执行: todo 列表还有待完成任务",
             )
 
-        # 5. 非幂等工具成功 → 退出（参考 Hermes: 成功即完成）
-        # 只有在无 todo 或 todo 全部完成时才退出；有 pending todo 时继续让 LLM 消耗
-        from agent.rails.tool_loop import IDEMPOTENT_TOOL_NAMES
-
-        if not is_error and tool_name not in IDEMPOTENT_TOOL_NAMES:
-            has_pending_todos = (
-                self._todo_store
-                and self._todo_store.has_items()
-                and any(t.get("status") in ("pending", "in_progress") for t in self._todo_store.read())
-            )
-            if not has_pending_todos:
-                return ExitDecision(
-                    should_exit=True,
-                    reason=ExitReason.DIRECT_RESPONSE,
-                    message="工具执行成功，任务完成",
-                    metadata={"action": "use_tool", "tool_name": tool_name},
-                )
-
-        # 6. 检查工具调用总数上限（放宽到 20）
+        # 5. 检查工具调用总数上限（放宽到 20）
+        # 注意：移除了"非幂等工具成功即退出"的硬编码规则（参考 Hermes 设计）
+        # 现在由 LLM 自主决定何时完成任务，而不是代码强制退出
+        # 循环退出由以下因素决定：
+        # - Tool Loop Controller 检测到重复失败
+        # - 迭代预算耗尽
+        # - LLM 返回 direct_response（表示任务完成）
         if not hasattr(self, "_tool_call_history"):
             self._tool_call_history = []
         self._tool_call_history.append(tool_name)

@@ -71,22 +71,38 @@ class TestAgentLoopSingleLoop:
 
     @pytest.mark.asyncio
     async def test_agent_loop_run_single_success(self):
-        """Test AgentLoop.run() exits after successful non-idempotent tool call."""
+        """Test AgentLoop.run() continues until LLM returns direct_response (no hardcoded exit).
+        
+        关键变化：移除了"非幂等工具成功即退出"的硬编码规则。
+        现在由 LLM 自主决定何时完成任务。
+        如果 LLM 持续调用工具，循环会继续直到：
+        1. 预算耗尽
+        2. LLM 返回 direct_response
+        3. Tool Loop 检测到重复失败
+        """
         from agent.execution.loop import AgentLoop, LoopState
         from agent.state import AgentState
 
-        # Mock LLM provider that keeps calling tools
+        # Mock LLM provider that returns direct_response after one tool call
         mock_llm = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = ""
-        mock_response.function_call = {
+        
+        # First call: tool call
+        mock_response1 = MagicMock()
+        mock_response1.content = ""
+        mock_response1.function_call = {
             "name": "test_tool",
             "arguments": "{}"
         }
-        mock_llm.generate = AsyncMock(return_value=mock_response)
+        
+        # Second call: direct response (task complete)
+        mock_response2 = MagicMock()
+        mock_response2.content = "任务已完成"
+        mock_response2.function_call = None
+        
+        mock_llm.generate = AsyncMock(side_effect=[mock_response1, mock_response2])
 
-        # Create loop with small budget
-        agent_state = AgentState(max_iterations=2)
+        # Create loop with sufficient budget
+        agent_state = AgentState(max_iterations=5)
 
         loop = AgentLoop(
             llm_provider=mock_llm,
@@ -124,9 +140,11 @@ class TestAgentLoopSingleLoop:
         # Run loop
         result = await loop.run(mock_context)
 
-        # Should exit after 1 iteration (successful non-idempotent tool → task complete)
-        assert result["iterations"] == 1
-        # State should be COMPLETED (clean exit on task success)
+        # Should exit after 2 iterations:
+        # - Iteration 1: tool call (LLM decides to continue)
+        # - Iteration 2: direct_response (LLM decides task is complete)
+        assert result["iterations"] == 2
+        # State should be COMPLETED (clean exit on LLM decision)
         assert result["state"] == LoopState.COMPLETED.value
 
     @pytest.mark.asyncio
