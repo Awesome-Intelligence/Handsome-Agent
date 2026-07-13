@@ -96,7 +96,7 @@ class SlashCompletionList(ListView):
         Returns:
             选中的命令名，或 None
         """
-        if self.index < 0 or self.index >= len(self._commands):
+        if self.index is None or self.index < 0 or self.index >= len(self._commands):
             return None
         cmd, _ = self._commands[self.index]
         if callable(self.on_complete):

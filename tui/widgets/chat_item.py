@@ -62,26 +62,34 @@ class ChatItem(Widget):
     author: reactive[str] = reactive("")
     tool_name: reactive[str] = reactive("")
 
-    # 默认 CSS —— 简短几条规则，避免每个实例重新计算布局。
     DEFAULT_CSS = """
     ChatItem {
         width: 100%;
         height: auto;
         margin: 0 0 1 0;
+        layout: horizontal;
+        content-align: left middle;
     }
 
-    ChatItem Horizontal {
-        width: 100%;
-        height: auto;
-        align: left middle;
+    ChatItem.user {
+        content-align: right middle;
     }
 
-    ChatItem.user Horizontal {
+    ChatItem.user .text-wrapper {
         width: auto;
         max-width: 80%;
         background: #3a3a3a;
         padding: 0 1;
-        align: right middle;
+    }
+
+    ChatItem .text-wrapper {
+        width: 100%;
+        height: auto;
+    }
+
+    ChatItem .text {
+        width: 1fr;
+        height: auto;
     }
 
     ChatItem .prompt-marker {
@@ -136,9 +144,19 @@ class ChatItem(Widget):
         self._response_stream: MarkdownStream | None = None
         self._thinking_stream: MarkdownStream | None = None
         self._tool_calls: dict[str, "ToolCallItem"] = {}
-        # 冻结后 .response/.thinking-body 由 Markdown 变为 Static，
-        # 文本已定稿，watcher 不应再去 update Markdown（否则 WrongType）。
         self._frozen: bool = False
+
+    def watch_author(self, author: str) -> None:
+        """当 author 改变时，更新 ChatItem 上的 CSS 类。"""
+        for role in ("user", "assistant", "system", "tool", "error"):
+            self.remove_class(role)
+        if author:
+            self.add_class(author)
+
+    def on_mount(self) -> None:
+        """mount 后确保 author 类被正确添加。"""
+        if self.author:
+            self.add_class(self.author)
 
     # ------------------------------------------------------------------
     # 渲染结构
@@ -153,29 +171,25 @@ class ChatItem(Widget):
         """
         author = self.author
         if author == "user":
-            with Horizontal(classes="user chatItem"):
+            with Horizontal(classes="text-wrapper"):
                 yield Static(self.text, markup=False, classes="text")
         elif author == "tool":
-            with Horizontal(classes="tool chatItem"):
-                yield Static(_PROMPT_MARKER, classes="prompt-marker")
-                with Vertical(classes="response-column"):
-                    yield Static(f"🔧 {self.tool_name or 'tool'}", classes="tool-name")
-                    yield Static(self.text, markup=False, classes="text")
+            yield Static(_PROMPT_MARKER, classes="prompt-marker")
+            with Vertical(classes="response-column"):
+                yield Static(f"🔧 {self.tool_name or 'tool'}", classes="tool-name")
+                yield Static(self.text, markup=False, classes="text")
         elif author == "error":
-            with Horizontal(classes="error chatItem"):
-                yield Static(_PROMPT_MARKER, classes="prompt-marker")
-                yield Static(self.text, markup=False, classes="text")
+            yield Static(_PROMPT_MARKER, classes="prompt-marker")
+            yield Static(self.text, markup=False, classes="text")
         elif author == "system":
-            with Horizontal(classes="system chatItem"):
-                yield Static(_PROMPT_MARKER, classes="prompt-marker")
-                yield Static(self.text, markup=False, classes="text")
+            yield Static(_PROMPT_MARKER, classes="prompt-marker")
+            yield Static(self.text, markup=False, classes="text")
         else:  # assistant
-            with Horizontal(classes="assistant chatItem"):
-                yield Static(_PROMPT_MARKER, classes="prompt-marker")
-                with Vertical(classes="response-column"):
-                    yield Static("", classes="thinking-label")
-                    yield Markdown(classes="thinking-body")
-                    yield Markdown(classes="response")
+            yield Static(_PROMPT_MARKER, classes="prompt-marker")
+            with Vertical(classes="response-column"):
+                yield Static("", classes="thinking-label")
+                yield Markdown(classes="thinking-body")
+                yield Markdown(classes="response")
 
     # ------------------------------------------------------------------
     # 流式入口（agent 调用）
@@ -357,12 +371,8 @@ class ChatItem(Widget):
         if not has_thinking:
             body.display = False
             return
-        if self.thoughts_collapsed:
-            label.update("▸ thoughts")
-            body.display = False
-        else:
-            label.update("▾ thoughts")
-            body.display = True
+        label.update("thought")
+        body.display = not self.thoughts_collapsed
 
     # ------------------------------------------------------------------
     # 工具调用（折叠式）
