@@ -96,13 +96,10 @@ SettingsScreen {
 }
 
 #settings-header {
+    width: 100%;
     height: 3;
-    background: $primary;
+    background: $accent;
     content-align: center middle;
-    border-bottom: solid $border;
-}
-
-#settings-header Static {
     color: $text;
     text-style: bold;
 }
@@ -325,9 +322,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     def compose(self) -> ComposeResult:
         """组合组件"""
         with Container(id="settings-container"):
-            # 头部
-            with Container(id="settings-header"):
-                yield Static("⚙ 设置", id="settings-title")
+            yield Static("⚙ 设置  (Esc/F2 关闭)", id="settings-header")
 
             # 主体：左侧分类按钮列表 + 右侧内容
             with Horizontal(id="settings-body"):

@@ -26,15 +26,17 @@ try:
     from textual.app import ComposeResult
     from textual.screen import ModalScreen
     from textual.widgets import Static
-    from textual.containers import Container, ScrollableContainer
+    from textual.containers import Container, VerticalScroll
     from textual.message import Message
+    from textual.binding import Binding
 except ImportError:
     TEXTUAL_AVAILABLE = False
     ModalScreen = object  # type: ignore
     Static = object  # type: ignore
-    ScrollableContainer = object  # type: ignore
+    VerticalScroll = object  # type: ignore
     Container = object  # type: ignore
     Message = object  # type: ignore
+    Binding = lambda *a, **k: None  # type: ignore
 
 # i18n 支持
 try:
@@ -58,98 +60,48 @@ except ImportError:
 
 
 # ============================================================================
-# 主题颜色常量（高雅紫）
-# ============================================================================
-
-AVOCADO_PRIMARY = "#B180D7"       # rgb(177,128,215) - 主色
-AVOCADO_BRIGHT = "#C9A0E0"        # rgb(201,160,224) - 亮色
-AVOCADO_DIM = "#8B5CAC"           # rgb(139,92,172) - 暗色
-AVOCADO_DARK = "#6B4EA8"          # rgb(107,78,168) - 深色
-WHITE = "white"
-GRAY_DIM = "#888888"
-GOLD = "#FFD700"
-
-
-# ============================================================================
-# HelpView CSS
+# HelpView CSS - 参考 SettingsScreen 风格
 # ============================================================================
 
 HELP_VIEW_CSS = """
 HelpScreen {
-    background: """ + AVOCADO_DARK + """;
+    align: center middle;
+    background: $boost 40%;
 }
 
 #help-container {
-    width: 70;
-    height: auto;
-    max-height: 80%;
-    margin: 2 4;
+    width: 70%;
+    height: 70%;
+    border: solid $accent;
     background: $surface;
-    border: solid """ + AVOCADO_PRIMARY + """;
-    border-title-style: bold;
-    padding: 1 2;
 }
 
-#help-title {
+#help-header {
     width: 100%;
-    height: auto;
-    padding: 1 0;
+    height: 3;
+    background: $accent;
+    content-align: center middle;
+    color: $text;
     text-style: bold;
-    color: """ + AVOCADO_BRIGHT + """;
+}
+
+#help-body {
+    height: 1fr;
 }
 
 #help-content {
-    width: 100%;
-    height: auto;
-    max-height: 70;
-}
-
-.help-category {
-    width: 100%;
-    height: auto;
-    padding: 1 0;
-}
-
-.category-title {
-    text-style: bold;
-    color: """ + AVOCADO_PRIMARY + """;
-    text-style: bold;
-}
-
-.kbinding-item {
-    width: 100%;
-    height: auto;
-    padding: 0 2;
-}
-
-.kbinding-key {
-    color: """ + GOLD + """;
-    text-style: bold;
-}
-
-.kbinding-desc {
-    color: """ + WHITE + """;
+    padding: 1 2;
+    height: 100%;
 }
 
 #help-footer {
     width: 100%;
-    height: auto;
-    padding: 1 0;
-    color: """ + GRAY_DIM + """;
+    height: 2;
+    background: $accent 20%;
+    content-align: center middle;
+    color: $text-muted;
 }
 """
-
-
-# ============================================================================
-# 快捷键类别名称映射
-# ============================================================================
-
-CATEGORY_NAMES = {
-    "navigation": "导航",
-    "command": "命令",
-    "help": "帮助",
-    "session": "会话",
-}
 
 
 # ============================================================================
@@ -166,6 +118,11 @@ class HelpScreen(ModalScreen):
     """
     
     CSS = HELP_VIEW_CSS
+    
+    BINDINGS = [
+        Binding("escape", "close", "关闭", show=False),
+        Binding("q", "close", "关闭", show=False),
+    ]
     
     # 面板关闭消息
     class HelpClosed(Message):
@@ -195,23 +152,13 @@ class HelpScreen(ModalScreen):
         """
         i18n = get_i18n()
         
-        # 标题
-        title = i18n.t("tui.help.title")
-        yield Static(
-            f"[bold {AVOCADO_BRIGHT}]⌨ {title}[/]",
-            id="help-title"
-        )
-        
-        # 帮助内容
-        with ScrollableContainer(id="help-content"):
-            yield Static(self._build_help_content(), id="help-body")
-        
-        # 底部提示
-        hint = i18n.t("tui.help.hint")
-        yield Static(
-            f"[{GRAY_DIM}]{hint}[/]",
-            id="help-footer"
-        )
+        with Container(id="help-container"):
+            yield Static("⌨ 快捷键帮助  (Esc/Q 关闭)", id="help-header")
+            
+            with VerticalScroll(id="help-body"):
+                yield Static(self._build_help_content(), id="help-content")
+            
+            yield Static("↑↓ 滚动  |  Esc/Q 关闭", id="help-footer")
     
     def _build_help_content(self) -> str:
         """构建帮助内容
@@ -222,48 +169,33 @@ class HelpScreen(ModalScreen):
         if self._custom_content:
             return self._custom_content
         
-        # 使用默认快捷键内容
         i18n = get_i18n()
         content_lines = []
         
-        # 分类显示快捷键
-        categories = [
-            ("navigation", i18n.t("tui.help.category.navigation")),
-            ("command", i18n.t("tui.help.category.command")),
-            ("help", i18n.t("tui.help.category.help")),
-            ("session", i18n.t("tui.help.category.session")),
-        ]
-        
         bindings = self._get_bindings()
 
-        for category_key, category_name in categories:
-            category_bindings = [
-                b for b in bindings
-                if getattr(b, "category", None) == category_key
-            ]
+        if not bindings:
+            content_lines.append("[dim]暂无快捷键绑定[/dim]")
+            return "\n".join(content_lines)
 
-            if not category_bindings:
+        content_lines.append("[bold]快捷键[/]")
+
+        for binding in bindings:
+            if getattr(binding, "show", True) is False:
                 continue
 
-            content_lines.append(f"[bold {AVOCADO_PRIMARY}]{category_name}[/]")
-
-            for binding in category_bindings:
-                key_display = self._format_key(binding.key)
-                desc = getattr(binding, "description", "") or ""
-                if desc:
-                    desc = i18n.t(f"tui.keybinding.{binding.key}", default=desc)
-                else:
-                    desc = getattr(binding, "action", "") or ""
-                content_lines.append(
-                    f"  [{GOLD}]{key_display:<15}[/{GOLD}]  {desc}"
-                )
-
-            content_lines.append("")
+            key_display = self._format_key(binding.key)
+            desc = getattr(binding, "description", "") or getattr(binding, "action", "") or ""
+            content_lines.append(
+                f"  [bold]{key_display:<15}[/]  {desc}"
+            )
 
         return "\n".join(content_lines)
     
     def _get_bindings(self) -> list:
         """获取应用的实际快捷键绑定"""
+        if hasattr(self.app, "bindings") and hasattr(self.app.bindings, "keys"):
+            return list(self.app.bindings.keys.values())
         return getattr(self.app, "BINDINGS", [])
     
     def _format_key(self, key: str) -> str:
@@ -307,20 +239,11 @@ class HelpScreen(ModalScreen):
         """组件挂载时初始化"""
         self._logger.debug("Help screen mounted")
     
-    def on_key(self, event: "Input.Key") -> None:
-        """处理键盘事件"""
-        key = event.key
-        
-        # Esc 或 q 关闭
-        if key in ("escape", "q"):
-            self._close()
-            event.prevent_default()
-    
-    def _close(self) -> None:
+    def action_close(self) -> None:
         """关闭帮助面板"""
         self._logger.debug("Closing help screen")
         self.post_message(self.HelpClosed())
-        self.app.pop_screen()
+        self.dismiss()
 
 
 # ============================================================================
