@@ -584,6 +584,51 @@ onboarding:
     configure_more: "⚙ 进一步配置"
 
 # =============================================================================
+# 定时任务子系统 (handsome cron ...)
+# =============================================================================
+
+cron:
+  parser_description: "管理定时任务（cron）。"
+  list_header: "⏰ 定时任务列表"
+  empty: "暂无定时任务"
+  empty_hint: "使用 'handsome cron create' 添加"
+  total: "共计 {n} 个任务；启用 {a} 个，暂停 {p} 个"
+  not_found: "找不到定时任务：{id}"
+  show_header: "⏰ 任务 {id}"
+  created: "✓ 已创建定时任务 {id} ({name})"
+  next_run: "下次运行：{when}"
+  create_invalid: "无效的定时任务：{err}"
+  no_agent_needs_script: "--no-agent 需要配合 --script <path>"
+  prompt_required: "必须提供 --prompt 或 --script（配合 --no-agent）"
+  removed: "✓ 已删除任务 {id}"
+  remove_failed: "删除任务 {id} 失败"
+  remove_confirm_unknown: "未找到任务 '{id}' — 仍要删除吗？"
+  paused: "⏸ 已暂停任务 {id}"
+  resumed: "▶ 已恢复任务 {id}（下次运行：{when}）"
+  triggered: "🚀 已将任务 {id} 加入下一次 tick"
+  run_header: "▶ 同步运行 {id}"
+  run_done: "任务 {id} 已完成（status={ok}）"
+  tick_done: "本轮 tick 已处理 {n} 个任务"
+  status_header: "📊 定时任务状态"
+  no_heartbeat: "尚未检测到 ticker 心跳。请运行 'handsome cron tick' 或启动 gateway 守护进程。"
+  invalid_duration: "无效的时长 '{s}'。请使用 '30m'、'2h' 或 '1d' 格式"
+  croniter_missing: "cron 表达式依赖 'croniter' 包，请先 pip install croniter"
+  invalid_schedule: "无效的 schedule，请使用时长 / 'every Xm' / '0 9 * * *' / ISO 时间戳"
+  help:
+    list: "列出已注册的任务"
+    list_all: "包含已暂停/已禁用的任务"
+    show: "查看单个任务"
+    create: "新建定时任务"
+    remove: "删除任务"
+    pause: "暂停任务"
+    resume: "恢复任务"
+    trigger: "在下一 tick 立即触发"
+    run: "立即同步运行任务"
+    tick: "执行一次调度 tick"
+    status: "服务状态 / 心跳"
+    json: "以 JSON 格式输出"
+
+# =============================================================================
 # Message Role Labels (TUI)
 # =============================================================================
 
@@ -622,6 +667,36 @@ tui:
   queue:
     message_queued: "消息已加入队列 (排队中: {n}条)"
     placeholder: "⏳ (队列中) 第1条: {msg}"
+  cron:
+    summary: "⏰  {total} 个任务 · 启用 {active} · 暂停 {paused}"
+    empty: "暂无定时任务。按 [a] 新建一个。"
+    help_hint: "[r]刷新  [a]新建  [↵]详情  [p]暂停  [u]恢复  [t]触发  [d]删除"
+    heartbeat_idle: "⚪ ticker 未启动 (运行 'handsome cron tick' 或启动 gateway)"
+    heartbeat_stale: "⚠ ticker 存活 {hb}s 但最近成功 {ok}s 前"
+    heartbeat_healthy: "🟢 ticker 健康 · 上次成功 {ok}s 前"
+    created_notify: "✓ 已创建定时任务 {id}"
+    paused: "⏸ 已暂停 {id}"
+    resumed: "▶ 已恢复 {id}"
+    triggered: "🚀 已触发 {id}"
+    removed: "🗑 已删除 {id}"
+    error_no_selection: "✗ 没有选中的任务"
+    error_cron_unavailable: "✗ cron 子系统不可用: {err}"
+    error_op_failed: "✗ 操作失败: {err}"
+    error_modal_unavailable: "✗ Create modal unavailable"
+    create_title: "⏰ 新建定时任务"
+    detail_title: "⏰ 任务详情"
+    close: "关闭"
+    submit: "创建"
+    cancel: "取消"
+    field_name: "名称"
+    field_schedule: "定时规则"
+    field_schedule_hint: "时长 (30m)、间隔 (every 5m)、cron 表达式 (0 9 * * *),或 @alias (@daily, @every 5m)"
+    field_prompt: "Prompt"
+    error_name_required: "✗ 名称必填"
+    error_schedule_required: "✗ 定时规则必填"
+    error_prompt_required: "✗ Prompt 必填"
+    error_create_failed: "✗ 创建失败: {err}"
+    no_output: "(暂无输出)"
 
 # =============================================================================
 # Message Role Labels (TUI)

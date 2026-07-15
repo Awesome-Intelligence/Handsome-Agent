@@ -25,7 +25,12 @@ from .gateway import (
     check_gateway_status,
     restart_gateway,
 )
-from .cron import list_cron_jobs, check_cron_status
+from .cron import (
+    build_parser as cron_build_parser,
+    list_cron_jobs,
+    check_cron_status,
+    main as cron_main,
+)
 from .acp import (
     start_acp_server,
     stop_acp_server,
@@ -53,6 +58,8 @@ __all__ = [
     "check_gateway_status",
     "restart_gateway",
     # cron
+    "cron_build_parser",
+    "cron_main",
     "list_cron_jobs",
     "check_cron_status",
     # acp

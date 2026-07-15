@@ -507,22 +507,26 @@ def build_top_level_parser():
     # =========================================================================
     # cron command
     # =========================================================================
+    # Cron sub-commands are owned by ``cli.cli_commands.cron``. We register
+    # the ``cron`` parser at the top level but defer sub-command wiring to
+    # the dispatcher (``cmd_cron`` in ``cli/main.py``), which calls into
+    # ``cron.cli_commands.cron.main()``. This keeps a single source of truth
+    # for the sub-command tree while letting ``handsome cron <sub> ...``
+    # work uniformly.
     cron_parser = subparsers.add_parser(
         "cron",
         help="Cron job management",
-        description="List and manage cron jobs",
+        description="Manage scheduled (cron) jobs",
+        add_help=True,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    cron_subparsers = cron_parser.add_subparsers(dest="cron_command", help="Cron command")
-
-    cron_list_parser = cron_subparsers.add_parser("list", help="List cron jobs")
-    cron_list_parser.add_argument(
-        "--json",
-        action="store_true",
-        default=False,
-        help="Output as JSON",
+    # Accept and drop a free-form list of sub-arguments; the dispatcher
+    # will parse them with the cron command's own ``build_parser``.
+    cron_parser.add_argument(
+        "cron_args",
+        nargs=argparse.REMAINDER,
+        help="Cron sub-command and its arguments",
     )
-    cron_status_parser = cron_subparsers.add_parser("status", help="Check cron status")
-
     # =========================================================================
     # acp command
     # =========================================================================

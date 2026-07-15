@@ -5,10 +5,13 @@ TUI 侧边栏组件 - 提供文件树、目标、Agent、日志面板
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Iterable
 from typing_extensions import Self
+
+from common.i18n import t
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -24,6 +27,14 @@ try:
     from tui.views.file_preview import FilePreviewScreen
 except ImportError:
     FilePreviewScreen = None
+
+# Cron modal screens (create / detail) — needed by ``CronPane`` to push
+# modals when the user invokes an action.
+try:
+    from tui.views.cron_view import CronCreateScreen, CronDetailScreen
+except ImportError:  # pragma: no cover - cron_view missing in minimal env
+    CronCreateScreen = None
+    CronDetailScreen = None
 
 
 # 图标系统
@@ -850,12 +861,12 @@ class SkillsPane(SidebarPane):
     DEFAULT_CSS = """
     SkillsPane {
         width: 100%;
-        height: 100%;
+        height: 1fr;
     }
 
     SkillsPane #skills-container {
         width: 100%;
-        height: 100%;
+        height: 1fr;
         padding: 0 1 1 1;
     }
 
@@ -1218,6 +1229,604 @@ class WrappedLog(Log):
 # ============================================================================
 
 
+class CronPane(Vertical, can_focus=True):
+    """定时任务面板 - 列表展示 + 全功能 CRUD.
+
+    读取 :mod:`cron` 子系统的只读数据，并暴露：
+      * ``r``  — 手动刷新当前列表
+      * ``a``  — push :class:`CronCreateScreen`
+      * ``enter`` — push :class:`CronDetailScreen`
+      * ``p`` / ``u`` / ``t`` / ``d`` — pause / resume / trigger / remove
+
+    设计选择：**无自动定时器**。空闲时 0Hz,操作完成后通过
+    ``call_after_refresh`` 触发一次 ``_refresh_data`` 即时反馈。
+    """
+
+    # 状态图标（与 ``TASK_STATUS_ICONS`` 风格保持一致）
+    JOB_ICONS = {
+        "scheduled_due": "⏰",   # next_run_at < 60s
+        "scheduled": "🟢",       # 正常
+        "paused": "⏸️",            # 暂停
+        "error": "❌",             # last_status=error
+        "running": "🔄",          # 刚刚跑过 (< 10s)
+        "disabled": "⚫",
+    }
+
+    BINDINGS = [
+        Binding("r", "refresh_list", "Refresh", show=True),
+        Binding("a", "create_job", "Add", show=True),
+        Binding("enter", "show_detail", "Detail", show=False),
+        Binding("p", "pause_job", "Pause", show=False),
+        Binding("u", "resume_job", "Resume", show=False),
+        Binding("t", "trigger_job", "Trigger", show=False),
+        Binding("d", "delete_job", "Delete", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    /* Note: `height: 1fr` (not `100%`) is intentional — it works around a
+       ContentSwitcher/TabPane regression in Textual 0.85+ where a
+       previously-hidden TabPane keeps `height=0` after `display=True`,
+       because ContentSwitcher resizes itself with `1fr` not `auto`.
+       Using `1fr` lets the inner pane expand into the switcher. */
+    CronPane {
+        width: 100%;
+        height: 1fr;
+    }
+
+    CronPane #cron-container {
+        width: 100%;
+        height: 1fr;
+        padding: 0 1 1 1;
+    }
+
+    CronPane #cron-heartbeat {
+        width: 100%;
+        height: auto;
+        color: $text-muted;
+        padding: 0 0 1 0;
+        border-bottom: solid $accent 20%;
+    }
+
+    CronPane #cron-heartbeat.unhealthy {
+        color: $warning;
+    }
+
+    CronPane #cron-summary {
+        width: 100%;
+        height: auto;
+        color: $text-muted;
+        padding: 0 0 1 0;
+    }
+
+    CronPane #cron-list {
+        width: 100%;
+        height: 1fr;
+    }
+
+    CronPane #cron-list > ListItem {
+        padding: 0 1;
+    }
+
+    CronPane #cron-list .cron-row-name {
+        color: $text;
+        text-style: bold;
+    }
+
+    CronPane #cron-list .cron-row-meta {
+        color: $text-muted;
+    }
+
+    CronPane #cron-list .cron-row.overdue {
+        background: $warning 15%;
+    }
+
+    CronPane #cron-list .cron-row.paused {
+        color: $text-muted;
+        text-style: italic;
+    }
+
+    CronPane #cron-list .cron-row.error {
+        color: $error;
+    }
+
+    CronPane #cron-empty {
+        width: 100%;
+        padding: 1 0;
+        color: $text-muted;
+        text-style: italic;
+    }
+
+    CronPane #cron-help {
+        width: 100%;
+        color: $text-muted;
+        text-style: italic;
+        padding: 0 0 1 0;
+        border-top: solid $accent 20%;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__(id="cron-pane")
+        self._logger = None
+        self._jobs: List[Dict[str, Any]] = []
+        self._selected_index: int = 0
+        # DOM 缓存
+        self._heartbeat_widget = None
+        self._summary_widget = None
+        self._list_widget = None
+        self._empty_widget = None
+        self._help_widget = None
+        # 懒加载标志
+        self._loaded = False
+
+    def activate(self) -> "CronPane":  # type: ignore[override]
+        return self
+
+    def compose(self) -> ComposeResult:
+        """组合子组件."""
+        with Vertical(id="cron-container"):
+            yield Static("", id="cron-heartbeat")
+            yield Static("", id="cron-summary")
+            yield ListView(id="cron-list", initial_index=None)
+            yield Static("", id="cron-empty")
+            yield Static(
+                t(
+                    "tui.cron.help_hint",
+                    fallback=(
+                        "[r]刷新  [a]新建  [↵]详情  "
+                        "[p]暂停  [u]恢复  [t]触发  [d]删除"
+                    ),
+                ),
+                id="cron-help",
+            )
+
+    def _render_content(self) -> None:
+        """Override :meth:`Widget._render_content` to guarantee a non-None
+        visual reaches the compositor.
+
+        A ``TabPane`` (and our ``SidebarPane`` subclasses) can hit a
+        cold-activation path in textual 8.2.7 where ``self._render()``
+        returns ``None`` before layout/styles have settled. The base
+        ``_render_content`` then forwards ``None`` into
+        ``Visual.to_strips`` which crashes with::
+
+            AttributeError: 'NoneType' object has no attribute 'render_strips'
+
+        We short-circuit that path: if ``self._render()`` produces
+        ``None`` (or anything that is not a Visual subclass), we
+        substitute a transparent :class:`Blank` visual so the
+        compositor stays safe. ``Blank`` is a real Visual that renders
+        zero strips — exactly what we want for a Container whose
+        children (Static, ListView) own all visible content.
+        """
+        from textual.renderables.blank import Blank
+        from textual.visual import Visual
+        from textual.widget import _RenderCache
+        width, height = self.size
+        visual = self._render()
+        if not isinstance(visual, Visual):
+            visual = Blank()
+        strips = Visual.to_strips(self, visual, width, height, self.visual_style)
+        self._render_cache = _RenderCache(self.size, strips)
+        self._dirty_regions.clear()
+
+    def _render(self):
+        """Override :meth:`Widget._render` to guarantee a non-None Visual.
+
+        Textual's base ``Widget._render`` calls ``visualize(self,
+        self.render(), ...)`` which can return ``None`` in cold-activation
+        scenarios (before any layout / styles have settled). The base
+        method also caches the result in
+        ``self._layout_cache["_render.visual"]`` — meaning once ``None``
+        is cached, every subsequent compositor pass returns ``None`` and
+        crashes with::
+
+            AttributeError: 'NoneType' object has no attribute 'render_strips'
+
+        We bypass the base entirely and always return a transparent
+        :class:`Blank` visual (a real Visual that yields zero strips —
+        perfect for a Container whose children own all visible content).
+        """
+        from textual.renderables.blank import Blank
+        blank = Blank()
+        # Write through to the cache so subsequent calls stay fast and
+        # never read a None entry.
+        self._layout_cache["_render.visual"] = blank
+        return blank
+
+    def on_mount(self) -> None:
+        """挂载时缓存 DOM 引用并调度懒加载."""
+        try:
+            from common.logging_manager import get_tui_logger
+            self._logger = get_tui_logger("CronPane")
+        except ImportError:
+            self._logger = None
+
+        try:
+            self._heartbeat_widget = self.query_one("#cron-heartbeat", Static)
+            self._summary_widget = self.query_one("#cron-summary", Static)
+            self._list_widget = self.query_one("#cron-list", ListView)
+            self._empty_widget = self.query_one("#cron-empty", Static)
+            self._help_widget = self.query_one("#cron-help", Static)
+        except Exception as exc:
+            if self._logger:
+                self._logger.error("CronPane DOM cache failed: %s", exc)
+
+        on_activated = getattr(self, "_on_activated", None)
+        if on_activated is not None:
+            self.call_later(on_activated)
+
+    # ------------------------------------------------------------------
+    # Public action handlers (invoked by BINDINGS)
+    # ------------------------------------------------------------------
+
+    async def action_refresh_list(self) -> None:
+        """Manual refresh — no automatic timer by design.
+
+        Async so the ``ListView`` mount/dismount sequence runs in a
+        deterministic order. Buttons/key bindings that point at this
+        action get a coroutine which textual awaits; for non-async
+        callers a fallback path is provided via ``_schedule_refresh``.
+        """
+        await self._refresh_data()
+        if self._logger:
+            self._logger.debug("CronPane: manual refresh complete")
+
+    def _schedule_refresh(self) -> None:
+        """Schedule a refresh via ``call_later`` for sync callers.
+
+        Action handlers bound via ``BINDINGS`` may be invoked from a
+        synchronous key event; textual wraps them but coroutines still
+        need scheduling. Use this helper in that case, or wire the
+        binding via ``action_refresh_list`` directly which textual
+        also auto-awaits.
+        """
+        self.call_later(self._refresh_data)
+
+    def action_create_job(self) -> None:
+        """Push the create-job modal."""
+        if not CronCreateScreen:
+            self.app.notify(
+                t("tui.cron.error_modal_unavailable", fallback="✗ Create modal unavailable")
+            )
+            return
+        self.app.push_screen(
+            CronCreateScreen(),
+            self._on_create_dismissed,
+        )
+
+    def _on_create_dismissed(self, job_id: Optional[str]) -> None:
+        """Reactive refresh after a create submission."""
+        if job_id:
+            self.app.notify(
+                t(
+                    "tui.cron.created_notify",
+                    fallback="✓ Created cron job {id}",
+                ).format(id=job_id)
+            )
+            # 即时反馈 — 不属于自动定时器,只在用户操作后触发
+            self.call_after_refresh(self._refresh_data)
+
+    def action_show_detail(self) -> None:
+        if not CronDetailScreen:
+            return
+        job = self._get_selected_job()
+        if job is None:
+            return
+        self.app.push_screen(CronDetailScreen(job))
+
+    def action_pause_job(self) -> None:
+        self._mutate_selected("pause")
+
+    def action_resume_job(self) -> None:
+        self._mutate_selected("resume")
+
+    def action_trigger_job(self) -> None:
+        self._mutate_selected("trigger")
+
+    def action_delete_job(self) -> None:
+        self._mutate_selected("delete")
+
+    # ------------------------------------------------------------------
+    # Data loading + rendering
+    # ------------------------------------------------------------------
+
+    async def _on_activated(self) -> None:
+        """Panel activated (Tab switch or first mount)."""
+        if not self._loaded:
+            self._loaded = True
+            if self._logger:
+                self._logger.info("CronPane first activation, loading jobs…")
+        await self._refresh_data()
+
+    async def set_focus_within(self) -> None:
+        """Set focus within the pane (also triggers lazy load)."""
+        await self._on_activated()
+        if self._list_widget:
+            try:
+                self._list_widget.focus()
+            except Exception:
+                pass
+
+    @on(ListView.Selected, "#cron-list")
+    def _on_list_selected(self, event: ListView.Selected) -> None:
+        """Track current selection so BINDINGS actions know which row to act on."""
+        try:
+            self._selected_index = event.list_view.index
+        except Exception:
+            pass
+        # Enter / double-click opens detail
+        self.action_show_detail()
+
+    async def _refresh_data(self) -> None:
+        """Reload jobs from cron subsystem and rebuild list.
+
+        Async so we can ``await`` the textual ``ListView.clear()``
+        and ``ListView.append()`` coroutines — calling them
+        synchronously results in a race where ``clear``'s
+        ``AwaitRemove`` removes ListItems we just appended (because
+        both are scheduled for the same event-loop tick and the
+        order of execution isn't guaranteed). See render_list for
+        the per-item logic.
+        """
+        # 首次加载时即使 tab 未激活也要加载数据，后续刷新则跳过不可见面板
+        if not self.display and self._loaded:
+            return
+        try:
+            self._jobs = self._load_jobs()
+            await self._render_widgets()
+        except Exception as exc:
+            if self._logger:
+                self._logger.error("CronPane refresh failed: %s", exc)
+            else:
+                # Print to stderr at least — the silent swallow was
+                # hiding the *real* failure (list never mounted).
+                print(f"[CronPane] refresh failed: {exc!r}")
+
+    def _load_jobs(self) -> List[Dict[str, Any]]:
+        try:
+            from cron import list_jobs
+            return list_jobs(include_disabled=True) or []
+        except Exception as exc:
+            if self._logger:
+                self._logger.warning("list_jobs failed: %s", exc)
+            return []
+
+    async def _render_widgets(self):
+        """Update the child widgets to reflect the current jobs list.
+
+        Renamed from ``_render`` to avoid shadowing
+        :meth:`Widget._render`, which must return a ``Visual`` for the
+        compositor. The earlier name caused the compositor to crash
+        with ``AttributeError: 'NoneType' object has no attribute
+        'render_strips'`` because the method returned ``None`` instead
+        of a Visual.
+
+        Async so we can ``await`` :meth:`_render_list`, which in turn
+        awaits the Textual ``ListView`` mount/dismount coroutines.
+        Without the awaits the items either race-clear themselves or
+        never mount at all.
+        """
+        if (
+            self._heartbeat_widget is None
+            or self._summary_widget is None
+            or self._list_widget is None
+            or self._empty_widget is None
+        ):
+            if self._logger:
+                self._logger.warning(
+                    f"CronPane widgets not ready: "
+                    f"heartbeat={self._heartbeat_widget is not None}, "
+                    f"summary={self._summary_widget is not None}, "
+                    f"list={self._list_widget is not None}, "
+                    f"empty={self._empty_widget is not None}"
+                )
+            return
+        self._render_heartbeat()
+        self._render_summary()
+        await self._render_list()
+
+    def _render_heartbeat(self) -> None:
+        try:
+            from cron.scheduler import (
+                get_ticker_heartbeat_age,
+                get_ticker_success_age,
+            )
+            hb_age = get_ticker_heartbeat_age()
+            ok_age = get_ticker_success_age()
+        except Exception:
+            hb_age = None
+            ok_age = None
+
+        if hb_age is None:
+            text = t(
+                "tui.cron.heartbeat_idle",
+                fallback="⚪ ticker 未启动 (运行 'handsome cron tick' 或启动 gateway)",
+            )
+            cls = "unhealthy"
+        elif ok_age is None or ok_age > 120:
+            ok_disp = f"{ok_age:.0f}" if ok_age is not None else "从未"
+            text = t(
+                "tui.cron.heartbeat_stale",
+                fallback="⚠ ticker 存活 {hb}s 但最近成功 {ok}s 前",
+            ).format(hb=f"{hb_age:.0f}", ok=ok_disp)
+            cls = "unhealthy"
+        else:
+            text = t(
+                "tui.cron.heartbeat_healthy",
+                fallback="🟢 ticker 健康 · 上次成功 {ok}s 前",
+            ).format(ok=f"{ok_age:.0f}")
+            cls = ""
+
+        self._heartbeat_widget.update(text)
+        self._heartbeat_widget.set_class(bool(cls), cls)
+
+    def _render_summary(self) -> None:
+        total = len(self._jobs)
+        active = sum(1 for j in self._jobs if j.get("enabled", True))
+        paused = total - active
+        text = t(
+            "tui.cron.summary",
+            fallback="⏰  {total} 个任务 · 启用 {active} · 暂停 {paused}",
+        ).format(total=total, active=active, paused=paused)
+        self._summary_widget.update(text)
+
+    async def _render_list(self) -> None:
+        """Rebuild the ListView from ``self._jobs``.
+
+        Async so we can ``await`` Textual's ``ListView.clear()`` and
+        ``ListView.append()``. Calling them synchronously creates a
+        race: ``clear``'s ``AwaitRemove`` runs in the same event-loop
+        tick as the subsequent ``append`` calls, and depending on
+        scheduler order either the new items get wiped (race #1) or
+        nothing gets mounted at all (race #2). Awaiting both makes
+        the mount/dismount sequence deterministic.
+        """
+        # Clear existing items. Awaited so the Remove finishes
+        # before we start appending.
+        await self._list_widget.clear()
+        if not self._jobs:
+            self._empty_widget.update(
+                t(
+                    "tui.cron.empty",
+                    fallback="暂无定时任务。按 [a] 新建一个。",
+                )
+            )
+            self._list_widget.display = False
+            self._empty_widget.display = True
+            return
+        self._empty_widget.display = False
+        self._list_widget.display = True
+
+        from tui.views.cron_view import format_next_run_delta
+
+        for job in self._jobs:
+            icon = self._icon_for(job)
+            name = job.get("name") or job.get("id", "—")
+            schedule = (job.get("schedule") or {}).get("display") or "—"
+            next_run = format_next_run_delta(job.get("next_run_at"))
+            meta = f"{schedule} · {next_run or '—'}"
+            label = f"{icon}  {name}\n     [dim]{meta}[/dim]"
+            item = ListItem(Static(label, markup=True))
+            # 标记 CSS class 以便颜色区分。
+            # 注意:必须用 ``set_classes`` (plural),它接受一个
+            # multi-class string 并按空白拆成多个 class;
+            # ``set_class(True, "cron-row paused")`` (singular) 会把整个
+            # 字符串当作单个 class name — 因含空格被 textual 拒绝抛
+            # WidgetError,而该异常被 _refresh_data 的 try/except 吞掉,
+            # 导致 ListItem 从未 mount,Pane 永远显示"暂无定时任务"。
+            classes = self._row_classes(job)
+            if classes:
+                item.set_classes(classes)
+            # Await mount — without this the AwaitMount task can race
+            # with a sibling clear() call from a later refresh.
+            await self._list_widget.append(item)
+
+    def _icon_for(self, job: Dict[str, Any]) -> str:
+        if not job.get("enabled", True):
+            return self.JOB_ICONS["disabled"]
+        if job.get("state") == "paused":
+            return self.JOB_ICONS["paused"]
+        if job.get("last_status") == "error":
+            return self.JOB_ICONS["error"]
+        next_run = job.get("next_run_at")
+        if next_run:
+            try:
+                import datetime as _dt
+                target = _dt.datetime.fromisoformat(next_run.replace("Z", "+00:00"))
+                now = _dt.datetime.now(target.tzinfo) if target.tzinfo else _dt.datetime.now()
+                secs = (target - now).total_seconds()
+                if 0 <= secs <= 60:
+                    return self.JOB_ICONS["running"]
+                if secs < 0:
+                    return self.JOB_ICONS["scheduled_due"]
+            except (ValueError, TypeError):
+                pass
+        return self.JOB_ICONS["scheduled"]
+
+    def _row_classes(self, job: Dict[str, Any]) -> str:
+        classes = ["cron-row"]
+        if job.get("state") == "paused" or not job.get("enabled", True):
+            classes.append("paused")
+        if job.get("last_status") == "error":
+            classes.append("error")
+        next_run = job.get("next_run_at")
+        if next_run:
+            try:
+                import datetime as _dt
+                target = _dt.datetime.fromisoformat(next_run.replace("Z", "+00:00"))
+                now = _dt.datetime.now(target.tzinfo) if target.tzinfo else _dt.datetime.now()
+                if (target - now).total_seconds() < 0:
+                    classes.append("overdue")
+            except (ValueError, TypeError):
+                pass
+        return " ".join(classes)
+
+    def _get_selected_job(self) -> Optional[Dict[str, Any]]:
+        if not self._list_widget:
+            return None
+        try:
+            idx = self._list_widget.index
+            if 0 <= idx < len(self._jobs):
+                return self._jobs[idx]
+        except Exception:
+            pass
+        if self._jobs:
+            return self._jobs[0]
+        return None
+
+    def _mutate_selected(self, op: str) -> None:
+        job = self._get_selected_job()
+        if job is None:
+            self.app.notify(
+                t("tui.cron.error_no_selection", fallback="✗ 没有选中的任务")
+            )
+            return
+        try:
+            from cron import (
+                pause_job,
+                remove_job,
+                resolve_job_id,
+                resume_job,
+                trigger_job,
+            )
+        except Exception as exc:
+            self.app.notify(
+                t(
+                    "tui.cron.error_cron_unavailable",
+                    fallback="✗ cron 子系统不可用: {err}",
+                ).format(err=str(exc))
+            )
+            return
+        job_id = job.get("id")
+        try:
+            if op == "pause":
+                pause_job(job_id)
+                msg = t("tui.cron.paused", fallback="⏸ 已暂停 {id}").format(id=job_id)
+            elif op == "resume":
+                resume_job(job_id)
+                msg = t("tui.cron.resumed", fallback="▶ 已恢复 {id}").format(id=job_id)
+            elif op == "trigger":
+                trigger_job(job_id)
+                msg = t("tui.cron.triggered", fallback="🚀 已触发 {id}").format(id=job_id)
+            elif op == "delete":
+                remove_job(job_id)
+                msg = t("tui.cron.removed", fallback="🗑 已删除 {id}").format(id=job_id)
+            else:  # pragma: no cover - defensive
+                return
+        except Exception as exc:
+            self.app.notify(
+                t(
+                    "tui.cron.error_op_failed",
+                    fallback="✗ 操作失败: {err}",
+                ).format(err=str(exc))
+            )
+            return
+        self.app.notify(msg)
+        # 即时反馈
+        self.call_after_refresh(self._refresh_data)
+
+
 class LogsPane(SidebarPane):
     """日志面板（使用 WrappedLog 支持自动换行）."""
 
@@ -1297,11 +1906,16 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         self._goal_pane = GoalPane(self._goal_manager)
         self._file_tree_pane = FileTreePane(self._cwd)
         self._skills_pane = SkillsPane()
+        self._cron_pane = CronPane()
 
         with TabbedContent():
             yield self._goal_pane
             yield self._file_tree_pane
             yield self._skills_pane
+            # CronPane is a Vertical (Container) not a TabPane — TabbedContent
+            # wraps non-TabPane children automatically but we give it an
+            # explicit id so the tab title/aria work consistently.
+            yield TabPane("定时", self._cron_pane, id="cron")
 
     @property
     def goal_pane(self) -> GoalPane:
@@ -1318,16 +1932,22 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
         """技能面板."""
         return self._skills_pane
 
+    @property
+    def cron_pane(self) -> CronPane:
+        """定时任务面板."""
+        return self._cron_pane
+
     def switch_to_panel(self, panel_id: str) -> None:
         """切换到指定面板.
 
         Args:
-            panel_id: 面板 ID (goal, file_tree, skills)
+            panel_id: 面板 ID (goal, file_tree, skills, cron)
         """
         pane_map = {
             "goal": self._goal_pane,
             "file_tree": self._file_tree_pane,
             "skills": self._skills_pane,
+            "cron": self._cron_pane,
         }
         pane = pane_map.get(panel_id)
         if pane:
@@ -1341,10 +1961,11 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
 
     @on(Tabs.TabActivated)
     def on_tab_activated(self, event: Tabs.TabActivated) -> None:
-        """Tab 切换时更新颜色."""
+        """Tab 切换时更新颜色并聚焦内容."""
         # 获取当前主题颜色（从父组件或默认值）
         active_color = getattr(self, '_active_tab_color', '#B180D7')
         self.update_tab_colors(active_color)
+        self.focus_active_tab()
 
     def set_active_color(self, color: str) -> None:
         """设置激活 Tab 的颜色.
@@ -1370,7 +1991,24 @@ class SidebarContainer(Vertical, can_focus=False, can_focus_children=True):
     def focus_active_tab(self) -> None:
         """聚焦当前激活的 Tab 内容."""
         if active := self.query_one(Tabs).active:
-            self.query_one(f"SidebarPane#{active}", SidebarPane).set_focus_within()
+            # ``#cron`` is wrapped in a TabPane that contains a Vertical
+            # CronPane, not a SidebarPane — fall back to the Vertical
+            # when SidebarPane doesn't match.
+            try:
+                pane = self.query_one(f"SidebarPane#{active}", SidebarPane)
+            except Exception:
+                # For cron tab, query for CronPane directly since its id is "cron-pane"
+                try:
+                    from tui.sidebar import CronPane
+                    pane = self.query_one(CronPane)
+                except Exception:
+                    pane = self.query_one(f"#{active}")
+            if hasattr(pane, "set_focus_within"):
+                method = pane.set_focus_within
+                if asyncio.iscoroutinefunction(method):
+                    self.call_later(method)
+                else:
+                    method()
 
     def update_tab_colors(self, active_color: str) -> None:
         """更新侧边栏 Tab 颜色.
@@ -1480,6 +2118,7 @@ __all__ = [
     "FileTreePane",
     "FilteredDirectoryTree",
     "SkillsPane",
+    "CronPane",
     "WrappedLog",
     "SidebarTabBar",
     "get_log_level_icon",

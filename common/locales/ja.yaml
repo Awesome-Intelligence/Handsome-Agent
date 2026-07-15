@@ -569,6 +569,51 @@ onboarding:
     configure_more: "⚙ 詳細設定"
 
 # =============================================================================
+# Cron サブシステム (handsome cron ...)
+# =============================================================================
+
+cron:
+  parser_description: "スケジュール（cron）ジョブを管理します。"
+  list_header: "⏰ Cron ジョブ一覧"
+  empty: "登録されている cron ジョブはありません"
+  empty_hint: "'handsome cron create' で追加してください"
+  total: "合計 {n} 件；有効 {a}、一時停止 {p}"
+  not_found: "cron ジョブが見つかりません: {id}"
+  show_header: "⏰ ジョブ {id}"
+  created: "✓ cron ジョブ {id} を作成しました ({name})"
+  next_run: "次回実行: {when}"
+  create_invalid: "無効な cron ジョブ: {err}"
+  no_agent_needs_script: "--no-agent には --script <path> が必要です"
+  prompt_required: "--prompt または --script(--no-agent と併用) を指定してください"
+  removed: "✓ ジョブ {id} を削除しました"
+  remove_failed: "ジョブ {id} の削除に失敗しました"
+  remove_confirm_unknown: "'{id}' という名前のジョブは見つかりません。それでも削除しますか？"
+  paused: "⏸ ジョブ {id} を一時停止しました"
+  resumed: "▶ ジョブ {id} を再開しました（次回: {when}）"
+  triggered: "🚀 ジョブ {id} を次の tick に登録しました"
+  run_header: "▶ {id} を同期実行中"
+  run_done: "ジョブ {id} が完了しました (status={ok})"
+  tick_done: "tick で {n} 件実行しました"
+  status_header: "📊 Cron ステータス"
+  no_heartbeat: "ticker ハートビートがありません。'handsome cron tick' を実行するか、gateway デーモンを起動してください。"
+  invalid_duration: "無効な期間 '{s}'。'30m' / '2h' / '1d' 形式で指定してください"
+  croniter_missing: "cron 式には 'croniter' パッケージが必要です: pip install croniter"
+  invalid_schedule: "無効な schedule。期間 / 'every Xm' / '0 9 * * *' / ISO タイムスタンプを使用"
+  help:
+    list: "登録ジョブの一覧表示"
+    list_all: "一時停止/無効ジョブも含める"
+    show: "ジョブ詳細を表示"
+    create: "新しい cron ジョブを作成"
+    remove: "ジョブを削除"
+    pause: "ジョブを一時停止"
+    resume: "一時停止を解除"
+    trigger: "次の tick で実行"
+    run: "今すぐ同期実行"
+    tick: "スケジューラ tick を 1 回実行"
+    status: "サービス状況 / ハートビート"
+    json: "JSON で出力"
+
+# =============================================================================
 # Message Role Labels (TUI)
 # =============================================================================
 
@@ -607,6 +652,36 @@ tui:
   queue:
     message_queued: "メッセージがキューに追加されました (キュー内: {n}件)"
     placeholder: "⏳ (キュー内) #1: {msg}"
+  cron:
+    summary: "⏰  {total} 件のタスク · 有効 {active} · 停止 {paused}"
+    empty: "スケジュールされたタスクはありません。[a] で新規作成。"
+    help_hint: "[r]更新  [a]新規  [↵]詳細  [p]停止  [u]再開  [t]実行  [d]削除"
+    heartbeat_idle: "⚪ ticker が起動していません ('handsome cron tick' を実行するか gateway を起動)"
+    heartbeat_stale: "⚠ ticker 稼働 {hb}s · 最終成功 {ok}s 前"
+    heartbeat_healthy: "🟢 ticker 正常 · 最終成功 {ok}s 前"
+    created_notify: "✓ 定时任务を作成しました {id}"
+    paused: "⏸ 停止しました {id}"
+    resumed: "▶ 再開しました {id}"
+    triggered: "🚀 トリガーしました {id}"
+    removed: "🗑 削除しました {id}"
+    error_no_selection: "✗ 選択されたタスクがありません"
+    error_cron_unavailable: "✗ cron サブシステムを利用できません: {err}"
+    error_op_failed: "✗ 操作失敗: {err}"
+    error_modal_unavailable: "✗ 作成モーダルが利用できません"
+    create_title: "⏰ 新規 cron タスク"
+    detail_title: "⏰ タスク詳細"
+    close: "閉じる"
+    submit: "作成"
+    cancel: "キャンセル"
+    field_name: "名前"
+    field_schedule: "スケジュール"
+    field_schedule_hint: "期間 (30m)、間隔 (every 5m)、cron 式 (0 9 * * *)、@alias (@daily, @every 5m)"
+    field_prompt: "プロンプト"
+    error_name_required: "✗ 名前は必須です"
+    error_schedule_required: "✗ スケジュールは必須です"
+    error_prompt_required: "✗ プロンプトは必須です"
+    error_create_failed: "✗ 作成失敗: {err}"
+    no_output: "(出力なし)"
 
 # =============================================================================
 # Message Role Labels (TUI)

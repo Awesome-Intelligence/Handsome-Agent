@@ -604,6 +604,51 @@ onboarding:
     configure_more: "⚙ Configure More"
 
 # =============================================================================
+# Cron subsystem (handsome cron ...)
+# =============================================================================
+
+cron:
+  parser_description: "Manage scheduled (cron) jobs."
+  list_header: "⏰ Cron Job Registry"
+  empty: "No cron jobs configured"
+  empty_hint: "Use 'handsome cron create' to add one"
+  total: "Total: {n} job(s); {a} active, {p} paused"
+  not_found: "Cron job not found: {id}"
+  show_header: "⏰ Job {id}"
+  created: "✓ Created cron job {id} ({name})"
+  next_run: "Next run: {when}"
+  create_invalid: "Invalid cron job: {err}"
+  no_agent_needs_script: "--no-agent requires --script <path>"
+  prompt_required: "Provide either a --prompt or --script (with --no-agent)"
+  removed: "✓ Removed job {id}"
+  remove_failed: "Failed to remove job {id}"
+  remove_confirm_unknown: "No job named '{id}' — remove anyway?"
+  paused: "⏸ Paused job {id}"
+  resumed: "▶ Resumed job {id} (next run: {when})"
+  triggered: "🚀 Triggered job {id} for next tick"
+  run_header: "▶ Running {id} synchronously"
+  run_done: "Job {id} completed (status={ok})"
+  tick_done: "Tick executed {n} job(s)"
+  status_header: "📊 Cron Status"
+  no_heartbeat: "No ticker heartbeat recorded. Run 'handsome cron tick' or start the gateway daemon."
+  invalid_duration: "Invalid duration: '{s}'. Use format like '30m', '2h', or '1d'"
+  croniter_missing: "Cron expressions require 'croniter' package. Install with: pip install croniter"
+  invalid_schedule: "Invalid schedule. Use duration / 'every Xm' / '0 9 * * *' / ISO timestamp"
+  help:
+    list: "List registered jobs"
+    list_all: "Include paused/disabled jobs"
+    show: "Show one job"
+    create: "Create a new cron job"
+    remove: "Remove a job"
+    pause: "Pause a job"
+    resume: "Resume a paused job"
+    trigger: "Trigger next-tick run"
+    run: "Run a job synchronously now"
+    tick: "Run one scheduler tick"
+    status: "Service status / heartbeat"
+    json: "Output JSON"
+
+# =============================================================================
 # Message Role Labels (TUI)
 # =============================================================================
 
@@ -642,6 +687,36 @@ tui:
   queue:
     message_queued: "Message queued ({n} in queue)"
     placeholder: "⏳ (Queued) #1: {msg}"
+  cron:
+    summary: "⏰  {total} jobs · {active} active · {paused} paused"
+    empty: "No scheduled jobs. Press [a] to add one."
+    help_hint: "[r]Refresh  [a]Add  [↵]Detail  [p]Pause  [u]Resume  [t]Trigger  [d]Delete"
+    heartbeat_idle: "⚪ ticker not started (run 'handsome cron tick' or start gateway)"
+    heartbeat_stale: "⚠ ticker alive {hb}s but last success {ok}s ago"
+    heartbeat_healthy: "🟢 ticker healthy · last success {ok}s ago"
+    created_notify: "✓ Created cron job {id}"
+    paused: "⏸ Paused {id}"
+    resumed: "▶ Resumed {id}"
+    triggered: "🚀 Triggered {id}"
+    removed: "🗑 Removed {id}"
+    error_no_selection: "✗ No job selected"
+    error_cron_unavailable: "✗ Cron subsystem unavailable: {err}"
+    error_op_failed: "✗ Operation failed: {err}"
+    error_modal_unavailable: "✗ Create modal unavailable"
+    create_title: "⏰ New Cron Job"
+    detail_title: "⏰ Cron Job Detail"
+    close: "Close"
+    submit: "Create"
+    cancel: "Cancel"
+    field_name: "Name"
+    field_schedule: "Schedule"
+    field_schedule_hint: "Duration (30m), interval (every 5m), cron (0 9 * * *), or @alias (@daily, @every 5m)"
+    field_prompt: "Prompt"
+    error_name_required: "✗ Name is required"
+    error_schedule_required: "✗ Schedule is required"
+    error_prompt_required: "✗ Prompt is required"
+    error_create_failed: "✗ Failed to create job: {err}"
+    no_output: "(no output yet)"
 
 # =============================================================================
 # Message Role Labels (TUI)

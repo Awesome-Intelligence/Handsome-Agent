@@ -503,16 +503,19 @@ def cmd_gateway(args: argparse.Namespace):
 
 
 def cmd_cron(args: argparse.Namespace):
-    """Handle 'cron' command."""
-    from cli.cli_commands.cron import list_cron_jobs, check_cron_status
+    """Handle 'cron' command.
 
-    if args.cron_command == "list":
-        list_cron_jobs(json_output=args.json)
-    elif args.cron_command == "status":
-        check_cron_status()
-    else:
-        # Default: show list
-        list_cron_jobs()
+    Delegates to :func:`cli.cli_commands.cron.main` which is the single
+    source of truth for cron sub-commands. Unknown / empty arguments fall
+    back to ``list`` for back-compat.
+    """
+    from cli.cli_commands.cron import main as cron_main
+
+    sub_args = list(getattr(args, "cron_args", []) or [])
+    if not sub_args:
+        sub_args = ["list"]
+
+    return cron_main(sub_args)
 
 
 def cmd_acp(args: argparse.Namespace):

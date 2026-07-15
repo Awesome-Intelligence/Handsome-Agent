@@ -177,7 +177,12 @@ def get_language() -> str:
     return DEFAULT_LANGUAGE
 
 
-def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
+def t(
+    key: str,
+    lang: str | None = None,
+    fallback: str | None = None,
+    **format_kwargs: Any,
+) -> str:
     """Translate a dotted key to the active language.
 
     Parameters
@@ -186,6 +191,12 @@ def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
         Dotted path into the catalog, e.g. ``"setup.banner.title"``.
     lang
         Explicit language override.  Takes precedence over env + config.
+    fallback
+        Optional string to return when the key is missing in *all*
+        catalogs (target language + default).  When provided, ``fallback``
+        is formatted with ``format_kwargs`` instead of the raw key, so
+        callers can supply developer-friendly English text without
+        registering a new catalog entry.
     **format_kwargs
         ``str.format`` substitution arguments
         (e.g. ``t("setup.banner.title", name="John")`` expects a catalog entry
@@ -193,8 +204,8 @@ def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
 
     Returns
     -------
-    The translated string, or the English fallback if the key is missing in
-    the target language, or the bare key if English is also missing.
+    The translated string, or the explicit ``fallback`` if provided and
+    the key is missing, or the bare key as a last-ditch default.
     """
     target = _normalize_lang(lang) if lang else get_language()
     catalog = _load_catalog(target)
@@ -205,9 +216,12 @@ def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
         value = _load_catalog(DEFAULT_LANGUAGE).get(key)
 
     if value is None:
-        # Last-ditch: return the key itself
-        logger.debug("i18n miss: key=%r lang=%r", key, target)
-        value = key
+        # Last-ditch: caller-supplied fallback, else the bare key
+        if fallback is not None:
+            value = fallback
+        else:
+            logger.debug("i18n miss: key=%r lang=%r", key, target)
+            value = key
 
     if format_kwargs:
         try:

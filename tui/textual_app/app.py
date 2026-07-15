@@ -266,6 +266,7 @@ class HandsomeAgentApp(App):
         Binding("f2", "open_settings", "Settings"),
         Binding("f3", "open_log_screen", "Logs"),
         # --- 面板切换快捷键 (ctrl+方向键) ---
+        # 定时任务面板:通过侧边栏 Tab 点击进入,无快捷键。
         Binding("ctrl+left", "prev_panel", "Prev Panel", show=False),
         Binding("ctrl+right", "next_panel", "Next Panel", show=False),
     ]
@@ -1925,7 +1926,7 @@ class HandsomeAgentApp(App):
 
     def action_next_panel(self) -> None:
         """切换到下一个面板."""
-        panel_order = ["goal", "file_tree", "skills"]
+        panel_order = ["goal", "file_tree", "skills", "cron"]
         try:
             inner = self.query_one("#sidebar-container-inner", SidebarContainer)
             # 获取 TabbedContent 的当前活动面板
@@ -1940,7 +1941,7 @@ class HandsomeAgentApp(App):
 
     def action_prev_panel(self) -> None:
         """切换到上一个面板."""
-        panel_order = ["goal", "file_tree", "skills"]
+        panel_order = ["goal", "file_tree", "skills", "cron"]
         try:
             inner = self.query_one("#sidebar-container-inner", SidebarContainer)
             # 获取 TabbedContent 的当前活动面板
