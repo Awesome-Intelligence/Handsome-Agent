@@ -57,17 +57,17 @@ class SettingsManager:
         self._init_cli_config()
 
     def _init_cli_config(self) -> None:
-        """初始化 CLI 配置模块"""
+        """初始化配置模块（自 v8.x 起从 common.config 加载，跨 cli/tui 共享）"""
         try:
-            from cli.config.config import load_config, save_config
+            from common.config import load_config, save_config
 
             self._cli_config_module = {
                 "load": load_config,
                 "save": save_config,
             }
-            self._logger.debug("CLI config module loaded")
+            self._logger.debug("Config module loaded from common.config")
         except ImportError as e:
-            self._logger.warning(f"Failed to import CLI config: {e}")
+            self._logger.warning(f"Failed to import common.config: {e}")
             self._cli_config_module = None
 
     def _load(self) -> None:

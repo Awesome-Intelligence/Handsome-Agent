@@ -860,9 +860,9 @@ class HandsomeAgentApp(App):
         """从用户配置中获取已配置的模型列表."""
         models: list[tuple[str, str]] = []
 
-        # 1. 从 cli.config 读取
+        # 1. 从 common.config 读取（跨端共享配置层）
         try:
-            from cli.config.config import load_config
+            from common.config import load_config
 
             config = load_config()
             llm = config.get("llm", {})

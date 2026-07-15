@@ -429,7 +429,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         )
 
         try:
-            from cli.cli_commands.providers import PROVIDERS as CATALOG
+            from common.llm_providers import PROVIDERS as CATALOG
         except ImportError:
             CATALOG = {}
 
@@ -676,7 +676,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         # 添加 Fallback 选择
         yield Static("添加 Fallback Provider", classes="setting-row")
         try:
-            from cli.cli_commands.providers import PROVIDERS as CATALOG
+            from common.llm_providers import PROVIDERS as CATALOG
         except ImportError:
             CATALOG = {}
         fb_options = [
