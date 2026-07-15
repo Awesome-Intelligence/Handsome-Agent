@@ -145,6 +145,7 @@ class ChatItem(Widget):
         self._thinking_stream: MarkdownStream | None = None
         self._tool_calls: dict[str, "ToolCallItem"] = {}
         self._frozen: bool = False
+        self._user_toggled: bool = False
 
     def watch_author(self, author: str) -> None:
         """当 author 改变时，更新 ChatItem 上的 CSS 类。"""
@@ -210,8 +211,6 @@ class ChatItem(Widget):
                 return
             self._response_stream = Markdown.get_stream(response)
         self.set_reactive(ChatItem.text, self.text + delta)
-        if not self.thoughts_collapsed:
-            self.set_reactive(ChatItem.thoughts_collapsed, True)
         await self._response_stream.write(delta)
 
     async def append_thinking(self, delta: str) -> None:
@@ -232,6 +231,8 @@ class ChatItem(Widget):
         self.set_reactive(ChatItem.thinking, self.thinking + delta)
         if first_chunk:
             self._refresh_thinking_chrome()
+            if self.thoughts_collapsed and not self._user_toggled:
+                self.set_reactive(ChatItem.thoughts_collapsed, False)
         await self._thinking_stream.write(delta)
 
     async def finish_stream(self) -> None:
@@ -244,6 +245,8 @@ class ChatItem(Widget):
         Markdown 子树换成单个 ``Static(RichMarkdown(...))``，中间任何
         update 都是浪费。
         """
+        if not self._user_toggled and self.thinking:
+            self.set_reactive(ChatItem.thoughts_collapsed, True)
         if self._response_stream is not None:
             await self._response_stream.stop()
             self._response_stream = None
@@ -335,8 +338,6 @@ class ChatItem(Widget):
         except NoMatches:
             return
         await response.update(text)
-        if text and not self.thoughts_collapsed:
-            self.thoughts_collapsed = True
         self._refresh_thinking_chrome()
 
     async def watch_thinking(self, thinking: str) -> None:  # type: ignore[override]
@@ -422,6 +423,7 @@ class ChatItem(Widget):
         while cur is not None and cur is not self:
             if cur.has_class("thinking-label"):
                 if self.thinking:
+                    self._user_toggled = True
                     self.thoughts_collapsed = not self.thoughts_collapsed
                     self.post_message(
                         self.ThinkingToggled(self, self.thoughts_collapsed)

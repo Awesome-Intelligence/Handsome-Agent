@@ -347,8 +347,8 @@ class TestAppendText:
             assert item._response_stream is stream
 
     @pytest.mark.asyncio
-    async def test_append_text_collapses_thoughts_on_first_delta(self) -> None:
-        """追加正文的第一笔 delta 应自动折叠思考块。"""
+    async def test_append_text_does_not_collapse_thoughts_during_stream(self) -> None:
+        """流式期间追加正文不应折叠思考块（思考应保持展开直到流结束）。"""
         app = _Harness()
         async with app.run_test() as pilot:
             item = ChatItem()
@@ -356,11 +356,15 @@ class TestAppendText:
             await app.mount(item)
             await pilot.pause()
 
-            # 先展开思考
-            item.thoughts_collapsed = False
+            await item.append_thinking("reasoning")
             await pilot.pause()
+            assert item.thoughts_collapsed is False
 
             await item.append_text("answer")
+            await pilot.pause()
+            assert item.thoughts_collapsed is False
+
+            await item.finish_stream()
             await pilot.pause()
             assert item.thoughts_collapsed is True
 
@@ -553,7 +557,7 @@ class TestFreezeMarkdown:
 
     @pytest.mark.asyncio
     async def test_freeze_preserves_thinking_display_state(self) -> None:
-        """用户手动展开思考后再 freeze，display 应保持展开。"""
+        """用户手动点击展开思考后再 freeze，display 应保持展开。"""
         app = _Harness()
         async with app.run_test() as pilot:
             item = ChatItem()
@@ -564,18 +568,19 @@ class TestFreezeMarkdown:
             await item.append_thinking("detailed reasoning")
             await item.append_text("answer")
             await pilot.pause()
-            # 显式展开
-            item.thoughts_collapsed = False
-            await pilot.pause()
-
             await item.finish_stream()
             await pilot.pause()
-            # frozen body 应保持展开
+
+            label = item.query_one(".thinking-label", Static)
+            await pilot.click(label)
+            await pilot.pause()
+
             body = item.query_one(".thinking-body", Static)
             assert body.display is True
 
     @pytest.mark.asyncio
     async def test_freeze_keeps_thinking_hidden_when_collapsed(self) -> None:
+        """流式期间思考展开，finish_stream 后自动折叠。"""
         app = _Harness()
         async with app.run_test() as pilot:
             item = ChatItem()
@@ -584,13 +589,19 @@ class TestFreezeMarkdown:
             await pilot.pause()
 
             await item.append_thinking("musing")
+            await pilot.pause()
+            # 流式期间思考自动展开
+            assert item.thoughts_collapsed is False
+
             await item.append_text("answer")
             await pilot.pause()
-            # 默认折叠
-            assert item.thoughts_collapsed is True
+            # 流式期间保持展开
+            assert item.thoughts_collapsed is False
 
             await item.finish_stream()
             await pilot.pause()
+            # 流结束后自动折叠
+            assert item.thoughts_collapsed is True
             body = item.query_one(".thinking-body", Static)
             assert body.display is False
 
