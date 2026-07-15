@@ -61,33 +61,42 @@ class TestPresetThemes:
 class TestThemeManagerBasics:
     """ThemeManager 基础行为。"""
 
+    def _make_isolated_manager(self):
+        """创建与全局 ~/.handsome_agent/tui_config.json 隔离的实例。"""
+        from common.theming.theme_manager import ThemeManager
+
+        ThemeManager._instance = None
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(
+                ThemeManager, "_get_config_path",
+                lambda self: Path(tmp) / "tui_config.json",
+            ):
+                m = ThemeManager()
+        return m
+
     def test_singleton_returns_same_instance(self):
         from common.theming.theme_manager import ThemeManager
 
-        ThemeManager._instance = None  # 重置
-        a = ThemeManager.get_instance()
-        b = ThemeManager.get_instance()
-        assert a is b
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(
+                ThemeManager, "_get_config_path",
+                lambda self: Path(tmp) / "tui_config.json",
+            ):
+                ThemeManager._instance = None
+                a = ThemeManager.get_instance()
+                b = ThemeManager.get_instance()
+                assert a is b
 
     def test_default_theme_id(self):
-        from common.theming.theme_manager import ThemeManager
-
-        ThemeManager._instance = None
-        m = ThemeManager()
+        m = self._make_isolated_manager()
         assert m.get_current_theme_id() == "default"
 
     def test_set_theme_invalid_id_returns_false(self):
-        from common.theming.theme_manager import ThemeManager
-
-        ThemeManager._instance = None
-        m = ThemeManager()
+        m = self._make_isolated_manager()
         assert m.set_theme("nonexistent_theme_xyz") is False
 
     def test_set_theme_default_returns_true(self):
-        from common.theming.theme_manager import ThemeManager
-
-        ThemeManager._instance = None
-        m = ThemeManager()
+        m = self._make_isolated_manager()
         assert m.set_theme("default") is True
         assert m.get_current_theme_id() == "default"
 

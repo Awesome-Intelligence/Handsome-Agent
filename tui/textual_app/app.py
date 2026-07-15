@@ -2660,37 +2660,15 @@ __all__ = [
 
 
 class CustomModelInputScreen(TextualScreen if TEXTUAL_AVAILABLE else object):
-    """自定义模型输入对话框."""
+    """自定义模型输入对话框.
 
-    CSS = """
-    CustomModelInputScreen {
-        align: center middle;
-    }
-
-    #dialog {
-        width: 50;
-        height: auto;
-        border: solid $primary;
-        background: $surface;
-        padding: 1 2;
-    }
-
-    #title {
-        text-align: center;
-        text-style: bold;
-        color: $primary;
-        margin-bottom: 1;
-    }
-
-    #input-container {
-        margin: 1 0;
-    }
-
-    #buttons {
-        height: auto;
-        align: center;
-    }
+    v8.x: CSS 已迁移到 ``tui.textual_app.css.screens`` 子模块。
     """
+
+    # CSS 来自子模块（v8.x 重构后）
+    if TEXTUAL_AVAILABLE:
+        from .css.screens import CUSTOM_MODEL_SCREEN_CSS
+        CSS = CUSTOM_MODEL_SCREEN_CSS
 
     def __init__(self, on_submit: callable = None, **kwargs):
         super().__init__(**kwargs)
