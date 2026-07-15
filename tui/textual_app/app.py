@@ -261,6 +261,7 @@ class HandsomeAgentApp(App):
     BINDINGS = [
         # --- 核心快捷键 ---
         Binding("ctrl+q", "quit", "Quit"),
+        Binding("ctrl+c", "copy", "Copy"),
         Binding("ctrl+b", "toggle_sidebar", "Sidebar"),
         Binding("f1", "open_help", "Help"),
         Binding("f2", "open_settings", "Settings"),
@@ -2311,6 +2312,26 @@ class HandsomeAgentApp(App):
                 chat_area.add_assistant_message(content)
             elif hasattr(chat_area, "write"):
                 chat_area.write(f"\nAgent: {content}\n")
+
+    def action_copy(self) -> None:
+        try:
+            focused_widget = self.focused
+            if focused_widget is not None:
+                if hasattr(focused_widget, "selected_text"):
+                    selected_text = focused_widget.selected_text
+                    if selected_text:
+                        self.app.copy_to_clipboard(selected_text)
+                        self.notify("已复制选中内容")
+                        return
+                elif hasattr(focused_widget, "text"):
+                    text = getattr(focused_widget, "text", "")
+                    if text:
+                        self.app.copy_to_clipboard(text)
+                        self.notify("已复制内容")
+                        return
+            self.notify("无可复制内容")
+        except Exception as e:
+            self._logger.debug(f"Copy action failed: {e}")
 
     def action_quit(self) -> None:
         self._logger.info("User requested quit")

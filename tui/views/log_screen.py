@@ -78,6 +78,8 @@ class LogScreen(ModalScreen):
 
     BINDINGS = [
         Binding("escape", "close", "关闭", show=True),
+        Binding("ctrl+c", "copy", "复制"),
+        Binding("f3", "close", "关闭", show=False),
     ]
 
     def __init__(self, **kwargs):
@@ -121,6 +123,23 @@ class LogScreen(ModalScreen):
             scroll.scroll_end(animate=False)
 
         self.call_after_refresh(_scroll_to_bottom)
+
+    def action_copy(self) -> None:
+        """复制日志内容."""
+        try:
+            log_widget = self.query_one("#log-content")
+            text = ""
+            if hasattr(log_widget, "_lines"):
+                text = "\n".join(log_widget._lines)
+            elif hasattr(log_widget, "text"):
+                text = getattr(log_widget, "text", "")
+            if text:
+                self.app.copy_to_clipboard(text)
+                self.notify("已复制日志内容")
+            else:
+                self.notify("日志为空")
+        except Exception as e:
+            self._logger.debug(f"Copy action failed: {e}")
 
     def action_close(self) -> None:
         """关闭日志窗口."""
