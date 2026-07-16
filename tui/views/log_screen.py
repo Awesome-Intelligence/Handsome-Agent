@@ -38,14 +38,17 @@ class LogScreen(ModalScreen):
     CSS = """
     LogScreen {
         align: center middle;
-        background: $boost 40%;
+        background: $primary 30%;
     }
 
     /* ponytail: 覆盖紫色主题下的选中色（默认回退到 primary=紫），
-       在日志弹窗里强制用中性 boost + 反色文字，避免选中文字看起来变紫。*/
+       在日志弹窗里强制用中性 surface + 反色文字，避免选中文字看起来变紫。
+       ponytail: $boost 在内置主题下是固定 rgba (255,255,255,0.04)，
+       切主题不变；$text / $text-muted 不是 Textual 官方变量，
+       改用 $foreground 才是真正跟主题的。*/
     LogScreen .screen--selection {
-        background: $boost;
-        color: $text;
+        background: $surface;
+        color: $foreground;
     }
 
     #log-window {
@@ -60,7 +63,7 @@ class LogScreen(ModalScreen):
         height: 3;
         background: $accent;
         content-align: center middle;
-        color: $text;
+        color: $foreground;
         text-style: bold;
     }
 
@@ -79,7 +82,7 @@ class LogScreen(ModalScreen):
         height: 2;
         background: $accent 20%;
         content-align: center middle;
-        color: $text-muted;
+        color: $foreground 70%;
     }
     """
 

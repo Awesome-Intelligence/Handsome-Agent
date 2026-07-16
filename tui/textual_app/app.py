@@ -40,13 +40,10 @@ from .imports import (
     Key,
     Click,
     textual_events,
-    Theme,
     NewLine,
     KeyEvent,
     RichText,
     Style,
-    ThemeManager,
-    get_theme_manager,
     estimate_messages_tokens_rough,
     ChatContainer,
     SessionPickerScreen,
@@ -91,7 +88,6 @@ from .session import SessionMixin
 from .sidebar_panels import SidebarPanelMixin
 from .slash_completion_bind import SlashCompletionMixin
 from .status_bar import StatusBarMixin
-from .styling import StylingMixin, build_textual_themes
 from .text_area import SubmitTextArea
 from .screens import CustomModelInputScreen
 from tui.widgets.slash_completion import SlashCompletionList
@@ -111,11 +107,17 @@ from .constants import (
 
 _patch_textual_logger()
 
-THEMES: list[Theme] = build_textual_themes() if TEXTUAL_AVAILABLE else []
+# ponytail: 直接用 Textual 内置主题列表（22 个），自定义主题已删。
+THEME_CYCLE: list[str] = []
+if TEXTUAL_AVAILABLE:
+    try:
+        from textual.theme import BUILTIN_THEMES
+        THEME_CYCLE = list(BUILTIN_THEMES.keys())
+    except ImportError:
+        THEME_CYCLE = ["textual-dark"]
 
 
 class AgentApp(
-    StylingMixin,
     StatusBarMixin,
     BannerMixin,
     GreetingMixin,
@@ -137,17 +139,19 @@ class AgentApp(
     ``tui/textual_app/*.py`` 下的 mixin 模块。
 
     Mixin 继承顺序（从左到右优先级递减）：
-      Styling → StatusBar → Banner → Greeting → Wisdom →
+      StatusBar → Banner → Greeting → Wisdom →
       ModelSelector → Approval → Notify → Session → AgentRunner →
       SidebarPanel → Actions → Loading → SlashCompletion → App
     """
     log = LogDescriptor()
     BINDINGS = [Binding('ctrl+q', 'quit', 'Quit'), Binding('ctrl+c', 'copy', 'Copy'), Binding('ctrl+b', 'toggle_sidebar', 'Sidebar'), Binding('f1', 'open_help', 'Help'), Binding('f2', 'open_settings', 'Settings'), Binding('f3', 'open_log_screen', 'Logs'), Binding('ctrl+left', 'prev_panel', 'Prev Panel', show=False), Binding('ctrl+right', 'next_panel', 'Next Panel', show=False)]
-    if TEXTUAL_AVAILABLE:
-        themes: list[Theme] = THEMES
     CSS = APP_CSS
+    if TEXTUAL_AVAILABLE:
+        # ponytail: Textual 内置主题自动注册；自定义主题已删除。
+        # 不用类型注解（避免遮蔽父类 Reactive descriptor）。
+        theme = "textual-dark"
 
-    def __init__(self, model_name: str='Agent', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str | ApprovalMode='suggest', initial_theme: str | None=None, agent=None, **kwargs):
+    def __init__(self, model_name: str='Agent', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str | ApprovalMode='suggest', agent=None, **kwargs):
         _patch_textual_logger()
         self._tui_log_handler: TuiLogHandler | None = None
         self._saved_console_handler: logging.Handler | None = None
@@ -188,14 +192,6 @@ class AgentApp(
         self._STATUS_ICONS = {'online': '😄', 'busy': ['🤔', '🤨', '😲', '🤯'], 'warning': '😕', 'error': '😐'}
         self._is_streaming: bool = False
         self._agent = agent
-        # Theme 动态初始化（不能删，mixin 只提供了 None 作为默认值）
-        self._theme_manager: ThemeManager | None = None
-        if get_theme_manager:
-            self._theme_manager = get_theme_manager()
-            if initial_theme:
-                self._theme_manager.set_theme(initial_theme)
-            self._theme_manager.register_theme_change_callback(self._on_theme_changed)
-            self.theme_id = self._theme_manager.get_current_theme_id()
         # Session / Approval 动态初始化钩子
         self._init_session_store()
         self._init_approval_manager(approval_mode)
@@ -242,25 +238,16 @@ class AgentApp(
 
     def on_mount(self) -> None:
         self._logger.info('Textual UI mounted')
-        if TEXTUAL_AVAILABLE:
-            for theme in THEMES:
-                self.register_theme(theme)
-            self._logger.info(f'Registered {len(THEMES)} themes: {[t.name for t in THEMES]}')
-            saved_theme = self._theme_manager.get_current_theme_id()
-            self.theme = saved_theme
-            self._logger.info(f'Restored theme: {self.theme}')
         self._cache_widgets()
         self._render_welcome_banner()
         self._update_status_bar()
+        self._update_theme_toggle_label()
         self._update_theme_toggle_tooltip()
         self.call_later(self._generate_wisdom_async)
         self.call_later(self._send_welcome_message)
         self._register_event_listeners()
         self.call_later(self._load_stylesheets)
         self.call_later(self._init_model_select)
-        if self._theme_manager and self._theme_manager.is_transparency_enabled():
-            self._logger.info('Applying saved transparency settings')
-            self._update_transparency_styles(True)
         if TUIConsumer and self._agent is not None:
             try:
                 self._tui_consumer = TUIConsumer()
@@ -303,35 +290,59 @@ class AgentApp(
                     self._logger.debug(f'Loaded stylesheet: {css_path.name}')
                 else:
                     self._logger.debug(f'Stylesheet not found: {css_path}')
-            self._theme_css_loaded = True
-            if self._theme_manager:
-                for tid in self._theme_manager.list_theme_ids():
-                    css_path = self._theme_manager.get_theme_css_path(tid)
-                    if css_path and css_path.exists():
-                        await self.add_stylesheet(str(css_path))
-                        self._logger.debug(f'Preloaded theme CSS: {css_path.name}')
-            self._apply_theme_class()
         except Exception as e:
             self._logger.debug(f'Failed to load stylesheets: {e}')
 
-    async def _load_theme_css(self, theme_id: str) -> None:
-        """加载主题 CSS 文件（异步）."""
-        if not self._theme_manager:
+    def _on_theme_toggle_click(self) -> None:
+        """点击 #theme-toggle 时切换 Textual 内置主题。"""
+        if not THEME_CYCLE:
+            self._logger.warning('No themes available to toggle')
             return
         try:
-            for css_path in self._theme_css_paths:
-                try:
-                    await self.remove_stylesheet(css_path)
-                except Exception:
-                    pass
-            self._theme_css_paths.clear()
-            theme_css_path = self._theme_manager.get_theme_css_path(theme_id)
-            if theme_css_path and theme_css_path.exists():
-                await self.add_stylesheet(str(theme_css_path))
-                self._theme_css_paths.append(str(theme_css_path))
-                self._logger.debug(f'Loaded theme CSS: {theme_css_path.name}')
+            current = self.theme if isinstance(self.theme, str) else 'textual-dark'
+            i = THEME_CYCLE.index(current) if current in THEME_CYCLE else -1
+            self.theme = THEME_CYCLE[(i + 1) % len(THEME_CYCLE)]
+            self._logger.info(f'Theme switched to: {self.theme}')
+            self._update_theme_toggle_label()
+            # ponytail: Textual 不自动刷新已挂载 ModalScreen（如 LogScreen / SessionPicker）
+            # 的 $primary/$accent 变量，主动 refresh_css 让所有 screen 同时切色。
+            self.refresh_css(animate=False)
+            self.notify_animated(
+                t('tui.theme.switched', '主题已切换: {theme}', theme=self.theme),
+                NotificationType.INFO,
+            )
         except Exception as e:
-            self._logger.debug(f'Failed to load theme CSS: {e}')
+            self._logger.warning(f'Theme toggle failed: {e}')
+
+    def _update_theme_toggle_label(self) -> None:
+        """把 #theme-toggle 标签更新为当前主题的首字母（视觉反馈）。"""
+        try:
+            widget = self._widget_cache.get('theme_toggle')
+            if widget is None:
+                widget = self.query_one('#theme-toggle', Static)
+                self._widget_cache['theme_toggle'] = widget
+            name = self.theme if isinstance(self.theme, str) else 'textual-dark'
+            # ponytail: 单字母就够了 — 完整名太长、按钮只有 5 列宽。
+            label = name[:1].upper() if name else '?'
+            widget.update(label)
+        except Exception:
+            pass
+
+    def _update_theme_toggle_tooltip(self) -> None:
+        """更新主题切换按钮的 tooltip."""
+        theme_toggle = self._widget_cache.get('theme_toggle')
+        if theme_toggle is None:
+            try:
+                theme_toggle = self.query_one('#theme-toggle', Static)
+                self._widget_cache['theme_toggle'] = theme_toggle
+            except Exception:
+                return
+        theme_toggle.tooltip = t('tui.command.toggle_theme')
+
+    @on(Click, '#theme-toggle')
+    def _handle_theme_toggle_click(self, _event: Click) -> None:
+        """处理 #theme-toggle 点击事件."""
+        self._on_theme_toggle_click()
 
     def _update_token_count(self) -> None:
         """更新 token 计数（方案B：消息完成后估算，不影响性能）."""
@@ -659,7 +670,7 @@ class AgentApp(
         except Exception as e:
             self._logger.warning(f'Failed to sync agent model: {e}')
 
-def run_textual_app(model_name: str='Agent-Z', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str='suggest', initial_theme: str | None=None, agent=None) -> int:
+def run_textual_app(model_name: str='Agent-Z', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str='suggest', agent=None) -> int:
     if not TEXTUAL_AVAILABLE:
         print(get_textual_install_hint())
         return 1
@@ -668,7 +679,7 @@ def run_textual_app(model_name: str='Agent-Z', provider: str | None=None, cwd: s
         print(f'\n⚠ Cannot start Textual TUI: {reason}')
         print('Falling back to legacy CLI mode...\n')
         return 1
-    app = AgentApp(model_name=model_name, provider=provider, cwd=cwd, session_id=session_id, context_length=context_length, approval_mode=approval_mode, initial_theme=initial_theme, agent=agent)
+    app = AgentApp(model_name=model_name, provider=provider, cwd=cwd, session_id=session_id, context_length=context_length, approval_mode=approval_mode, agent=agent)
     try:
         return app.run()
     finally:
@@ -734,8 +745,6 @@ __all__ = [
     "PURPLE_BRIGHT",
     "PURPLE_DIM",
     "PURPLE_DARK",
-    "ThemeManager",
-    "get_theme_manager",
     "NotificationType",
 ]
 if __name__ == '__main__':

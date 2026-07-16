@@ -23,7 +23,7 @@ INPUT_AREA_CSS = """
     padding: 0;
     margin: 0;
     border: none;
-    background: rgba(177, 128, 215, 0.2);
+    background: $primary 20%;
 }
 
 #input-area #status-content {
@@ -42,6 +42,7 @@ INPUT_AREA_CSS = """
 #input-area Footer {
     dock: none;
     height: 1;
+    background: $primary 40%;
 }
 
 .input-field {

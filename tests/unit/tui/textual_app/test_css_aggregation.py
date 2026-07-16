@@ -26,14 +26,13 @@ class TestCSSModulesImportable:
             INPUT_AREA_CSS,
             SLASH_COMPLETION_CSS,
             SIDEBAR_LAYOUT_CSS,
-            TRANSPARENCY_CSS,
             CUSTOM_MODEL_SCREEN_CSS,
         )
 
         for css in (
             BASE_CSS, CHAT_CSS, HEADER_CSS, STATUS_BAR_CSS,
             INPUT_AREA_CSS, SLASH_COMPLETION_CSS, SIDEBAR_LAYOUT_CSS,
-            TRANSPARENCY_CSS, CUSTOM_MODEL_SCREEN_CSS,
+            CUSTOM_MODEL_SCREEN_CSS,
         ):
             assert isinstance(css, str)
             assert css.strip(), "CSS block must not be empty"
@@ -66,6 +65,45 @@ class TestCSSBlockContent:
         assert "#welcome-banner" in HEADER_CSS
         assert "#theme-toggle" in HEADER_CSS
 
+    def test_header_background_uses_theme_variable(self):
+        """#app-header 背景必须是主题变量（$xxx 或 $xxx 20%）。
+
+        硬编码 rgba()/hex 会让切主题时 header 颜色不变，属于回归。
+        """
+        import re
+
+        from tui.textual_app.css.header import HEADER_CSS
+
+        match = re.search(
+            r"#app-header\s*\{[^}]*background:\s*([^;]+);",
+            HEADER_CSS,
+            re.DOTALL,
+        )
+        assert match, "#app-header 缺少 background 声明"
+        value = match.group(1).strip()
+        assert value.startswith("$"), (
+            f"#app-header 背景硬编码为 {value!r}，切换主题时不会跟随。"
+            "请改用 $primary/$surface 等主题变量。"
+        )
+
+    def test_input_area_background_uses_theme_variable(self):
+        """#input-area 背景必须是主题变量，否则切主题时底部栏固定紫色。"""
+        import re
+
+        from tui.textual_app.css.input_area import INPUT_AREA_CSS
+
+        match = re.search(
+            r"#input-area\s*\{[^}]*background:\s*([^;]+);",
+            INPUT_AREA_CSS,
+            re.DOTALL,
+        )
+        assert match, "#input-area 缺少 background 声明"
+        value = match.group(1).strip()
+        assert value.startswith("$"), (
+            f"#input-area 背景硬编码为 {value!r}，切换主题时不会跟随。"
+            "请改用 $primary/$surface 等主题变量。"
+        )
+
     def test_status_bar_contains_status_widgets(self):
         from tui.textual_app.css.status_bar import STATUS_BAR_CSS
         assert "#status-bar" in STATUS_BAR_CSS
@@ -89,12 +127,6 @@ class TestCSSBlockContent:
         assert "#sidebar-container" in SIDEBAR_LAYOUT_CSS
         assert "#main-area" in SIDEBAR_LAYOUT_CSS
         assert "#log-output" in SIDEBAR_LAYOUT_CSS
-
-    def test_transparency_contains_classes(self):
-        from tui.textual_app.css.transparency import TRANSPARENCY_CSS
-        assert ".transparent-panel" in TRANSPARENCY_CSS
-        assert ".transparent-header" in TRANSPARENCY_CSS
-        assert ".transparency-indicator" in TRANSPARENCY_CSS
 
     def test_custom_model_screen_css(self):
         from tui.textual_app.css.screens import CUSTOM_MODEL_SCREEN_CSS
@@ -137,10 +169,6 @@ class TestAPPCSSAgggregation:
             "#sidebar-container",
             "#main-area",
             "#log-output",
-            # transparency
-            ".transparent-panel",
-            ".transparent-header",
-            ".transparency-indicator",
         ]
         for selector in expected_selectors:
             assert selector in APP_CSS, f"APP_CSS missing: {selector}"

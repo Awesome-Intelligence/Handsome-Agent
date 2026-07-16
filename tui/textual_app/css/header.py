@@ -19,7 +19,7 @@ HEADER_CSS = """
     height: 3;
     width: 100%;
     dock: top;
-    background: rgba(177, 128, 215, 0.2);
+    background: $primary 20%;
     outline-bottom: solid $primary;
     layout: horizontal;
 }
@@ -48,9 +48,9 @@ HEADER_CSS = """
 }
 
 #theme-toggle {
-    width: 3;
+    width: 5;
     height: 3;
-    padding: 0;
+    padding: 0 1;
     margin-left: 2;
     background: $accent;
     color: white;
@@ -59,5 +59,9 @@ HEADER_CSS = """
 
 #theme-toggle:hover {
     background: $primary;
+}
+
+#theme-toggle > .toggle--text {
+    text-style: bold;
 }
 """

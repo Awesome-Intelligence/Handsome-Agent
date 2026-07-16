@@ -39,13 +39,6 @@ from tui.textual_app import (
     PURPLE_DARK,
 )
 
-# 主题系统
-from tui.theming import (
-    ThemeManager,
-    get_theme_manager,
-    Theme,
-)
-
 # 视图
 from tui.views import (
     HelpScreen,
@@ -93,10 +86,6 @@ __all__ = [
     "PURPLE_BRIGHT",
     "PURPLE_DIM",
     "PURPLE_DARK",
-    # 主题系统
-    "ThemeManager",
-    "get_theme_manager",
-    "Theme",
     # 视图
     "HelpScreen",
     "SessionPickerScreen",

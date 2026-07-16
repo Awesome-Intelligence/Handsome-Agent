@@ -170,13 +170,6 @@ _patch_textual_logger()
 # ============================================================================
 
 try:
-    from common.theming import ThemeManager, get_theme_manager
-except ImportError:
-    ThemeManager = None  # type: ignore
-    get_theme_manager = None  # type: ignore
-
-
-try:
     from agent.context.token_estimator import estimate_messages_tokens_rough
 except ImportError:
     estimate_messages_tokens_rough = None  # type: ignore
@@ -256,10 +249,8 @@ except ImportError:
     LogScreen = None  # type: ignore
 
 
-try:
-    from common.theming.css import get_stylesheets
-except ImportError:
-    get_stylesheets = None  # type: ignore
+# ponytail: common.theming.css 已删除；_load_stylesheets 现在只依赖内联 APP_CSS。
+get_stylesheets = None  # type: ignore
 
 
 __all__ = [
@@ -303,8 +294,6 @@ __all__ = [
     # helpers
     "_patch_textual_logger",
     # cross-module
-    "ThemeManager",
-    "get_theme_manager",
     "estimate_messages_tokens_rough",
     "ChatContainer",
     "SessionPickerScreen",

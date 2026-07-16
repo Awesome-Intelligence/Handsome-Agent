@@ -129,7 +129,7 @@ class SessionItem:
 
 SESSION_PICKER_CSS = """
 SessionPickerScreen {
-    background: """ + AVOCADO_DARK + """;
+    background: $primary 30%;
 }
 
 #picker-container {
@@ -164,12 +164,12 @@ SessionPickerScreen {
 }
 
 #session-table .datatable--cursor {
-    background: """ + AVOCADO_PRIMARY + """;
+    background: $accent;
     color: """ + WHITE + """;
 }
 
 #session-table :highlight_cursor {
-    background: """ + AVOCADO_DIM + """;
+    background: $primary 50%;
 }
 
 #action-bar {
