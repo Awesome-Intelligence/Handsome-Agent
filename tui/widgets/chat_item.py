@@ -78,7 +78,8 @@ class ChatItem(Widget):
     ChatItem.user .text-wrapper {
         width: auto;
         max-width: 80%;
-        background: #3a3a3a;
+        background: $primary 30%;
+        color: $foreground;
         padding: 0 1;
     }
 
