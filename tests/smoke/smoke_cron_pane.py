@@ -15,7 +15,7 @@ Output:
     ``tests/smoke/out/cron_pane.svg`` — full app screenshot.
 """
 
-# Copyright © 2026 Handsome Agent Contributors.
+# Copyright © 2026 Agent-Z Contributors.
 # Licensed under the MIT license. See LICENSE for details.
 
 from __future__ import annotations

@@ -31,7 +31,7 @@ rejection instead of scheduling a job that will only fail (silently)
 when it fires.
 """
 
-# Copyright © 2026 Handsome Agent Contributors.
+# Copyright © 2026 Agent-Z Contributors.
 # Licensed under the MIT license. See LICENSE for details.
 
 from __future__ import annotations

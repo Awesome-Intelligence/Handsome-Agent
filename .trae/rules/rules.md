@@ -8,7 +8,7 @@ description: |
   - 自检清单
 ---
 
-# Copyright (c) 2026 Handsome Agent Contributors
+# Copyright (c) 2026 Agent-Z Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件

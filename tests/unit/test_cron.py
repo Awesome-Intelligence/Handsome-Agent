@@ -14,7 +14,7 @@ Runs hermetic: every test redirects ``$HANDSOME_HOME`` to a tmpdir and
 isolates ``$HANDSOME_AGENT_RUNNER`` to a stub callable.
 """
 
-# Copyright © 2026 Handsome Agent Contributors.
+# Copyright © 2026 Agent-Z Contributors.
 # Licensed under the MIT license. See LICENSE for details.
 
 from __future__ import annotations

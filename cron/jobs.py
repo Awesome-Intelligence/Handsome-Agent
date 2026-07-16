@@ -48,7 +48,7 @@ Callers (CLI / model tool / REST layer) go through ``create_job``,
 (``fcntl`` on Unix / ``msvcrt`` on Windows / no-op fallback elsewhere).
 """
 
-# Copyright © 2026 Handsome Agent Contributors.
+# Copyright © 2026 Agent-Z Contributors.
 # Licensed under the MIT license. See LICENSE for details.
 
 from __future__ import annotations

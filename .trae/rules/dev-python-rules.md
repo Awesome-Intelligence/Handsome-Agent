@@ -10,7 +10,7 @@ description: |
   如涉及 Python 代码风格、类型注解、导入规范等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 Handsome Agent Contributors
+# Copyright (c) 2026 Agent-Z Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件

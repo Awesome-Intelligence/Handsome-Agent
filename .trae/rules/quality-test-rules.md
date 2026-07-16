@@ -12,7 +12,7 @@ description: |
   如涉及测试用例编写、测试框架配置、覆盖率要求等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 Handsome Agent Contributors
+# Copyright (c) 2026 Agent-Z Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件

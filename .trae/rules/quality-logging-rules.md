@@ -11,7 +11,7 @@ description: |
   如涉及日志级别、格式、记录要求等，请查阅此规范。
 ---
 
-# Copyright (c) 2026 Handsome Agent Contributors
+# Copyright (c) 2026 Agent-Z Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件

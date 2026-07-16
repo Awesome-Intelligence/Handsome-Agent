@@ -26,7 +26,7 @@ delivery layer can populate; calls are best-effort and never raise
 into the runner.
 """
 
-# Copyright © 2026 Handsome Agent Contributors.
+# Copyright © 2026 Agent-Z Contributors.
 # Licensed under the MIT license. See LICENSE for details.
 
 from __future__ import annotations

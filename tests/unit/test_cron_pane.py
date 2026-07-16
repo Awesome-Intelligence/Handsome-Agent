@@ -17,7 +17,7 @@ Textual is required to import the view module, so tests are skipped
 when the library is not installed (e.g. minimal CI image).
 """
 
-# Copyright © 2026 Handsome Agent Contributors.
+# Copyright © 2026 Agent-Z Contributors.
 # Licensed under the MIT license. See LICENSE for details.
 
 from __future__ import annotations
