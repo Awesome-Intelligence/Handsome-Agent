@@ -41,6 +41,13 @@ class LogScreen(ModalScreen):
         background: $boost 40%;
     }
 
+    /* ponytail: 覆盖紫色主题下的选中色（默认回退到 primary=紫），
+       在日志弹窗里强制用中性 boost + 反色文字，避免选中文字看起来变紫。*/
+    LogScreen .screen--selection {
+        background: $boost;
+        color: $text;
+    }
+
     #log-window {
         width: 90%;
         height: 80%;

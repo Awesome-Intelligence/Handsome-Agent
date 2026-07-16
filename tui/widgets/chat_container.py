@@ -211,13 +211,17 @@ class ChatContainer(Widget, can_focus=False):
 
         同步入口；通过 ``asyncio.create_task`` 把 coroutine 切到事件循环里
         —— 同步入口也能驱动 async 的 ``MarkdownStream.write``。
+
+        ponytail: scroll 必须在 ``await append_text`` 完成后再 schedule，
+        否则 ``call_after_refresh(scroll_end)`` 会在 Markdown widget re-layout
+        前跑，``scroll_y`` 锁在旧的 ``max_scroll_y``，新内容出现但视图不动。
         """
         if not self._streaming_item or not text:
             return
         follow = _near_bottom(self._get_message_container())
-        asyncio.create_task(self._do_append_text(self._streaming_item, text))
-        if follow:
-            self._schedule_follow_scroll()
+        asyncio.create_task(
+            self._do_append_text(self._streaming_item, text, follow)
+        )
 
     def append_streaming_thinking(self, text: str) -> None:
         """追加流式思考内容。
@@ -230,19 +234,32 @@ class ChatContainer(Widget, can_focus=False):
             self.start_streaming("assistant")
         if self._streaming_item is None:
             return
-        asyncio.create_task(self._do_append_thinking(self._streaming_item, text))
+        follow = _near_bottom(self._get_message_container())
+        asyncio.create_task(
+            self._do_append_thinking(self._streaming_item, text, follow)
+        )
 
-    async def _do_append_text(self, item: ChatItem, text: str) -> None:
+    async def _do_append_text(
+        self, item: ChatItem, text: str, follow: bool
+    ) -> None:
         try:
             await item.append_text(text)
         except Exception as exc:  # pragma: no cover —— 防御性
             self._logger.warning(f"append_text failed: {exc}")
+            return
+        if follow:
+            self._schedule_follow_scroll()
 
-    async def _do_append_thinking(self, item: ChatItem, text: str) -> None:
+    async def _do_append_thinking(
+        self, item: ChatItem, text: str, follow: bool
+    ) -> None:
         try:
             await item.append_thinking(text)
         except Exception as exc:  # pragma: no cover
             self._logger.warning(f"append_thinking failed: {exc}")
+            return
+        if follow:
+            self._schedule_follow_scroll()
 
     def complete_streaming(self) -> str | None:
         """结束当前流。返回被收尾的 ChatItem id。"""
@@ -250,18 +267,23 @@ class ChatContainer(Widget, can_focus=False):
         if item is None:
             return None
         self._streaming_item = None
-        asyncio.create_task(self._finish_item(item))
+        follow = _near_bottom(self._get_message_container())
         self.messages = self.messages + [
             {"role": item.author, "content": item.text, "tool_name": None}
         ]
-        self._schedule_follow_scroll()
+        # ponytail: scroll 放在 freeze 完成之后，避免 _freeze_markdown
+        # 替换 Markdown 子树时与 scroll_end 抢 layout。
+        asyncio.create_task(self._finish_item(item, follow))
         return item.id
 
-    async def _finish_item(self, item: ChatItem) -> None:
+    async def _finish_item(self, item: ChatItem, follow: bool = False) -> None:
         try:
             await item.finish_stream()
         except Exception as exc:  # pragma: no cover —— 防御性
             self._logger.warning(f"finish_stream failed: {exc}")
+            return
+        if follow:
+            self._schedule_follow_scroll()
 
     def cancel_streaming(self) -> None:
         """取消当前流。"""
