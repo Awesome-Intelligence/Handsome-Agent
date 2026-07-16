@@ -54,6 +54,9 @@ class WisdomMixin:
                 wisdom = (
                     response.content.strip() if response and response.content else None
                 )
+                if wisdom:
+                    # LLM 常把语录包在引号里，去掉首尾各类引号。
+                    wisdom = wisdom.strip("\"'“”‘’「」『』 ")
             finally:
                 loop.close()
 

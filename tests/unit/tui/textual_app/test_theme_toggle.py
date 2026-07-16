@@ -36,8 +36,8 @@ async def test_theme_toggle_cycles_theme_and_updates_label() -> None:
         await pilot.pause()
 
         assert app.theme == next_theme, f"expected {next_theme}, got {app.theme}"
-        # 标签应更新为下一个主题的首字母（仅大写），按钮宽度=5，有 padding。
-        assert str(widget.content) == next_theme[:1].upper()
+        # 标签固定为三角符号，不随主题变化。
+        assert str(widget.content) == '►'
 
 
 @pytest.mark.asyncio

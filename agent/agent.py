@@ -187,6 +187,7 @@ class Agent:
 
         self._stream_callback = None
         self._stream_emitter = None
+        self._thinking_callback = None
 
         # ── 加载 Tool Loop Guardrail 配置 ──
         tool_loop_config = None

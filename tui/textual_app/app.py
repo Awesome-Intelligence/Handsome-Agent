@@ -315,16 +315,13 @@ class AgentApp(
             self._logger.warning(f'Theme toggle failed: {e}')
 
     def _update_theme_toggle_label(self) -> None:
-        """把 #theme-toggle 标签更新为当前主题的首字母（视觉反馈）。"""
+        """确保 #theme-toggle 显示三角符号（固定图标，不随主题变化）。"""
         try:
             widget = self._widget_cache.get('theme_toggle')
             if widget is None:
                 widget = self.query_one('#theme-toggle', Static)
                 self._widget_cache['theme_toggle'] = widget
-            name = self.theme if isinstance(self.theme, str) else 'textual-dark'
-            # ponytail: 单字母就够了 — 完整名太长、按钮只有 5 列宽。
-            label = name[:1].upper() if name else '?'
-            widget.update(label)
+            widget.update('►')
         except Exception:
             pass
 
