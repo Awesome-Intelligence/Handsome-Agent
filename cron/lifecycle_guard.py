@@ -88,12 +88,12 @@ def _resolve_script_path(script_path: str) -> Path:
     location but is passed as the bare name would scan prompt-only
     content and let the command through.
     """
-    from common.config import get_agentz_home
+    from common.config import get_agent_z_home
 
     raw = Path(script_path).expanduser()
     if raw.is_absolute():
         return raw
-    return get_agentz_home() / "scripts" / raw
+    return get_agent_z_home() / "scripts" / raw
 
 
 def _read_script_for_scanning(script_path: str) -> str:

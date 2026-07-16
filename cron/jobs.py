@@ -80,7 +80,7 @@ try:
 except ImportError:  # pragma: no cover - non-Windows
     msvcrt = None
 
-from common.config import get_agentz_home
+from common.config import get_agent_z_home
 from common.cron_time import now as _hermes_now
 from common.file_utils import atomic_replace
 from common.logging_manager import get_decision_logger
@@ -102,7 +102,7 @@ logger = get_decision_logger("cron", sublayer="scheduler")
 
 # Cron lives under $AGENT_Z_HOME/cron/.  Tests can monkeypatch
 # ``_get_active_home()`` to redirect without touching env vars.
-AGENTZ_DIR = get_agentz_home().resolve()
+AGENTZ_DIR = get_agent_z_home().resolve()
 CRON_DIR = AGENTZ_DIR / "cron"
 JOBS_FILE = CRON_DIR / "jobs.json"
 
@@ -132,7 +132,7 @@ def _get_active_home() -> Path:
     override = globals().get("_HERMES_HOME_OVERRIDE")
     if override is not None:
         return Path(override)
-    return get_agentz_home()
+    return get_agent_z_home()
 
 
 # Lazy-resolved paths. We bind these at module import time but

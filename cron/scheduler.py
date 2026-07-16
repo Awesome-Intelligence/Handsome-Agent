@@ -55,7 +55,7 @@ except ImportError:
     except ImportError:
         msvcrt = None
 
-from common.config import get_agentz_home
+from common.config import get_agent_z_home as get_agentz_home
 from common.cron_time import now as _hermes_now
 from common.i18n import t
 from common.logging_manager import get_decision_logger

@@ -53,6 +53,10 @@ def get_agent_z_home() -> Path:
     return AGENT_Z_HOME
 
 
+# Alias for backward compatibility (without underscore)
+get_agentz_home = get_agent_z_home
+
+
 def get_config_path() -> Path:
     """Get the config YAML file path."""
     home = AGENT_Z_HOME
