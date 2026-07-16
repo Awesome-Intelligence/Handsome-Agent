@@ -231,9 +231,9 @@ class ChatItem(Widget):
             self._thinking_stream = Markdown.get_stream(body)
         self.set_reactive(ChatItem.thinking, self.thinking + delta)
         if first_chunk:
-            self._refresh_thinking_chrome()
             if self.thoughts_collapsed and not self._user_toggled:
                 self.set_reactive(ChatItem.thoughts_collapsed, False)
+            self._refresh_thinking_chrome()
         await self._thinking_stream.write(delta)
 
     async def finish_stream(self) -> None:
@@ -248,6 +248,7 @@ class ChatItem(Widget):
         """
         if not self._user_toggled and self.thinking:
             self.set_reactive(ChatItem.thoughts_collapsed, True)
+            self._refresh_thinking_chrome()
         if self._response_stream is not None:
             await self._response_stream.stop()
             self._response_stream = None
@@ -293,11 +294,7 @@ class ChatItem(Widget):
             frozen_resp = Static(RichMarkdown(self.text), classes="response")
         if body is not None and self.thinking:
             frozen_body = Static(RichMarkdown(self.thinking), classes="thinking-body")
-            # 保留当前显隐状态（折叠时 display=False）。
-            frozen_body.display = body.display
-            # 如果有正文且思考已折叠，确保 frozen_body 也是隐藏的。
-            if self.text and self.thoughts_collapsed:
-                frozen_body.display = False
+            frozen_body.display = not self.thoughts_collapsed
 
         # batch 内 4 个操作合并为 1 次 layout pass。
         with self.app.batch_update():
