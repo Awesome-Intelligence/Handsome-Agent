@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Logging Manager Module - Handsome Agent
+Logging Manager Module - Agent-Z
 
 Based on OpenClaw's logging system design, provides:
 - Multi-level log control (brief/moderate/detailed)
@@ -78,7 +78,7 @@ class LogConfig:
         self.log_level: str = "moderate"
         self.console_enabled: bool = True
         self.file_enabled: bool = False
-        self.file_path: str = str(get_logs_dir() / "handsome-agent.log")
+        self.file_path: str = str(get_logs_dir() / "agent-z.log")
         self.console_style: str = ConsoleStyle.PRETTY
         self.console_show_time: bool = False  # 控制台不显示时间，文件日志带时间
         self.max_file_size: int = 50 * 1024 * 1024  # 50MB per file

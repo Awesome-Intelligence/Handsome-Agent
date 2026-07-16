@@ -1,4 +1,4 @@
-# Handsome Agent 测试计划
+# Agent-Z 测试计划
 
 **版本**: v1.0.0  
 **最后更新**: 2026-06-09  
@@ -22,11 +22,11 @@
 
 ### 1.1 文档目的
 
-本文档定义 Handsome Agent 项目的测试计划，包括测试范围、策略、资源、进度安排和风险评估。
+本文档定义 Agent-Z 项目的测试计划，包括测试范围、策略、资源、进度安排和风险评估。
 
 ### 1.2 项目背景
 
-Handsome Agent 是一个企业级 AI Agent 系统，核心功能包括：
+Agent-Z 是一个企业级 AI Agent 系统，核心功能包括：
 - LLM 驱动的决策引擎
 - ReAct 循环执行引擎
 - 50+ 预置工具
@@ -248,8 +248,8 @@ addopts = -v --tb=short
 
 # 环境配置
 [pytest:env]
-HANDSOME_LLM_PROVIDER = mock
-HANDSOME_DATA_DIR = /tmp/test_data
+AGENTZ_LLM_PROVIDER = mock
+AGENTZ_DATA_DIR = /tmp/test_data
 ```
 
 ### 7.2 测试依赖

@@ -56,20 +56,20 @@ class TestLoadSaveConfig:
 class TestEnvOverride:
     """Test environment variable override."""
 
-    def test_handsome_home_from_env(self):
-        """Test HANDSOME_HOME env var is respected."""
+    def test_agentz_home_from_env(self):
+        """Test AGENT_Z_HOME env var is respected."""
         with tempfile.TemporaryDirectory() as tmpdir:
             custom_home = Path(tmpdir) / "custom_agent"
-            with patch.dict(os.environ, {"HANDSOME_HOME": str(custom_home)}):
+            with patch.dict(os.environ, {"AGENT_Z_HOME": str(custom_home)}):
                 # Reload module to pick up new env
                 import importlib
                 from common import config as cfg_module
 
                 importlib.reload(cfg_module)
 
-                from common.config import HANDSOME_HOME, get_config_path
+                from common.config import AGENT_Z_HOME, get_config_path
 
-                assert str(HANDSOME_HOME) == str(custom_home)
+                assert str(AGENT_Z_HOME) == str(custom_home)
                 assert get_config_path().parent == custom_home
 
 
@@ -78,28 +78,28 @@ class TestWorkspaceDirs:
 
     def test_get_sessions_dir(self):
         """Test sessions directory path."""
-        from common.config import get_sessions_dir, HANDSOME_HOME
+        from common.config import get_sessions_dir, AGENT_Z_HOME
 
-        assert get_sessions_dir() == HANDSOME_HOME / "sessions"
+        assert get_sessions_dir() == AGENT_Z_HOME / "sessions"
 
     def test_get_memories_dir(self):
         """Test memories directory path."""
-        from common.config import get_memories_dir, HANDSOME_HOME
+        from common.config import get_memories_dir, AGENT_Z_HOME
 
-        assert get_memories_dir() == HANDSOME_HOME / "memories"
+        assert get_memories_dir() == AGENT_Z_HOME / "memories"
 
     def test_get_logs_dir(self):
         """Test logs directory path."""
-        from common.config import get_logs_dir, HANDSOME_HOME
+        from common.config import get_logs_dir, AGENT_Z_HOME
 
-        assert get_logs_dir() == HANDSOME_HOME / "logs"
+        assert get_logs_dir() == AGENT_Z_HOME / "logs"
 
     def test_ensure_workspace_dirs_creates_them(self):
         """Test ensure_workspace_dirs creates all required directories."""
         with tempfile.TemporaryDirectory() as tmpdir:
             custom_home = Path(tmpdir) / "test_agent"
 
-            with patch.dict(os.environ, {"HANDSOME_HOME": str(custom_home)}):
+            with patch.dict(os.environ, {"AGENT_Z_HOME": str(custom_home)}):
                 import importlib
                 from common import config as cfg_module
 

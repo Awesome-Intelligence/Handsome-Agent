@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Color definitions and utilities for Handsome Agent CLI.
+Color definitions and utilities for Agent-Z CLI.
 
 🚪 Access - 📦 Common - Terminal - 颜色系统
 

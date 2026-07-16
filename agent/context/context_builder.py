@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Context Builder - 独立的上下文构建器
@@ -423,7 +423,7 @@ class ContextBuilder:
             self._cache_misses += 1
             # 构造自我认知段落（G4 + G5：Agent 知道自己是谁、什么版本、什么系统）
             meta = dict(system_meta or {})
-            meta.setdefault("model", model or "Handsome Agent")
+            meta.setdefault("model", model or "Agent-Z")
             if not meta.get("cwd"):
                 import os
                 meta["cwd"] = os.getcwd()

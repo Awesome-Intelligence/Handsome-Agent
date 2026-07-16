@@ -1,4 +1,4 @@
-"""HTTP/WebSocket 适配器"""
+﻿"""HTTP/WebSocket 适配器"""
 from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +21,7 @@ class HTTPAdapter(BaseAdapter):
     
     async def start(self) -> None:
         """启动 HTTP 服务器"""
-        self.app = FastAPI(title="Handsome Agent Gateway")
+        self.app = FastAPI(title="Agent-Z Gateway")
         
         if self.config.enable_cors:
             self.app.add_middleware(

@@ -52,11 +52,11 @@ THREAT_PATTERNS: List[Tuple[str, str, str, str, str]] = [
     ),
     # 直接访问Hermes secrets文件
     (
-        r'\$HOME/\.handsome-agent/\.env|\~/\.handsome-agent/\.env',
-        "handsome_env_access",
+        r'\$HOME/\.Agent-Z/\.env|\~/\.Agent-Z/\.env',
+        "agentz_env_access",
         "critical",
         "exfiltration",
-        "directly references Handsome Agent secrets file",
+        "directly references Agent-Z secrets file",
     ),
     # DNS数据泄露
     (

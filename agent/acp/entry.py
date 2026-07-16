@@ -1,14 +1,14 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 ACP Entry Point.
 
-CLI entry point for the Handsome Agent ACP adapter.
+CLI entry point for the Agent-Z ACP adapter.
 
 Usage::
 
     python -m agent.acp.entry
-    handsome-acp
+    agentz-acp
 """
 
 # 🧠 Decision - 💾 Memory - ACP Entry Point
@@ -57,13 +57,13 @@ def _load_env() -> None:
 def _parse_args(argv: list = None) -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        prog="handsome-acp",
-        description="Run Handsome Agent as an ACP stdio server.",
+        prog="agentz-acp",
+        description="Run Agent-Z as an ACP stdio server.",
     )
     parser.add_argument(
         "--version",
         action="store_true",
-        help="Print Handsome Agent version and exit"
+        help="Print Agent-Z version and exit"
     )
     parser.add_argument(
         "--check",

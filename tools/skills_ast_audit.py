@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 AST-level Deep Audit for Skill Python Files - 技能代码深度审计
@@ -17,7 +17,7 @@ AST-level Deep Audit for Skill Python Files - 技能代码深度审计
 
 📋 Logging Layer: SkillASTAudit
 
-CLI 用法: handsome skills audit --deep
+CLI 用法: agentz skills audit --deep
 """
 
 from __future__ import annotations

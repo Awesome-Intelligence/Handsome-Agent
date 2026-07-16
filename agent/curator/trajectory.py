@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Trajectory Saving Module - Inspired by Hermes Agent
@@ -183,7 +183,7 @@ class TrajectoryManager:
     
     def __init__(self, base_path: str = None):
         if base_path is None:
-            base_path = os.path.join(os.path.expanduser("~"), ".handsome_agent", "trajectories")
+            base_path = os.path.join(os.path.expanduser("~"), ".agent_z", "trajectories")
         self.base_path = base_path
         os.makedirs(base_path, exist_ok=True)
     

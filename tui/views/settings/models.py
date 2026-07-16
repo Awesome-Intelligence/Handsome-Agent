@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """设置数据模型 - 与统一配置系统共享同一份 YAML 配置文件
 
-配置文件路径: ~/.handsome_agent/config.yaml
+配置文件路径: ~/.agent_z/config.yaml
 """
 
 from __future__ import annotations

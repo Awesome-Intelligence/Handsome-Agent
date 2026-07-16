@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 OnboardingScreen - 首次使用引导流程
@@ -61,11 +61,11 @@ except ImportError:
 
 # 配置支持
 try:
-    from common.config import HANDSOME_HOME, ensure_workspace_dirs
+    from common.config import AGENT_Z_HOME, ensure_workspace_dirs
 except ImportError:
-    HANDSOME_HOME = Path.home() / ".handsome_agent"
+    AGENT_Z_HOME = Path.home() / ".agent_z"
     def ensure_workspace_dirs():
-        HANDSOME_HOME.mkdir(parents=True, exist_ok=True)
+        AGENT_Z_HOME.mkdir(parents=True, exist_ok=True)
 
 # Provider 定义
 try:
@@ -343,7 +343,7 @@ class OnboardingScreen(Container):
         self.selected_provider: Optional[str] = None
         self.selected_api_key: Optional[str] = None
         self.selected_language = "zh"
-        self.trusted_directory = str(HANDSOME_HOME)
+        self.trusted_directory = str(AGENT_Z_HOME)
         
         # 所有步骤
         self._all_steps = [
@@ -737,7 +737,7 @@ class OnboardingScreen(Container):
             # 确保目录存在
             ensure_workspace_dirs()
             
-            config_file = HANDSOME_HOME / "config.json"
+            config_file = AGENT_Z_HOME / "config.json"
             
             # 读取现有配置
             existing_config = {}

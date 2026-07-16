@@ -1,9 +1,9 @@
-"""Skill provenance tracking — record and query skill write origins.
+﻿"""Skill provenance tracking — record and query skill write origins.
 
 This module tracks where skills originate (agent-created, user-created,
 hub-installed, restored) and manages the background-review context flag.
 
-Provenance data is persisted to ~/.handsome_agent/.provenance/ as JSON files.
+Provenance data is persisted to ~/.agent_z/.provenance/ as JSON files.
 
 Usage:
     from agent.skill_provenance import (
@@ -87,7 +87,7 @@ def is_background_review() -> bool:
 def _get_provenance_dir() -> Path:
     """Get the provenance data directory, creating it if necessary."""
     home = Path.home()
-    provenance_dir = home / ".handsome_agent" / ".provenance"
+    provenance_dir = home / ".agent_z" / ".provenance"
     provenance_dir.mkdir(parents=True, exist_ok=True)
     return provenance_dir
 

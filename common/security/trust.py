@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Agent-Z Contributors
+﻿# Copyright (c) 2026 Agent-Z Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -16,7 +16,7 @@ TRUSTED_REPOS: set = {
     "openai/skills",
     "anthropic/skills",
     "huggingface/skills",
-    "handsome-agent/official",
+    "Agent-Z/official",
 }
 
 

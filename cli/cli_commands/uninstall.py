@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Uninstall command - Uninstall Handsome Agent
+Uninstall command - Uninstall Agent-Z
 
 🚪 Access - 💬 CLI - 卸载功能
 
@@ -17,7 +17,7 @@ from typing import Optional
 
 
 def uninstall_agent(force: bool = False, backup: bool = True) -> None:
-    """Uninstall Handsome Agent.
+    """Uninstall Agent-Z.
     
     Args:
         force: Skip confirmation
@@ -28,7 +28,7 @@ def uninstall_agent(force: bool = False, backup: bool = True) -> None:
     
     print_header("🗑️ 卸载 Agent-Z")
     
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     
     if not config_dir.exists():
         print_error("未找到配置目录，Agent 可能未安装")
@@ -41,8 +41,8 @@ def uninstall_agent(force: bool = False, backup: bool = True) -> None:
     
     items_to_delete = [
         ("配置目录", config_dir),
-        ("PID 文件", Path.home() / ".handsome_agent" / "*.pid"),
-        ("Socket 文件", Path.home() / ".handsome_agent" / "*.sock"),
+        ("PID 文件", Path.home() / ".agent_z" / "*.pid"),
+        ("Socket 文件", Path.home() / ".agent_z" / "*.sock"),
     ]
     
     for name, path in items_to_delete:
@@ -87,12 +87,12 @@ def uninstall_agent(force: bool = False, backup: bool = True) -> None:
     print()
     print_info("如需完全移除，请运行:")
     print()
-    print(color(f"  pip uninstall handsome-agent", Colors.DIM))
+    print(color(f"  pip uninstall Agent-Z", Colors.DIM))
     print()
     
     print_success("卸载完成！")
     print()
-    print_info("感谢使用 Handsome Agent")
+    print_info("感谢使用 Agent-Z")
 
 
 def _create_backup(config_dir: Path) -> Optional[Path]:
@@ -104,12 +104,12 @@ def _create_backup(config_dir: Path) -> Optional[Path]:
     
     try:
         # 创建备份目录
-        backup_dir = Path.home() / ".handsome_agent_backup"
+        backup_dir = Path.home() / ".agent_z_backup"
         if backup_dir.exists():
             # 添加时间戳避免覆盖
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_dir = Path.home() / f".handsome_agent_backup_{timestamp}"
+            backup_dir = Path.home() / f".agent_z_backup_{timestamp}"
         
         # 复制文件
         shutil.copytree(config_dir, backup_dir)
@@ -143,7 +143,7 @@ def restore_from_backup(backup_path: Optional[Path] = None) -> None:
     if not backup_path:
         # 查找最新的备份
         backup_dir = Path.home()
-        backups = list(backup_dir.glob(".handsome_agent_backup*.zip"))
+        backups = list(backup_dir.glob(".agent_z_backup*.zip"))
         
         if not backups:
             print_error("没有找到备份文件")
@@ -155,13 +155,13 @@ def restore_from_backup(backup_path: Optional[Path] = None) -> None:
     
     try:
         # 解压备份
-        extract_dir = Path.home() / ".handsome_agent_backup_temp"
+        extract_dir = Path.home() / ".agent_z_backup_temp"
         
         with zipfile.ZipFile(backup_path, 'r') as zipf:
             zipf.extractall(extract_dir)
         
         # 移动到目标位置
-        config_dir = Path.home() / ".handsome_agent"
+        config_dir = Path.home() / ".agent_z"
         
         if config_dir.exists():
             shutil.rmtree(config_dir)
@@ -187,7 +187,7 @@ def list_backups() -> None:
     print_header("📦 可用备份")
     
     backup_dir = Path.home()
-    backups = list(backup_dir.glob(".handsome_agent_backup*.zip"))
+    backups = list(backup_dir.glob(".agent_z_backup*.zip"))
     
     if not backups:
         print_info("没有找到备份文件")

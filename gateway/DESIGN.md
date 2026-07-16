@@ -1,4 +1,4 @@
-# 🔐 Gateway - API网关详细设计文档
+﻿# 🔐 Gateway - API网关详细设计文档
 
 > **版本**: 1.0.0  
 > **参考项目**: Hermes Agent, Kong Gateway, Express.js  
@@ -23,7 +23,7 @@
 
 ### 1.1 什么是Gateway？
 
-**Gateway** 是 Handsome Agent 的企业级网关模块，提供：
+**Gateway** 是 Agent-Z 的企业级网关模块，提供：
 
 | 功能 | 描述 | 参考来源 |
 |------|------|----------|
@@ -809,5 +809,5 @@ groups:
 ---
 
 **文档版本**: v1.0.0  
-**维护者**: Handsome Agent Team  
+**维护者**: Agent-Z Team  
 **最后更新**: 2024年

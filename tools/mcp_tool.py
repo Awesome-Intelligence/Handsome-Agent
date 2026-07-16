@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 MCP Tool Module - Model Context Protocol Tool
 
@@ -28,7 +28,7 @@ class MCPServerManager:
     
     def __init__(self):
         self._servers: Dict[str, Dict[str, Any]] = {}
-        self._config_path = Path.home() / ".handsome_agent" / "mcp_servers.json"
+        self._config_path = Path.home() / ".agent_z" / "mcp_servers.json"
     
     def _load_config(self):
         """加载配置"""

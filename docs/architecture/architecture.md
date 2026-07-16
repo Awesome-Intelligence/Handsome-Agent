@@ -1,4 +1,4 @@
-# Handsome Agent 架构设计文档
+﻿# Agent-Z 架构设计文档
 ## Hermes-Brain + OpenClaw-Body 双核驱动架构
 
 > 融合 OpenClaw 的多渠道接入能力和 Hermes 的智能决策能力，打造企业级 AI Agent 系统
@@ -57,7 +57,7 @@
 ## 2. 项目目录结构
 
 ```
-handsome-agent/
+Agent-Z/
 ├── # 三层架构核心
 ├── adapter/                    # 接入层 (Adapter Layer)
 │   ├── __init__.py

@@ -4,8 +4,8 @@ Lightweight timezone-aware clock mirroring Hermes's ``hermes_time.now``
 contract:
 
   * Returns a ``datetime`` whose ``tzinfo`` always reflects the active
-    configured timezone (resolved from ``HANDSOME_TZ`` env var, falling
-    back to ``HANDSOME_LANGUAGE``/system local).
+    configured timezone (resolved from ``AGENTZ_TZ`` env var, falling
+    back to ``AGENTZ_LANGUAGE``/system local).
   * Even when no fixed-offset IANA name is configured, the returned tzinfo
     is whatever ``datetime.now().astimezone().tzinfo`` produces — so
     formatting and arithmetic stay consistent end-to-end.
@@ -33,7 +33,7 @@ def _resolve_tz():
     """Resolve the active timezone from env / system.
 
     Order of precedence:
-      1. ``HANDSOME_TZ`` env var — an IANA name (``Asia/Shanghai``)
+      1. ``AGENTZ_TZ`` env var — an IANA name (``Asia/Shanghai``)
          or a fixed ``+/-HH:MM`` offset.
       2. The system local zone (``datetime.now().astimezone().tzinfo``).
 
@@ -44,7 +44,7 @@ def _resolve_tz():
     with _tz_cache_lock:
         if _tz_cache is not None:
             return _tz_cache
-        raw = os.environ.get("HANDSOME_TZ", "").strip()
+        raw = os.environ.get("AGENTZ_TZ", "").strip()
         if raw:
             # Try fixed offset first (cheap and unambiguous).
             try:

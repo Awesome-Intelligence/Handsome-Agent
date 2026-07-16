@@ -604,14 +604,14 @@ onboarding:
     configure_more: "⚙ Configure More"
 
 # =============================================================================
-# Cron subsystem (handsome cron ...)
+# Cron subsystem (agentz cron ...)
 # =============================================================================
 
 cron:
   parser_description: "Manage scheduled (cron) jobs."
   list_header: "⏰ Cron Job Registry"
   empty: "No cron jobs configured"
-  empty_hint: "Use 'handsome cron create' to add one"
+  empty_hint: "Use 'agentz cron create' to add one"
   total: "Total: {n} job(s); {a} active, {p} paused"
   not_found: "Cron job not found: {id}"
   show_header: "⏰ Job {id}"
@@ -630,7 +630,7 @@ cron:
   run_done: "Job {id} completed (status={ok})"
   tick_done: "Tick executed {n} job(s)"
   status_header: "📊 Cron Status"
-  no_heartbeat: "No ticker heartbeat recorded. Run 'handsome cron tick' or start the gateway daemon."
+  no_heartbeat: "No ticker heartbeat recorded. Run 'agentz cron tick' or start the gateway daemon."
   invalid_duration: "Invalid duration: '{s}'. Use format like '30m', '2h', or '1d'"
   croniter_missing: "Cron expressions require 'croniter' package. Install with: pip install croniter"
   invalid_schedule: "Invalid schedule. Use duration / 'every Xm' / '0 9 * * *' / ISO timestamp"
@@ -691,7 +691,7 @@ tui:
     summary: "⏰  {total} jobs · {active} active · {paused} paused"
     empty: "No scheduled jobs. Press [a] to add one."
     help_hint: "[r]Refresh  [a]Add  [↵]Detail  [p]Pause  [u]Resume  [t]Trigger  [d]Delete"
-    heartbeat_idle: "⚪ ticker not started (run 'handsome cron tick' or start gateway)"
+    heartbeat_idle: "⚪ ticker not started (run 'agentz cron tick' or start gateway)"
     heartbeat_stale: "⚠ ticker alive {hb}s but last success {ok}s ago"
     heartbeat_healthy: "🟢 ticker healthy · last success {ok}s ago"
     created_notify: "✓ Created cron job {id}"

@@ -1,4 +1,4 @@
-# TUI 设置界面设计方案
+﻿# TUI 设置界面设计方案
 
 > 版本: v1.0.0
 > 日期: 2026-06-22
@@ -10,7 +10,7 @@
 
 ### 1.1 设计目标
 
-为 Handsome Agent TUI 提供一套完整的设置界面，使设置项与 CLI `setup` 向导保持一致，支持：
+为 Agent-Z TUI 提供一套完整的设置界面，使设置项与 CLI `setup` 向导保持一致，支持：
 
 - 键盘导航操作
 - 实时预览效果
@@ -393,7 +393,7 @@ class SettingsManager:
 
     def _get_config_path(self) -> Path:
         """获取配置文件路径"""
-        config_dir = Path.home() / ".handsome_agent"
+        config_dir = Path.home() / ".agent_z"
         config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir / "tui_settings.json"
 
@@ -587,7 +587,7 @@ class SettingsScreen(ModalScreen):
 
 ### 5.1 共享配置存储
 
-TUI 设置界面与 CLI 共享同一配置文件 `~/.handsome_agent/config.json`，通过 `cli/config/config.py` 的 `load_config()` 和 `set_config_value()` 操作。
+TUI 设置界面与 CLI 共享同一配置文件 `~/.agent_z/config.json`，通过 `cli/config/config.py` 的 `load_config()` 和 `set_config_value()` 操作。
 
 ```python
 # 设置界面保存时同步到 CLI 配置
@@ -634,7 +634,7 @@ def sync_to_cli_config(settings: SettingsDocument) -> None:
 
 ### 6.3 数据验收
 
-- [ ] 设置保存到 `~/.handsome_agent/tui_settings.json`
+- [ ] 设置保存到 `~/.agent_z/tui_settings.json`
 - [ ] 设置同步到 CLI 配置
 - [ ] 重启后设置正确恢复
 - [ ] 重置功能正常工作

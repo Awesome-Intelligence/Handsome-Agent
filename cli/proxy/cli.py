@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Proxy CLI - Proxy command line interface.
@@ -48,7 +48,7 @@ def add_proxy_parser(subparsers) -> argparse.ArgumentParser:
     proxy_parser = subparsers.add_parser(
         "proxy",
         help="HTTP proxy management",
-        description="Manage the Handsome Agent HTTP proxy",
+        description="Manage the Agent-Z HTTP proxy",
     )
 
     proxy_subparsers = proxy_parser.add_subparsers(dest="proxy_command", help="Proxy command")
@@ -101,7 +101,7 @@ def proxy_cli(args: argparse.Namespace):
     if hasattr(args, 'func'):
         args.func(args)
     else:
-        print("Usage: handsome proxy [start|stop|status]")
+        print("Usage: agentz proxy [start|stop|status]")
 
 
 if __name__ == "__main__":

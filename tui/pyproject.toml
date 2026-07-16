@@ -1,7 +1,7 @@
 [project]
-name = "handsome-agent-tui"
+name = "agent-z-tui"
 version = "0.1.0"
-description = "Terminal User Interface for Handsome Agent"
+description = "Terminal User Interface for Agent-Z"
 requires-python = ">=3.10"
 dependencies = [
     "textual>=8.2",
@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-handsome-tui = "tui.main:main"
+agentz-tui = "tui.main:main"
 
 [build-system]
 requires = ["hatchling"]

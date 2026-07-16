@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-OpenAI-compatible API Adapter for Handsome Agent Gateway.
+OpenAI-compatible API Adapter for Agent-Z Gateway.
 
 This adapter provides an OpenAI-compatible API server that can be used with
 any OpenAI-compatible frontend (Open WebUI, LobeChat, LibreChat, etc.).
@@ -9,7 +9,7 @@ any OpenAI-compatible frontend (Open WebUI, LobeChat, LibreChat, etc.).
 Exposes an HTTP server with endpoints:
 - POST /v1/chat/completions        - OpenAI Chat Completions format
 - POST /v1/responses               - OpenAI Responses API format
-- GET  /v1/models                  - lists handsome-agent as an available model
+- GET  /v1/models                  - lists Agent-Z as an available model
 - GET  /v1/capabilities            - machine-readable API capabilities
 - POST /v1/runs                    - start a run, returns run_id immediately (202)
 - GET  /v1/runs/{run_id}           - retrieve current run status
@@ -556,7 +556,7 @@ class OpenAIAdapter:
         self._cors_origins: tuple[str, ...] = self._parse_cors_origins(
             extra.get("cors_origins", os.getenv("API_SERVER_CORS_ORIGINS", "")),
         )
-        self._model_name: str = extra.get("model_name", os.getenv("API_SERVER_MODEL_NAME", "handsome-agent"))
+        self._model_name: str = extra.get("model_name", os.getenv("API_SERVER_MODEL_NAME", "Agent-Z"))
         self._app: Optional["web.Application"] = None
         self._runner: Optional["web.AppRunner"] = None
         self._site: Optional["web.TCPSite"] = None
@@ -669,7 +669,7 @@ class OpenAIAdapter:
 
     async def _handle_health(self, request: "web.Request") -> "web.Response":
         """GET /health — simple health check."""
-        return web.json_response({"status": "ok", "platform": "handsome-agent"})
+        return web.json_response({"status": "ok", "platform": "Agent-Z"})
 
     async def _handle_health_detailed(self, request: "web.Request") -> "web.Response":
         """GET /health/detailed — rich status for cross-container dashboard probing."""
@@ -678,14 +678,14 @@ class OpenAIAdapter:
         mem = psutil.virtual_memory()
         return web.json_response({
             "status": "ok",
-            "platform": "handsome-agent",
+            "platform": "Agent-Z",
             "pid": os.getpid(),
             "uptime": time.time(),
             "memory_available_mb": mem.available // (1024 * 1024),
         })
 
     async def _handle_models(self, request: "web.Request") -> "web.Response":
-        """GET /v1/models — return handsome-agent as an available model."""
+        """GET /v1/models — return Agent-Z as an available model."""
         auth_err = self._check_auth(request)
         if auth_err:
             return auth_err
@@ -697,7 +697,7 @@ class OpenAIAdapter:
                     "id": self._model_name,
                     "object": "model",
                     "created": int(time.time()),
-                    "owned_by": "handsome",
+                    "owned_by": "agentz",
                     "permission": [],
                     "root": self._model_name,
                     "parent": None,
@@ -712,8 +712,8 @@ class OpenAIAdapter:
             return auth_err
 
         return web.json_response({
-            "object": "handsome.gateway.openai_adapter.capabilities",
-            "platform": "handsome-agent",
+            "object": "agentz.gateway.openai_adapter.capabilities",
+            "platform": "Agent-Z",
             "model": self._model_name,
             "auth": {
                 "type": "bearer",
@@ -916,7 +916,7 @@ class OpenAIAdapter:
                 err_type="server_error",
                 code="agent_incomplete",
             )
-            err_body["error"]["handsome"] = {
+            err_body["error"]["agentz"] = {
                 "completed": completed,
                 "partial": is_partial,
                 "failed": is_failed,
@@ -947,7 +947,7 @@ class OpenAIAdapter:
             },
         }
         if is_partial or is_failed or not completed:
-            response_data["handsome"] = {
+            response_data["agentz"] = {
                 "completed": completed,
                 "partial": is_partial,
                 "failed": is_failed,

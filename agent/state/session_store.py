@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SQLite Session Store for Handsome Agent.
+SQLite Session Store for Agent-Z.
 
 Provides persistent session storage with FTS5 full-text search.
 Stores session metadata, full message history, and model configuration.
@@ -38,7 +38,7 @@ def _get_default_db_path() -> Path:
             return Path(sessions_dir) / "sessions.db"
     except Exception:
         pass
-    home = Path.home() / ".handsome_agent"
+    home = Path.home() / ".agent_z"
     return home / "sessions.db"
 
 

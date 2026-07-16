@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""File Tools Bridge - Registered to Handsome Agent Decision Engine"""
+﻿#!/usr/bin/env python3
+"""File Tools Bridge - Registered to Agent-Z Decision Engine"""
 
 import glob as glob_module
 import json
@@ -12,7 +12,7 @@ from common.logging_manager import get_execution_logger
 
 logger = get_execution_logger("FileToolsBridge")
 
-DEFAULT_WORKSPACE_DIR = Path.home() / ".handsome_agent"
+DEFAULT_WORKSPACE_DIR = Path.home() / ".agent_z"
 
 
 def _resolve_workspace_path(path: str) -> str:

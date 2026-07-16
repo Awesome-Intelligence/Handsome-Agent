@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Integration tests for Profile and Skills functionality.
@@ -110,11 +110,11 @@ class TestProfileSwitch:
     """Test profile switching functionality."""
 
     def test_profile_switch_via_env_var(self, monkeypatch):
-        """Test profile switching via HANDSOME_PROFILE environment variable."""
+        """Test profile switching via AGENT_Z_PROFILE environment variable."""
         from common.config import get_current_profile
         
         # 设置环境变量
-        monkeypatch.setenv("HANDSOME_PROFILE", "test")
+        monkeypatch.setenv("AGENT_Z_PROFILE", "test")
         
         # 验证 get_current_profile() 返回 "test"
         profile = get_current_profile()
@@ -125,11 +125,11 @@ class TestProfileSwitch:
         from common.config import get_current_profile
         
         # 先设置为非 default
-        monkeypatch.setenv("HANDSOME_PROFILE", "custom-profile")
+        monkeypatch.setenv("AGENT_Z_PROFILE", "custom-profile")
         assert get_current_profile() == "custom-profile"
         
         # 清除环境变量
-        monkeypatch.delenv("HANDSOME_PROFILE", raising=False)
+        monkeypatch.delenv("AGENT_Z_PROFILE", raising=False)
         
         # 应返回 default
         profile = get_current_profile()
@@ -181,7 +181,7 @@ class TestProfileSkillsIntegration:
         from common.config import get_current_profile, get_profile_skills_dir
         
         # 模拟设置当前 profile（通过环境变量）
-        with patch.dict(os.environ, {"HANDSOME_PROFILE": "symlink-test"}):
+        with patch.dict(os.environ, {"AGENT_Z_PROFILE": "symlink-test"}):
             current = get_current_profile()
             skills_dir = get_profile_skills_dir(current)
             

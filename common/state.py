@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Hermes State Module - SQLite Session/State Database
@@ -20,7 +20,7 @@ import re
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
-from common.config import HANDSOME_HOME, ensure_workspace_dirs
+from common.config import AGENT_Z_HOME, ensure_workspace_dirs
 from common.logging_manager import get_system_logger
 
 
@@ -76,7 +76,7 @@ class HermesState:
     
     def __init__(self, db_path: Optional[str] = None):
         ensure_workspace_dirs()
-        self.db_path = db_path or str(HANDSOME_HOME / "hermes_state.db")
+        self.db_path = db_path or str(AGENT_Z_HOME / "hermes_state.db")
         self._ensure_directory()
         self.conn = sqlite3.connect(self.db_path)
         self.conn.execute("PRAGMA journal_mode=WAL;")

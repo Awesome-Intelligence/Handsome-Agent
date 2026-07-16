@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Debug - Debug information and dump utilities.
@@ -78,7 +78,7 @@ def export_debug_report() -> str:
 
     lines = []
     lines.append("=" * 60)
-    lines.append("HANDSOME AGENT DEBUG REPORT")
+    lines.append("Agent-Z DEBUG REPORT")
     lines.append("=" * 60)
     lines.append(f"Generated: {info['timestamp']}")
     lines.append("")

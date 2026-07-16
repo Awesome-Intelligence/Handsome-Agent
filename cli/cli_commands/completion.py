@@ -21,9 +21,9 @@ def get_bash_completion_script() -> str:
         Bash completion script content
     """
     return '''#!/bin/bash
-# Handsome Agent Bash Completion
+# Agent-Z Bash Completion
 
-_handsome()
+_agentz()
 {
     local cur prev opts
     COMPREPLY=()
@@ -63,7 +63,7 @@ _handsome()
     return 0
 }
 
-complete -F _handsome handsome
+complete -F _agentz agentz
 '''
 
 
@@ -74,9 +74,9 @@ def get_zsh_completion_script() -> str:
         Zsh completion script content
     """
     return '''#!/usr/bin/env zsh
-# Handsome Agent Zsh Completion
+# Agent-Z Zsh Completion
 
-_handsome()
+_agentz()
 {
     local -a commands
     commands=(
@@ -96,7 +96,7 @@ _handsome()
     _describe 'command' commands
 }
 
-compdef _handsome handsome
+compdef _agentz agentz
 '''
 
 
@@ -105,11 +105,11 @@ def install_bash_completion():
     completion_dir = Path.home() / ".bash_completion.d"
     completion_dir.mkdir(exist_ok=True)
 
-    script_path = completion_dir / "handsome"
+    script_path = completion_dir / "agentz"
     script_path.write_text(get_bash_completion_script())
 
     print(f"Bash completion installed to: {script_path}")
-    print("Add to ~/.bashrc: source ~/.bash_completion.d/handsome")
+    print("Add to ~/.bashrc: source ~/.bash_completion.d/agentz")
 
 
 def install_zsh_completion():
@@ -117,7 +117,7 @@ def install_zsh_completion():
     completion_dir = Path.home() / ".zsh/completion"
     completion_dir.mkdir(parents=True, exist_ok=True)
 
-    script_path = completion_dir / "_handsome"
+    script_path = completion_dir / "_agentz"
     script_path.write_text(get_zsh_completion_script())
 
     print(f"Zsh completion installed to: {script_path}")
@@ -157,5 +157,5 @@ if __name__ == "__main__":
 
     else:
         print("Usage:")
-        print("  handsome completion install [bash|zsh]")
-        print("  handsome completion print [bash|zsh]")
+        print("  agentz completion install [bash|zsh]")
+        print("  agentz completion print [bash|zsh]")

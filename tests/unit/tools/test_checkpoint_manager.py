@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Unit tests for Checkpoint Manager module.
@@ -165,7 +165,7 @@ class TestRefName:
     def test_ref_name_format(self):
         """_ref_name() returns correctly formatted ref name."""
         result = _ref_name("abc123")
-        assert result == "refs/handsome/abc123"
+        assert result == "refs/agentz/abc123"
 
     def test_ref_name_uses_hash(self):
         """_ref_name() uses provided hash in ref name."""

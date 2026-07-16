@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Test Prompt Templates - 提示模板测试
@@ -23,7 +23,7 @@ class TestAgentIdentity:
     def test_agent_identity_has_name(self):
         """测试包含 Agent 名称"""
         from agent.context.prompt_templates import AGENT_IDENTITY
-        assert "Handsome Agent" in AGENT_IDENTITY
+        assert "Agent-Z" in AGENT_IDENTITY
     
     def test_agent_identity_has_principles(self):
         """测试包含核心原则"""

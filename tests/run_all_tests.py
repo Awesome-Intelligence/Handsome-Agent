@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Test runner script for Handsome Agent.
+Test runner script for Agent-Z.
 
 This script runs all unit tests and generates a coverage report.
 """
@@ -48,7 +48,7 @@ def run_tests():
 
 if __name__ == "__main__":
     print("=" * 80)
-    print("Handsome Agent - Test Suite")
+    print("Agent-Z - Test Suite")
     print("=" * 80)
     print()
     

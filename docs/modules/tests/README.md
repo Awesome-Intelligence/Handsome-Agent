@@ -1,6 +1,6 @@
-# Tests Directory - 测试目录
+﻿# Tests Directory - 测试目录
 
-> Handsome Agent 项目的测试套件
+> Agent-Z 项目的测试套件
 
 ## 目录结构
 
@@ -124,7 +124,7 @@ pytest -k "not slow" -v
 
 ```bash
 # 确保在项目根目录
-cd Handsome-Agent
+cd Agent-Z
 
 # 检查 Python 路径
 python -c "import tests; print('OK')"
@@ -132,5 +132,5 @@ python -c "import tests; print('OK')"
 
 ---
 
-*Handsome Agent - Hermes-Brain + OpenClaw-Body*
+*Agent-Z - Hermes-Brain + OpenClaw-Body*
 *最后更新: 2026-06-01*

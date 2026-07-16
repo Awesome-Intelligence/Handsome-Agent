@@ -1,4 +1,4 @@
-# Project Context - Handsome-Agent
+﻿# Project Context - Agent-Z
 
 项目级 Agent 定义和指令。用于指定项目结构、编码规范和特殊指令。
 

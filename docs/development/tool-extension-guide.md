@@ -1,4 +1,4 @@
-# Tool Extension Guide - 工具扩展指南
+﻿# Tool Extension Guide - 工具扩展指南
 
 > 🏃 Execution - 🛠️ ToolExec - 用户自定义工具扩展
 
@@ -6,7 +6,7 @@
 
 ## 概述
 
-Handsome Agent 支持用户自定义工具扩展，允许用户添加自己的工具供 Agent 调用。
+Agent-Z 支持用户自定义工具扩展，允许用户添加自己的工具供 Agent 调用。
 
 ## 扩展方式
 
@@ -87,7 +87,7 @@ tools/
 用户自定义工具放在用户配置目录：
 
 ```
-~/.handsome_agent/
+~/.agent_z/
 ├── tools/             # 用户自定义工具目录
 │   ├── __init__.py
 │   ├── my_tools.py
@@ -421,13 +421,13 @@ def my_tool(parameters: dict, context: dict = None):
 
 ```bash
 # 从 GitHub 安装
-handsome skills install github:owner/repo/skill-name
+agentz skills install github:owner/repo/skill-name
 
 # 从 URL 安装
-handsome skills install https://example.com/skill.zip
+agentz skills install https://example.com/skill.zip
 
 # 搜索技能
-handsome skills search "web scraping"
+agentz skills search "web scraping"
 ```
 
 **支持的来源类型**：
@@ -478,13 +478,13 @@ qualified = ns.resolve("mcp:web-search")
 
 ```bash
 # 列出已安装技能
-handsome skills list
+agentz skills list
 
 # 检查更新
-handsome skills check-updates
+agentz skills check-updates
 
 # 强制覆盖锁定版本
-handsome skills install github:owner/repo --force
+agentz skills install github:owner/repo --force
 ```
 
 ### 6. 技能包 (Bundle)
@@ -555,7 +555,7 @@ installed = hub.list_installed()
 **推荐配置**：
 
 ```yaml
-# ~/.handsome_agent/config.yaml
+# ~/.agent_z/config.yaml
 skills:
   sources:
     - type: github

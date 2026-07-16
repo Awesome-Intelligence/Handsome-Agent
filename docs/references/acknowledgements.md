@@ -1,6 +1,6 @@
-# 📚 参考来源与致谢
+﻿# 📚 参考来源与致谢
 
-> 本文档列出Handsome Agent项目参考的所有开源项目和资料
+> 本文档列出Agent-Z项目参考的所有开源项目和资料
 
 ---
 
@@ -370,7 +370,7 @@ def function(param: str) -> int:
 | Express.js | MIT |
 | Python | PSF |
 
-**Handsome Agent** 同样使用 **MIT License**
+**Agent-Z** 同样使用 **MIT License**
 
 ---
 

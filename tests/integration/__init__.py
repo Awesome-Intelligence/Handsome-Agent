@@ -1,3 +1,3 @@
-"""
-Integration tests package for the Handsome Agent.
+﻿"""
+Integration tests package for the Agent-Z.
 """

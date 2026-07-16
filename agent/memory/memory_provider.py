@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Memory Provider Module - 统一 Provider 基类 (参考 Hermes Agent)
@@ -166,7 +166,7 @@ class MemoryProvider(ABC):
 
         kwargs always include:
           - hermes_home (str): The active HERMES_HOME directory path. Use this
-            for profile-scoped storage instead of hardcoding ``~/.handsome_agent``.
+            for profile-scoped storage instead of hardcoding ``~/.agent_z``.
           - platform (str): "cli", "telegram", "discord", "cron", etc.
 
         kwargs may also include:
@@ -174,7 +174,7 @@ class MemoryProvider(ABC):
             Providers should skip writes for non-primary contexts.
           - agent_identity (str): Profile name (e.g. "coder"). Use for
             per-profile provider identity scoping.
-          - agent_workspace (str): Shared workspace name (e.g. "handsome").
+          - agent_workspace (str): Shared workspace name (e.g. "agentz").
           - parent_session_id (str): For subagents, the parent's session_id.
           - user_id (str): Platform user identifier (gateway sessions).
         """

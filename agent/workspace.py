@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Workspace Management Module
 
@@ -6,7 +6,7 @@ Workspace Management Module
 
 架构：
 - 模板目录 (agent/templates/) - 存放默认配置模板
-- 用户工作空间 (~/.handsome_agent/) - 用户实际修改的配置
+- 用户工作空间 (~/.agent_z/) - 用户实际修改的配置
 
 配置文件：
 - agent.md / SOUL.md - Agent 身份和性格
@@ -24,7 +24,7 @@ from common.logging_manager import get_decision_logger
 logger = get_decision_logger("WorkspaceManager")
 
 # 默认配置
-DEFAULT_WORKSPACE_DIR = Path.home() / ".handsome_agent"
+DEFAULT_WORKSPACE_DIR = Path.home() / ".agent_z"
 DEFAULT_TEMPLATE_DIR = Path(__file__).parent.parent / "agent" / "templates"
 
 # 配置文件名映射

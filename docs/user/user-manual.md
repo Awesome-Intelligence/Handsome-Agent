@@ -1,4 +1,4 @@
-# Handsome Agent 用户手册
+# Agent-Z 用户手册
 
 **版本**: v1.0.0  
 **最后更新**: 2026-06-09  
@@ -30,8 +30,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-repo/Handsome-Agent.git
-cd Handsome-Agent
+git clone https://github.com/your-repo/Agent-Z.git
+cd Agent-Z
 
 # 安装依赖
 pip install -r requirements.txt
@@ -44,8 +44,8 @@ pip install -r requirements.txt
 python -m cli.main setup
 
 # 或者设置环境变量
-export HANDSOME_LLM_PROVIDER=openai
-export HANDSOME_LLM_API_KEY=your-api-key
+export AGENTZ_LLM_PROVIDER=openai
+export AGENTZ_LLM_API_KEY=your-api-key
 ```
 
 ### 1.4 启动对话
@@ -68,7 +68,7 @@ python -m cli.main chat --new-session
 ### 2.1 命令结构
 
 ```
-handsome-agent [command] [subcommand] [options]
+Agent-Z [command] [subcommand] [options]
 ```
 
 ### 2.2 可用命令
@@ -124,7 +124,7 @@ python -m cli.main tools info file_read
 
 ### 3.1 会话概述
 
-Handsome Agent 自动管理对话会话：
+Agent-Z 自动管理对话会话：
 - 每个会话有唯一 ID
 - 按日期组织存储
 - 自动保存对话历史
@@ -133,7 +133,7 @@ Handsome Agent 自动管理对话会话：
 ### 3.2 会话存储位置
 
 ```
-~/.handsome_agent/sessions/{YYYY-MM-DD}/
+~/.agent_z/sessions/{YYYY-MM-DD}/
 ├── {session_id}.json    # 会话数据
 └── {session_id}_messages.json  # 消息记录
 ```
@@ -231,7 +231,7 @@ Agent：自动调用 web_extract 工具
 
 ### 5.2 内置技能
 
-Handsome Agent 提供多个内置技能：
+Agent-Z 提供多个内置技能：
 
 | 技能名称 | 说明 | 触发条件 |
 |----------|------|----------|
@@ -318,7 +318,7 @@ curl http://localhost:8080/api/v1/tools \
 
 ### 7.1 配置文件
 
-配置文件位于 `~/.handsome_agent/config.json`
+配置文件位于 `~/.agent_z/config.json`
 
 ```json
 {
@@ -342,33 +342,33 @@ curl http://localhost:8080/api/v1/tools \
 
 | 变量 | 说明 | 示例 |
 |------|------|------|
-| `HANDSOME_HOME` | 数据目录 | `~/.handsome_agent` |
-| `HANDSOME_LLM_PROVIDER` | LLM 提供商 | `openai` |
-| `HANDSOME_LLM_API_KEY` | API Key | `sk-xxx` |
-| `HANDSOME_LLM_MODEL` | 模型名称 | `gpt-4` |
-| `HANDSOME_LOG_LEVEL` | 日志级别 | `INFO` |
+| `AGENT_Z_HOME` | 数据目录 | `~/.agent_z` |
+| `AGENTZ_LLM_PROVIDER` | LLM 提供商 | `openai` |
+| `AGENTZ_LLM_API_KEY` | API Key | `sk-xxx` |
+| `AGENTZ_LLM_MODEL` | 模型名称 | `gpt-4` |
+| `AGENTZ_LOG_LEVEL` | 日志级别 | `INFO` |
 
 ### 7.3 LLM 提供商配置
 
 **OpenAI**:
 ```bash
-export HANDSOME_LLM_PROVIDER=openai
-export HANDSOME_LLM_API_KEY=sk-xxx
-export HANDSOME_LLM_MODEL=gpt-4
+export AGENTZ_LLM_PROVIDER=openai
+export AGENTZ_LLM_API_KEY=sk-xxx
+export AGENTZ_LLM_MODEL=gpt-4
 ```
 
 **Claude**:
 ```bash
-export HANDSOME_LLM_PROVIDER=claude
-export HANDSOME_LLM_API_KEY=sk-ant-xxx
-export HANDSOME_LLM_MODEL=claude-3-opus
+export AGENTZ_LLM_PROVIDER=claude
+export AGENTZ_LLM_API_KEY=sk-ant-xxx
+export AGENTZ_LLM_MODEL=claude-3-opus
 ```
 
 **Gemini**:
 ```bash
-export HANDSOME_LLM_PROVIDER=gemini
-export HANDSOME_LLM_API_KEY=xxx
-export HANDSOME_LLM_MODEL=gemini-pro
+export AGENTZ_LLM_PROVIDER=gemini
+export AGENTZ_LLM_API_KEY=xxx
+export AGENTZ_LLM_MODEL=gemini-pro
 ```
 
 ---
@@ -400,13 +400,13 @@ export HANDSOME_LLM_MODEL=gemini-pro
 ### 8.3 配置相关
 
 **Q: 如何修改 LLM 模型？**
-> 设置环境变量 `HANDSOME_LLM_MODEL` 或修改配置文件。
+> 设置环境变量 `AGENTZ_LLM_MODEL` 或修改配置文件。
 
 **Q: 如何启用调试日志？**
-> 设置 `HANDSOME_LOG_LEVEL=DEBUG` 或使用 `--debug` 参数。
+> 设置 `AGENTZ_LOG_LEVEL=DEBUG` 或使用 `--debug` 参数。
 
 **Q: 数据存储在哪里？**
-> 默认在 `~/.handsome_agent/` 目录，可以通过 `HANDSOME_HOME` 环境变量修改。
+> 默认在 `~/.agent_z/` 目录，可以通过 `AGENT_Z_HOME` 环境变量修改。
 
 ### 8.4 Gateway 相关
 

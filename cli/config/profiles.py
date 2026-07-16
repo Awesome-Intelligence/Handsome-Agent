@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Profiles CLI - Multiple configuration profiles.
@@ -12,14 +12,14 @@ Profiles CLI - Multiple configuration profiles.
 - Profile 复制
 
 This module provides:
-- handsome profile list       - List all profiles
-- handsome profile create    - Create a new profile
-- handsome profile delete   - Delete a profile
-- handsome profile use <name>  - Switch to a profile
-- handsome profile rename       - Rename a profile
-- handsome profile export <name> - Export profile to tar.gz
-- handsome profile import <file> - Import profile from tar.gz
-- handsome profile describe <name> - LLM-driven profile description
+- agentz profile list       - List all profiles
+- agentz profile create    - Create a new profile
+- agentz profile delete   - Delete a profile
+- agentz profile use <name>  - Switch to a profile
+- agentz profile rename       - Rename a profile
+- agentz profile export <name> - Export profile to tar.gz
+- agentz profile import <file> - Import profile from tar.gz
+- agentz profile describe <name> - LLM-driven profile description
 
 Each profile has its own config files and metadata.
 """
@@ -35,7 +35,7 @@ from typing import Optional, Dict, Any
 
 def get_profiles_dir() -> Path:
     """Get the profiles directory."""
-    home = Path.home() / ".handsome_agent"
+    home = Path.home() / ".agent_z"
     profiles_dir = home / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
     return profiles_dir
@@ -43,7 +43,7 @@ def get_profiles_dir() -> Path:
 
 def get_default_dir() -> Path:
     """Get the default config directory."""
-    return Path.home() / ".handsome_agent"
+    return Path.home() / ".agent_z"
 
 
 def get_profile_dir(name: str) -> Path:
@@ -608,13 +608,13 @@ if __name__ == "__main__":
 
         else:
             print("Usage:")
-            print("  handsome profile list")
-            print("  handsome profile info <name>")
-            print("  handsome profile create <name> [copy_from]")
-            print("  handsome profile delete <name>")
-            print("  handsome profile use <name>")
-            print("  handsome profile rename <old> <new>")
-            print("  handsome profile export <name> [file]")
-            print("  handsome profile import <file> [name]")
-            print("  handsome profile backup <name>")
-            print("  handsome profile restore <file> [name]")
+            print("  agentz profile list")
+            print("  agentz profile info <name>")
+            print("  agentz profile create <name> [copy_from]")
+            print("  agentz profile delete <name>")
+            print("  agentz profile use <name>")
+            print("  agentz profile rename <old> <new>")
+            print("  agentz profile export <name> [file]")
+            print("  agentz profile import <file> [name]")
+            print("  agentz profile backup <name>")
+            print("  agentz profile restore <file> [name]")

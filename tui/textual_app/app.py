@@ -1,4 +1,4 @@
-"""
+﻿"""
 Textual TUI Application Main Class
 
 🚪 Access - 💬 CLI - Textual UI - 主应用类
@@ -526,7 +526,7 @@ class AgentApp(
         return 0
 
     def _get_project_path(self) -> str:
-        """获取项目根目录（Handsome Agent 所在目录）"""
+        """获取项目根目录（Agent-Z 所在目录）"""
         from pathlib import Path
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent
@@ -659,7 +659,7 @@ class AgentApp(
         except Exception as e:
             self._logger.warning(f'Failed to sync agent model: {e}')
 
-def run_textual_app(model_name: str='Handsome Agent', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str='suggest', initial_theme: str | None=None, agent=None) -> int:
+def run_textual_app(model_name: str='Agent-Z', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str='suggest', initial_theme: str | None=None, agent=None) -> int:
     if not TEXTUAL_AVAILABLE:
         print(get_textual_install_hint())
         return 1
@@ -707,7 +707,7 @@ def is_textual_compatible() -> tuple[bool, str | None]:
         pass
     return (True, None)
 
-def create_fallback_app(model_name: str='Handsome Agent', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str='suggest') -> None:
+def create_fallback_app(model_name: str='Agent-Z', provider: str | None=None, cwd: str | None=None, session_id: str | None=None, context_length: int | None=None, approval_mode: str='suggest') -> None:
     from common.terminal.banner import print_simple_banner
     from common.terminal.ui import print_info, print_warning
     print_simple_banner()
@@ -749,5 +749,5 @@ if __name__ == '__main__':
     print()
     print('Starting Textual app...')
     print()
-    exit_code = run_textual_app(model_name='gpt-4o', provider='OpenAI', cwd='E:/Projects/Handsome-Agent', session_id='test-session-001', context_length=128000)
+    exit_code = run_textual_app(model_name='gpt-4o', provider='OpenAI', cwd='E:/Projects/Agent-Z', session_id='test-session-001', context_length=128000)
     sys.exit(exit_code)

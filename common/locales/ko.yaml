@@ -569,14 +569,14 @@ onboarding:
     configure_more: "⚙ 추가 구성"
 
 # =============================================================================
-# Cron 서브시스템 (handsome cron ...)
+# Cron 서브시스템 (agentz cron ...)
 # =============================================================================
 
 cron:
   parser_description: "예약 작업(cron)을 관리합니다."
   list_header: "⏰ Cron 작업 목록"
   empty: "등록된 cron 작업이 없습니다"
-  empty_hint: "'handsome cron create' 로 추가하세요"
+  empty_hint: "'agentz cron create' 로 추가하세요"
   total: "총 {n}개; 활성 {a}개, 일시정지 {p}개"
   not_found: "cron 작업을 찾을 수 없습니다: {id}"
   show_header: "⏰ 작업 {id}"
@@ -595,7 +595,7 @@ cron:
   run_done: "작업 {id} 완료 (status={ok})"
   tick_done: "이번 tick 에서 {n}개 실행"
   status_header: "📊 Cron 상태"
-  no_heartbeat: "ticker heartbeat 가 없습니다. 'handsome cron tick' 을 실행하거나 gateway 데몬을 시작하세요."
+  no_heartbeat: "ticker heartbeat 가 없습니다. 'agentz cron tick' 을 실행하거나 gateway 데몬을 시작하세요."
   invalid_duration: "잘못된 기간 '{s}'. '30m' / '2h' / '1d' 형식으로 지정하세요"
   croniter_missing: "cron 식을 사용하려면 'croniter' 패키지가 필요합니다: pip install croniter"
   invalid_schedule: "잘못된 schedule. 기간 / 'every Xm' / '0 9 * * *' / ISO 타임스탬프 형식 사용"
@@ -656,7 +656,7 @@ tui:
     summary: "⏰  작업 {total}개 · 활성 {active} · 일시정지 {paused}"
     empty: "예약된 작업이 없습니다. [a]를 눌러 추가하세요."
     help_hint: "[r]새로고침  [a]추가  [↵]상세  [p]일시정지  [u]재개  [t]트리거  [d]삭제"
-    heartbeat_idle: "⚪ ticker가 시작되지 않았습니다 ('handsome cron tick' 실행 또는 gateway 시작)"
+    heartbeat_idle: "⚪ ticker가 시작되지 않았습니다 ('agentz cron tick' 실행 또는 gateway 시작)"
     heartbeat_stale: "⚠ ticker 활성 {hb}s · 마지막 성공 {ok}s 전"
     heartbeat_healthy: "🟢 ticker 정상 · 마지막 성공 {ok}s 전"
     created_notify: "✓ cron 작업 생성됨 {id}"

@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Authentication system for Handsome Agent.
+Authentication system for Agent-Z.
 
 🧠 Decision - 🤖 LLM - 认证管理
 
@@ -12,7 +12,7 @@ Authentication system for Handsome Agent.
 - Ollama
 - 自定义 Provider
 
-认证状态保存在 ~/.handsome_agent/auth.json
+认证状态保存在 ~/.agent_z/auth.json
 """
 
 import json
@@ -53,7 +53,7 @@ class AuthStore:
 
 def get_auth_path() -> Path:
     """Get auth store file path."""
-    auth_dir = Path.home() / ".handsome_agent"
+    auth_dir = Path.home() / ".agent_z"
     auth_dir.mkdir(parents=True, exist_ok=True)
     return auth_dir / "auth.json"
 
@@ -276,7 +276,7 @@ def auth_list():
 
     if not credentials:
         ui.print_info("No stored credentials")
-        print("\nRun 'handsome auth add <provider>' to add credentials.")
+        print("\nRun 'agentz auth add <provider>' to add credentials.")
         return
 
     ui.print_header("Stored Credentials")

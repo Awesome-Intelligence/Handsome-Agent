@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Cross-platform curses-based UI components for Handsome Agent CLI.
+Cross-platform curses-based UI components for Agent-Z CLI.
 
 Inspired by Hermes Agent's curses_ui.py design.
 Provides curses multi-select with keyboard navigation, plus a
@@ -162,7 +162,7 @@ def curses_radiolist(
 
             # 绘制标题
             try:
-                title = " Handsome Agent Setup "
+                title = " Agent-Z Setup "
                 stdscr.addnstr(0, 0, title.center(max_x - 2, '─'), max_x - 2, curses.A_BOLD)
             except curses.error:
                 pass

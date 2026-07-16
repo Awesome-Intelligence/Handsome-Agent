@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Skills Config - Skill configuration management.
@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 
 def get_config_path() -> Path:
     """Get the skills config file path."""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "skills_config.json"
 

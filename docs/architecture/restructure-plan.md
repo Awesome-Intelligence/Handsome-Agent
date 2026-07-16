@@ -1,4 +1,4 @@
-# Handsome Agent 目录结构重构计划
+﻿# Agent-Z 目录结构重构计划
 
 > 参考 Hermes 项目结构，制定的目标目录架构
 >
@@ -47,7 +47,7 @@ hermes-agent-study/
 ## 二、目标目录结构
 
 ```
-Handsome-Agent/
+Agent-Z/
 │
 ├── agent/                    # 🤖 Agent 核心
 │   ├── __init__.py

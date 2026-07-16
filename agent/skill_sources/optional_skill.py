@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 可选技能来源 - OptionalSkillSource
@@ -163,7 +163,7 @@ class OptionalSkillSource(SkillSource):
             results.append(SourceSkillInfo(
                 name=name,
                 description=desc[:200] if desc else "",
-                author=fm.get("author", "Handsome Agent"),
+                author=fm.get("author", "Agent-Z"),
                 version=fm.get("version", ""),
                 source=self.SOURCE_TYPE,
                 url=f"optional/{rel_path}",

@@ -1,14 +1,14 @@
-# Handsome Agent Docker 配置
+# Agent-Z Docker 配置
 # 架构变更：合并 api/ 到 gateway/，使用单服务架构
 
 version: '3.8'
 
 services:
-  handsome-agent:
+  agent-z:
     build:
       context: .
       dockerfile: Dockerfile.gateway
-    container_name: handsome-agent
+    container_name: agent-z
     ports:
       - "8000:8000"
     environment:
@@ -23,8 +23,8 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - handsome-network
+      - agent-z-network
 
 networks:
-  handsome-network:
+  agent-z-network:
     driver: bridge

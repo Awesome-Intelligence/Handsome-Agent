@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Custom TUI Module - Geek Green themed terminal output.
@@ -296,8 +296,8 @@ def print_banner(model: str = None, tools_count: int = None, skills_count: int =
 
 def print_banner_simple():
     """Print simple banner without rich enhancements (fallback)."""
-    print_header("Handsome Agent", "Welcome!")
-    print(f"  {Theme.PRIMARY_BOLD}🚀 Handsome Agent V 0.0.1{Colors.RESET}")
+    print_header("Agent-Z", "Welcome!")
+    print(f"  {Theme.PRIMARY_BOLD}🚀 Agent-Z V 0.0.1{Colors.RESET}")
     print()
 
 

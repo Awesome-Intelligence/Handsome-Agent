@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Internationalization (i18n) Module for Handsome Agent
+Internationalization (i18n) Module for Agent-Z
 
 Provides multilingual support for user-facing messages.
 Supports: Chinese (zh), English (en), Korean (ko), Japanese (ja)
@@ -12,9 +12,9 @@ This module combines:
 
 Language resolution order:
     1. Explicit ``lang`` argument passed to :func:`t`
-    2. ``HANDSOME_LANGUAGE`` environment variable (for tests / quick override)
+    2. ``AGENTZ_LANGUAGE`` environment variable (for tests / quick override)
     3. ``language`` from config.yaml
-    4. ``"zh"`` (Chinese default for Handsome Agent)
+    4. ``"zh"`` (Chinese default for Agent-Z)
 
 Supported languages: en, zh, ja, ko.
 """
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 SUPPORTED_LANGUAGES: tuple[str, ...] = (
     "en", "zh", "ja", "ko",
 )
-DEFAULT_LANGUAGE = "zh"  # Chinese default for Handsome Agent
+DEFAULT_LANGUAGE = "zh"  # Chinese default for Agent-Z
 
 # Language aliases - maps natural language names to supported codes
 _LANGUAGE_ALIASES: dict[str, str] = {
@@ -139,7 +139,7 @@ def _config_language_cached() -> str | None:
     when config changes at runtime (e.g. after the setup wizard).
     """
     try:
-        config_dir = Path.home() / ".handsome_agent"
+        config_dir = Path.home() / ".agent_z"
         config_file = config_dir / "config.json"
         if config_file.exists():
             import json
@@ -165,8 +165,8 @@ def reset_language_cache() -> None:
 
 def get_language() -> str:
     """Resolve the active language using env > config > default order."""
-    # 1. HERMES_LANGUAGE or HANDSOME_LANGUAGE environment variable
-    env_lang = os.environ.get("HERMES_LANGUAGE") or os.environ.get("HANDSOME_LANGUAGE")
+    # 1. HERMES_LANGUAGE or AGENTZ_LANGUAGE environment variable
+    env_lang = os.environ.get("HERMES_LANGUAGE") or os.environ.get("AGENTZ_LANGUAGE")
     if env_lang:
         return _normalize_lang(env_lang)
     # 2. Config file language setting
@@ -353,7 +353,7 @@ class I18n:
             "layer_access": "[Access Layer]",
             "layer_decision": "[Decision Layer]",
             "layer_execution": "[Execution Layer]",
-            "subtitle": "You look handsome today too",
+            "subtitle": "You look agentz today too",
         },
         "ko": {
             "flow_start": "🚪 [액세스 계층] 사용자 입력 처리 시작",

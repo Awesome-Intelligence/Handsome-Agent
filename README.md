@@ -1,4 +1,4 @@
-# Handsome Agent
+# Agent-Z
 
 ![Logo](docs/images/logo.png)
 
@@ -11,7 +11,7 @@
 
 ## 🎯 项目概述
 
-Handsome Agent 是一个企业级 AI Agent 系统，融合了：
+Agent-Z 是一个企业级 AI Agent 系统，融合了：
 
 - **OpenClaw** 的多渠道接入能力和工具抽象
 - **Hermes** 的智能决策和自我进化能力
@@ -50,7 +50,7 @@ Handsome Agent 是一个企业级 AI Agent 系统，融合了：
 ## 📁 项目目录结构
 
 ```
-Handsome-Agent/
+Agent-Z/
 │
 ├── agent/                    # 🧠 Decision
 │   ├── agent.py             #   🧠 Decision - Agent 协调器
@@ -227,16 +227,16 @@ Handsome-Agent/
 
 ## 📁 数据存储
 
-### 用户数据: `~/.handsome_agent/`
+### 用户数据: `~/.agent_z/`
 
 ```
-~/.handsome_agent/
+~/.agent_z/
 ├── config.json           # 配置文件
 ├── sessions/{date}/      # 对话历史 (按日期组织)
 ├── skills/user/         # 用户技能
 ├── memories/            # 长期记忆
 ├── logs/                # 日志文件
-└── handsome_agent.db    # SQLite数据库
+└── agentz.db    # SQLite数据库
 ```
 
 <br />
@@ -244,7 +244,7 @@ Handsome-Agent/
 ### 环境变量
 
 ```bash
-export HANDSOME_HOME=/custom/path  # 自定义数据目录
+export AGENT_Z_HOME=/custom/path  # 自定义数据目录
 ```
 
 ***

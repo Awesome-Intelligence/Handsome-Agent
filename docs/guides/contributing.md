@@ -1,4 +1,4 @@
-# Contributing to Handsome Agent
+﻿# Contributing to Agent-Z
 
 ## Development Setup
 

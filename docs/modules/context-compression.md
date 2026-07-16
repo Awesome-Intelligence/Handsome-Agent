@@ -8,7 +8,7 @@
 
 ## 概述
 
-上下文管理是 Handsome Agent 的核心功能之一，负责：
+上下文管理是 Agent-Z 的核心功能之一，负责：
 
 1. **上下文拼装 (Assembly)** - LLM 调用前准备输入
 2. **上下文压缩 (Compression)** - 长对话时管理 token 预算
@@ -25,7 +25,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              Handsome Agent 上下文管理架构                  │
+│              Agent-Z 上下文管理架构                  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
@@ -147,7 +147,7 @@ _CONTEXT_THREAT_PATTERNS = [
 
 ### 拼装差距对比
 
-| 方面 | Handsome Agent | Hermes | 状态 |
+| 方面 | Agent-Z | Hermes | 状态 |
 |------|----------------|--------|------|
 | **身份定义** | ✅ 已实现 | ✅ 已有 | 完成 |
 | **能力摘要** | ✅ 已实现 | ✅ 已有 | 完成 |
@@ -204,7 +204,7 @@ _CONTEXT_THREAT_PATTERNS = [
 
 ## 与 Hermes 的功能对比
 
-| 功能 | Hermes | Handsome-Agent | 状态 |
+| 功能 | Hermes | Agent-Z | 状态 |
 |------|--------|----------------|------|
 | 摘要模板 | 12 字段 (详细) | 6 字段 (简化) | ⚠️ 待增强 |
 | 摘要前导语 (Preamble) | 详细安全前缀 | 简化版 | ⚠️ 待增强 |
@@ -215,11 +215,11 @@ _CONTEXT_THREAT_PATTERNS = [
 | 迭代摘要更新 | ✅ 支持 | ⚠️ 未实现 | ⚠️ 待实现 |
 | 聚焦压缩 (focus_topic) | ✅ 支持 | ⚠️ 参数存在但未使用 | ⚠️ 待实现 |
 | 辅助模型摘要 | 支持独立摘要模型 | 依赖主模型 | ⚠️ 待实现 |
-| Rail 集成 | 手动触发 | ✅ 自动化集成 | ✅ Handsome 更好 |
-| CLI 命令 | /compress /usage | ✅ /compress /usage /compression-status | ✅ Handsome 更完整 |
-| 配置系统 | YAML | ✅ 环境变量 + 配置类 | ✅ Handsome 更灵活 |
-| 测试覆盖 | 基础测试 | ✅ 75+ 测试 | ✅ Handsome 更完善 |
-| 文档 | 代码注释 | ✅ 完整 Markdown | ✅ Handsome 更完善 |
+| Rail 集成 | 手动触发 | ✅ 自动化集成 | ✅ agentz 更好 |
+| CLI 命令 | /compress /usage | ✅ /compress /usage /compression-status | ✅ agentz 更完整 |
+| 配置系统 | YAML | ✅ 环境变量 + 配置类 | ✅ agentz 更灵活 |
+| 测试覆盖 | 基础测试 | ✅ 75+ 测试 | ✅ agentz 更完善 |
+| 文档 | 代码注释 | ✅ 完整 Markdown | ✅ agentz 更完善 |
 
 ---
 
@@ -456,25 +456,25 @@ await integration.after_llm_call(messages, response)
 
 ```bash
 # 启用压缩 (默认 true)
-export HANDSOME_COMPRESSION_ENABLED=true
+export AGENTZ_COMPRESSION_ENABLED=true
 
 # 压缩阈值 (默认 0.50 = 50%)
-export HANDSOME_COMPRESSION_THRESHOLD=0.50
+export AGENTZ_COMPRESSION_THRESHOLD=0.50
 
 # 保护前 N 条消息 (默认 3)
-export HANDSOME_COMPRESSION_PROTECT_FIRST=3
+export AGENTZ_COMPRESSION_PROTECT_FIRST=3
 
 # 保护最近 N 条消息 (默认 10)
-export HANDSOME_COMPRESSION_PROTECT_LAST=10
+export AGENTZ_COMPRESSION_PROTECT_LAST=10
 
 # 自动压缩 (默认 true)
-export HANDSOME_COMPRESSION_AUTO=true
+export AGENTZ_COMPRESSION_AUTO=true
 
 # 摘要比例 (默认 0.20)
-export HANDSOME_COMPRESSION_SUMMARY_RATIO=0.20
+export AGENTZ_COMPRESSION_SUMMARY_RATIO=0.20
 
 # 静默模式 (默认 false)
-export HANDSOME_COMPRESSION_QUIET=false
+export AGENTZ_COMPRESSION_QUIET=false
 ```
 
 ---
@@ -582,3 +582,4 @@ python -m cli.main chat --verbose
 
 **最后更新**: 2026-06-02
 **版本**: v3.0.0
+

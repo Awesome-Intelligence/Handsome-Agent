@@ -1,4 +1,4 @@
-# TUI Module - 终端界面模块
+﻿# TUI Module - 终端界面模块
 
 ## 概述
 
@@ -131,7 +131,7 @@ GitHub API 获取仓库内容
     ↓
 查找 SKILL.md 文件
     ↓
-下载并解压到 ~/.handsome_agent/skills/
+下载并解压到 ~/.agent_z/skills/
     ↓
 注册到 SkillTelemetry
     ↓

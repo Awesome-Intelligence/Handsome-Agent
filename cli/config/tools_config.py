@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Tools Config - Tool configuration management.
@@ -48,7 +48,7 @@ TOOL_CATEGORIES = {
 
 def get_config_path() -> Path:
     """Get the tools config file path."""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "tools_config.json"
 

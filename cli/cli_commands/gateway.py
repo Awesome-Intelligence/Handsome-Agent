@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Gateway command - Gateway service management
@@ -19,14 +19,14 @@ from typing import Optional
 
 def get_pid_file() -> Path:
     """获取 PID 文件路径"""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "gateway.pid"
 
 
 def get_log_file() -> Path:
     """获取日志文件路径"""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "logs" / "gateway.log"
 
@@ -105,7 +105,7 @@ def start_gateway() -> None:
         if cmd is None:
             # 方式 3: 查找可执行文件
             for exe_path in [
-                Path.home() / ".handsome_agent" / "bin" / "gateway",
+                Path.home() / ".agent_z" / "bin" / "gateway",
                 Path(sys.prefix) / "bin" / "gateway",
             ]:
                 if exe_path.exists():
@@ -220,7 +220,7 @@ def check_gateway_status() -> None:
         
     else:
         print_error("🔴 Gateway 未运行")
-        print_info("使用 'handsome gateway start' 启动")
+        print_info("使用 'agentz gateway start' 启动")
 
 
 def restart_gateway() -> None:

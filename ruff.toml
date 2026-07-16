@@ -1,4 +1,4 @@
-# Ruff Lint Configuration for Handsome Agent
+# Ruff Lint Configuration for Agent-Z
 # 🧠 Decision - 🔧 System - Lint 规则配置
 
 # 基础配置
@@ -50,7 +50,7 @@ ignore = [
 
 # 3. 硬编码字符串检测
 [lint.flake8-hardcoded-temp-dir]
-tmp-dir-prefix = "/tmp/handsome-agent"
+tmp-dir-prefix = "/tmp/agent-z"
 
 # 检测 hardcoded-tuple-bindings
 [lint.extend-per-file-ignores]

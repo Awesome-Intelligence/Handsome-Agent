@@ -1,4 +1,4 @@
-"""
+﻿"""
 Cron-related Modal screens for the TUI sidebar.
 
 🚪 Access - 💬 TUI - Cron modals
@@ -336,7 +336,7 @@ class CronDetailScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     """Read-only detail modal for a single cron job.
 
     Renders schedule, state, last run info, and (if available) the
-    most-recent output excerpt from ``$HANDSOME_HOME/cron/output/<id>/``.
+    most-recent output excerpt from ``$AGENT_Z_HOME/cron/output/<id>/``.
     """
 
     CSS = CRON_VIEW_CSS
@@ -467,7 +467,7 @@ class CronDetailScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
 
 def _resolve_output_dir(job_id: str) -> Optional[Path]:
-    """Resolve ``$HANDSOME_HOME/cron/output/<job_id>/`` without importing the
+    """Resolve ``$AGENT_Z_HOME/cron/output/<job_id>/`` without importing the
     full :mod:`cron` package (keeps this module headless-test friendly).
     """
     if not job_id:
@@ -475,13 +475,13 @@ def _resolve_output_dir(job_id: str) -> Optional[Path]:
     import os as _os
     from pathlib import Path as _P
 
-    home = _os.environ.get("HANDSOME_HOME")
+    home = _os.environ.get("AGENT_Z_HOME")
     if not home:
         try:
-            from common.config import HANDSOME_HOME  # type: ignore
-            home = str(HANDSOME_HOME)
+            from common.config import AGENT_Z_HOME  # type: ignore
+            home = str(AGENT_Z_HOME)
         except Exception:
-            home = str(_P.home() / ".handsome_agent")
+            home = str(_P.home() / ".agent_z")
     return _P(home) / "cron" / "output" / job_id
 
 

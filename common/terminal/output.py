@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CLI output helpers for Handsome Agent.
+CLI output helpers for Agent-Z.
 
 🚪 Access - 💬 CLI - 输出函数
 

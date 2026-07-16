@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 ACP command - ACP server management (Editor Integration)
@@ -20,14 +20,14 @@ from typing import Optional
 
 def get_pid_file() -> Path:
     """获取 PID 文件路径"""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "acp.pid"
 
 
 def get_socket_path() -> Path:
     """获取 Unix socket 路径"""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "acp.sock"
 
@@ -181,13 +181,13 @@ def check_acp_status() -> None:
         
         print()
         print_info("支持的编辑器插件:")
-        print("  • VSCode (handsome-vscode)")
-        print("  • Neovim (handsome-nvim)")
-        print("  • Helix (handsome-helix)")
+        print("  • VSCode (agentz-vscode)")
+        print("  • Neovim (agentz-nvim)")
+        print("  • Helix (agentz-helix)")
         
     else:
         print_error("🔴 ACP 服务器未运行")
-        print_info("使用 'handsome acp start' 启动")
+        print_info("使用 'agentz acp start' 启动")
         print()
         print_info("ACP 服务器用于编辑器集成，提供:")
         print("  • 实时代码补全")

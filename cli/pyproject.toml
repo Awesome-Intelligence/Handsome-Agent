@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "handsome-agent"
+name = "agent-z"
 version = "0.0.1"
 description = "Agent-Z - AI assistant with tool-calling capabilities"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Handsome Agent Team"}
+    {name = "Agent-Z Team"}
 ]
 keywords = ["ai", "agent", "assistant", "cli", "tui"]
 classifiers = [
@@ -32,7 +32,7 @@ dev = [
 ]
 
 [project.scripts]
-handsome = "cli.main:main"
+agentz = "cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

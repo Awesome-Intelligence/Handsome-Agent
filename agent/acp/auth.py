@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 ACP Authentication Module.
@@ -16,7 +16,7 @@ from common.logging_manager import get_decision_logger
 logger = get_decision_logger(__name__)
 
 # Auth method IDs
-TERMINAL_SETUP_AUTH_METHOD_ID = "handsome-setup"
+TERMINAL_SETUP_AUTH_METHOD_ID = "agentz-setup"
 
 
 def detect_provider() -> Optional[str]:
@@ -93,7 +93,7 @@ def build_auth_methods() -> List[Dict[str, Any]]:
     methods.append({
         "id": TERMINAL_SETUP_AUTH_METHOD_ID,
         "type": "terminal",
-        "name": "Configure Handsome Agent",
+        "name": "Configure Agent-Z",
         "description": "Open interactive setup to configure model/provider. Use when not yet configured.",
         "args": ["--setup"],
     })

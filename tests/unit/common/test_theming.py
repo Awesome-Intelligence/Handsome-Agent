@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Unit tests for common.theming (跨 tui/cli 共享的主题层)
 
@@ -62,7 +62,7 @@ class TestThemeManagerBasics:
     """ThemeManager 基础行为。"""
 
     def _make_isolated_manager(self):
-        """创建与全局 ~/.handsome_agent/tui_config.json 隔离的实例。"""
+        """创建与全局 ~/.agent_z/tui_config.json 隔离的实例。"""
         from common.theming.theme_manager import ThemeManager
 
         ThemeManager._instance = None
@@ -105,7 +105,7 @@ class TestThemeManagerTransparency:
     """透明度开关与级别。"""
 
     def _make_isolated_manager(self):
-        """创建与全局 ~/.handsome_agent/tui_config.json 隔离的实例。"""
+        """创建与全局 ~/.agent_z/tui_config.json 隔离的实例。"""
         from common.theming.theme_manager import ThemeManager
 
         ThemeManager._instance = None

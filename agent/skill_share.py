@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Skill Share - 技能分享和发布
@@ -221,7 +221,7 @@ class SkillShare:
                 "",
                 "```bash",
                 f"# Clone or download this skill",
-                f"handsome skills install {skill_name}",
+                f"agentz skills install {skill_name}",
                 "```",
                 "",
                 "## Usage",
@@ -257,7 +257,7 @@ class SkillShare:
                 "```",
                 "",
                 "---",
-                f"*Shared from Handsome Agent*",
+                f"*Shared from Agent-Z*",
             ])
 
             return "\n".join(lines)
@@ -391,13 +391,13 @@ class SkillShare:
             安装命令
         """
         if source == "local":
-            return f"handsome skills install --local {skill_name}"
+            return f"agentz skills install --local {skill_name}"
         elif source == "github":
-            return f"handsome skills install --github owner/repo/{skill_name}"
+            return f"agentz skills install --github owner/repo/{skill_name}"
         elif source == "gist":
-            return f"handsome skills install --gist <gist-id>"
+            return f"agentz skills install --gist <gist-id>"
         else:
-            return f"handsome skills install {skill_name}"
+            return f"agentz skills install {skill_name}"
 
     def create_badge(self, skill_name: str, style: str = "flat") -> str:
         """
@@ -450,7 +450,7 @@ class SkillShare:
                 "### Install",
                 "",
                 "```bash",
-                f"handsome skills install {skill_name}",
+                f"agentz skills install {skill_name}",
                 "```",
                 "",
             ]

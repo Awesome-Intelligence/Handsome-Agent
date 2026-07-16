@@ -10,8 +10,8 @@ Covers:
     silence suppression, deliver-hook handshake, BackgroundTicker
     thread lifecycle.
 
-Runs hermetic: every test redirects ``$HANDSOME_HOME`` to a tmpdir and
-isolates ``$HANDSOME_AGENT_RUNNER`` to a stub callable.
+Runs hermetic: every test redirects ``$AGENT_Z_HOME`` to a tmpdir and
+isolates ``$AGENTZ_RUNNER`` to a stub callable.
 """
 
 # Copyright © 2026 Agent-Z Contributors.
@@ -45,15 +45,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 @pytest.fixture
 def tmp_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Redirect HANDSOME_HOME and cron storage to a tmpdir."""
-    monkeypatch.setenv("HANDSOME_HOME", str(tmp_path))
-    # Force lazy resolution: common.config caches HANDSOME_HOME at import
+    """Redirect AGENT_Z_HOME and cron storage to a tmpdir."""
+    monkeypatch.setenv("AGENT_Z_HOME", str(tmp_path))
+    # Force lazy resolution: common.config caches AGENT_Z_HOME at import
     # time, but cron/jobs.py re-resolves via _get_active_home() each call.
-    # We additionally refresh common.config.HANDSOME_HOME for consumers
+    # We additionally refresh common.config.AGENT_Z_HOME for consumers
     # that imported it.
     import common.config as _common_config
 
-    monkeypatch.setattr(_common_config, "HANDSOME_HOME", Path(tmp_path))
+    monkeypatch.setattr(_common_config, "AGENT_Z_HOME", Path(tmp_path))
 
     # Re-bind cron.jobs module-level path aliases so OUTPUT_DIR et al
     # point at the tmpdir. Production consumers invoke ensure_dirs()
@@ -192,7 +192,7 @@ class TestJobsCrud:
 
         with pytest.raises(GatewayLifecycleBlocked):
             jobs_module.create_job(
-                prompt="please run: handsome gateway restart now",
+                prompt="please run: agentz gateway restart now",
                 schedule="every 1m",
             )
 
@@ -375,22 +375,22 @@ class TestGetDueJobs:
 
 
 class TestLifecycleGuard:
-    def test_handsome_gateway_restart_blocked(
+    def test_agentz_gateway_restart_blocked(
         self, jobs_module, tmp_home
     ):
         from cron.lifecycle_guard import check_gateway_lifecycle
 
         with pytest.raises(Exception) as ei:
             check_gateway_lifecycle(
-                prompt="run this: handsome gateway restart"
+                prompt="run this: agentz gateway restart"
             )
         assert "Blocked" in str(ei.value) or "blocked" in str(ei.value)
 
-    def test_handsome_gateway_stop_blocked(self):
+    def test_agentz_gateway_stop_blocked(self):
         from cron.lifecycle_guard import check_gateway_lifecycle
 
         with pytest.raises(Exception):
-            check_gateway_lifecycle(prompt="handsome gateway stop")
+            check_gateway_lifecycle(prompt="agentz gateway stop")
 
     def test_unrelated_passive_text_allowed(self):
         from cron.lifecycle_guard import (
@@ -410,7 +410,7 @@ class TestLifecycleGuard:
         bad_script = tmp_home / "scripts" / "evil.sh"
         bad_script.parent.mkdir(parents=True, exist_ok=True)
         bad_script.write_text(
-            "#!/bin/bash\nhandsome gateway restart", encoding="utf-8"
+            "#!/bin/bash\nagentz gateway restart", encoding="utf-8"
         )
         with pytest.raises(Exception):
             check_gateway_lifecycle(
@@ -519,13 +519,13 @@ class TestSchedulerScriptMode:
             called["n"] += 1
             return f"PROMPT-ONLY:{prompt}"
 
-        os.environ["HANDSOME_AGENT_RUNNER"] = (
+        os.environ["AGENTZ_RUNNER"] = (
             "tests.unit.test_cron:fake_runner"
         )
         try:
             success, doc, response, error = run_job({**job, "workdir": None})
         finally:
-            os.environ.pop("HANDSOME_AGENT_RUNNER", None)
+            os.environ.pop("AGENTZ_RUNNER", None)
             clear_scheduler_hooks()
 
         assert success is True
@@ -664,7 +664,7 @@ class TestTickDispatch:
 
         delivered = []
         # Stub the runner so we never need a real agent.
-        os.environ["HANDSOME_AGENT_RUNNER"] = (
+        os.environ["AGENTZ_RUNNER"] = (
             "tests.unit.test_cron:never_called_runner"
         )
         set_scheduler_hooks(
@@ -673,7 +673,7 @@ class TestTickDispatch:
         try:
             tick(verbose=False, sync=True)
         finally:
-            os.environ.pop("HANDSOME_AGENT_RUNNER", None)
+            os.environ.pop("AGENTZ_RUNNER", None)
             clear_scheduler_hooks()
 
         # Wake-gate fired → suppress delivery entirely.
@@ -907,7 +907,7 @@ class TestToolsetScopeRestore:
 
 
 class TestCronCliRemove:
-    """`handsome cron remove <ref>` must resolve by name and respect --yes."""
+    """`agentz cron remove <ref>` must resolve by name and respect --yes."""
 
     def _ns(self, **overrides):
         from cli.cli_commands import cron as cli_cron

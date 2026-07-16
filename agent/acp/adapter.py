@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 ACP Server - Main entry point for ACP communication.
 
-Provides the ACP protocol implementation for Handsome Agent.
+Provides the ACP protocol implementation for Agent-Z.
 """
 
 # 🧠 Decision - 💾 Memory - ACP Server
@@ -152,7 +152,7 @@ class ACPServer:
                 },
             },
             "agentInfo": {
-                "name": "Handsome Agent",
+                "name": "Agent-Z",
                 "version": "1.0.0",
             },
         }
@@ -432,7 +432,7 @@ async def run_http_server(agent=None, host: str = "127.0.0.1", port: int = 8002)
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Handsome Agent ACP Server")
+    parser = argparse.ArgumentParser(description="Agent-Z ACP Server")
     parser.add_argument(
         "--transport",
         choices=["stdio", "http"],

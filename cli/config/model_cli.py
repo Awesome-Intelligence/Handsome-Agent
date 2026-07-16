@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Model CLI - Model management commands
@@ -37,7 +37,7 @@ PROVIDERS = {
 
 def _get_config_file() -> Path:
     """Get config file path."""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(exist_ok=True)
     return config_dir / "config.json"
 

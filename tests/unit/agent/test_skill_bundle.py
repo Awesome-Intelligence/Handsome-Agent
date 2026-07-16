@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Unit tests for the Skill Bundle module.
@@ -27,7 +27,7 @@ class TestSkillBundleManagerInit:
     def test_init_default_dir(self):
         """Test default initialization uses correct directory."""
         manager = SkillBundleManager()
-        expected = Path.home() / ".handsome_agent" / "skill-bundles"
+        expected = Path.home() / ".agent_z" / "skill-bundles"
         assert manager._bundles_dir == expected
 
     def test_init_custom_dir(self, tmp_path):

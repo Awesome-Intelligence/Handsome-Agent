@@ -1,4 +1,4 @@
-"""A2A (Agent-to-Agent) Protocol for Handsome Agent."""
+﻿"""A2A (Agent-to-Agent) Protocol for Agent-Z."""
 
 from agent.a2a.models import AgentCard, Task, TaskStatus, Message, Part, TextPart, DataPart
 from agent.a2a.server import A2AServer

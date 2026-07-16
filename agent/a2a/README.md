@@ -1,4 +1,4 @@
-# A2A (Agent-to-Agent) Protocol Module
+﻿# A2A (Agent-to-Agent) Protocol Module
 
 This module provides A2A protocol implementation for multi-agent collaboration.
 
@@ -22,7 +22,7 @@ from agent.a2a import A2AServer, AgentCard
 
 # Create Agent Card
 card = AgentCard(
-    name="Handsome Agent",
+    name="Agent-Z",
     description="A versatile AI agent",
     url="http://localhost:8003",
 )

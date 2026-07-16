@@ -7,9 +7,9 @@ Ported from Hermes ``cron/scheduler.py``. Provides ``tick()`` which
 checks for due jobs and runs them, plus ``run_one_job`` and ``run_job``
 for end-to-end execution.
 
-The gateway daemon (or ``handsome cron tick``) calls ``tick()`` every
+The gateway daemon (or ``agentz cron tick``) calls ``tick()`` every
 ``TICKER_INTERVAL_SECONDS`` (60s). A file-based lock on
-``<HANDSOME_HOME>/cron/.tick.lock`` ensures only one tick runs at a
+``<AGENT_Z_HOME>/cron/.tick.lock`` ensures only one tick runs at a
 time if multiple processes overlap.
 
 Two execution paths:
@@ -21,7 +21,7 @@ Two execution paths:
 
 Hermes-only integrations (delivery adapters, profile secret scope,
 per-platform mirror, MCP orphan sweep) live behind a thin
-``scheduler_hooks`` adapter that Handsome-Agent's gateway or future
+``scheduler_hooks`` adapter that Agent-Z's gateway or future
 delivery layer can populate; calls are best-effort and never raise
 into the runner.
 """
@@ -55,7 +55,7 @@ except ImportError:
     except ImportError:
         msvcrt = None
 
-from common.config import get_handsome_home
+from common.config import get_agentz_home
 from common.cron_time import now as _hermes_now
 from common.i18n import t
 from common.logging_manager import get_decision_logger
@@ -100,7 +100,7 @@ def _get_active_home() -> Path:
     override = globals().get("_HERMES_HOME_OVERRIDE")
     if override is not None:
         return Path(override)
-    return get_handsome_home()
+    return get_agentz_home()
 
 
 def _get_lock_paths() -> Tuple[Path, Path]:
@@ -124,7 +124,7 @@ def _interpreter_shutting_down(exc: Optional[BaseException] = None) -> bool:
 # =============================================================================
 
 
-# Hooks into Handsome-Agent specific subsystems (delivery, mirror,
+# Hooks into Agent-Z specific subsystems (delivery, mirror,
 # profile secret scope, etc.).  Tests and the gateway populate this
 # before invoking ``tick()``; ``run_job`` uses best-effort reads.
 
@@ -428,10 +428,10 @@ def _run_agent_prompt(
 
     Integration points (in priority order):
 
-      1. ``HANDSOME_AGENT_RUNNER`` env var — ``module:callable`` form,
+      1. ``AGENTZ_RUNNER`` env var — ``module:callable`` form,
          invoked as ``callable(prompt=prompt, job=job)``. Allows the
          gateway / tests to plug in a custom runner without forking.
-      2. Handsome-Agent's :class:`agent.agent.Agent` — full chat loop
+      2. Agent-Z's :class:`agent.agent.Agent` — full chat loop
          with tool-use, memory, and session persistence. Runs the
          async ``chat()`` via a fresh event loop.
       3. If neither is available (e.g. minimal CI runner), we return
@@ -444,7 +444,7 @@ def _run_agent_prompt(
     invocations (interactive chat, other cron jobs) never inherit the
     cron's toolset list.
     """
-    override = os.environ.get("HANDSOME_AGENT_RUNNER", "").strip()
+    override = os.environ.get("AGENTZ_RUNNER", "").strip()
     if override:
         try:
             mod_name, _, attr = override.partition(":")
@@ -461,8 +461,8 @@ def _run_agent_prompt(
         return (
             False,
             "",
-            f"Failed to import Handsome Agent: {exc}. "
-            "Run `handsome setup` first, or set HANDSOME_AGENT_RUNNER.",
+            f"Failed to import Agent-Z: {exc}. "
+            "Run `agentz setup` first, or set AGENTZ_RUNNER.",
         )
 
     enable_toolsets = job.get("enabled_toolsets")
@@ -512,7 +512,7 @@ def _run_agent_prompt(
                 False,
                 "",
                 "Cron agent has no LLM configured. "
-                "Run `handsome setup` or set `llm.provider` / `llm.model` "
+                "Run `agentz setup` or set `llm.provider` / `llm.model` "
                 "in config.yaml (or per-job `model=...`).",
             )
         return False, "", f"Agent chat failed: {exc}"
@@ -812,12 +812,12 @@ def tick(verbose: bool = True, sync: bool = True) -> int:
         # Resolve max workers: env > config > unbounded.
         max_workers: Optional[int] = None
         try:
-            env_par = os.environ.get("HANDSOME_CRON_MAX_PARALLEL", "").strip()
+            env_par = os.environ.get("AGENTZ_CRON_MAX_PARALLEL", "").strip()
             if env_par:
                 max_workers = int(env_par) or None
         except (ValueError, TypeError):
             logger.warning(
-                "Invalid HANDSOME_CRON_MAX_PARALLEL value; defaulting to unbounded"
+                "Invalid AGENTZ_CRON_MAX_PARALLEL value; defaulting to unbounded"
             )
         if max_workers is None:
             try:
@@ -954,7 +954,7 @@ def tick(verbose: bool = True, sync: bool = True) -> int:
 class BackgroundTicker:
     """Run ``tick()`` on a fixed interval in a daemon thread.
 
-    Used by the Handsome-Agent gateway / daemon. Stop with ``stop()``.
+    Used by the Agent-Z gateway / daemon. Stop with ``stop()``.
     """
 
     def __init__(self, interval_seconds: int = 60) -> None:
@@ -968,7 +968,7 @@ class BackgroundTicker:
         self._stop.clear()
         self._thread = threading.Thread(
             target=self._loop,
-            name="handsome-cron-ticker",
+            name="agentz-cron-ticker",
             daemon=True,
         )
         self._thread.start()
@@ -983,7 +983,7 @@ class BackgroundTicker:
 
         while not self._stop.is_set():
             tick_ok = False
-            # Pre-tick heartbeat: ensures ``handsome cron status`` can
+            # Pre-tick heartbeat: ensures ``agentz cron status`` can
             # tell that the ticker thread is *alive*, even if a tick
             # blocks forever on a slow agent run.
             try:

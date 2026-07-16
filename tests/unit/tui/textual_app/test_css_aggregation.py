@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Unit tests for tui.textual_app.css subpackage
 
@@ -151,7 +151,7 @@ class TestAPPCSSAgggregation:
         assert APP_CSS.lstrip().startswith("/*"), (
             "APP_CSS should start with a comment block"
         )
-        assert "Handsome Agent TUI" in APP_CSS
+        assert "Agent-Z TUI" in APP_CSS
 
 
 class TestBackwardsCompat:

@@ -14,8 +14,8 @@ from common.config import (
     # Path helpers
     get_config_path,
     get_env_path,
-    get_handsome_home,
-    HANDSOME_HOME,
+    get_agentz_home,
+    AGENT_Z_HOME,
     # Legacy compat
     get_config_value,
     set_config_value,
@@ -69,8 +69,8 @@ __all__ = [
     "save_config",
     "get_config_path",
     "get_env_path",
-    "get_handsome_home",
-    "HANDSOME_HOME",
+    "get_agentz_home",
+    "AGENT_Z_HOME",
     "get_config_value",
     "set_config_value",
     "DEFAULT_CONFIG",

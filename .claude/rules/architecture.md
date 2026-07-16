@@ -1,4 +1,4 @@
-# 架构规范
+﻿# 架构规范
 
 > 适用于：设计/修改项目架构、新增模块、定义模块职责、目录结构变更
 
@@ -18,7 +18,7 @@
 ## 二、目录结构
 
 ```
-Handsome-Agent/
+Agent-Z/
 ├── agent/        # 🧠 Decision - Agent 核心
 ├── tools/        # 🏃 Execution - 工具定义
 ├── skills/       # 🧠 Decision - 技能系统

@@ -1,4 +1,4 @@
-"""模拟流式输出测试（无需 API Key）"""
+﻿"""模拟流式输出测试（无需 API Key）"""
 import sys
 import os
 from pathlib import Path
@@ -207,7 +207,7 @@ def test_callback_consumer():
 
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("Handsome Agent 流式输出模块测试")
+    print("Agent-Z 流式输出模块测试")
     print("=" * 60 + "\n")
     
     try:

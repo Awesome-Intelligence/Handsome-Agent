@@ -60,7 +60,7 @@ from tools.kanban_db import (
 logger = get_execution_logger("KanbanTool")
 
 # Database path
-DB_PATH = Path.home() / ".handsome_agent" / "kanban.db"
+DB_PATH = Path.home() / ".agent_z" / "kanban.db"
 
 
 class KanbanManager:
@@ -1113,14 +1113,14 @@ def check_kanban_requirements() -> bool:
     检查是否启用 Kanban 工具
 
     参考 Hermes 的设计，Kanban 工具默认不加载，仅在以下条件之一满足时启用：
-    1. 环境变量 HANDSOME_KANBAN_ENABLED 设置为 "1" 或 "true"
+    1. 环境变量 AGENTZ_KANBAN_ENABLED 设置为 "1" 或 "true"
     2. 环境变量 HERMES_KANBAN_TASK 已设置（兼容 Hermes）
     3. 当前正在运行 Kanban 任务（通过 kanban_manager 检测）
 
     Returns:
         bool: 是否启用 Kanban 工具
     """
-    enabled_flag = os.environ.get("HANDSOME_KANBAN_ENABLED", "").lower()
+    enabled_flag = os.environ.get("AGENTZ_KANBAN_ENABLED", "").lower()
     hermes_task = os.environ.get("HERMES_KANBAN_TASK", "")
 
     if enabled_flag in ("1", "true", "yes") or hermes_task:

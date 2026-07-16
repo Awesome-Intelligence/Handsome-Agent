@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Bundle CLI command module
@@ -292,7 +292,7 @@ async def run_bundle_command(args) -> int:
 def main():
     """CLI 主函数"""
     parser = argparse.ArgumentParser(
-        prog="handsome bundle",
+        prog="agentz bundle",
         description="管理技能包 - 创建、列出、删除和查看技能包详情",
     )
 

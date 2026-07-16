@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 i18n 模块测试脚本
-验证 Handsome Agent 多语言实现的功能
+验证 Agent-Z 多语言实现的功能
 """
 
 import sys
@@ -268,7 +268,7 @@ def test_multilingual_user():
 def main():
     """运行所有测试"""
     print("\n" + "=" * 60)
-    print("🧪 Handsome Agent i18n 模块测试")
+    print("🧪 Agent-Z i18n 模块测试")
     print("=" * 60)
     
     tests = [

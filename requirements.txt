@@ -1,4 +1,4 @@
-# Handsome Agent Dependencies
+# Agent-Z Dependencies
 # Hermes-Brain + OpenClaw-Body Architecture
 
 # Core dependencies

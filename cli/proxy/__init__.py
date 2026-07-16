@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Proxy - HTTP proxy server for Handsome Agent.
+Proxy - HTTP proxy server for Agent-Z.
 
 🚪 Access - 💬 CLI - 代理子模块
 

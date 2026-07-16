@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # 🧠 Decision - Session 管理
 
@@ -17,13 +17,13 @@ Session Management Module - 会话管理
 ├─────────────────────────────────────────────────────────────────────┤
 │  MemoryStore (agent/memory/memory_store.py)                          │
 │  - 用途: 用户显式添加/管理的长期记忆                                   │
-│  - 存储: ~/.handsome_agent/memories/MEMORY.md                       │
+│  - 存储: ~/.agent_z/memories/MEMORY.md                       │
 │  - 管理: 通过 memory_tool (add/replace/remove)                        │
 │  - 特点: 跨会话持久，用户完全控制                                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Session (本模块)                                                    │
 │  - 用途: 自动生成的会话摘要，用于跨会话上下文                          │
-│  - 存储: ~/.handsome_agent/sessions/daily_summary.md                │
+│  - 存储: ~/.agent_z/sessions/daily_summary.md                │
 │  - 管理: sync_to_daily_summary() 自动生成                            │
 │  - 特点: 自动摘要，Agent 可读取但不直接修改                            │
 └─────────────────────────────────────────────────────────────────────┘
@@ -819,7 +819,7 @@ class SessionManager:
             # 写入独立文件，避免与 MemoryStore 冲突
             workspace_path = os.path.join(
                 os.path.expanduser("~"),
-                ".handsome_agent",
+                ".agent_z",
                 "sessions",
                 "daily_summary.md"
             )

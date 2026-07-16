@@ -1,4 +1,4 @@
-# Handsome Agent Agent 发现机制设计
+﻿# Agent-Z Agent 发现机制设计
 
 **版本**: v1.0.0  
 **最后更新**: 2026-06-09  
@@ -21,7 +21,7 @@
 
 ### 1.1 背景
 
-Handsome Agent 支持通过 MCP (Model Context Protocol) 和 A2A (Agent-to-Agent) 协议与其他 Agent 进行通信。本文档描述 Agent 自动发现机制的设计。
+Agent-Z 支持通过 MCP (Model Context Protocol) 和 A2A (Agent-to-Agent) 协议与其他 Agent 进行通信。本文档描述 Agent 自动发现机制的设计。
 
 ### 1.2 核心特性
 
@@ -52,7 +52,7 @@ Handsome Agent 支持通过 MCP (Model Context Protocol) 和 A2A (Agent-to-Agent
 ### 3.1 默认目录
 
 ```
-~/.handsome_agent/
+~/.agent_z/
 ├── agents/                          # Agent 发现目录
 │   ├── openclaw/                   # OpenClaw Agent
 │   │   ├── manifest.json           # Agent 清单 (必需)
@@ -69,9 +69,9 @@ Handsome Agent 支持通过 MCP (Model Context Protocol) 和 A2A (Agent-to-Agent
 
 | 类型 | 路径 | 说明 |
 |------|------|------|
-| `local` | `~/.handsome_agent/agents/` | 用户本地 Agent |
-| `project` | `./.handsome_agent/agents/` | 项目内 Agent |
-| `system` | `/opt/handsome-agent/agents/` | 系统级 Agent |
+| `local` | `~/.agent_z/agents/` | 用户本地 Agent |
+| `project` | `./.agent_z/agents/` | 项目内 Agent |
+| `system` | `/opt/Agent-Z/agents/` | 系统级 Agent |
 
 ---
 
@@ -85,7 +85,7 @@ Handsome Agent 支持通过 MCP (Model Context Protocol) 和 A2A (Agent-to-Agent
   "version": "1.0.0",
   "type": "openclaw",
   "description": "通用任务执行 Agent",
-  "author": "Handsome Agent Team",
+  "author": "Agent-Z Team",
   
   "protocol": "mcp",
   "transport": "stdio",

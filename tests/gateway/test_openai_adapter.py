@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Tests for the OpenAI-compatible API adapter.
@@ -270,7 +270,7 @@ class TestOpenAIAdapter:
         assert adapter._host == "127.0.0.1"
         assert adapter._port == 8000  # 统一使用 8000 端口
         assert adapter._api_key == ""
-        assert adapter._model_name == "handsome-agent"
+        assert adapter._model_name == "Agent-Z"
 
     def test_init_with_config(self):
         config = {
@@ -371,7 +371,7 @@ class TestAPIIntegration:
             assert resp.status == 200
             data = await resp.json()
             assert data["status"] == "ok"
-            assert data["platform"] == "handsome-agent"
+            assert data["platform"] == "Agent-Z"
 
     @pytest.mark.asyncio
     async def test_models_endpoint(self):
@@ -387,7 +387,7 @@ class TestAPIIntegration:
             data = await resp.json()
             assert data["object"] == "list"
             assert len(data["data"]) == 1
-            assert data["data"][0]["id"] == "handsome-agent"
+            assert data["data"][0]["id"] == "Agent-Z"
 
     @pytest.mark.asyncio
     async def test_chat_completions_basic(self):
@@ -401,7 +401,7 @@ class TestAPIIntegration:
             resp = await client.post(
                 "/v1/chat/completions",
                 json={
-                    "model": "handsome-agent",
+                    "model": "Agent-Z",
                     "messages": [{"role": "user", "content": "Hello"}],
                 },
             )

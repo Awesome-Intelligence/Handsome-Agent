@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Provider management for Handsome Agent CLI.
+Provider management for Agent-Z CLI.
 
 🚪 Access - 💬 CLI - Provider 管理
 

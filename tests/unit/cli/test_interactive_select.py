@@ -1,4 +1,4 @@
-"""Interactive Select 测试"""
+﻿"""Interactive Select 测试"""
 import pytest
 from unittest.mock import patch, MagicMock
 import sys
@@ -67,7 +67,7 @@ class TestInteractiveSelect:
     def test_print_config_summary_with_config(self, capsys, tmp_path):
         """测试打印配置摘要（有配置）"""
         import json
-        config_file = tmp_path / ".handsome_agent" / "config.json"
+        config_file = tmp_path / ".agent_z" / "config.json"
         config_file.parent.mkdir()
         test_config = {"language": "zh", "llm": {"provider": "openai"}}
         with open(config_file, 'w') as f:

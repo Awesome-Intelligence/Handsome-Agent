@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 A2A Server Implementation.
@@ -293,7 +293,7 @@ class A2AServer:
             return json.dumps(self._agent_card.to_dict(), indent=2)
         else:
             return json.dumps({
-                "name": "Handsome Agent",
+                "name": "Agent-Z",
                 "description": "A2A compatible agent",
                 "url": f"http://{self._host}:{self._port}",
                 "version": "1.0.0",
@@ -465,7 +465,7 @@ class A2AServer:
 
 async def run_a2a_server(
     agent=None,
-    name: str = "Handsome Agent",
+    name: str = "Agent-Z",
     description: str = "A2A compatible agent",
     host: str = "127.0.0.1",
     port: int = 8003,
@@ -481,7 +481,7 @@ async def run_a2a_server(
 
     print(f"""
 ╔══════════════════════════════════════════════════════════════════╗
-║                    Handsome Agent A2A Server                    ║
+║                    Agent-Z A2A Server                    ║
 ║              Agent-to-Agent Protocol (Google)                  ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  URL: http://{host}:{port}                                      ║
@@ -531,10 +531,10 @@ def main():
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Handsome Agent A2A Server")
+    parser = argparse.ArgumentParser(description="Agent-Z A2A Server")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8003, help="Port to listen on")
-    parser.add_argument("--name", default="Handsome Agent", help="Agent name")
+    parser.add_argument("--name", default="Agent-Z", help="Agent name")
     parser.add_argument(
         "--description",
         default="A2A compatible agent",

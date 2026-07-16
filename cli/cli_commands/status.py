@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Status command - Show system status
@@ -65,7 +65,7 @@ def show_status(verbose: bool = False, json_output: bool = False):
             print(f"  Context: {llm['context_window']} tokens")
     else:
         ui.print_warning("○ LLM 未配置")
-        print("  运行 'handsome setup' 配置")
+        print("  运行 'agentz setup' 配置")
 
     print()
 

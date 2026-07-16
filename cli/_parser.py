@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Top-level argparse construction for the Handsome Agent CLI.
+Top-level argparse construction for the Agent-Z CLI.
 
 Lives in its own module so other modules (e.g. `relaunch.py`) can
 introspect the parser to discover which flags exist without running
@@ -17,7 +17,7 @@ because its dispatch is tightly coupled to module-level `cmd_*` functions.
 import argparse
 
 # `--profile` / `-p` is consumed by the profile system before
-# argparse runs (it sets HANDSOME_HOME and strips itself from `sys.argv`),
+# argparse runs (it sets AGENT_Z_HOME and strips itself from `sys.argv`),
 # so it isn't on the parser. Listed here so all "carry over on relaunch"
 # metadata lives in one file.
 PRE_ARGPARSE_INHERITED_FLAGS: list[tuple[str, bool]] = [
@@ -40,18 +40,18 @@ def _inherited_flag(parser, *args, **kwargs):
 
 _EPILOGUE = """
 Examples:
-    handsome                     Start interactive chat
-    handsome chat -q "Hello"     Single query mode
-    handsome setup               Run setup wizard
-    handsome status              Show system status
-    handsome model               Select default model
-    handsome skills              Manage skills
-    handsome config              View configuration
-    handsome config edit         Edit config in $EDITOR
-    handsome config set model    Set a config value
+    agentz                       Start interactive chat
+    agentz chat -q "Hello"       Single query mode
+    agentz setup                 Run setup wizard
+    agentz status                Show system status
+    agentz model                 Select default model
+    agentz skills                Manage skills
+    agentz config                View configuration
+    agentz config edit           Edit config in $EDITOR
+    agentz config set model       Set a config value
 
 For more help on a command:
-    handsome <command> --help
+    agentz <command> --help
 """
 
 
@@ -63,7 +63,7 @@ def build_top_level_parser():
     other subparsers via ``subparsers.add_parser(...)``.
     """
     parser = argparse.ArgumentParser(
-        prog="handsome",
+        prog="agentz",
         description="Agent-Z - AI assistant with tool-calling capabilities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=_EPILOGUE,
@@ -183,7 +183,7 @@ def build_top_level_parser():
     chat_parser = subparsers.add_parser(
         "chat",
         help="Interactive chat with the agent",
-        description="Start an interactive chat session with Handsome Agent",
+        description="Start an interactive chat session with Agent-Z",
     )
     chat_parser.add_argument(
         "--query", help="Single query (non-interactive mode)"
@@ -511,7 +511,7 @@ def build_top_level_parser():
     # the ``cron`` parser at the top level but defer sub-command wiring to
     # the dispatcher (``cmd_cron`` in ``cli/main.py``), which calls into
     # ``cron.cli_commands.cron.main()``. This keeps a single source of truth
-    # for the sub-command tree while letting ``handsome cron <sub> ...``
+    # for the sub-command tree while letting ``agentz cron <sub> ...``
     # work uniformly.
     cron_parser = subparsers.add_parser(
         "cron",
@@ -595,7 +595,7 @@ def build_top_level_parser():
     # =========================================================================
     uninstall_parser = subparsers.add_parser(
         "uninstall",
-        help="Uninstall Handsome Agent",
+        help="Uninstall Agent-Z",
         description="Remove configuration and uninstall agent",
     )
     uninstall_parser.add_argument(

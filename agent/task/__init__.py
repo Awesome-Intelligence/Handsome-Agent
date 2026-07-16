@@ -1,5 +1,5 @@
-"""
-Task module for Handsome Agent
+﻿"""
+Task module for Agent-Z
 
 🧠 Decision - Task Management
 

@@ -18,7 +18,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-_DEBUG_INTERRUPT = bool(os.getenv("HANDSOME_DEBUG_INTERRUPT"))
+_DEBUG_INTERRUPT = bool(os.getenv("AGENTZ_DEBUG_INTERRUPT"))
 
 if _DEBUG_INTERRUPT:
     logger.setLevel(logging.INFO)

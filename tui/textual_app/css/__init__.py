@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Handsome Agent TUI 样式系统（模块化子包）
+"""Agent-Z TUI 样式系统（模块化子包）
 
 🚪 Access - 💬 TUI - Textual App - CSS 聚合入口
 
@@ -39,7 +39,7 @@ from .screens import CUSTOM_MODEL_SCREEN_CSS
 
 APP_CSS = f"""
 /*
- * Handsome Agent TUI 主样式表（v8.x 模块化拼装版）
+ * Agent-Z TUI 主样式表（v8.x 模块化拼装版）
  *
  * CSS 架构说明：
  * - 使用 Textual Theme 变量实现主题切换

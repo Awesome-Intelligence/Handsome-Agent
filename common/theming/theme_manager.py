@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Theme Manager — 主题/透明度持久化与回调。
 
@@ -298,7 +298,7 @@ class ThemeManager:
 
     def _get_config_path(self) -> Path:
         """获取配置文件路径."""
-        config_dir = Path.home() / ".handsome_agent"
+        config_dir = Path.home() / ".agent_z"
         config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir / "tui_config.json"
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Session Store Service - SQLite Database for Session Persistence
@@ -262,7 +262,7 @@ class SessionStore:
             from common.config import get_data_dir
             data_dir = get_data_dir()
         except ImportError:
-            data_dir = Path.home() / ".handsome_agent"
+            data_dir = Path.home() / ".agent_z"
         
         return data_dir / "tui_sessions.db"
     

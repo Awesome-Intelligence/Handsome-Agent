@@ -1,4 +1,4 @@
-# Handsome Agent 运维手册
+# Agent-Z 运维手册
 
 **版本**: v1.0.0  
 **最后更新**: 2026-06-09  
@@ -22,7 +22,7 @@
 
 ### 1.1 文档目的
 
-本文档为运维人员提供 Handsome Agent 系统的运维指南，包括部署、监控、备份、故障处理等内容。
+本文档为运维人员提供 Agent-Z 系统的运维指南，包括部署、监控、备份、故障处理等内容。
 
 ### 1.2 系统要求
 
@@ -51,8 +51,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-repo/Handsome-Agent.git
-cd Handsome-Agent
+git clone https://github.com/your-repo/Agent-Z.git
+cd Agent-Z
 
 # 创建虚拟环境
 python -m venv venv
@@ -63,8 +63,8 @@ source venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 
 # 配置环境变量
-export HANDSOME_LLM_PROVIDER=openai
-export HANDSOME_LLM_API_KEY=your-api-key
+export AGENTZ_LLM_PROVIDER=openai
+export AGENTZ_LLM_API_KEY=your-api-key
 ```
 
 ### 2.2 Docker 部署
@@ -87,25 +87,25 @@ CMD ["python", "-m", "cli.main", "chat"]
 version: '3.8'
 
 services:
-  handsome-agent:
+  Agent-Z:
     build: .
-    container_name: handsome-agent
+    container_name: Agent-Z
     ports:
       - "8080:8080"      # Gateway
       - "8081:8081"      # API Server
     volumes:
-      - ./data:/root/.handsome_agent
+      - ./data:/root/.agent_z
     environment:
-      - HANDSOME_LLM_PROVIDER=openai
-      - HANDSOME_LLM_API_KEY=${API_KEY}
-      - HANDSOME_LOG_LEVEL=INFO
+      - AGENTZ_LLM_PROVIDER=openai
+      - AGENTZ_LLM_API_KEY=${API_KEY}
+      - AGENTZ_LOG_LEVEL=INFO
     restart: unless-stopped
 ```
 
 **部署步骤**:
 ```bash
 # 1. 构建镜像
-docker build -t handsome-agent:latest .
+docker build -t Agent-Z:latest .
 
 # 2. 启动服务
 docker-compose up -d
@@ -139,7 +139,7 @@ python -m gateway --no-auth
 ### 2.4 配置管理
 
 ```json
-// ~/.handsome_agent/config.json
+// ~/.agent_z/config.json
 {
   "version": "3.0.0",
   "llm": {
@@ -183,7 +183,7 @@ python -m gateway --no-auth
 
 ### 3.1 日志系统
 
-Handsome Agent 使用分层的日志系统：
+Agent-Z 使用分层的日志系统：
 
 | 日志器 | 说明 | 用途 |
 |--------|------|------|
@@ -219,7 +219,7 @@ handlers:
     class: logging.handlers.RotatingFileHandler
     level: DEBUG
     formatter: json
-    filename: ~/.handsome_agent/logs/app.log
+    filename: ~/.agent_z/logs/app.log
     maxBytes: 10485760  # 10MB
     backupCount: 5
 
@@ -275,13 +275,13 @@ curl http://localhost:8080/api/v1/health
 ### 4.1 数据目录
 
 ```
-~/.handsome_agent/
+~/.agent_z/
 ├── config.json           # 配置文件
 ├── sessions/            # 会话数据
 ├── skills/              # 技能数据
 ├── memories/             # 记忆数据
 ├── logs/                 # 日志文件
-└── handsome_agent.db      # SQLite 数据库
+└── agentz.db      # SQLite 数据库
 ```
 
 ### 4.2 备份策略
@@ -290,25 +290,25 @@ curl http://localhost:8080/api/v1/health
 #!/bin/bash
 # backup.sh - 每日备份脚本
 
-BACKUP_DIR="/var/backups/handsome-agent"
-DATA_DIR="$HOME/.handsome_agent"
+BACKUP_DIR="/var/backups/Agent-Z"
+DATA_DIR="$HOME/.agent_z"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # 创建备份目录
 mkdir -p $BACKUP_DIR
 
 # 备份数据
-tar -czf $BACKUP_DIR/handsome-agent_$TIMESTAMP.tar.gz \
+tar -czf $BACKUP_DIR/Agent-Z_$TIMESTAMP.tar.gz \
   $DATA_DIR/config.json \
   $DATA_DIR/sessions/ \
   $DATA_DIR/skills/ \
   $DATA_DIR/memories/ \
-  $DATA_DIR/handsome_agent.db
+  $DATA_DIR/agentz.db
 
 # 删除 7 天前的备份
 find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
 
-echo "Backup completed: handsome-agent_$TIMESTAMP.tar.gz"
+echo "Backup completed: Agent-Z_$TIMESTAMP.tar.gz"
 ```
 
 ### 4.3 恢复操作
@@ -318,7 +318,7 @@ echo "Backup completed: handsome-agent_$TIMESTAMP.tar.gz"
 # restore.sh - 恢复备份脚本
 
 BACKUP_FILE=$1
-DATA_DIR="$HOME/.handsome_agent"
+DATA_DIR="$HOME/.agent_z"
 
 if [ -z "$BACKUP_FILE" ]; then
   echo "Usage: $0 <backup_file>"
@@ -342,9 +342,9 @@ echo "Restore completed from $BACKUP_FILE"
 ### 4.4 自动备份配置
 
 ```yaml
-# /etc/cron.d/handsome-agent-backup
+# /etc/cron.d/Agent-Z-backup
 # 每天凌晨 2 点执行备份
-0 2 * * * root /opt/handsome-agent/scripts/backup.sh
+0 2 * * * root /opt/Agent-Z/scripts/backup.sh
 ```
 
 ---
@@ -366,7 +366,7 @@ python --version  # 需要 3.11+
 pip list | grep -E "pydantic|httpx|click"
 
 # 检查配置文件
-cat ~/.handsome_agent/config.json
+cat ~/.agent_z/config.json
 ```
 
 **解决方案**:
@@ -388,7 +388,7 @@ netstat -tlnp | grep 8080  # Linux
 # 或 netstat -ano | findstr 8080  # Windows
 
 # 检查配置文件
-cat ~/.handsome_agent/config.json
+cat ~/.agent_z/config.json
 ```
 
 **解决方案**:
@@ -403,15 +403,15 @@ cat ~/.handsome_agent/config.json
 **排查步骤**:
 ```bash
 # 检查 API Key 配置
-echo $HANDSOME_LLM_API_KEY
+echo $AGENTZ_LLM_API_KEY
 
 # 测试 API 连接
 curl -X POST https://api.openai.com/v1/chat/completions \
-  -H "Authorization: Bearer $HANDSOME_LLM_API_KEY" \
+  -H "Authorization: Bearer $AGENTZ_LLM_API_KEY" \
   -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "test"}]}'
 
 # 查看 LLM 日志
-grep "llm" ~/.handsome_agent/logs/app.log
+grep "llm" ~/.agent_z/logs/app.log
 ```
 
 **解决方案**:
@@ -426,7 +426,7 @@ grep "llm" ~/.handsome_agent/logs/app.log
 **排查步骤**:
 ```bash
 # 查看执行日志
-grep "execution" ~/.handsome_agent/logs/app.log
+grep "execution" ~/.agent_z/logs/app.log
 
 # 检查工具参数
 python -m cli.main tools info <tool_name>
@@ -444,14 +444,14 @@ python -c "from tools.registry import registry; print(registry.get('<tool_name>'
 
 ```bash
 # 实时查看错误日志
-tail -f ~/.handsome_agent/logs/app.log | grep ERROR
+tail -f ~/.agent_z/logs/app.log | grep ERROR
 
 # 统计错误类型
-grep ERROR ~/.handsome_agent/logs/app.log | \
+grep ERROR ~/.agent_z/logs/app.log | \
   awk '{print $5}' | sort | uniq -c | sort -rn
 
 # 查看特定会话日志
-grep "session_id" ~/.handsome_agent/logs/app.log
+grep "session_id" ~/.agent_z/logs/app.log
 ```
 
 ### 5.3 服务重启
@@ -462,7 +462,7 @@ pkill -f "python -m gateway"
 python -m gateway &
 
 # 完全重启
-pkill -f "handsome-agent"
+pkill -f "Agent-Z"
 sleep 2
 python -m gateway --no-auth &
 ```
@@ -561,12 +561,12 @@ gateway:
 
 ```bash
 # 使用环境变量存储敏感信息
-export HANDSOME_LLM_API_KEY="sk-xxx"
-export HANDSOME_DB_PASSWORD="xxx"
+export AGENTZ_LLM_API_KEY="sk-xxx"
+export AGENTZ_DB_PASSWORD="xxx"
 
 # 或使用密钥管理服务
-export HANDSOME_KMS_PROVIDER="aws"
-export HANDSOME_KMS_KEY_ID="xxx"
+export AGENTZ_KMS_PROVIDER="aws"
+export AGENTZ_KMS_KEY_ID="xxx"
 ```
 
 ### 7.3 安全检查清单
@@ -597,9 +597,9 @@ export HANDSOME_KMS_KEY_ID="xxx"
 
 | 日志类型 | 路径 |
 |----------|------|
-| 应用日志 | `~/.handsome_agent/logs/app.log` |
-| LLM 日志 | `~/.handsome_agent/logs/llm.log` |
-| 会话日志 | `~/.handsome_agent/logs/session.log` |
+| 应用日志 | `~/.agent_z/logs/app.log` |
+| LLM 日志 | `~/.agent_z/logs/llm.log` |
+| 会话日志 | `~/.agent_z/logs/session.log` |
 
 ### C. 变更日志
 

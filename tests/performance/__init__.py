@@ -1,3 +1,3 @@
-"""
-Performance tests package for the Handsome Agent.
+﻿"""
+Performance tests package for the Agent-Z.
 """

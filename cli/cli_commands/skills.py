@@ -1,4 +1,4 @@
-"""
+﻿"""
 Skills CLI command module
 
 Provides skills commands for managing user-defined skills:
@@ -379,7 +379,7 @@ def list_skills(
 
     if not skill_dirs:
         print(f"📭 [{profile_label}] 暂无已安装的技能")
-        print("💡 使用 'handsome skills install <url>' 安装技能")
+        print("💡 使用 'agentz skills install <url>' 安装技能")
         return True
 
     telemetry = get_skill_telemetry()
@@ -669,7 +669,7 @@ async def check_skill_update(name: str) -> bool:
         是否有更新
     """
     print(f"🔍 检查技能更新: {name}")
-    print("💡 暂时不支持自动检查更新，请使用 'handsome skills update' 手动更新")
+    print("💡 暂时不支持自动检查更新，请使用 'agentz skills update' 手动更新")
     return False
 
 
@@ -994,7 +994,7 @@ def list_sources() -> bool:
     for source in sources:
         print(f"  - {source}")
     print()
-    print("💡 使用 'handsome skills install <source:ref>' 安装技能")
+    print("💡 使用 'agentz skills install <source:ref>' 安装技能")
     
     return True
 
@@ -1484,7 +1484,7 @@ def lock_check_updates(name: Optional[str] = None) -> bool:
             print(f"     更新说明: {update.changelog[:100]}...")
         print()
 
-    print("💡 使用 'handsome skills update <name>' 更新技能")
+    print("💡 使用 'agentz skills update <name>' 更新技能")
 
     return True
 
@@ -2002,7 +2002,7 @@ def diff_skill(name: str, source: str = None) -> bool:
     if lock_info:
         print("\n💡 操作建议:")
         if local_hash != lock_info.origin_hash:
-            print(f"  技能已被修改，可使用 'handsome skills update {name}' 更新")
+            print(f"  技能已被修改，可使用 'agentz skills update {name}' 更新")
         else:
             print(f"  技能未修改，已是最新版本")
 
@@ -2127,7 +2127,7 @@ def list_templates_cli() -> bool:
         print(f"    描述: {t['description']}")
         print()
 
-    print("💡 使用 'handsome skills template create <template_id> <skill_name>' 创建技能")
+    print("💡 使用 'agentz skills template create <template_id> <skill_name>' 创建技能")
 
     return True
 
@@ -2153,8 +2153,8 @@ def create_from_template_cli(
 
     if result["success"]:
         print(f"✅ {result['message']}")
-        print(f"📁 技能位置: ~/.handsome_agent/skills/{skill_name}")
-        print(f"💡 使用 'handsome skills inspect {skill_name}' 查看技能")
+        print(f"📁 技能位置: ~/.agent_z/skills/{skill_name}")
+        print(f"💡 使用 'agentz skills inspect {skill_name}' 查看技能")
     else:
         print(f"❌ {result['message']}")
 
@@ -2242,7 +2242,7 @@ def history_rollback_cli(skill_name: str, version: str) -> bool:
 
     if result["success"]:
         print(f"✅ {result['message']}")
-        print(f"💡 使用 'handsome skills inspect {skill_name}' 确认回滚结果")
+        print(f"💡 使用 'agentz skills inspect {skill_name}' 确认回滚结果")
     else:
         print(f"❌ {result['message']}")
 
@@ -2342,7 +2342,7 @@ def list_bundles_cli(json_output: bool = False) -> bool:
 
     if not bundles:
         print("📭 暂无 Bundle")
-        print("💡 使用 'handsome bundles create <name> --skill <skill1> --skill <skill2>' 创建 Bundle")
+        print("💡 使用 'agentz bundles create <name> --skill <skill1> --skill <skill2>' 创建 Bundle")
         return True
 
     print(f"📦 已注册的 Bundle ({len(bundles)}):\n")
@@ -2502,7 +2502,7 @@ def list_bundle_templates_cli() -> bool:
         print(f"    技能: {', '.join(t['skills'])}")
         print()
 
-    print("💡 使用 'handsome bundles create <name> --from-template <template_id>' 从模板创建")
+    print("💡 使用 'agentz bundles create <name> --from-template <template_id>' 从模板创建")
     return True
 
 
@@ -2770,7 +2770,7 @@ async def run_skills_command(args) -> int:
         退出码
     """
     if not hasattr(args, "skills_command") or not args.skills_command:
-        print("请指定技能命令，使用 'handsome skills --help' 查看帮助")
+        print("请指定技能命令，使用 'agentz skills --help' 查看帮助")
         return 1
 
     command = args.skills_command
@@ -3041,7 +3041,7 @@ async def run_skills_command(args) -> int:
 def main():
     """CLI 主函数"""
     parser = argparse.ArgumentParser(
-        prog="handsome skills",
+        prog="agentz skills",
         description="管理用户自定义技能",
     )
 

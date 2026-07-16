@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 代码审查检查脚本 - 检测硬编码违规
 🚪 Access - 🔧 System - 代码质量检查
@@ -198,7 +198,7 @@ def print_report(violations: List[Tuple[Path, str, int, str, str]]):
 def main():
     """主函数"""
     print("=" * 60)
-    print("🛡️  Handsome Agent 代码审查检查")
+    print("🛡️  Agent-Z 代码审查检查")
     print("=" * 60)
     print("\n检查是否违反硬编码规则...\n")
 

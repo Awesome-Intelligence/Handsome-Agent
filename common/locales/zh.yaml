@@ -584,14 +584,14 @@ onboarding:
     configure_more: "⚙ 进一步配置"
 
 # =============================================================================
-# 定时任务子系统 (handsome cron ...)
+# 定时任务子系统 (agentz cron ...)
 # =============================================================================
 
 cron:
   parser_description: "管理定时任务（cron）。"
   list_header: "⏰ 定时任务列表"
   empty: "暂无定时任务"
-  empty_hint: "使用 'handsome cron create' 添加"
+  empty_hint: "使用 'agentz cron create' 添加"
   total: "共计 {n} 个任务；启用 {a} 个，暂停 {p} 个"
   not_found: "找不到定时任务：{id}"
   show_header: "⏰ 任务 {id}"
@@ -610,7 +610,7 @@ cron:
   run_done: "任务 {id} 已完成（status={ok}）"
   tick_done: "本轮 tick 已处理 {n} 个任务"
   status_header: "📊 定时任务状态"
-  no_heartbeat: "尚未检测到 ticker 心跳。请运行 'handsome cron tick' 或启动 gateway 守护进程。"
+  no_heartbeat: "尚未检测到 ticker 心跳。请运行 'agentz cron tick' 或启动 gateway 守护进程。"
   invalid_duration: "无效的时长 '{s}'。请使用 '30m'、'2h' 或 '1d' 格式"
   croniter_missing: "cron 表达式依赖 'croniter' 包，请先 pip install croniter"
   invalid_schedule: "无效的 schedule，请使用时长 / 'every Xm' / '0 9 * * *' / ISO 时间戳"
@@ -671,7 +671,7 @@ tui:
     summary: "⏰  {total} 个任务 · 启用 {active} · 暂停 {paused}"
     empty: "暂无定时任务。按 [a] 新建一个。"
     help_hint: "[r]刷新  [a]新建  [↵]详情  [p]暂停  [u]恢复  [t]触发  [d]删除"
-    heartbeat_idle: "⚪ ticker 未启动 (运行 'handsome cron tick' 或启动 gateway)"
+    heartbeat_idle: "⚪ ticker 未启动 (运行 'agentz cron tick' 或启动 gateway)"
     heartbeat_stale: "⚠ ticker 存活 {hb}s 但最近成功 {ok}s 前"
     heartbeat_healthy: "🟢 ticker 健康 · 上次成功 {ok}s 前"
     created_notify: "✓ 已创建定时任务 {id}"

@@ -30,7 +30,7 @@
 ### Task 4.1: 扩展配置支持 Profile
 - [x] 在 `common/config.py` 中添加以下函数:
   - `get_profiles_dir()` - 获取 profiles 目录
-  - `get_current_profile()` - 获取当前 profile (支持环境变量 HANDSOME_PROFILE 和符号链接)
+  - `get_current_profile()` - 获取当前 profile (支持环境变量 AGENTZ_PROFILE 和符号链接)
   - `get_profile_skills_dir(profile)` - 获取指定 profile 的技能目录
   - `get_profile_dir(profile)` - 获取指定 profile 的配置目录
 - 状态: ✅ 完成

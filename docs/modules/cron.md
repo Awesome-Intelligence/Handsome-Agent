@@ -3,10 +3,10 @@
 🚪 **Access** - 🔧 System - Timed work dispatcher
 🧠 **Decision** - ⏰ Scheduler - Persistent, recurring, and one-shot job execution
 
-The `cron/` package implements Handsome Agent's scheduled-task layer,
+The `cron/` package implements Agent-Z's scheduled-task layer,
 ported in full from Hermes's `cron/` package. Jobs are stored as JSON in
-`$HANDSOME_HOME/cron/jobs.json`, executed either by the gateway daemon
-or on-demand via `handsome cron tick`.
+`$AGENT_Z_HOME/cron/jobs.json`, executed either by the gateway daemon
+or on-demand via `agentz cron tick`.
 
 ## What it does
 
@@ -15,11 +15,11 @@ or on-demand via `handsome cron tick`.
 - Three schedule kinds: `once` (ISO timestamp), `interval` (e.g.
   `every 30m`), and `cron` expressions (e.g. `0 9 * * *`).
 - Pauses / resumes / triggers / deletes jobs with positional CLI.
-- Records per-run output under `$HANDSOME_HOME/cron/output/<id>/`.
+- Records per-run output under `$AGENT_Z_HOME/cron/output/<id>/`.
 - Serialises ticks with a cross-process file lock so concurrent gateway
   and CLI invocations never double-fire.
 - Enforces a **gateway-lifecycle guard** that blocks cron jobs that
-  would invoke `handsome gateway restart|stop`, launchctl / systemctl
+  would invoke `agentz gateway restart|stop`, launchctl / systemctl
   ops on a hermes-gateway label, or `pkill` against the gateway —
   preventing an agent-driven SIGTERM-respawn loop (#32754).
 
@@ -31,45 +31,45 @@ or on-demand via `handsome cron tick`.
 | `cron/jobs.py` | JSON storage, CRUD, schedule parsing, due-job selection, output saving. |
 | `cron/scheduler.py` | `tick()`, `run_one_job`, `run_job`, pool management, BackgroundTicker. |
 | `cron/lifecycle_guard.py` | Hard-block on `hermes_gateway` / `launchctl` / `systemctl` / `pkill` commands. |
-| `cli/cli_commands/cron.py` | Sub-parser for `handsome cron ...`. |
+| `cli/cli_commands/cron.py` | Sub-parser for `agentz cron ...`. |
 
 ## CLI quick reference
 
 ```bash
 # Register a new job
-handsome cron create 'every 30m' \
+agentz cron create 'every 30m' \
     --prompt 'Summarise session activity' \
     --name 'session-digest'
 
 # Register a one-shot
-handsome cron create '2026-12-31T23:30' \
+agentz cron create '2026-12-31T23:30' \
     --prompt 'Happy new year kickoff'
 
 # Register a watchdog-style script (no LLM)
-handsome cron create 'every 1m' \
+agentz cron create 'every 1m' \
     --no-agent --script backup.sh \
     --name 'nightly-backup'
 
 # Inspect
-handsome cron list
-handsome cron list --all --json
-handsome cron show pinger
+agentz cron list
+agentz cron list --all --json
+agentz cron show pinger
 
 # Lifecycle
-handsome cron pause pinger --reason 'manual hold'
-handsome cron resume pinger
-handsome cron trigger pinger   # fire on next tick
-handsome cron run pinger       # fire NOW synchronously
-handsome cron remove pinger
+agentz cron pause pinger --reason 'manual hold'
+agentz cron resume pinger
+agentz cron trigger pinger   # fire on next tick
+agentz cron run pinger       # fire NOW synchronously
+agentz cron remove pinger
 
 # Operations
-handsome cron tick              # run one scheduler tick (sync)
-handsome cron status            # service heartbeat + recent runs
+agentz cron tick              # run one scheduler tick (sync)
+agentz cron status            # service heartbeat + recent runs
 ```
 
 ## On-disk schema
 
-`$HANDSOME_HOME/cron/jobs.json` is a JSON object:
+`$AGENT_Z_HOME/cron/jobs.json` is a JSON object:
 
 ```json
 {
@@ -112,13 +112,13 @@ handsome cron status            # service heartbeat + recent runs
 ```
 
 The per-run output lives under
-`$HANDSOME_HOME/cron/output/<job_id>/<timestamp>.md`; retention is
+`$AGENT_Z_HOME/cron/output/<job_id>/<timestamp>.md`; retention is
 controlled by `cron.output_retention` in `config.yaml` (default 50).
 
 ## Execution flow
 
 1. CLI / gateway invokes `tick()`.
-2. `tick()` acquires `<HANDSOME_HOME>/cron/.tick.lock` (cross-process
+2. `tick()` acquires `<AGENT_Z_HOME>/cron/.tick.lock` (cross-process
    fcntl/msvcrt; falls back to in-process lock when neither is present).
 3. `get_due_jobs()` reads `jobs.json` (in `_jobs_lock`) and returns
    jobs whose `next_run_at <= now()`. Stale recurring slots are
@@ -134,7 +134,7 @@ controlled by `cron.output_retention` in `config.yaml` (default 50).
    - **no_agent** short-circuit: the script's stdout is delivered
      verbatim (or saved silently when empty / `wakeAgent=false`).
    - **agent** path: `agent.agent.Agent.chat(prompt)` (or a custom
-     `HANDSOME_AGENT_RUNNER` override).
+     `AGENTZ_RUNNER` override).
 7. `mark_job_run()` updates `last_run_at`, `last_status`, increments
    `repeat.completed`, and auto-deletes finite one-shots.
 
@@ -169,14 +169,14 @@ pytest tests/unit/test_cron.py -v
 | `cron.max_parallel_jobs` | unbounded | Cap on the persistent parallel pool size. |
 | `cron.script_timeout` | 300s | Hard timeout for `no_agent` scripts. |
 | `cron.mirror_delivery` | false | Reserved for cross-platform delivery hook. |
-| `HANDSOME_CRON_MAX_PARALLEL` | unset | Env override for parallel-pool ceiling. |
-| `HANDSOME_AGENT_RUNNER` | unset | Custom runner override (`module:callable`). |
-| `HANDSOME_TZ` | system | IANA timezone used by `now()`. |
+| `AGENTZ_CRON_MAX_PARALLEL` | unset | Env override for parallel-pool ceiling. |
+| `AGENTZ_AGENT_RUNNER` | unset | Custom runner override (`module:callable`). |
+| `AGENTZ_TZ` | system | IANA timezone used by `now()`. |
 
 ## Operational notes
 
 - The first tick is automatically invoked by the gateway daemon; for
-  manual testing run `handsome cron tick` while the daemon is down.
+  manual testing run `agentz cron tick` while the daemon is down.
 - One-shot jobs with `repeat=1` auto-delete on completion.
 - The output directory is secure (chmod 0o700 / 0o600 on POSIX); the
   same protections apply to `jobs.json`. This is enforced because
@@ -187,18 +187,18 @@ pytest tests/unit/test_cron.py -v
 
 ## Onboarding cheat-sheet
 
-- `handsome cron` alone (no sub-command) prints the same output as
-  `handsome cron list`. The dispatcher in `cli/main.py` rewrites
+- `agentz cron` alone (no sub-command) prints the same output as
+  `agentz cron list`. The dispatcher in `cli/main.py` rewrites
   the empty case to `list` for back-compat.
-- `handsome cron --help` will **not** show the sub-command list — the
+- `agentz cron --help` will **not** show the sub-command list — the
   top-level parser only sees a free-form `cron_args`. Run
-  `handsome cron list --help`, `handsome cron create --help`, etc.
+  `agentz cron list --help`, `agentz cron create --help`, etc.
   to discover per-sub-command flags.
 - `no_agent` script jobs run with no LLM cost. They work even when
-  `handsome setup` has never been run, because they never touch the
+  `agentz setup` has never been run, because they never touch the
   Agent runner.
 - Agent-backed jobs require `llm.provider` + `llm.model` to be set
-  (via `handsome setup` or directly in `config.yaml`). When missing,
+  (via `agentz setup` or directly in `config.yaml`). When missing,
   the cron reports `Cron agent has no LLM configured` instead of a
   bare traceback.
 - Cron schedules use `croniter` (`'*/15 * * * * *'`, `'@daily'`,
@@ -214,12 +214,13 @@ gateway integration work:
 
 | Feature | Status | Hook |
 |---------|--------|------|
-| Per-platform delivery (Telegram, Discord, etc.) | **Not wired** in default `handsome` run; cron saves output to disk + sends `delivery_error` empty. | `deliver(job, content)` |
+| Per-platform delivery (Telegram, Discord, etc.) | **Not wired** in default `agentz` run; cron saves output to disk + sends `delivery_error` empty. | `deliver(job, content)` |
 | Mirror cron delivery into the user chat session | **Not wired** | `post_run` |
 | Profile secret scope for the cron agent | **Not wired** | `pre_run` |
 | MCP orphan subprocess sweep | **Not wired** | `pre_run` / `post_run` |
 | Prompt-injection scan on the assembled prompt | **Not wired** | wrap `_run_agent_prompt` |
-| `claim_dispatch` CAS pre-claim for crash safety (#38758) | **Not implemented** — use `HANDSOME_CRON_MAX_PARALLEL=1` to bound re-fire risk |
+| `claim_dispatch` CAS pre-claim for crash safety (#38758) | **Not implemented** — use `AGENTZ_CRON_MAX_PARALLEL=1` to bound re-fire risk |
 
 Operators that need these today should install a gateway hook
 adapter separately — see `cron.scheduler.set_scheduler_hooks`.
+

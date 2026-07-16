@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Slash commands registry for Handsome Agent.
+Slash commands registry for Agent-Z.
 
 This module defines all available slash commands (e.g., /help, /compress)
 and their metadata. Commands are registered in COMMAND_REGISTRY and can

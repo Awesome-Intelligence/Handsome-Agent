@@ -1,7 +1,7 @@
----
+﻿---
 alwaysApply: true
 description: |
-  Handsome Agent 核心编码规范 - 每次代码开发必须参考：
+  Agent-Z 核心编码规范 - 每次代码开发必须参考：
   - 规则文件架构规范
   - 子规范引用索引
   - 强制约束速查
@@ -13,11 +13,11 @@ description: |
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
 
-# Handsome Agent 开发规范
+# Agent-Z 开发规范
 
 > Hermes-Brain + OpenClaw-Body 双核驱动的模块化 AI 智能助手
 
-本文档定义 Handsome Agent 项目开发规范，每次写代码前必读。
+本文档定义 Agent-Z 项目开发规范，每次写代码前必读。
 
 ---
 

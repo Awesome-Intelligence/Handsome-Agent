@@ -1,4 +1,4 @@
-"""CLI 命令行适配器"""
+﻿"""CLI 命令行适配器"""
 import sys
 import asyncio
 from typing import Optional, AsyncIterator
@@ -102,7 +102,7 @@ class CLIAdapter(BaseAdapter):
     async def run_interactive(self) -> None:
         """运行交互式 CLI"""
         print("=" * 50)
-        print("  Handsome Agent CLI")
+        print("  Agent-Z CLI")
         print("  Type 'exit' to quit")
         print("=" * 50)
 

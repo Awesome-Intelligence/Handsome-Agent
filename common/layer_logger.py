@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Layer-Aware Logging Module for Handsome Agent
+Layer-Aware Logging Module for Agent-Z
 Provides logging with consistent layer names and emojis.
 Three-layer architecture: Access / Decision / Execution
 

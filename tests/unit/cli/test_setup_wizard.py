@@ -1,4 +1,4 @@
-"""Setup Wizard 测试"""
+﻿"""Setup Wizard 测试"""
 import pytest
 import os
 import tempfile
@@ -12,23 +12,23 @@ import sys
 def isolated_config():
     """创建隔离的配置环境"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        config_dir = Path(tmpdir) / ".handsome_agent"
+        config_dir = Path(tmpdir) / ".agent_z"
         config_dir.mkdir()
         
         # 保存原始值
-        original_config_dir = os.environ.get('HANDSOME_HOME')
+        original_config_dir = os.environ.get('AGENT_Z_HOME')
         original_home = os.environ.get('HOME')
         
         # 设置测试环境
-        os.environ['HANDSOME_HOME'] = str(config_dir)
+        os.environ['AGENT_Z_HOME'] = str(config_dir)
         
         yield config_dir
         
         # 恢复原始环境
         if original_config_dir:
-            os.environ['HANDSOME_HOME'] = original_config_dir
-        elif 'HANDSOME_HOME' in os.environ:
-            del os.environ['HANDSOME_HOME']
+            os.environ['AGENT_Z_HOME'] = original_config_dir
+        elif 'AGENT_Z_HOME' in os.environ:
+            del os.environ['AGENT_Z_HOME']
         
         if original_home:
             os.environ['HOME'] = original_home
@@ -81,11 +81,11 @@ class TestSetupWizard:
     
     def test_save_config(self, isolated_config):
         """测试保存配置"""
-        pytest.skip("CONFIG_DIR hardcoded to ~/.handsome_agent, isolated_config has no effect")
+        pytest.skip("CONFIG_DIR hardcoded to ~/.agent_z, isolated_config has no effect")
 
     def test_has_existing_config_false(self, isolated_config):
         """测试配置文件不存在"""
-        pytest.skip("CONFIG_DIR hardcoded to ~/.handsome_agent, isolated_config has no effect")
+        pytest.skip("CONFIG_DIR hardcoded to ~/.agent_z, isolated_config has no effect")
     
     def test_has_existing_config_json(self, isolated_config):
         """测试 JSON 配置文件存在"""

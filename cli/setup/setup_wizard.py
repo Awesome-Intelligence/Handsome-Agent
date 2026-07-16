@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Handsome Agent Setup Wizard.
+Agent-Z Setup Wizard.
 
 参考 Hermes 和 OpenClaw 的配置设计，支持：
 1. Model & Provider — 选择你的 AI provider 和 model
@@ -10,7 +10,7 @@ Handsome Agent Setup Wizard.
 4. Tools — 配置 TTS、web search、image generation 等
 5. Messaging Platforms — 连接 Telegram、Discord 等
 
-Config files are stored in ~/.handsome_agent/ for easy access.
+Config files are stored in ~/.agent_z/ for easy access.
 """
 
 import os
@@ -43,7 +43,7 @@ enable_ansi_support()
 
 from cli.setup.interactive_select import print_menu_with_logo
 
-CONFIG_DIR = os.path.expanduser("~/.handsome_agent")
+CONFIG_DIR = os.path.expanduser("~/.agent_z")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.yaml")
 
 
@@ -391,7 +391,7 @@ def setup_workspace(config: dict) -> dict | None:
     print_step(1, 1, "📁 工作空间配置")
     
     workspace = config.get('workspace', {})
-    current_path = workspace.get('path', str(Path.home() / ".handsome_agent"))
+    current_path = workspace.get('path', str(Path.home() / ".agent_z"))
     
     print()
     print_info(f"  当前值: {current_path}")

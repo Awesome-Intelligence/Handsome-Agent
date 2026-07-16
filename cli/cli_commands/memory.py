@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Memory CLI module - 记忆管理命令行工具
@@ -353,11 +353,11 @@ def memory_command(args: Optional[list] = None) -> int:
     Memory CLI 命令入口
 
     Usage:
-        handsome memory status    # 查看状态
-        handsome memory list      # 列出条目
-        handsome memory setup     # 配置向导
-        handsome memory providers # Provider 诊断
-        handsome memory health    # 健康检查
+        agentz memory status    # 查看状态
+        agentz memory list      # 列出条目
+        agentz memory setup     # 配置向导
+        agentz memory providers # Provider 诊断
+        agentz memory health    # 健康检查
     """
     if args is None:
         args = sys.argv[2:] if len(sys.argv) > 2 else []
@@ -373,12 +373,12 @@ def memory_command(args: Optional[list] = None) -> int:
         print_substep("  health     - Provider 健康检查")
         print()
         print_info("示例:")
-        print_substep("  handsome memory status")
-        print_substep("  handsome memory list")
-        print_substep("  handsome memory setup")
-        print_substep("  handsome memory providers")
-        print_substep("  handsome memory providers honcho")
-        print_substep("  handsome memory health")
+        print_substep("  agentz memory status")
+        print_substep("  agentz memory list")
+        print_substep("  agentz memory setup")
+        print_substep("  agentz memory providers")
+        print_substep("  agentz memory providers honcho")
+        print_substep("  agentz memory health")
         print()
         return 0
 
@@ -401,7 +401,7 @@ def memory_command(args: Optional[list] = None) -> int:
             health_check_command(args[1:] if len(args) > 1 else None)
         else:
             print_substep(f"  未知子命令: {subcommand}")
-            print_substep("  运行 'handsome memory --help' 查看帮助")
+            print_substep("  运行 'agentz memory --help' 查看帮助")
             return 1
 
     except (EOFError, KeyboardInterrupt):

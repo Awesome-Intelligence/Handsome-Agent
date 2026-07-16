@@ -80,13 +80,13 @@ class BundleResult:
 
 def _bundles_dir() -> Path:
     """获取 Bundle 目录路径"""
-    override = os.environ.get("HANDSOME_BUNDLES_DIR")
+    override = os.environ.get("AGENTZ_BUNDLES_DIR")
     if override:
         return Path(override).expanduser()
 
-    # 默认在 HANDSOME_HOME 目录下
-    from common.config import HANDSOME_HOME
-    return HANDSOME_HOME / BUNDLE_DIR_NAME
+    # 默认在 AGENT_Z_HOME 目录下
+    from common.config import AGENT_Z_HOME
+    return AGENT_Z_HOME / BUNDLE_DIR_NAME
 
 
 def _slugify(name: str) -> str:

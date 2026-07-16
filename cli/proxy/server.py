@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Proxy Server - HTTP proxy implementation.
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProxyServer:
-    """HTTP proxy server for Handsome Agent."""
+    """HTTP proxy server for Agent-Z."""
 
     def __init__(
         self,

@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Logs command - Log viewer for Handsome Agent
+Logs command - Log viewer for Agent-Z
 
 🚪 Access - 💬 CLI - 日志查看
 
@@ -76,7 +76,7 @@ def _get_log_dir() -> Optional[Path]:
         return get_logs_dir()
     except Exception:
         # 回退到默认路径
-        config_dir = Path.home() / ".handsome_agent"
+        config_dir = Path.home() / ".agent_z"
         log_dir = config_dir / "logs"
         return log_dir if log_dir.exists() else None
 
@@ -200,7 +200,7 @@ def tail_logs(lines: int = 20) -> None:
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="View Handsome Agent logs")
+    parser = argparse.ArgumentParser(description="View Agent-Z logs")
     parser.add_argument("-n", "--lines", type=int, default=50, help="Number of lines to show")
     parser.add_argument("-l", "--level", choices=["debug", "info", "warning", "error"],
                         help="Filter by log level")

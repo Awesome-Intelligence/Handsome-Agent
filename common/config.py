@@ -1,9 +1,9 @@
-"""配置管理
+﻿"""配置管理
 
 统一配置系统：YAML 文件 + 环境变量覆盖。
 参考 Hermes 配置设计，支持：
-- 单一 YAML 配置文件 (~/.handsome_agent/config.yaml)
-- 环境变量覆盖 (HANDSOME_* 前缀)
+- 单一 YAML 配置文件 (~/.agent_z/config.yaml)
+- 环境变量覆盖 (AGENT_Z_* 前缀)
 - .env 文件合并
 - 完整的 Agent/Terminal/Provider/LLM 配置
 
@@ -37,32 +37,32 @@ _IS_WINDOWS = platform.system() == "Windows"
 # =============================================================================
 
 
-def get_default_handsome_home() -> Path:
-    """Get the default HANDSOME_HOME directory."""
+def get_default_agent_z_home() -> Path:
+    """Get the default AGENT_Z_HOME directory."""
     home = os.environ.get("HOME") or os.environ.get("USERPROFILE")
     if home:
-        return Path(home) / ".handsome_agent"
-    return Path(".") / ".handsome_agent"
+        return Path(home) / ".agent_z"
+    return Path(".") / ".agent_z"
 
 
-HANDSOME_HOME = Path(os.environ.get("HANDSOME_HOME", get_default_handsome_home()))
+AGENT_Z_HOME = Path(os.environ.get("AGENT_Z_HOME", get_default_agent_z_home()))
 
 
-def get_handsome_home() -> Path:
-    """Get the HANDSOME_HOME directory (alias for backward compat)."""
-    return HANDSOME_HOME
+def get_agent_z_home() -> Path:
+    """Get the AGENT_Z_HOME directory (alias for backward compat)."""
+    return AGENT_Z_HOME
 
 
 def get_config_path() -> Path:
     """Get the config YAML file path."""
-    home = HANDSOME_HOME
+    home = AGENT_Z_HOME
     home.mkdir(parents=True, exist_ok=True)
     return home / "config.yaml"
 
 
 def get_env_path() -> Path:
     """Get the .env file path."""
-    home = HANDSOME_HOME
+    home = AGENT_Z_HOME
     home.mkdir(parents=True, exist_ok=True)
     return home / ".env"
 
@@ -325,8 +325,7 @@ def _get_file_stats(path: Path) -> tuple[int, int]:
 
 def _env_hash() -> int:
     """Hash of relevant env vars for cache invalidation."""
-    relevant = {k: v for k, v in os.environ.items() if k.startswith("HANDSOME_")}
-    # ponytail: frozenset is fine for the tiny HANDSOME_* env set; string join is slightly cheaper
+    relevant = {k: v for k, v in os.environ.items() if k.startswith("AGENTZ_")}
     return hash("".join(f"{k}={v};" for k, v in sorted(relevant.items())))
 
 
@@ -403,12 +402,12 @@ def _load_dotenv() -> dict:
 
 
 def _apply_dotenv_overlay(config: dict, dotenv: dict) -> dict:
-    """Apply dotenv key=value pairs to config (HANDSOME_* prefix stripped)."""
-    prefix = "HANDSOME_"
+    """Apply dotenv key=value pairs to config (AGENTZ_* prefix stripped)."""
+    prefix = "AGENTZ_"
     for key, value in dotenv.items():
         if not key.startswith(prefix):
             continue
-        # Handle nested keys: HANDSOME_TERMINAL__BACKEND -> terminal.backend
+        # Handle nested keys: AGENTZ_TERMINAL__BACKEND -> terminal.backend
         rest = key[len(prefix) :]
         parts = rest.split("__")
         target = config
@@ -427,8 +426,8 @@ def _apply_dotenv_overlay(config: dict, dotenv: dict) -> dict:
 
 def _migrate_json_to_yaml() -> bool:
     """Migrate legacy config.json to config.yaml. Returns True if migration happened."""
-    json_path = HANDSOME_HOME / "config.json"
-    yaml_path = HANDSOME_HOME / "config.yaml"
+    json_path = AGENT_Z_HOME / "config.json"
+    yaml_path = AGENT_Z_HOME / "config.yaml"
     if json_path.exists() and not yaml_path.exists():
         try:
             with open(json_path, encoding="utf-8") as f:
@@ -671,8 +670,8 @@ def is_configured() -> bool:
 
 
 def detect_install_method() -> str:
-    """Detect how Handsome Agent was installed. Returns 'pip', 'git', 'docker', or 'source'."""
-    home = HANDSOME_HOME
+    """Detect how Agent-Z was installed. Returns 'pip', 'git', 'docker', or 'source'."""
+    home = AGENT_Z_HOME
     stamp = home / ".install_method"
     try:
         method = stamp.read_text(encoding="utf-8").strip().lower()
@@ -690,7 +689,7 @@ def detect_install_method() -> str:
 
 def stamp_install_method(method: str):
     """Write the install method stamp."""
-    home = HANDSOME_HOME
+    home = AGENT_Z_HOME
     home.mkdir(parents=True, exist_ok=True)
     stamp = home / ".install_method"
     try:
@@ -788,19 +787,19 @@ class TerminalConfig:
 
 
 def get_sessions_dir() -> Path:
-    return HANDSOME_HOME / "sessions"
+    return AGENT_Z_HOME / "sessions"
 
 
 def get_memories_dir() -> Path:
-    return HANDSOME_HOME / "memories"
+    return AGENT_Z_HOME / "memories"
 
 
 def get_logs_dir() -> Path:
-    return HANDSOME_HOME / "logs"
+    return AGENT_Z_HOME / "logs"
 
 
 def get_config_dir() -> Path:
-    return HANDSOME_HOME
+    return AGENT_Z_HOME
 
 
 def get_skills_dir() -> Path:
@@ -809,20 +808,20 @@ def get_skills_dir() -> Path:
     external = skills_cfg.get("external_dirs", [])
     if external and isinstance(external, list) and len(external) > 0:
         return Path(external[0])
-    return HANDSOME_HOME / "skills"
+    return AGENT_Z_HOME / "skills"
 
 
 def get_profile_skills_dir(profile: str = "default") -> Path:
     if profile == "default":
-        return HANDSOME_HOME / "skills"
-    return HANDSOME_HOME / "profiles" / profile / "skills"
+        return AGENT_Z_HOME / "skills"
+    return AGENT_Z_HOME / "profiles" / profile / "skills"
 
 
 def get_current_profile() -> str:
-    env_profile = os.environ.get("HANDSOME_PROFILE")
+    env_profile = os.environ.get("AGENT_Z_PROFILE")
     if env_profile:
         return env_profile
-    profiles_dir = HANDSOME_HOME / "profiles"
+    profiles_dir = AGENT_Z_HOME / "profiles"
     link = profiles_dir / "current"
     if link.is_symlink():
         return link.resolve().name
@@ -831,7 +830,7 @@ def get_current_profile() -> str:
 
 def ensure_workspace_dirs():
     for dir_path in [
-        HANDSOME_HOME,
+        AGENT_Z_HOME,
         get_sessions_dir(),
         get_memories_dir(),
         get_logs_dir(),

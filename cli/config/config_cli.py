@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Config CLI - Configuration management commands
@@ -14,7 +14,7 @@ from pathlib import Path
 
 def _get_config_file() -> Path:
     """Get config file path."""
-    config_dir = Path.home() / ".handsome_agent"
+    config_dir = Path.home() / ".agent_z"
     config_dir.mkdir(exist_ok=True)
     return config_dir / "config.json"
 
@@ -52,7 +52,7 @@ def show_config(json_output: bool = False):
 
     if not config:
         print_warning("配置文件为空或不存在")
-        print("运行 'handsome setup' 进行配置")
+        print("运行 'agentz setup' 进行配置")
         return
 
     # Print sections

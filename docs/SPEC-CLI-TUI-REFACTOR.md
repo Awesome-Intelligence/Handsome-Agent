@@ -1,4 +1,4 @@
-# SPEC: CLI/TUI 入口优化
+﻿# SPEC: CLI/TUI 入口优化
 
 > 简化 TUI 进入方式，默认使用 TUI，提供 `--cli` 回退选项
 
@@ -36,16 +36,16 @@ python -m cli.main  # 默认进入 TUI
 
 ```bash
 # 默认进入 TUI（新版默认行为）
-handsome
+agentz
 
 # 回到传统 CLI
-handsome --cli
+agentz --cli
 
 # 单次查询（保持不变）
-handsome -q "你好"
+agentz -q "你好"
 
 # 设置向导（保持不变）
-handsome setup
+agentz setup
 ```
 
 ### 2.3 参数变更
@@ -99,10 +99,10 @@ def should_use_textual(args: argparse.Namespace) -> bool:
 ### 3.3 帮助信息
 
 ```
-$ handsome --help
-usage: handsome [-h] [--version] [--cli] [-q PROMPT] [--setup] ...
+$ agentz --help
+usage: agentz [-h] [--version] [--cli] [-q PROMPT] [--setup] ...
 
-Handsome Agent - AI assistant with tool-calling capabilities
+Agent-Z - AI assistant with tool-calling capabilities
 
 optional arguments:
   --version          Show version and exit
@@ -126,10 +126,10 @@ subcommands:
 
 | 场景 | 预期结果 |
 |------|----------|
-| `handsome` | 启动 TUI |
-| `handsome --cli` | 启动传统 CLI |
-| `handsome -q "test"` | 单次查询（TUI） |
-| `handsome --cli -q "test"` | 单次查询（CLI） |
+| `agentz` | 启动 TUI |
+| `agentz --cli` | 启动传统 CLI |
+| `agentz -q "test"` | 单次查询（TUI） |
+| `agentz --cli -q "test"` | 单次查询（CLI） |
 
 ### 4.2 兼容性测试
 

@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Model catalog for Handsome Agent CLI.
+Model catalog for Agent-Z CLI.
 
 🚪 Access - 💬 CLI - 模型目录
 

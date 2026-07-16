@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Caching utilities for the Handsome Agent.
+Caching utilities for the Agent-Z.
 Uses cachetools for robust LRU cache implementation.
 
-Author: Handsome Agent Team
+Author: Agent-Z Team
 Version: 1.0.0
 """
 

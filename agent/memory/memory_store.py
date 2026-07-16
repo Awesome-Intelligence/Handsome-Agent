@@ -19,13 +19,13 @@ Memory Store Module - 持久化记忆存储
 ├─────────────────────────────────────────────────────────────────────┤
 │  MemoryStore (本模块)                                                 │
 │  - 用途: 用户显式添加/管理的长期记忆                                   │
-│  - 存储: ~/.handsome_agent/memories/MEMORY.md                       │
+│  - 存储: ~/.agent_z/memories/MEMORY.md                       │
 │  - 管理: 通过 memory_tool (add/replace/remove)                        │
 │  - 特点: 跨会话持久，用户完全控制                                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Session (agent/session.py)                                          │
 │  - 用途: 自动生成的会话摘要，用于跨会话上下文                          │
-│  - 存储: ~/.handsome_agent/sessions/daily_summary.md                │
+│  - 存储: ~/.agent_z/sessions/daily_summary.md                │
 │  - 管理: sync_to_daily_summary() 自动生成                            │
 │  - 特点: 自动摘要，Agent 可读取但不直接修改                            │
 └─────────────────────────────────────────────────────────────────────┘
@@ -51,7 +51,7 @@ logger = get_execution_logger("MemoryStore")
 # 记忆目录路径
 def get_memory_dir() -> Path:
     """获取记忆存储目录"""
-    base_dir = Path.home() / ".handsome_agent"
+    base_dir = Path.home() / ".agent_z"
     memory_dir = base_dir / "memories"
     memory_dir.mkdir(parents=True, exist_ok=True)
     return memory_dir
@@ -72,7 +72,7 @@ _MEMORY_THREAT_PATTERNS: List[tuple[re.Pattern, str]] = [
     (re.compile(r'cat\s+[^\n]*(\.env|credentials|\.netrc|\.pgpass|\.npmrc|\.pypirc)', re.IGNORECASE), 'read_secrets'),
     (re.compile(r'authorized_keys', re.IGNORECASE), 'ssh_backdoor'),
     (re.compile(r'\$HOME/\.ssh|\~/\.ssh', re.IGNORECASE), 'ssh_access'),
-    (re.compile(r'\$HOME/\.handsome_agent/\.env|\~/\.handsome_agent/\.env', re.IGNORECASE), 'handsome_env'),
+    (re.compile(r'\$HOME/\.agent_z/\.env|\~/\.agent_z/\.env', re.IGNORECASE), 'agentz_env'),
 ]
 
 # 不可见字符检测

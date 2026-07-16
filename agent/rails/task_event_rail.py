@@ -1,4 +1,4 @@
-# 🧠 Decision - 🔧 Rail - 任务事件 Rail
+﻿# 🧠 Decision - 🔧 Rail - 任务事件 Rail
 
 """
 TaskEventRail - 任务事件追踪和 Checkpoint 控制
@@ -59,7 +59,7 @@ class TaskEventLog:
 
     def __init__(self, session_id: str, workspace_dir: Optional[str] = None):
         self.session_id = session_id
-        self.workspace_dir = workspace_dir or str(Path.home() / ".handsome_agent")
+        self.workspace_dir = workspace_dir or str(Path.home() / ".agent_z")
         self._log_path = Path(self.workspace_dir) / "sessions" / session_id / "task_events.jsonl"
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
 

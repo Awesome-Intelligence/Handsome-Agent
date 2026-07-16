@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Backup - Configuration backup utility.
@@ -19,7 +19,7 @@ from typing import Optional
 
 def get_backup_dir() -> Path:
     """Get the backup directory."""
-    backup_dir = Path.home() / ".handsome_agent" / "backups"
+    backup_dir = Path.home() / ".agent_z" / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     return backup_dir
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     else:
         print("Usage:")
-        print("  handsome backup")
-        print("  handsome backup restore <file>")
-        print("  handsome backup list")
-        print("  handsome backup delete <file>")
+        print("  agentz backup")
+        print("  agentz backup restore <file>")
+        print("  agentz backup list")
+        print("  agentz backup delete <file>")

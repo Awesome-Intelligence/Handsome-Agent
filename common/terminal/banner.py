@@ -86,8 +86,7 @@ AGENT_Z_LOGO = """\
 [bold #FFFFFF]█▀█ █ █ █▀▀ █ █  █  ▀▀ ▄▀ [/]
 [bold #FFFFFF]▀ ▀ ▀▀▀ ▀▀▀ ▀ ▀  ▀     ▀▀▀[/]"""
 
-# 向后兼容别名
-HANDSOME_LOGO = AGENT_Z_LOGO
+# Agent-Z ASCII Art Logo
 
 # Hero ASCII Art - 简约风格
 HERO_ASCII = """\
@@ -140,7 +139,7 @@ def build_welcome_banner(
     left_parts = []
 
     # Add ASCII Logo
-    for line in HANDSOME_LOGO.split('\n'):
+    for line in AGENT_Z_LOGO.split('\n'):
         left_parts.append(line)
 
     left_parts.append("")

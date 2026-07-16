@@ -1,5 +1,5 @@
 """
-pytest configuration file for the Handsome Agent.
+pytest configuration file for the Agent-Z.
 
 This file contains shared fixtures and configuration for all tests.
 """
@@ -58,8 +58,8 @@ def sealed_workspace():
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir) / "workspace"
         home = Path(tmpdir) / "home"
-        config = home / ".handsome_agent"
-        cache = home / ".cache" / "handsome_agent"
+        config = home / ".agent_z"
+        cache = home / ".cache" / "agentz"
         
         workspace.mkdir()
         home.mkdir()
@@ -77,7 +77,7 @@ def sealed_workspace():
                 "XDG_CONFIG_HOME": str(home / ".config"),
                 "XDG_DATA_HOME": str(home / ".local" / "share"),
                 "XDG_CACHE_HOME": str(home / ".cache"),
-                "HANDSOME_AGENT_CONFIG_PATH": str(config / "config.toml"),
+                "AGENTZ_CONFIG_PATH": str(config / "config.toml"),
             }
         }
 

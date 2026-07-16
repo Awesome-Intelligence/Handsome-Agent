@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Test ContextBuilder - 上下文构建器测试
@@ -88,7 +88,7 @@ class TestBuildGuidance:
         parts = cb.build_parts(user_message="", model=None, memory_snapshot="")
 
         # 验证 stable 层包含基础内容（身份和能力）
-        assert "Handsome Agent" in parts["stable"]
+        assert "Agent-Z" in parts["stable"]
         # 验证 stable 层不包含指导性文本
         assert "Memory System" not in parts["stable"]
 
@@ -163,7 +163,7 @@ class TestContextBuilderIntegration:
         assert system_msg.get("role") == "system"
         content = system_msg.get("content", "")
         # stable 层内容
-        assert "Handsome Agent" in content
+        assert "Agent-Z" in content
         assert "能力概览" in content
         assert "Memory System" in content
         # context 层内容
@@ -225,7 +225,7 @@ class TestBuildMessages:
         
         # 验证系统消息包含关键内容
         content = messages[0]["content"]
-        assert "Handsome Agent" in content or "Agent" in content, \
+        assert "Agent-Z" in content or "Agent" in content, \
             "系统消息应包含 Agent 身份定义"
     
     def test_build_messages_contains_history(self, context_builder):
@@ -416,7 +416,7 @@ class TestBuildMessages:
         system_msg = messages[0]
         content = system_msg["content"]
         # stable 层内容
-        assert "Handsome Agent" in content
+        assert "Agent-Z" in content
         assert "能力概览" in content
         # 默认无 memory_snapshot 时不包含 User Profile
         assert "User Profile" not in content
@@ -511,7 +511,7 @@ class TestThreeLayerArchitecture:
         parts = context_builder.build_parts()
         stable = parts["stable"]
         
-        assert "Handsome Agent" in stable
+        assert "Agent-Z" in stable
         assert "能力概览" in stable
         assert "Memory System" in stable  # 指导性文本
     
@@ -522,7 +522,7 @@ class TestThreeLayerArchitecture:
         parts = cb.build_parts()
         stable = parts["stable"]
         
-        assert "Handsome Agent" in stable
+        assert "Agent-Z" in stable
         assert "Memory System" not in stable
         assert "Skills System" not in stable
     
@@ -594,11 +594,11 @@ class TestThreeLayerArchitecture:
         assert memory_content not in parts["stable"]
         
         # context 层不应包含 stable（如 Agent 身份）或 volatile 的标记
-        assert "Handsome Agent" not in parts["context"]
+        assert "Agent-Z" not in parts["context"]
         assert memory_content not in parts["context"]
         
         # volatile 层不应包含 stable（如 Agent 身份）或 context 的标记
-        assert "Handsome Agent" not in parts["volatile"]
+        assert "Agent-Z" not in parts["volatile"]
         assert context_content not in parts["volatile"]
 
 

@@ -138,7 +138,7 @@ def get_skill_commands() -> Dict[str, Dict[str, Any]]:
 
 def _resolve_platform() -> Optional[str]:
     """Resolve the current platform scope."""
-    return os.getenv("HANDSOME_PLATFORM") or None
+    return os.getenv("AGENTZ_PLATFORM") or None
 
 
 def _parse_frontmatter(content: str) -> Dict[str, Any]:

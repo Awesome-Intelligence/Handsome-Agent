@@ -4,8 +4,8 @@
 🧠 Decision - ⏰ Scheduler - Job lifecycle state machine
 
 Ported from Hermes's ``cron/jobs.py`` (issue #32754). Stores scheduled
-jobs in ``$HANDSOME_HOME/cron/jobs.json`` and per-run output under
-``$HANDSOME_HOME/cron/output/<job_id>/<timestamp>.md``.
+jobs in ``$AGENT_Z_HOME/cron/jobs.json`` and per-run output under
+``$AGENT_Z_HOME/cron/output/<job_id>/<timestamp>.md``.
 
 Job schema (the on-disk format):
 
@@ -15,7 +15,7 @@ Job schema (the on-disk format):
         "id": "ab12cd34ef56",          # 12-char hex; immutable
         "name": "Morning brief",
         "prompt": "...",                # self-contained LLM input
-        "script": null,                 # path relative to $HANDSOME_HOME/scripts
+        "script": null,                 # path relative to $AGENT_Z_HOME/scripts
         "no_agent": false,              # true → script IS the job
         "skills": ["example-skill"],    # skill load-order
         "skill": "example-skill",       # legacy single-skill alias (auto-kept in sync)
@@ -80,7 +80,7 @@ try:
 except ImportError:  # pragma: no cover - non-Windows
     msvcrt = None
 
-from common.config import get_handsome_home
+from common.config import get_agentz_home
 from common.cron_time import now as _hermes_now
 from common.file_utils import atomic_replace
 from common.logging_manager import get_decision_logger
@@ -100,10 +100,10 @@ logger = get_decision_logger("cron", sublayer="scheduler")
 # Configuration
 # =============================================================================
 
-# Cron lives under $HANDSOME_HOME/cron/.  Tests can monkeypatch
+# Cron lives under $AGENT_Z_HOME/cron/.  Tests can monkeypatch
 # ``_get_active_home()`` to redirect without touching env vars.
-HERMES_DIR = get_handsome_home().resolve()
-CRON_DIR = HERMES_DIR / "cron"
+AGENTZ_DIR = get_agentz_home().resolve()
+CRON_DIR = AGENTZ_DIR / "cron"
 JOBS_FILE = CRON_DIR / "jobs.json"
 
 # Heartbeat file the in-process ticker touches on every loop iteration.
@@ -132,7 +132,7 @@ def _get_active_home() -> Path:
     override = globals().get("_HERMES_HOME_OVERRIDE")
     if override is not None:
         return Path(override)
-    return get_handsome_home()
+    return get_agentz_home()
 
 
 # Lazy-resolved paths. We bind these at module import time but
@@ -182,7 +182,7 @@ def _jobs_lock():
     Combines an in-process RLock (cheap mutual exclusion between the
     gateway's parallel tick threads) with a cross-process advisory file
     lock on ``<cron dir>/.jobs.lock`` (mutual exclusion between the
-    gateway process and standalone ``handsome`` CLI invocations).
+    gateway process and standalone ``agentz`` CLI invocations).
 
     Nested calls in the same thread reuse the held lock so legacy
     callers that invoke ``save_jobs()`` inside a broader mutation

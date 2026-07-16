@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Skill Bundle - 技能导入/导出/打包工具
@@ -50,7 +50,7 @@ class BundleManifest:
     """打包清单"""
     version: str = "1.0"
     created_at: str = ""
-    created_by: str = "handsome-agent"
+    created_by: str = "Agent-Z"
     skills: List[Dict[str, Any]] = field(default_factory=list)
     total_size: int = 0
     checksum: str = ""
@@ -70,7 +70,7 @@ class BundleManifest:
         return cls(
             version=data.get("version", "1.0"),
             created_at=data.get("created_at", ""),
-            created_by=data.get("created_by", "handsome-agent"),
+            created_by=data.get("created_by", "Agent-Z"),
             skills=data.get("skills", []),
             total_size=data.get("total_size", 0),
             checksum=data.get("checksum", ""),
@@ -254,7 +254,7 @@ class SkillBundle:
         manifest = BundleManifest(
             version="1.0",
             created_at=datetime.now(timezone.utc).isoformat(),
-            created_by="handsome-agent",
+            created_by="Agent-Z",
         )
 
         for name in skill_names:

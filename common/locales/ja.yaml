@@ -569,14 +569,14 @@ onboarding:
     configure_more: "⚙ 詳細設定"
 
 # =============================================================================
-# Cron サブシステム (handsome cron ...)
+# Cron サブシステム (agentz cron ...)
 # =============================================================================
 
 cron:
   parser_description: "スケジュール（cron）ジョブを管理します。"
   list_header: "⏰ Cron ジョブ一覧"
   empty: "登録されている cron ジョブはありません"
-  empty_hint: "'handsome cron create' で追加してください"
+  empty_hint: "'agentz cron create' で追加してください"
   total: "合計 {n} 件；有効 {a}、一時停止 {p}"
   not_found: "cron ジョブが見つかりません: {id}"
   show_header: "⏰ ジョブ {id}"
@@ -595,7 +595,7 @@ cron:
   run_done: "ジョブ {id} が完了しました (status={ok})"
   tick_done: "tick で {n} 件実行しました"
   status_header: "📊 Cron ステータス"
-  no_heartbeat: "ticker ハートビートがありません。'handsome cron tick' を実行するか、gateway デーモンを起動してください。"
+  no_heartbeat: "ticker ハートビートがありません。'agentz cron tick' を実行するか、gateway デーモンを起動してください。"
   invalid_duration: "無効な期間 '{s}'。'30m' / '2h' / '1d' 形式で指定してください"
   croniter_missing: "cron 式には 'croniter' パッケージが必要です: pip install croniter"
   invalid_schedule: "無効な schedule。期間 / 'every Xm' / '0 9 * * *' / ISO タイムスタンプを使用"
@@ -656,7 +656,7 @@ tui:
     summary: "⏰  {total} 件のタスク · 有効 {active} · 停止 {paused}"
     empty: "スケジュールされたタスクはありません。[a] で新規作成。"
     help_hint: "[r]更新  [a]新規  [↵]詳細  [p]停止  [u]再開  [t]実行  [d]削除"
-    heartbeat_idle: "⚪ ticker が起動していません ('handsome cron tick' を実行するか gateway を起動)"
+    heartbeat_idle: "⚪ ticker が起動していません ('agentz cron tick' を実行するか gateway を起動)"
     heartbeat_stale: "⚠ ticker 稼働 {hb}s · 最終成功 {ok}s 前"
     heartbeat_healthy: "🟢 ticker 正常 · 最終成功 {ok}s 前"
     created_notify: "✓ 定时任务を作成しました {id}"

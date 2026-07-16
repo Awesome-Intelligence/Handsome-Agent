@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Cron command — scheduled job management.
 
@@ -73,7 +73,7 @@ def _table(jobs: List[Dict[str, Any]]) -> None:
         print_info(
             t(
                 "cron.empty_hint",
-                fallback="Use 'handsome cron create' to add one",
+                fallback="Use 'agentz cron create' to add one",
             )
         )
         return
@@ -491,7 +491,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         print_warning(
             t(
                 "cron.no_heartbeat",
-                fallback="No ticker heartbeat recorded. Run 'handsome cron tick' or start the gateway daemon.",
+                fallback="No ticker heartbeat recorded. Run 'agentz cron tick' or start the gateway daemon.",
             )
         )
     else:
@@ -556,12 +556,12 @@ def _confirm(question: str) -> bool:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the ``handsome cron`` subparser.
+    """Build the ``agentz cron`` subparser.
 
     Wired into :mod:`cli.main`; also usable standalone (see ``__main__``).
     """
     parser = argparse.ArgumentParser(
-        prog="handsome cron",
+        prog="agentz cron",
         description=t(
             "cron.parser_description",
             fallback="Manage scheduled (cron) jobs.",
@@ -754,13 +754,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 # Backward-compatible imperative functions (used by tests / main.py pre-parser)
 def list_cron_jobs(json_output: bool = False) -> None:
-    """Backward-compatible list helper used by ``handsome cron list``."""
+    """Backward-compatible list helper used by ``agentz cron list``."""
     args = argparse.Namespace(all=False, json=json_output)
     sys.exit(cmd_list(args))
 
 
 def check_cron_status() -> None:
-    """Backward-compatible status helper used by ``handsome cron status``."""
+    """Backward-compatible status helper used by ``agentz cron status``."""
     args = argparse.Namespace()
     sys.exit(cmd_status(args))
 

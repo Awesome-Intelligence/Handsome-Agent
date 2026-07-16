@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Auth CLI - Authentication CLI commands.
@@ -18,7 +18,7 @@ class AuthManager:
     """认证管理器"""
     
     def __init__(self):
-        self.config_dir = Path.home() / ".handsome_agent"
+        self.config_dir = Path.home() / ".agent_z"
         self.secrets_file = self.config_dir / "secrets.json"
         self._secrets: Dict[str, str] = {}
         self._load_secrets()

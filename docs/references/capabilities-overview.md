@@ -1,6 +1,6 @@
-# Agent 能力完整清单
+﻿# Agent 能力完整清单
 
-> Handsome Agent 支持的能力矩阵
+> Agent-Z 支持的能力矩阵
 
 ## 一、核心 Agent 类型
 

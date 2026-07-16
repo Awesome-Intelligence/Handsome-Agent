@@ -1,4 +1,4 @@
-# Handsome Agent - Claude Code 开发规范
+﻿# Agent-Z - Claude Code 开发规范
 
 > Hermes-Brain + OpenClaw-Body 双核驱动的模块化 AI 智能助手
 

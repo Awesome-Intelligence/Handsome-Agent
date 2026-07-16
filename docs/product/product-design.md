@@ -1,4 +1,4 @@
-# Handsome Agent 产品设计书
+# Agent-Z 产品设计书
 
 **版本**: v1.0.0  
 **最后更新**: 2026-06-09  
@@ -26,7 +26,7 @@
 
 ### 1.1 产品定位
 
-Handsome Agent 是一个**企业级 AI Agent 系统**，采用 **Hermes-Brain + OpenClaw-Body** 双核驱动架构。
+Agent-Z 是一个**企业级 AI Agent 系统**，采用 **Hermes-Brain + OpenClaw-Body** 双核驱动架构。
 
 **核心价值**：
 - **智能决策** - LLM 驱动的意图理解和工具选择
@@ -77,7 +77,7 @@ Handsome Agent 是一个**企业级 AI Agent 系统**，采用 **Hermes-Brain + 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     Handsome Agent 三层架构                             │
+│                     Agent-Z 三层架构                             │
 └─────────────────────────────────────────────────────────────────────────┘
 
                               ┌─────────────────┐
@@ -490,7 +490,7 @@ if result:
 ### 8.1 命令结构
 
 ```
-handsome-agent
+Agent-Z
 ├── chat                 # 交互式对话
 ├── setup               # 首次配置
 ├── session             # 会话管理
@@ -591,23 +591,23 @@ logger = get_logger("Agent", sublayer="decision")
 ### 10.3 数据目录
 
 ```
-~/.handsome_agent/
+~/.agent_z/
 ├── config.json           # 配置文件
 ├── sessions/{date}/      # 对话历史
 ├── skills/user/         # 用户技能
 ├── memories/            # 长期记忆
 ├── logs/                # 日志文件
-└── handsome_agent.db    # SQLite 数据库
+└── agentz.db    # SQLite 数据库
 ```
 
 ### 10.4 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `HANDSOME_HOME` | 数据目录 | `~/.handsome_agent` |
-| `HANDSOME_LLM_PROVIDER` | LLM 提供商 | - |
-| `HANDSOME_LLM_API_KEY` | API Key | - |
-| `HANDSOME_LOG_LEVEL` | 日志级别 | `INFO` |
+| `AGENT_Z_HOME` | 数据目录 | `~/.agent_z` |
+| `AGENTZ_LLM_PROVIDER` | LLM 提供商 | - |
+| `AGENTZ_LLM_API_KEY` | API Key | - |
+| `AGENTZ_LOG_LEVEL` | 日志级别 | `INFO` |
 
 ---
 

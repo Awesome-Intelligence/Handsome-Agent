@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Smoke test for the TUI cron sidebar pane.
 
 🚪 Access - 🧪 Smoke - CronPane in SidebarContainer
 
-Pre-seeds two cron jobs into an isolated ``$HANDSOME_HOME``, mounts the
+Pre-seeds two cron jobs into an isolated ``$AGENT_Z_HOME``, mounts the
 real ``SidebarContainer`` under :class:`textual.app.App`, switches to the
 new "定时" tab, and screenshots the rendered pane so we can eyeball the
 layout / icon mapping / heartbeat line.
@@ -28,20 +28,20 @@ import tempfile
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# 0. Isolate HANDSOME_HOME so this smoke never touches real cron state.
+# 0. Isolate AGENT_Z_HOME so this smoke never touches real cron state.
 # ---------------------------------------------------------------------------
 
-TMP_HOME = Path(tempfile.mkdtemp(prefix="handsome-smoke-cron-"))
-# Honour an externally-provided HANDSOME_HOME so we can re-run the
+TMP_HOME = Path(tempfile.mkdtemp(prefix="agentz-smoke-cron-"))
+# Honour an externally-provided AGENT_Z_HOME so we can re-run the
 # smoke against the user's *real* cron state instead of always
 # creating a brand-new ephemeral one. Default to a tmp dir.
-if not os.environ.get("HANDSOME_HOME"):
-    TMP_HOME = Path(tempfile.mkdtemp(prefix="handsome-smoke-cron-"))
-    os.environ["HANDSOME_HOME"] = str(TMP_HOME)
-    print(f"[smoke] HANDSOME_HOME = {TMP_HOME} (ephemeral)", flush=True)
+if not os.environ.get("AGENT_Z_HOME"):
+    TMP_HOME = Path(tempfile.mkdtemp(prefix="agentz-smoke-cron-"))
+    os.environ["AGENT_Z_HOME"] = str(TMP_HOME)
+    print(f"[smoke] AGENT_Z_HOME = {TMP_HOME} (ephemeral)", flush=True)
 else:
     print(
-        f"[smoke] HANDSOME_HOME = {os.environ['HANDSOME_HOME']} (real)",
+        f"[smoke] AGENT_Z_HOME = {os.environ['AGENT_Z_HOME']} (real)",
         flush=True,
     )
 
@@ -86,8 +86,8 @@ print(f"[smoke] paused {JOB_TICK['id']}", flush=True)
 from cron import scheduler as cron_scheduler  # noqa: E402
 
 # Touch the heartbeat files manually (we're not running the actual ticker).
-hb_path = Path(os.environ["HANDSOME_HOME"]) / "cron" / "ticker_heartbeat"
-ok_path = Path(os.environ["HANDSOME_HOME"]) / "cron" / "ticker_last_success"
+hb_path = Path(os.environ["AGENT_Z_HOME"]) / "cron" / "ticker_heartbeat"
+ok_path = Path(os.environ["AGENT_Z_HOME"]) / "cron" / "ticker_last_success"
 hb_path.parent.mkdir(parents=True, exist_ok=True)
 hb_path.write_text(str(NOW.timestamp()), encoding="utf-8")
 ok_path.write_text(str(NOW.timestamp()), encoding="utf-8")

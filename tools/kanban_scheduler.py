@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Kanban Task Scheduler Module
 
@@ -118,7 +118,7 @@ class KanbanScheduler:
             db_path: Database path (default: from settings)
             max_spawn: Maximum concurrent worker spawns per cycle (default: 2)
             max_in_progress: Maximum running tasks allowed (default: 4)
-            workspaces_root: Root directory for task workspaces (default: ~/.handsome_agent/workspaces)
+            workspaces_root: Root directory for task workspaces (default: ~/.agent_z/workspaces)
         """
         # Load from environment variables or use defaults
         settings = get_settings()
@@ -146,7 +146,7 @@ class KanbanScheduler:
         self._workspaces_root = (
             workspaces_root
             or os.environ.get("KANBAN_WORKSPACES_ROOT")
-            or str(Path.home() / ".handsome_agent" / "workspaces")
+            or str(Path.home() / ".agent_z" / "workspaces")
         )
         self._db_path = db_path or os.environ.get("KANBAN_DB_PATH", settings.db_path)
         
@@ -537,7 +537,7 @@ class KanbanScheduler:
         env["HERMES_WORKSPACE"] = str(workspace)
         env["HERMES_WORKSPACE_KIND"] = workspace_kind
         
-        # Find the handsome agent entry point
+        # Find the Agent-Z entry point
         # Try common locations
         possible_paths = [
             Path(__file__).parent.parent / "cli" / "main.py",
@@ -552,7 +552,7 @@ class KanbanScheduler:
                 break
         
         if not entry_point:
-            logger.error("Could not find handsome agent entry point")
+            logger.error("Could not find Agent-Z entry point")
             return None
         
         try:

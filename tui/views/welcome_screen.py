@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 WelcomeScreen - 欢迎界面组件
@@ -255,7 +255,7 @@ class WelcomeScreen(Static):
             
             # Agent 名称
             yield Static(
-                f"[bold {AVOCADO_BRIGHT}]║[/]    [bold {AVOCADO_BRIGHT}]👤 Handsome Agent[/]    [dim]v{self.version}[/]              [bold {AVOCADO_BRIGHT}]║[/]",
+                f"[bold {AVOCADO_BRIGHT}]║[/]    [bold {AVOCADO_BRIGHT}]👤 Agent-Z[/]    [dim]v{self.version}[/]              [bold {AVOCADO_BRIGHT}]║[/]",
                 id="welcome-title"
             )
             

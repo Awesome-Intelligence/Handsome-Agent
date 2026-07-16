@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Checkpoint Manager Module
 
@@ -42,10 +42,10 @@ from common.logging_manager import get_execution_logger
 
 logger = get_execution_logger(__name__, sublayer="checkpoint")
 
-CHECKPOINT_BASE = Path.home() / ".handsome_agent" / "checkpoints"
+CHECKPOINT_BASE = Path.home() / ".agent_z" / "checkpoints"
 
 _STORE_DIRNAME = "store"
-_REFS_PREFIX = "refs/handsome"
+_REFS_PREFIX = "refs/agentz"
 _INDEXES_DIRNAME = "indexes"
 _PROJECTS_DIRNAME = "projects"
 
@@ -102,7 +102,7 @@ DEFAULT_EXCLUDES = [
     "*.log",
 ]
 
-_GIT_TIMEOUT: int = max(10, min(60, int(os.getenv("HANDSOME_CHECKPOINT_TIMEOUT", "30"))))
+_GIT_TIMEOUT: int = max(10, min(60, int(os.getenv("AGENTZ_CHECKPOINT_TIMEOUT", "30"))))
 
 _MAX_FILES = 50_000
 
@@ -273,8 +273,8 @@ def _init_store(store: Path, working_dir: str) -> Optional[str]:
         return f"Shadow store init failed: {exc}"
 
     cfg_wd = str(base)
-    _run_git(["config", "user.email", "handsome@local"], store, cfg_wd)
-    _run_git(["config", "user.name", "Handsome Checkpoint"], store, cfg_wd)
+    _run_git(["config", "user.email", "agentz@local"], store, cfg_wd)
+    _run_git(["config", "user.name", "Agent-Z Checkpoint"], store, cfg_wd)
     _run_git(["config", "commit.gpgsign", "false"], store, cfg_wd)
     _run_git(["config", "tag.gpgSign", "false"], store, cfg_wd)
     _run_git(["config", "gc.auto", "0"], store, cfg_wd)
@@ -380,7 +380,7 @@ def _init_shadow_repo(shadow_repo: Path, working_dir: str) -> Optional[str]:
         return err
     _register_project(shadow_repo, working_dir)
     try:
-        (shadow_repo / "HANDSOME_WORKDIR").write_text(
+        (shadow_repo / "AGENTZ_WORKDIR").write_text(
             str(_normalize_path(working_dir)) + "\n", encoding="utf-8"
         )
     except OSError:
@@ -966,7 +966,7 @@ def prune_checkpoints(
         reason: Optional[str] = None
         if delete_orphans:
             workdir: Optional[str] = None
-            wd_marker = child / "HANDSOME_WORKDIR"
+            wd_marker = child / "AGENTZ_WORKDIR"
             if wd_marker.exists():
                 try:
                     workdir = wd_marker.read_text(encoding="utf-8").strip()

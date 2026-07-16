@@ -5,7 +5,7 @@
 
 Ported from Hermes ``cron/lifecycle_guard.py``. An agent running inside
 a gateway can schedule a cron job that calls e.g.
-``handsome gateway restart``. When the cron fires, the gateway dies,
+``agentz gateway restart``. When the cron fires, the gateway dies,
 the supervisor revives it, auto-resume picks up the offending session,
 and the resumed turn re-runs the same logic — a SIGTERM-respawn loop
 until manually broken.
@@ -13,11 +13,11 @@ until manually broken.
 This module rejects cron job specs whose prompt or script contains a
 direct shell-level gateway-lifecycle command. It is enforced at
 ``cron.jobs.create_job`` so it fires on every job-creation path: the
-``handsome cron create`` CLI subcommand AND any future model tool that
+``agentz cron create`` CLI subcommand AND any future model tool that
 calls ``create_job`` directly, bypassing the CLI layer.
 
 The pattern is intentionally command-shaped: it anchors on a concrete
-command identifier (``handsome gateway``, ``launchctl ... hermes-gateway``,
+command identifier (``agentz gateway``, ``launchctl ... hermes-gateway``,
 ``systemctl ... hermes-gateway``, ``pkill`` against the gateway) so it
 cannot fire on prose. A cron ``prompt`` is fed to a future LLM, not a
 shell, so an over-broad substring match on English would produce a high
@@ -25,7 +25,7 @@ false-positive rate without preventing the actual foot-gun.
 
 This is a defence-in-depth layer. The agent's terminal tool blocks these
 commands at *execution* time when inside a gateway, and
-``handsome gateway stop|restart`` refuse to self-target. Blocking at
+``agentz gateway stop|restart`` refuse to self-target. Blocking at
 *creation* time as well means the agent gets an immediate, informative
 rejection instead of scheduling a job that will only fail (silently)
 when it fires.
@@ -50,7 +50,7 @@ class GatewayLifecycleBlocked(ValueError):
 # only fire on actual shell-command-shaped strings, not on prose.
 #
 # Branches:
-#   A: `handsome gateway restart|stop` — canonical foot-gun.
+#   A: `agentz gateway restart|stop` — canonical foot-gun.
 #   B: launchctl ops on a hermes-gateway label.
 #   C: systemctl ops on a hermes-gateway unit.
 #   D: pkill / kill targeting the hermes gateway process (both token
@@ -58,7 +58,7 @@ class GatewayLifecycleBlocked(ValueError):
 _GATEWAY_LIFECYCLE_PATTERN = re.compile(
     r"(?i)"
     # Branch A
-    r"(?:handsome\s+gateway\s+(?:restart|stop))"
+    r"(?:agentz\s+gateway\s+(?:restart|stop))"
     # Branch B — launchctl
     r"|(?:launchctl\s+(?:kickstart|unload|load|stop|restart)\b[^\n]*\b"
     r"hermes[.\-]?gateway)"
@@ -82,18 +82,18 @@ def _resolve_script_path(script_path: str) -> Path:
     """Resolve a cron ``script`` value the way the scheduler does.
 
     The scheduler resolves a bare/relative script path under
-    ``<HANDSOME_HOME>/scripts/`` and only accepts absolute paths as-is.
+    ``<AGENT_Z_HOME>/scripts/`` and only accepts absolute paths as-is.
     We mirror that here so the guard scans the file that will actually
     run — otherwise a job whose script lives at the scheduler's real
     location but is passed as the bare name would scan prompt-only
     content and let the command through.
     """
-    from common.config import get_handsome_home
+    from common.config import get_agentz_home
 
     raw = Path(script_path).expanduser()
     if raw.is_absolute():
         return raw
-    return get_handsome_home() / "scripts" / raw
+    return get_agentz_home() / "scripts" / raw
 
 
 def _read_script_for_scanning(script_path: str) -> str:
@@ -132,6 +132,6 @@ def check_gateway_lifecycle(
     if contains_gateway_lifecycle_command(combined):
         raise GatewayLifecycleBlocked(
             "Blocked: cron job contains a gateway lifecycle command "
-            "(restart/stop/kill). Run `handsome gateway restart` from a "
+            "(restart/stop/kill). Run `agentz gateway restart` from a "
             "shell outside the running gateway instead."
         )

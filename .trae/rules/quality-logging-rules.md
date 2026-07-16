@@ -1,4 +1,4 @@
----
+﻿---
 alwaysApply: false
 description: |
   日志规范 - 适用于以下场景自动加载：
@@ -92,7 +92,7 @@ logger.info(f"用户登录成功: {password}")  # 禁止！
 - **开发环境**: DEBUG 级别，输出到控制台
 - **生产环境**: INFO 级别，输出到文件
 - **日志文件**: 按天切割，保留30天
-- **日志路径**: `logs/handsome-agent-{date}.log`
+- **日志路径**: `logs/Agent-Z-{date}.log`
 
 ---
 

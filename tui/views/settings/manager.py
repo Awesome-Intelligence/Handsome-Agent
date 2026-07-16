@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """设置管理器 - 负责设置加载、保存和变更通知
 
-与 CLI 共享同一份配置文件: ~/.handsome_agent/config.json
+与 CLI 共享同一份配置文件: ~/.agent_z/config.json
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ class SettingsManager:
             # 保存到 config.json
             if self._cli_config_module:
                 self._cli_config_module["save"](cli_config)
-                self._logger.info("Config saved to ~/.handsome_agent/config.json")
+                self._logger.info("Config saved to ~/.agent_z/config.json")
 
             self._dirty = False
 

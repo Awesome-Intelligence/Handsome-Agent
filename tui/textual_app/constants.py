@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Handsome Agent TUI 颜色与状态常量
+"""Agent-Z TUI 颜色与状态常量
 
 🚪 Access - 💬 TUI - Textual App - 常量
 

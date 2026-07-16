@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Skill Manager Tool Module
 
@@ -38,7 +38,7 @@ logger = get_execution_logger("SkillManagerTool")
 # 技能目录
 def get_skills_dir() -> Path:
     """获取技能存储目录"""
-    base_dir = Path.home() / ".handsome_agent"
+    base_dir = Path.home() / ".agent_z"
     skills_dir = base_dir / "skills"
     skills_dir.mkdir(parents=True, exist_ok=True)
     return skills_dir

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Skill Bundle Module - 技能包管理机制
@@ -45,7 +45,7 @@ class SkillBundleManager:
         初始化技能包管理器
         
         Args:
-            bundles_dir: bundles 目录路径，默认为 ~/.handsome_agent/skill-bundles/
+            bundles_dir: bundles 目录路径，默认为 ~/.agent_z/skill-bundles/
         """
         self._bundles_dir = self._get_bundles_dir(bundles_dir)
         self._ensure_bundles_dir()
@@ -64,7 +64,7 @@ class SkillBundleManager:
         """
         if bundles_dir:
             return Path(bundles_dir)
-        return Path.home() / ".handsome_agent" / "skill-bundles"
+        return Path.home() / ".agent_z" / "skill-bundles"
     
     def _ensure_bundles_dir(self) -> None:
         """确保 bundles 目录存在"""

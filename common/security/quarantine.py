@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Agent-Z Contributors
+﻿# Copyright (c) 2026 Agent-Z Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -14,12 +14,12 @@ from pathlib import Path
 from typing import List, Tuple, Union
 
 from common.logging_manager import get_logger
-from common.config import HANDSOME_HOME
+from common.config import AGENT_Z_HOME
 
 logger = get_logger(__name__)
 
 # 隔离目录路径
-QUARANTINE_DIR = HANDSOME_HOME / "security" / "quarantine"
+QUARANTINE_DIR = AGENT_Z_HOME / "security" / "quarantine"
 
 
 def ensure_quarantine_dir() -> None:

@@ -1,4 +1,4 @@
----
+﻿---
 alwaysApply: false
 description: |
   架构规范 - 适用于以下场景自动加载：
@@ -34,7 +34,7 @@ description: |
 ## 二、目录结构
 
 ```
-Handsome-Agent/
+Agent-Z/
 ├── agent/        # 🧠 Decision - Agent 核心
 ├── tools/        # 🏃 Execution - 工具定义
 ├── skills/       # 🧠 Decision - 技能系统

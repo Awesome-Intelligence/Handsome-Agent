@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Environment loader for Handsome Agent.
+Environment loader for Agent-Z.
 """
 
 import os
@@ -44,9 +44,9 @@ def _sanitize_credentials():
             )
 
 
-def _get_handsome_home() -> Path:
-    """Get the Handsome Agent home directory."""
-    return Path.home() / ".handsome_agent"
+def _get_agentz_home() -> Path:
+    """Get the Agent-Z home directory."""
+    return Path.home() / ".agent_z"
 
 
 def load_env(
@@ -55,7 +55,7 @@ def load_env(
 ) -> list[Path]:
     """Load environment files with user config taking precedence."""
     loaded: list[Path] = []
-    home = _get_handsome_home()
+    home = _get_agentz_home()
     home.mkdir(parents=True, exist_ok=True)
 
     user_env = home / ".env"

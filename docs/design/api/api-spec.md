@@ -1,4 +1,4 @@
-# Handsome Agent API 规范
+# Agent-Z API 规范
 
 **版本**: v1.0.0  
 **最后更新**: 2026-06-09  
@@ -342,7 +342,7 @@ GET /api/v1/health
 ```python
 import httpx
 
-class HandsomeAgentClient:
+class AgentZClient:
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url
         self.headers = {"Authorization": f"Bearer {api_key}"}

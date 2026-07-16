@@ -1,5 +1,5 @@
-"""
-Skills module for Handsome Agent
+﻿"""
+Skills module for Agent-Z
 
 🧠 Decision - 📋 Skills
 """

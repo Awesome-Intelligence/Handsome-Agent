@@ -1,4 +1,4 @@
-# Dockerfile for Handsome Agent Gateway Service
+# Dockerfile for Agent-Z Gateway Service
 # 架构变更：合并 api/ 到 gateway/adapters/openai_adapter.py
 # 统一使用 8000 端口
 

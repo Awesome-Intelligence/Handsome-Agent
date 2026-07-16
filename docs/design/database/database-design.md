@@ -1,4 +1,4 @@
-# Handsome Agent 数据库设计
+# Agent-Z 数据库设计
 
 **版本**: v1.0.0  
 **最后更新**: 2026-06-09  
@@ -31,9 +31,9 @@
 ### 1.2 存储架构
 
 ```
-Handsome Agent 数据存储
+Agent-Z 数据存储
 ├── SQLite (结构化数据)
-│   └── handsome_agent.db   # 所有表存储在单一数据库文件
+│   └── agentz.db   # 所有表存储在单一数据库文件
 │                           # 包含: sessions, messages, skills 等
 │
 ├── JSON 文件 (配置数据)
@@ -75,7 +75,7 @@ class DatabaseManager:
     
     def __init__(self, data_dir: Path) -> None:
         self.data_dir = data_dir
-        self.db_path = data_dir / "handsome_agent.db"
+        self.db_path = data_dir / "agentz.db"
         self._ensure_db_path()
     
     def _ensure_db_path(self):
@@ -113,21 +113,21 @@ class DatabaseManager:
 {
   "version": "3.0.0",
   "storage": {
-    "data_dir": "~/.handsome_agent",
+    "data_dir": "~/.agent_z",
     "database": {
       "type": "sqlite",
-      "path": "~/.handsome_agent/handsome_agent.db"
+      "path": "~/.agent_z/agentz.db"
     },
-    "sessions_dir": "~/.handsome_agent/sessions",
-    "skills_dir": "~/.handsome_agent/skills",
-    "memories_dir": "~/.handsome_agent/memories",
-    "logs_dir": "~/.handsome_agent/logs"
+    "sessions_dir": "~/.agent_z/sessions",
+    "skills_dir": "~/.agent_z/skills",
+    "memories_dir": "~/.agent_z/memories",
+    "logs_dir": "~/.agent_z/logs"
   },
   "backup": {
     "enabled": true,
     "interval": "1d",
     "retention": "7d",
-    "path": "~/.handsome_agent/backups"
+    "path": "~/.agent_z/backups"
   }
 }
 ```
@@ -252,7 +252,7 @@ CREATE TABLE system_config (
 
 -- 初始化默认配置
 INSERT INTO system_config (key, value, type, description) VALUES
-    ('app.name', 'Handsome Agent', 'string', '应用名称'),
+    ('app.name', 'Agent-Z', 'string', '应用名称'),
     ('app.version', '3.0.0', 'string', '应用版本'),
     ('llm.provider', 'openai', 'string', '默认 LLM 提供商'),
     ('llm.model', 'gpt-4', 'string', '默认模型'),
@@ -423,16 +423,16 @@ class BackupManager:
     def create_backup(self) -> Path:
         """创建备份"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"handsome_agent_backup_{timestamp}"
+        backup_name = f"agentz_backup_{timestamp}"
         backup_path = self.backup_dir / backup_name
         
         # 备份 SQLite 数据库
         db_backup = backup_path / "db"
         db_backup.mkdir(parents=True)
         
-        db_file = self.data_dir / "handsome_agent.db"
+        db_file = self.data_dir / "agentz.db"
         if db_file.exists():
-            shutil.copy2(db_file, db_backup / "handsome_agent.db")
+            shutil.copy2(db_file, db_backup / "agentz.db")
         
         # 备份配置文件
         config_backup = backup_path / "config"
@@ -457,9 +457,9 @@ class BackupManager:
 ### 6.2 备份调度配置
 
 ```yaml
-# cron.d/handsome-agent-backup
+# cron.d/Agent-Z-backup
 # 每天凌晨 2 点执行备份
-0 2 * * * root /opt/handsome-agent/scripts/backup.sh
+0 2 * * * root /opt/Agent-Z/scripts/backup.sh
 ```
 
 ---
@@ -484,18 +484,18 @@ class BackupManager:
 
 **Q: 如何查看数据库大小？**
 ```bash
-ls -lh ~/.handsome_agent/*.db
-du -sh ~/.handsome_agent/
+ls -lh ~/.agent_z/*.db
+du -sh ~/.agent_z/
 ```
 
 **Q: 如何手动备份？**
 ```bash
-cp ~/.handsome_agent/handsome_agent.db ~/backups/
+cp ~/.agent_z/agentz.db ~/backups/
 ```
 
 **Q: 如何重置数据库？**
 ```bash
-rm ~/.handsome_agent/handsome_agent.db
+rm ~/.agent_z/agentz.db
 # 下次启动时会自动创建
 ```
 
@@ -504,3 +504,4 @@ rm ~/.handsome_agent/handsome_agent.db
 **版权声明**: 本文档采用 MIT 许可证开源。
 
 **最后更新**: 2026-06-09
+

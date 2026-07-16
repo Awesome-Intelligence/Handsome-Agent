@@ -45,7 +45,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
 
-from common.config import HANDSOME_HOME
+from common.config import AGENT_Z_HOME
 from common.logging_manager import get_system_logger
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ logger = get_system_logger("MemoryPlugin")
 
 # 插件目录
 _PLUGINS_DIR = Path(__file__).parent  # plugins/memory/
-_USER_PLUGINS_DIR = HANDSOME_HOME / "plugins" / "memory"
+_USER_PLUGINS_DIR = AGENT_Z_HOME / "plugins" / "memory"
 
 # 发现状态缓存
 _discovered: Optional[List[Tuple[str, Path]]] = None
@@ -178,7 +178,7 @@ def _iter_provider_dirs() -> List[Tuple[str, Path]]:
     
     顺序：
     1. Bundled plugins: <repo>/plugins/memory/<name>/
-    2. User plugins: $HANDSOME_HOME/plugins/<name>/
+    2. User plugins: $AGENT_Z_HOME/plugins/<name>/
     
     Yields:
         Tuple of (name, path)
@@ -314,7 +314,7 @@ def _load_provider_from_dir(name: str, path: Optional[Path] = None) -> Optional[
     
     # 确定模块名
     is_bundled = str(_PLUGINS_DIR) in str(path) or path.parent == _PLUGINS_DIR
-    module_name = f"plugins.memory.{name}" if is_bundled else f"_handsome_user_memory.{name}"
+    module_name = f"plugins.memory.{name}" if is_bundled else f"_agentz_user_memory.{name}"
     
     try:
         # 尝试 import

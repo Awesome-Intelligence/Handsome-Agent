@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Memory Curator - 自动记忆总结模块
@@ -36,7 +36,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING
 
-from common.config import HANDSOME_HOME
+from common.config import AGENT_Z_HOME
 from common.logging_manager import get_decision_logger
 
 if TYPE_CHECKING:
@@ -87,7 +87,7 @@ class CuratorConfig:
 
 def _state_file() -> Path:
     """状态文件路径"""
-    return HANDSOME_HOME / "memories" / ".curator_state"
+    return AGENT_Z_HOME / "memories" / ".curator_state"
 
 
 def _default_state() -> Dict[str, Any]:

@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Credential Manager Module - Handsome Agent
+Credential Manager Module - Agent-Z
 
 凭证管理器模块，提供密钥的安全存储和验证功能。
 

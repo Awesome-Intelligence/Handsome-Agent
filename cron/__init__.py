@@ -1,13 +1,13 @@
-"""Cron job scheduling subsystem for Handsome Agent.
+﻿"""Cron job scheduling subsystem for Agent-Z.
 
 🚪 Access - 🔧 System - Scheduled job execution
 🧠 Decision - ⏰ Scheduler - Persistent timed work
 
 Ported from Hermes's ``cron/`` package.
 Provides scheduled-task execution — jobs run from a persistent JSON store
-under ``$HANDSOME_HOME/cron/`` and are dispatched by a background ticker
+under ``$AGENT_Z_HOME/cron/`` and are dispatched by a background ticker
 invoked from the gateway daemon (or directly via
-``handsome cron tick``).
+``agentz cron tick``).
 
 Three schedule kinds are supported:
 
@@ -21,7 +21,7 @@ Two execution modes:
   * ``prompt`` — LLM-backed agent run (default)
   * ``script`` — classic watchdog (``--no-agent --script <path>``)
 
-A file lock on ``<HANDSOME_HOME>/cron/.tick.lock`` serializes tick()
+A file lock on ``<AGENT_Z_HOME>/cron/.tick.lock`` serializes tick()
 across processes so concurrent gateway / CLI invocations cannot
 double-fire.
 """

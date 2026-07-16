@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # 🚪 Access - 💬 CLI - 主入口
 
 """
-Main entry point for the Handsome Agent
+Main entry point for the Agent-Z
 
 Provides Text User Interface for testing and interaction.
 Updated to use the new _parser.py and commands.py modules.
@@ -107,7 +107,7 @@ def run_setup_if_needed():
         workspace_manager.mark_setup_complete()
 
     if not has_existing_config():
-        ui.print_header("首次运行 Handsome Agent")
+        ui.print_header("首次运行 Agent-Z")
         print()
         ui.print_info("提示: 运行 'python -m cli.main --setup' 可配置大模型")
         ui.print_info("使用 --query 参数可跳过设置直接查询")
@@ -958,7 +958,7 @@ def main():
 
     # Handle LLM configuration from saved config or args
     llm_provider = None
-    model_name = "Handsome Agent"
+    model_name = "Agent-Z"
     saved_llm_params = saved_config.get("llm_params", {})
 
     if LLM_AVAILABLE:
@@ -1013,7 +1013,7 @@ def main():
             {
                 "log_level": explanation_depth,
                 "file_enabled": logging_cfg.get("file_enabled", False),
-                "file_path": str(get_logs_dir() / "handsome-agent.log"),
+                "file_path": str(get_logs_dir() / "agent-z.log"),
                 "max_file_size": logging_cfg.get("max_file_size", 50 * 1024 * 1024),
                 "backup_count": logging_cfg.get("backup_count", 30),
                 "rotation": logging_cfg.get("rotation", "daily"),

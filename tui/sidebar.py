@@ -1,4 +1,4 @@
-"""
+﻿"""
 TUI 侧边栏组件 - 提供文件树、目标、Agent、日志面板
 使用 Textual TabbedContent + TabPane 组件实现
 """
@@ -1641,7 +1641,7 @@ class CronPane(Vertical, can_focus=True):
         if hb_age is None:
             text = t(
                 "tui.cron.heartbeat_idle",
-                fallback="⚪ ticker 未启动 (运行 'handsome cron tick' 或启动 gateway)",
+                fallback="⚪ ticker 未启动 (运行 'agentz cron tick' 或启动 gateway)",
             )
             cls = "unhealthy"
         elif ok_age is None or ok_age > 120:

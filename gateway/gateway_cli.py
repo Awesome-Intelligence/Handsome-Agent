@@ -1,4 +1,4 @@
-"""🚪 Access - 🚪Gateway - Gateway CLI 入口"""
+﻿"""🚪 Access - 🚪Gateway - Gateway CLI 入口"""
 
 import argparse
 import asyncio
@@ -9,7 +9,7 @@ import sys
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description="Handsome Agent Gateway",
+        description="Agent-Z Gateway",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

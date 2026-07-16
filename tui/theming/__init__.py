@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-TUI Theming System for Handsome Agent.
+TUI Theming System for Agent-Z.
 
 🚪 Access - 💬 TUI - Theming - 样式和主题管理（向后兼容层）
 

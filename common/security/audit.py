@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Agent-Z Contributors
+﻿# Copyright (c) 2026 Agent-Z Contributors
 #
 # 本项目采用 MIT 许可证开源
 # 详细信息请参见 LICENSE 文件
@@ -13,12 +13,12 @@ from pathlib import Path
 from typing import Optional
 
 from common.logging_manager import get_logger
-from common.config import HANDSOME_HOME
+from common.config import AGENT_Z_HOME
 
 logger = get_logger(__name__)
 
 # 审计日志路径
-_AUDIT_LOG_DIR = HANDSOME_HOME / "security"
+_AUDIT_LOG_DIR = AGENT_Z_HOME / "security"
 AUDIT_LOG = _AUDIT_LOG_DIR / "audit.log"
 AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
 

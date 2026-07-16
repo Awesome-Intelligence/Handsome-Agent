@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 A2A Protocol Data Models.
@@ -74,7 +74,7 @@ class AgentCard:
 
     Example:
         {
-            "name": "Handsome Agent",
+            "name": "Agent-Z",
             "description": "A versatile AI agent",
             "url": "http://localhost:8003",
             "version": "1.0.0",

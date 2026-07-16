@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Cronjob Tool Module
 
@@ -66,7 +66,7 @@ class CronJobManager:
     
     def __init__(self):
         self._jobs: Dict[str, CronJob] = {}
-        self._storage_path = Path.home() / ".handsome_agent" / "cron_jobs.json"
+        self._storage_path = Path.home() / ".agent_z" / "cron_jobs.json"
         self._load_jobs()
     
     def _load_jobs(self):

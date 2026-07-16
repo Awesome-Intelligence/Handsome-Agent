@@ -1,4 +1,4 @@
-"""Unit tests for the cron sidebar pane.
+﻿"""Unit tests for the cron sidebar pane.
 
 🚪 Access - 🧪 Tests - TUI cron pane
 
@@ -8,11 +8,11 @@ Covers:
   * :meth:`CronDetailScreen._format_meta`  - meta block rendering
     (id / name / state / schedule / next / last / error).
   * :meth:`CronDetailScreen._format_output_excerpt`  - reads most-recent
-    ``*.md`` under ``$HANDSOME_HOME/cron/output/<id>/`` and truncates.
+    ``*.md`` under ``$AGENT_Z_HOME/cron/output/<id>/`` and truncates.
   * :mod:`common.locales` i18n key coverage  - all ``tui.cron.*`` keys
     are present in all four catalogs (zh / en / ja / ko).
 
-All tests run hermetically: ``$HANDSOME_HOME`` is redirected to a tmpdir.
+All tests run hermetically: ``$AGENT_Z_HOME`` is redirected to a tmpdir.
 Textual is required to import the view module, so tests are skipped
 when the library is not installed (e.g. minimal CI image).
 """
@@ -150,16 +150,16 @@ class TestDetailFormatMeta:
 
 class TestDetailFormatOutputExcerpt:
     """CronDetailScreen._format_output_excerpt reads from
-    ``$HANDSOME_HOME/cron/output/<id>/``."""
+    ``$AGENT_Z_HOME/cron/output/<id>/``."""
 
     def test_no_output_dir_returns_placeholder(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HANDSOME_HOME", str(tmp_path))
+        monkeypatch.setenv("AGENT_Z_HOME", str(tmp_path))
         job = {"id": "no-such-job"}
         out = CronDetailScreen._format_output_excerpt(job)
         assert "no output" in out.lower() or "暂无" in out or "出力" in out or "출력" in out
 
     def test_empty_dir_returns_placeholder(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HANDSOME_HOME", str(tmp_path))
+        monkeypatch.setenv("AGENT_Z_HOME", str(tmp_path))
         (tmp_path / "cron" / "output" / "empty-job").mkdir(parents=True)
         out = CronDetailScreen._format_output_excerpt({"id": "empty-job"})
         # The text below covers all four languages.
@@ -171,7 +171,7 @@ class TestDetailFormatOutputExcerpt:
         )
 
     def test_reads_most_recent_md(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HANDSOME_HOME", str(tmp_path))
+        monkeypatch.setenv("AGENT_Z_HOME", str(tmp_path))
         out_dir = tmp_path / "cron" / "output" / "happy-job"
         out_dir.mkdir(parents=True)
         # Two files; ensure the newer one is picked
@@ -186,7 +186,7 @@ class TestDetailFormatOutputExcerpt:
         assert "old run" not in out
 
     def test_truncates_long_excerpt(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HANDSOME_HOME", str(tmp_path))
+        monkeypatch.setenv("AGENT_Z_HOME", str(tmp_path))
         out_dir = tmp_path / "cron" / "output" / "long-job"
         out_dir.mkdir(parents=True)
         long_body = "x" * 5000
@@ -203,7 +203,7 @@ class TestDetailFormatOutputExcerpt:
 
     def test_path_escape_safe(self, tmp_path, monkeypatch):
         """Job IDs with traversal tokens must not escape the output dir."""
-        monkeypatch.setenv("HANDSOME_HOME", str(tmp_path))
+        monkeypatch.setenv("AGENT_Z_HOME", str(tmp_path))
         out = CronDetailScreen._format_output_excerpt({"id": "../escape"})
         # The function never raises; falls back to placeholder.
         assert "no output" in out.lower() or "暂无" in out or "出力" in out or "출력" in out

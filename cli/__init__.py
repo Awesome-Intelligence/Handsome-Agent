@@ -1,5 +1,5 @@
-"""
-CLI module for the Handsome Agent.
+﻿"""
+CLI module for the Agent-Z.
 
 This package contains the Command Line Interface implementation that provides
 user interaction capabilities and argument parsing.
