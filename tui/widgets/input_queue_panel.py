@@ -52,8 +52,8 @@ class InputQueuePanel(Container):
     - 队列长度 > 0 时自动展开显示（.has-queue class）
     - 无标题行，无边框
     - 宽度 100% 全屏，背景色跟随主题（$surface）
-    - 每个队列项：序号 + 内容预览 + 删除按钮 ×
-    - 底部操作栏：⏳ 共 N 条  +  🗑 清空全部
+    - 每个队列项：⏳ 排队提示符 + 内容预览 + 删除按钮 ×
+    - 无底部操作栏，仅支持单项删除
     """
 
     DEFAULT_CSS = ""  # 样式集中在 tui/textual_app/css/input_queue.py
@@ -95,7 +95,7 @@ class InputQueuePanel(Container):
             logger.debug(f"Failed to refresh queue panel: {e}")
 
     def _rebuild_items(self) -> None:
-        """根据绑定的 deque 重建所有 ListItem。"""
+        """根据绑定的 deque 重建所有 ListItem（仅队列项，无底部操作栏）。"""
         if self._queue_ref is None:
             return
         try:
@@ -109,28 +109,29 @@ class InputQueuePanel(Container):
         for idx, content in enumerate(items):
             list_view.mount(self._build_queue_item(idx, content))
 
-        list_view.mount(self._build_footer(len(items)))
-
     def _build_queue_item(self, index: int, content: str) -> ListItem:
-        """构建单个队列项 ListItem。"""
-        display_index = f"{index + 1}."
+        """构建单个队列项 ListItem（⏳ 提示符 + 内容 + 删除按钮，无序号）。
+
+        Args:
+            index: 在队列中的索引，用于删除按钮的 id 绑定（用户不可见）
+            content: 队列消息内容
+        """
         if len(content) > self._max_content_preview:
             display_content = content[: self._max_content_preview] + "..."
         else:
             display_content = content
+        # 排队提示符：⏳ 内容...
+        prefixed_content = f"⏳ {display_content}"
 
         if Text is not None:
-            index_text = Text(display_index)
-            content_text = Text(display_content)
+            content_text = Text(prefixed_content)
             delete_text = Text(" ×")
         else:
-            index_text = display_index
-            content_text = display_content
+            content_text = prefixed_content
             delete_text = " ×"
 
         item = ListItem(
             Horizontal(
-                Static(index_text, classes="queue-index"),
                 Static(content_text, classes="queue-content"),
                 Static(
                     delete_text,
@@ -142,25 +143,6 @@ class InputQueuePanel(Container):
             classes="queue-item",
         )
         return item
-
-    def _build_footer(self, total: int) -> ListItem:
-        """构建底部操作栏。"""
-        if Text is not None:
-            count_text = Text(f"⏳ 共 {total} 条排队")
-            clear_text = Text("🗑 清空全部")
-        else:
-            count_text = f"⏳ 共 {total} 条排队"
-            clear_text = "🗑 清空全部"
-
-        footer = ListItem(
-            Horizontal(
-                Static(count_text, classes="queue-count"),
-                Static(clear_text, classes="queue-clear", id="queue-clear-all"),
-                classes="queue-footer-row",
-            ),
-            classes="queue-footer",
-        )
-        return footer
 
     @on(Click, ".queue-delete")
     def _on_delete_click(self, event: Click) -> None:
@@ -174,15 +156,6 @@ class InputQueuePanel(Container):
                     self.on_delete(idx)
         except Exception as e:
             logger.debug(f"Queue delete click failed: {e}")
-
-    @on(Click, "#queue-clear-all")
-    def _on_clear_all_click(self, event: Click) -> None:
-        """点击清空全部按钮。"""
-        try:
-            if callable(self.on_clear_all):
-                self.on_clear_all()
-        except Exception as e:
-            logger.debug(f"Queue clear-all click failed: {e}")
 
     def compose(self):
         yield ListView(id="queue-list")

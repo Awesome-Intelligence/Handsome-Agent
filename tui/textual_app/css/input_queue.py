@@ -35,9 +35,9 @@ INPUT_QUEUE_CSS = """
     display: block;
 }
 
-/* ListView 列表容器 */
+/* ListView 列表容器：height:auto 使面板高度根据内容项数量自适应（最低 2 行 = 1 条数据 + 1 个底部操作栏） */
 #input-queue-panel > #queue-list {
-    height: 1fr;
+    height: auto;
     width: 100%;
     background: transparent;
     border: none;
@@ -75,16 +75,7 @@ INPUT_QUEUE_CSS = """
     width: 100%;
 }
 
-/* 序号列 */
-.queue-item .queue-index {
-    width: 4;
-    color: $warning;
-    text-style: bold;
-    height: 100%;
-    content-align: left middle;
-}
-
-/* 内容预览列 */
+/* 内容预览列（无序号，直接从左侧开始显示） */
 .queue-item .queue-content {
     width: 1fr;
     color: $foreground;
@@ -105,44 +96,5 @@ INPUT_QUEUE_CSS = """
     color: $error;
     text-style: bold;
     background: $error 10%;
-}
-
-/* 底部操作栏 */
-.queue-footer {
-    layout: horizontal;
-    align: left middle;
-    padding: 0 2;
-    height: 1;
-    background: $primary 10%;
-    border: none;
-}
-
-.queue-footer .queue-footer-row {
-    layout: horizontal;
-    align: left middle;
-    height: 100%;
-    width: 100%;
-}
-
-/* 排队数量文字 */
-.queue-footer .queue-count {
-    width: 1fr;
-    color: $warning;
-    height: 100%;
-    content-align: left middle;
-}
-
-/* 清空全部按钮 */
-.queue-footer .queue-clear {
-    width: auto;
-    color: $error;
-    padding: 0 1;
-    height: 100%;
-    content-align: right middle;
-}
-
-.queue-footer .queue-clear:hover {
-    background: $error 20%;
-    text-style: bold;
 }
 """

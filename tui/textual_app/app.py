@@ -299,11 +299,8 @@ class AgentApp(
                 return
         try:
             panel.bind_queue(self._pending_queue)
-            panel.set_callbacks(
-                on_delete=self._on_queue_item_delete,
-                on_clear_all=self._on_queue_clear_all,
-            )
-            self._logger.info('InputQueuePanel initialized with queue binding and callbacks')
+            panel.set_callbacks(on_delete=self._on_queue_item_delete)
+            self._logger.info('InputQueuePanel initialized with queue binding and delete callback')
         except Exception as e:
             self._logger.warning(f'Failed to initialize InputQueuePanel: {e}')
 
@@ -317,17 +314,6 @@ class AgentApp(
                 self._update_queue_display()
         except Exception as e:
             self._logger.debug(f'Failed to delete queue item at {index}: {e}')
-
-    def _on_queue_clear_all(self) -> None:
-        """清空整个队列（由悬浮面板清空按钮触发）."""
-        try:
-            cleared_count = len(self._pending_queue)
-            if cleared_count > 0:
-                self._pending_queue.clear()
-                self._logger.info(f'Queue cleared ({cleared_count} items)')
-                self._update_queue_display()
-        except Exception as e:
-            self._logger.debug(f'Failed to clear queue: {e}')
 
     async def _load_stylesheets(self) -> None:
         if get_stylesheets is None:
