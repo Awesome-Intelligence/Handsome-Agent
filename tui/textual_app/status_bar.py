@@ -9,7 +9,9 @@ v8.x 从 ``tui/textual_app/app.py`` L664–781 抽出：
 - ``_update_used_tools``         工具使用统计
 - ``_update_queue_display``      队列状态显示
 - ``_toggle_budget_mode``        Goal/迭代模式切换
-- ``_on_click_mode_toggle``      切换按钮点击
+- ``_on_status_mode_toggle_clicked`` 切换按钮点击（主类 @on 调用）
+- ``_update_mode_toggle_label``  模式按钮初始化显示
+- ``_update_mode_toggle_tooltip`` 模式按钮 tooltip
 
 依赖主类的 ``self._widget_cache`` / ``self._used_tools`` /
 ``self._pending_queue`` / ``self._agent`` / ``self._current_token_count`` /
@@ -22,7 +24,7 @@ import logging
 
 from tui.core.formatters import format_token_count
 
-from .imports import Click, on, t  # type: ignore[attr-defined]
+from .imports import t  # type: ignore[attr-defined]
 
 logger = logging.getLogger(__name__)
 
@@ -145,27 +147,92 @@ class StatusBarMixin:
 
                 if state.budget_mode == BudgetMode.TURN:
                     state._enable_iteration_mode()
-                    mode_icon = t("tui.status.bar.mode_iter")
-                    mode_text = t("tui.status.bar.mode_iter").replace("⚡ ", "")
+                    mode_icon = t("tui.status_bar.mode_iter", "⚡ 单步")
+                    mode_text = "单步"
                 else:
                     state._enable_goal_mode()
-                    mode_icon = t("tui.status.bar.mode_goal", "🎯 Goal")
-                    mode_text = "Goal"
+                    mode_icon = t("tui.status_bar.mode_goal", "🎯 目标")
+                    mode_text = "目标"
 
                 # 更新按钮显示
                 toggle_widget = self._widget_cache.get("status_mode_toggle")
                 if toggle_widget:
                     toggle_widget.update(mode_icon)
 
+                # 同步更新 tooltip
+                self._update_mode_toggle_tooltip()
+
                 self._logger.info(f"Budget mode switched to: {mode_text}")
         except Exception as e:
             self._logger.debug(f"Failed to toggle budget mode: {e}")
 
-    @on(Click, "#status-mode-toggle")
-    def _on_click_mode_toggle(self, event) -> None:
-        """处理模式切换按钮点击事件."""
-        self._logger.info("Mode toggle clicked!")
+    def _on_status_mode_toggle_clicked(self, event=None) -> None:
+        """处理模式切换按钮点击事件（显式方法供主类调用）."""
+        self._logger.info("Mode toggle clicked (explicit handler)!")
         self._toggle_budget_mode()
+
+    def _update_mode_toggle_label(self) -> None:
+        """初始化/更新模式切换按钮显示（根据当前 agent state）."""
+        try:
+            toggle_widget = self._widget_cache.get("status_mode_toggle")
+            if toggle_widget is None:
+                try:
+                    from .imports import Static
+                    toggle_widget = self.query_one("#status-mode-toggle", Static)
+                    self._widget_cache["status_mode_toggle"] = toggle_widget
+                except Exception:
+                    return
+            # 尝试从 agent state 读取当前模式
+            if (
+                hasattr(self, "_agent")
+                and self._agent
+                and hasattr(self._agent, "state")
+            ):
+                from agent.state import BudgetMode
+                state = self._agent.state
+                if state.budget_mode == BudgetMode.TURN:
+                    toggle_widget.update(t("tui.status_bar.mode_goal", "🎯 目标"))
+                else:
+                    toggle_widget.update(t("tui.status_bar.mode_iter", "⚡ 单步"))
+            else:
+                # 默认显示单步
+                toggle_widget.update(t("tui.status_bar.mode_iter", "⚡ 单步"))
+        except Exception as e:
+            self._logger.debug(f"Failed to update mode toggle label: {e}")
+
+    def _update_mode_toggle_tooltip(self) -> None:
+        """更新模式切换按钮的 tooltip."""
+        try:
+            toggle_widget = self._widget_cache.get("status_mode_toggle")
+            if toggle_widget is None:
+                try:
+                    from .imports import Static
+                    toggle_widget = self.query_one("#status-mode-toggle", Static)
+                    self._widget_cache["status_mode_toggle"] = toggle_widget
+                except Exception:
+                    return
+            toggle_widget.tooltip = t(
+                "tui.command.toggle_budget_mode",
+                "切换单步/目标模式 (当前: {mode})",
+                mode=self._get_current_budget_mode_label(),
+            )
+        except Exception as e:
+            self._logger.debug(f"Failed to update mode toggle tooltip: {e}")
+
+    def _get_current_budget_mode_label(self) -> str:
+        """获取当前预算模式的中文标签."""
+        try:
+            if (
+                hasattr(self, "_agent")
+                and self._agent
+                and hasattr(self._agent, "state")
+            ):
+                from agent.state import BudgetMode
+                if self._agent.state.budget_mode == BudgetMode.TURN:
+                    return t("tui.status_bar.mode_goal", "🎯 目标")
+            return t("tui.status_bar.mode_iter", "⚡ 单步")
+        except Exception:
+            return t("tui.status_bar.mode_iter", "⚡ 单步")
 
 
 __all__ = ["StatusBarMixin"]

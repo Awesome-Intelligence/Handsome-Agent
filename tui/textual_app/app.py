@@ -243,6 +243,8 @@ class AgentApp(
         self._update_status_bar()
         self._update_theme_toggle_label()
         self._update_theme_toggle_tooltip()
+        self._update_mode_toggle_label()
+        self._update_mode_toggle_tooltip()
         self.call_later(self._generate_wisdom_async)
         self.call_later(self._send_welcome_message)
         self._register_event_listeners()
@@ -340,6 +342,11 @@ class AgentApp(
     def _handle_theme_toggle_click(self, _event: Click) -> None:
         """处理 #theme-toggle 点击事件."""
         self._on_theme_toggle_click()
+
+    @on(Click, '#status-mode-toggle')
+    def _handle_status_mode_toggle_click(self, _event: Click) -> None:
+        """处理 #status-mode-toggle 点击事件（单步/目标模式切换）."""
+        self._on_status_mode_toggle_clicked(_event)
 
     def _update_token_count(self) -> None:
         """更新 token 计数（方案B：消息完成后估算，不影响性能）."""
