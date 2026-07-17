@@ -415,15 +415,13 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         )
 
     def _build_llm_content(self, settings: SettingsDocument) -> ComposeResult:
-        """构建 LLM 设置内容 - 支持多 Provider 配置"""
+        """构建 LLM 设置内容 - 已配置 Provider 列表置顶，选中后下方编辑"""
         yield Static("🤖 大模型配置", classes="setting-group-title")
 
-        # 当前激活的 provider
         active_provider = (
             settings.llm.provider if hasattr(settings.llm, "provider") else ""
         )
 
-        # 已配置的 providers 列表
         providers_items = (
             settings.providers.items if hasattr(settings, "providers") else {}
         )
@@ -433,7 +431,6 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         except ImportError:
             CATALOG = {}
 
-        # 构建 provider 选项列表（id -> display name）
         available = []
         for pid in CATALOG:
             available.append((CATALOG[pid]["name"], pid))
@@ -442,8 +439,25 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                 available.append((pid.title(), pid))
         available.sort(key=lambda x: x[0])
 
-        # ── 添加 / 编辑 Provider 表单（始终可见）────────────────────
-        # 预填当前激活 provider 的已有配置
+        # ── 已配置 Provider 列表（可点击选中）────────────────────
+        yield Static("已配置模型", classes="setting-row")
+        if providers_items:
+            yield VerticalScroll(
+                *(
+                    self._iter_provider_items(
+                        providers_items, CATALOG, active_provider
+                    )
+                ),
+                id="llm-providers-list",
+                classes="llm-providers-list",
+            )
+        else:
+            yield Static(
+                "[dim]尚未配置任何 Provider[/dim]",
+                classes="provider-config-item",
+            )
+
+        # 预填当前选中 provider 的已有配置
         cur_pconf = (
             providers_items.get(active_provider)
             if active_provider in providers_items
@@ -452,10 +466,10 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         cur_key = getattr(cur_pconf, "api_key", "") or ""
         cur_model = getattr(cur_pconf, "model", "") or ""
         cur_url = getattr(cur_pconf, "base_url", "") or ""
-        # Select value must be the pid (option tuple's 2nd element), not display name
         cur_pid = active_provider if active_provider in dict(available) else None
 
-        yield Static("添加 / 编辑 Provider", classes="setting-group-title")
+        # ── 编辑 / 添加表单（始终可见）────────────────────────
+        yield Static("编辑 / 添加 Provider", classes="setting-group-title")
 
         yield Static("Provider", classes="setting-row")
         select_kwargs = {"id": "llm-provider-select", "allow_blank": True, "classes": "setting-row"}
@@ -487,27 +501,6 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             id="llm-baseurl-input",
             classes="setting-row",
         )
-
-        # ── 已配置的 providers 列表（可点击编辑）──────────────────
-        yield Static("已配置模型", classes="setting-row")
-        if providers_items:
-            yield VerticalScroll(
-                *(
-                    self._iter_provider_items(
-                        providers_items, CATALOG, active_provider
-                    )
-                ),
-                id="llm-providers-list",
-                classes="llm-providers-list",
-            )
-        else:
-            yield Static(
-                "[dim]尚未配置任何 Provider[/dim]",
-                classes="provider-config-item",
-            )
-
-        # 编辑详情区（点击列表项后挂载）
-        yield Container(id="llm-provider-details")
 
     def _iter_provider_items(self, providers_items, CATALOG, active_provider):
         """生成 provider 列表项（供 VerticalScroll compose 使用）。"""

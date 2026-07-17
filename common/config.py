@@ -18,7 +18,11 @@ import logging
 import os
 import platform
 import re
+import shutil
+import sys
+import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -31,6 +35,32 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 _IS_WINDOWS = platform.system() == "Windows"
+
+# Env var names that influence how the next subprocess executes or relocate
+# Agent-Z state — never writable through ``set_config_value`` / .env writers.
+# Defence in depth against a future dashboard/CLI writer planting RCE or
+# state-relocation values. Mirrors Hermes' _ENV_VAR_NAME_DENYLIST.
+_ENV_VAR_NAME_DENYLIST: frozenset = frozenset({
+    # Loader / linker
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "LD_DEBUG",
+    "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+    # Python
+    "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONUSERBASE",
+    "PYTHONEXECUTABLE", "PYTHONNOUSERSITE",
+    # Node
+    "NODE_OPTIONS", "NODE_PATH",
+    # General
+    "PATH", "SHELL", "BROWSER", "EDITOR", "VISUAL", "PAGER",
+    # Git
+    "GIT_SSH_COMMAND", "GIT_EXEC_PATH", "GIT_SHELL",
+    # Agent-Z runtime location — never via writer.
+    "AGENT_Z_HOME", "AGENT_Z_PROFILE", "AGENT_Z_CONFIG", "AGENT_Z_ENV",
+})
+
+# Track which (config_path, mtime_ns, size) tuples we've already warned about
+# so concurrent CLI/gateway loads of a broken config.yaml don't spam stderr
+# every call. Cleared automatically when the file changes (different mtime).
+_CONFIG_PARSE_WARNED: set = set()
 
 # =============================================================================
 # Paths
@@ -91,8 +121,6 @@ DEFAULT_LLM_BASE_URLS = {
 # =============================================================================
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    # Primary model: "" means use the first configured provider's default
-    "model": "",
     # Named provider overrides: provider_name -> {api_key, base_url, model}
     "providers": {},
     # Fallback chains: [{provider, model, base_url}, ...]
@@ -100,8 +128,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "llm": {
         "provider": "",
         "model": "",
-        "api_key": "",
-        "base_url": "",
     },
     "model_settings": {
         "name": "",
@@ -160,6 +186,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "judge_timeout": 30.0,
         # Goal judge max output tokens.
         "judge_max_tokens": 4096,
+        # Freshness window for auto-continue note after gateway crash (seconds).
+        # After a crash/restart/SIGTERM mid-run, the next message gets a
+        # "[System note: your previous turn was interrupted]" prepended.
+        # Stale markers (transcript hours/days old) can revive unrelated old tasks.
+        # This window is the max age of the last transcript row for which we
+        # still inject the continue note. Set 0 to always inject.
+        "gateway_auto_continue_freshness": 3600,
     },
     "terminal": {
         "backend": "local",
@@ -173,13 +206,35 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "docker_volumes": [],
         "docker_network": True,
         "docker_extra_args": [],
-        "docker_env": [],
+        "docker_env": {},
+        "docker_forward_env": [],
+        "singularity_image": "docker://nikolaik/python-nodejs:python3.11-nodejs20",
+        "modal_image": "nikolaik/python-nodejs:python3.11-nodejs20",
+        "daytona_image": "nikolaik/python-nodejs:python3.11-nodejs20",
         "ssh_host": None,
         "ssh_user": None,
         "ssh_port": 22,
         "ssh_key": None,
         "daemon_term_grace_seconds": 2.0,
-        "persistent_shell": False,
+        "persistent_shell": True,
+        # HOME handling for host tool subprocesses:
+        #   auto    — host keeps real OS-user HOME; containers use AGENT_Z_HOME/home (default)
+        #   real    — force the real OS-user HOME
+        #   profile — force AGENT_Z_HOME/home when it exists
+        "home_mode": "auto",
+        # Extra files to source in the login shell when building the
+        # per-session environment snapshot. Use this when tools like nvm,
+        # pyenv, asdf need files that a bash login shell would skip.
+        # Paths support ~ and ${VAR}. Missing files are silently skipped.
+        "shell_init_files": [],
+        # When true, Hermes sources ~/.profile, ~/.bash_profile, ~/.bashrc
+        # in the login shell used to build the environment snapshot.
+        "auto_source_bashrc": True,
+        # Container resource limits (docker, singularity, modal, daytona — ignored for local/ssh)
+        "container_cpu": 1,
+        "container_memory": 5120,       # MB (default 5GB)
+        "container_disk": 51200,        # MB (default 50GB)
+        "container_persistent": True,   # Persist filesystem across sessions
     },
     "tool_loop_guardrails": {
         "warnings_enabled": True,
@@ -197,7 +252,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "compression": {
         "enabled": True,
-        "threshold": 0.75,
+        "threshold": 0.50,            # compress when context usage exceeds this ratio
+        "target_ratio": 0.20,         # fraction of threshold to preserve as recent tail
+        "protect_last_n": 20,        # minimum recent messages to keep uncompressed
+        "hygiene_hard_message_limit": 5000,  # gateway session-hygiene force-compress threshold by message count
+        "protect_first_n": 3,         # non-system head messages always preserved verbatim
+        "abort_on_summary_failure": False,  # When True, auto-compression that fails aborts the run
     },
     "memory": {
         "enabled": True,
@@ -265,6 +325,40 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "advanced_stealth": False,
         "session_timeout": 300,
         "inactivity_timeout": 120,
+        # Timeout for browser commands in seconds (screenshot, navigate, etc.)
+        "command_timeout": 30,
+        # Auto-record browser sessions as WebM videos
+        "record_sessions": False,
+        # Allow navigating to private/internal IPs (localhost, 192.168.x.x, etc.)
+        "allow_private_urls": False,
+        # Browser engine for local mode: "auto", "lightpanda", "chrome"
+        "engine": "auto",
+        # When a cloud provider is set, auto-spawn local Chromium for LAN/localhost URLs
+        "auto_local_for_private_urls": True,
+        # Optional persistent CDP endpoint for attaching to an existing Chromium/Chrome
+        "cdp_url": "",
+        # Allow browser_console(expression=...) to use sensitive JS primitives
+        "allow_unsafe_evaluate": False,
+        # CDP supervisor — dialog + frame detection via persistent WebSocket.
+        # Active only when a CDP-capable backend is attached (Browserbase or local Chrome).
+        "dialog_policy": "must_respond",  # must_respond | auto_dismiss | auto_accept
+        "dialog_timeout_s": 300,  # Safety auto-dismiss after N seconds under must_respond
+        # Camofox — anti-detection Firefox configuration
+        "camofox": {
+            "managed_persistence": False,  # Stable profile-scoped userId
+            "user_id": "",
+            "session_key": "",
+            "adopt_existing_tab": False,
+            # Rewrite loopback URLs to host alias inside Docker Camofox
+            "rewrite_loopback_urls": False,
+            "loopback_host_alias": "host.docker.internal",
+        },
+    },
+    "web": {
+        "backend": "",           # shared fallback — applies to both search and extract
+        "search_backend": "",    # per-capability override for web_search (e.g. "searxng")
+        "extract_backend": "",   # per-capability override for web_extract (e.g. "native")
+        "extract_char_limit": 15000,  # per-page char budget for web_extract
     },
     "stt": {
         "enabled": False,
@@ -288,6 +382,37 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "vision_tools": False,
         "moa_tools": False,
         "image_tools": False,
+    },
+    # Filesystem checkpoints — automatic snapshots before destructive file ops.
+    # When enabled, the agent takes a snapshot of the working directory once
+    # per conversation turn (on first write_file/patch call). Use /rollback
+    # to restore.
+    "checkpoints": {
+        "enabled": False,
+        "max_snapshots": 20,           # Max checkpoints per working directory
+        "max_total_size_mb": 500,      # Hard ceiling on ~/.agent_z/checkpoints/ size
+        "max_file_size_mb": 10,        # Skip files larger than this when staging
+        "auto_prune": True,            # Sweep orphans/stale at startup
+        "retention_days": 7,
+        "delete_orphans": True,
+        "min_interval_hours": 24,
+    },
+    # Hard cap (chars) for a single automatic context file such as SOUL.md,
+    # AGENTS.md, CLAUDE.md, .agent_z.md before Hermes applies head/tail
+    # truncation. null (default) lets the cap scale with model's context window.
+    "context_file_max_chars": None,
+    # Maximum characters returned by a single read_file call. Reads that exceed
+    # this are rejected with guidance to use offset+limit.
+    "file_read_max_chars": 100_000,
+    # Seconds to wait at agent-build time for in-flight MCP server discovery
+    # to finish before the agent snapshots its tool list. MCP discovery runs
+    # in a background thread so a slow/dead server can't freeze startup.
+    "mcp_discovery_timeout": 1.5,
+    # Tool-output truncation thresholds.
+    "tool_output": {
+        "max_bytes": 50_000,        # terminal_tool output cap in chars
+        "max_lines": 2000,          # read_file pagination cap
+        "max_line_length": 2000,    # per-line cap for line-numbered view
     },
     "platforms": {},
 }
@@ -315,7 +440,14 @@ _LEGACY_JSON_MIGRATION_MAP = {
 
 _CONFIG_LOCK = threading.RLock()
 _CONFIG_CACHE: dict[str, Any] = {}
-_LAST_LOAD_STATS: tuple[int, int, int, int] = (0, 0, 0, 0)  # mtime_ns, size, env_hash
+# Cache signature = (mtime_ns, size, env_ref_snapshot_dict_id).
+# The snapshot is a frozendict-like view of ``{VAR: current_env_value}`` for
+# every ``${VAR}`` referenced anywhere in the merged config — so when an
+# external ``.env`` rotation or in-process ``os.environ`` mutation changes a
+# referenced variable, the next ``load_config()`` correctly invalidates the
+# cache instead of returning stale expanded values.
+_LAST_LOAD_STATS: tuple[int, int, int] = (0, 0, 0)
+_LAST_ENV_SNAPSHOT: dict[str, Optional[str]] = {}
 
 
 def _get_file_stats(path: Path) -> tuple[int, int]:
@@ -327,10 +459,115 @@ def _get_file_stats(path: Path) -> tuple[int, int]:
         return 0, 0
 
 
-def _env_hash() -> int:
-    """Hash of relevant env vars for cache invalidation."""
-    relevant = {k: v for k, v in os.environ.items() if k.startswith("AGENTZ_")}
-    return hash("".join(f"{k}={v};" for k, v in sorted(relevant.items())))
+# ponytail: also detects ${AGENTZ_*}-prefixed refs that match Hermes-style
+# conventions, but the writer-prefix check in the previous code missed plain
+# $FOO refs. The snapshot approach below catches every ${...} reference.
+_ENV_REF_PATTERN = re.compile(r"\$\{([^}:]+)(?::-(.*?))?\}")
+
+
+def _extract_env_refs(value: Any, refs: Optional[set] = None) -> set:
+    """Walk a config tree and collect every ``${VAR}`` variable name.
+
+    Used to build the env snapshot that drives cache invalidation: if any
+    of these names change in ``os.environ`` between loads, the cached
+    expanded config is stale and must be rebuilt.
+    """
+    if refs is None:
+        refs = set()
+    if isinstance(value, str):
+        for m in _ENV_REF_PATTERN.finditer(value):
+            refs.add(m.group(1))
+    elif isinstance(value, dict):
+        for v in value.values():
+            _extract_env_refs(v, refs)
+    elif isinstance(value, list):
+        for item in value:
+            _extract_env_refs(item, refs)
+    return refs
+
+
+def _env_snapshot(config: dict) -> dict[str, Optional[str]]:
+    """Snapshot ``{VAR: current os.environ value}`` for every ``${VAR}`` in config."""
+    refs = _extract_env_refs(config)
+    return {name: os.environ.get(name) for name in refs}
+
+
+def _backup_corrupt_config(config_path: Path) -> Optional[Path]:
+    """Snapshot a broken config.yaml to ``config.yaml.corrupt.<ts>.bak``.
+
+    On YAML parse failure ``_load_from_yaml`` falls back to defaults and the
+    user's broken file stays on disk untouched. If the user later runs the
+    setup wizard or ``set_config_value`` (both rewrite config.yaml), the
+    broken-but-recoverable content is gone for good. This snapshot preserves
+    it so the user can diff/repair it. Best-effort — any failure is swallowed
+    so backup problems never block config loading.
+
+    Returns the backup path on success, else ``None``. Symlinks are not
+    followed/copied to avoid clobbering whatever a malicious/misconfigured
+    symlink points at.
+    """
+    try:
+        if config_path.is_symlink():
+            return None
+        st = config_path.stat()
+        if st.st_size == 0:
+            return None
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        backup_path = config_path.with_name(
+            f"{config_path.name}.corrupt.{ts}.bak"
+        )
+        if backup_path.exists():
+            return None
+        # Dedup: same-second siblings of identical size are likely the same
+        # corruption already preserved.
+        sibling_baks = list(
+            config_path.parent.glob(f"{config_path.name}.corrupt.*.bak")
+        )
+        for existing in sibling_baks:
+            try:
+                if existing.stat().st_size == st.st_size:
+                    return None
+            except OSError:
+                continue
+        shutil.copy2(config_path, backup_path)
+        return backup_path
+    except Exception:
+        return None
+
+
+def _warn_config_parse_failure(config_path: Path, exc: Exception) -> None:
+    """Surface a config.yaml parse failure to user, log, and stderr.
+
+    Without this, a YAML parse error silently falls back to defaults and the
+    user loses every override (providers, model, terminal, ...) with no
+    visible signal. We warn once per (path, mtime_ns, size) so re-loading
+    the same broken file doesn't spam, and re-warn automatically when the
+    file changes.
+    """
+    try:
+        st = config_path.stat()
+        key = (str(config_path), st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = (str(config_path), 0, 0)
+    if key in _CONFIG_PARSE_WARNED:
+        return
+    _CONFIG_PARSE_WARNED.add(key)
+
+    backup_path = _backup_corrupt_config(config_path)
+    msg = (
+        f"Failed to parse {config_path}: {exc}. "
+        "Falling back to default config — every user override "
+        "(providers, model, terminal, ...) is being IGNORED. "
+        "Fix the YAML and restart."
+    )
+    if backup_path is not None:
+        msg += f" A copy of the corrupted file was saved to {backup_path}."
+    logger.warning(msg)
+    try:
+        sys.stderr.write(f"⚠️  Agent-Z config: {msg}\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
 
 
 def _load_from_yaml(path: Path) -> dict:
@@ -341,15 +578,59 @@ def _load_from_yaml(path: Path) -> dict:
         with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except yaml.YAMLError as e:
-        logger.warning(f"Failed to parse {path}: {e}. Using default config.")
+        _warn_config_parse_failure(path, e)
         return {}
 
 
-def _save_to_yaml(path: Path, config: dict):
-    """Save config to YAML file."""
+def _atomic_yaml_write(path: Path, config: dict) -> None:
+    """Write YAML atomically: tmp file in the same dir + os.replace.
+
+    Avoids half-written files when the process is killed mid-write. The
+    tmp lives next to the target so ``os.replace`` is atomic on the same
+    filesystem (POSIX rename, Windows MoveFileEx with REPLACE_EXISTING).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+    # NamedTemporaryFile with delete=False gives us a unique name; we
+    # replace-and-cleanup explicitly below.
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+        os.replace(tmp_name, path)
+    except Exception:
+        # Best-effort cleanup of the orphan tmp so the directory doesn't
+        # accumulate them across crashes.
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+def _save_to_yaml(path: Path, config: dict):
+    """Save config to YAML file (atomic)."""
+    _atomic_yaml_write(path, config)
+
+
+def _reject_denylisted_env_key(key: str) -> None:
+    """Raise if ``key`` is in :data:`_ENV_VAR_NAME_DENYLIST`.
+
+    Names that influence subprocess execution (LD_PRELOAD, PYTHONPATH, PATH,
+    EDITOR, ...) or Agent-Z runtime location (AGENT_Z_HOME, ...) cannot be
+    persisted via the config writer. If a legitimate override is genuinely
+    needed, edit ``~/.agent_z/config.yaml`` or ``~/.agent_z/.env`` directly.
+    """
+    if key in _ENV_VAR_NAME_DENYLIST:
+        raise ValueError(
+            f"Environment variable {key!r} is on the writer denylist. "
+            "Names that influence subprocess execution (LD_PRELOAD, "
+            "PYTHONPATH, PATH, EDITOR, ...) or Agent-Z runtime location "
+            "(AGENT_Z_HOME, ...) cannot be persisted via the config writer. "
+            "If you really need this, edit ~/.agent_z/config.yaml or "
+            "~/.agent_z/.env directly."
+        )
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
@@ -496,22 +777,27 @@ def load_config_readonly() -> dict:
 
 
 def _load_config_impl(*, want_deepcopy: bool, use_cache: bool) -> dict:
-    global _CONFIG_CACHE, _LAST_LOAD_STATS
+    global _CONFIG_CACHE, _LAST_LOAD_STATS, _LAST_ENV_SNAPSHOT
     with _CONFIG_LOCK:
         yaml_path = get_config_path()
         current_stats = _get_file_stats(yaml_path)
-        current_env_hash = _env_hash()
 
-        if use_cache:
-            if (
-                current_stats == (_LAST_LOAD_STATS[0], _LAST_LOAD_STATS[1])
-                and current_env_hash == _LAST_LOAD_STATS[2]
-                and _CONFIG_CACHE
-            ):
-                return copy.deepcopy(_CONFIG_CACHE) if want_deepcopy else _CONFIG_CACHE
-
-        # Migration check
+        # Migration check (idempotent — only writes on first migration).
         _migrate_json_to_yaml()
+
+        # Build the candidate merged config to scan for env refs. On cache
+        # miss we need the snapshot of the FRESH config; on cache hit we
+        # need a snapshot of whatever the CURRENT expanded config would
+        # reference, which is the cached one. Computing it on the cached
+        # value lets us detect env drift without re-running yaml + merge.
+        if use_cache and _CONFIG_CACHE:
+            current_snapshot = _env_snapshot(_CONFIG_CACHE)
+            cache_match = (
+                current_stats == (_LAST_LOAD_STATS[0], _LAST_LOAD_STATS[1])
+                and current_snapshot == _LAST_ENV_SNAPSHOT
+            )
+            if cache_match:
+                return copy.deepcopy(_CONFIG_CACHE) if want_deepcopy else _CONFIG_CACHE
 
         # Load file
         file_config = _load_from_yaml(yaml_path)
@@ -527,21 +813,24 @@ def _load_config_impl(*, want_deepcopy: bool, use_cache: bool) -> dict:
         # Expand env var references in values
         config = _expand_env_vars(config)
 
-        # Update cache
+        # Update cache + env snapshot
+        new_snapshot = _env_snapshot(config)
         _CONFIG_CACHE = config
-        _LAST_LOAD_STATS = (current_stats[0], current_stats[1], current_env_hash, 0)
+        _LAST_LOAD_STATS = current_stats
+        _LAST_ENV_SNAPSHOT = new_snapshot
 
         return copy.deepcopy(config) if want_deepcopy else config
 
 
 def save_config(config: dict):
-    """Save configuration to YAML file."""
-    global _CONFIG_CACHE, _LAST_LOAD_STATS
+    """Save configuration to YAML file (atomic on disk)."""
+    global _CONFIG_CACHE, _LAST_LOAD_STATS, _LAST_ENV_SNAPSHOT
     yaml_path = get_config_path()
     with _CONFIG_LOCK:
         _save_to_yaml(yaml_path, config)
         _CONFIG_CACHE = config
-        _LAST_LOAD_STATS = (*_get_file_stats(yaml_path), _env_hash(), 0)
+        _LAST_LOAD_STATS = _get_file_stats(yaml_path)
+        _LAST_ENV_SNAPSHOT = _env_snapshot(config)
 
 
 # =============================================================================
@@ -573,9 +862,22 @@ def get_config_value(key_path: str, default: Any = None) -> Any:
 
 
 def set_config_value(key_path: str, value: Any):
-    """Set a configuration value by dot-separated key path."""
-    config = load_config()
+    """Set a configuration value by dot-separated key path.
+
+    Raises ``ValueError`` if the final key segment matches a denylisted env
+    name (LD_PRELOAD, PYTHONPATH, PATH, EDITOR, AGENT_Z_HOME, ...). Defends
+    against a future dashboard / API writer planting RCE or state-relocation
+    values via a dot-path that ends in one of those names.
+    """
+    if not key_path:
+        raise ValueError("key_path must be non-empty")
     parts = key_path.split(".")
+    leaf = parts[-1]
+    # Only reject leaf names that look like env-var-shaped identifiers so
+    # benign config keys (e.g. "model_settings.context_window") still pass.
+    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", leaf):
+        _reject_denylisted_env_key(leaf)
+    config = load_config()
     current = config
     for part in parts[:-1]:
         if part not in current:
@@ -602,12 +904,20 @@ TERMINAL_CONFIG_ENV_MAP: dict[str, str] = {
     "docker_network": "TERMINAL_DOCKER_NETWORK",
     "docker_extra_args": "TERMINAL_DOCKER_EXTRA_ARGS",
     "docker_env": "TERMINAL_DOCKER_ENV",
+    "docker_forward_env": "TERMINAL_DOCKER_FORWARD_ENV",
+    "container_cpu": "TERMINAL_CONTAINER_CPU",
+    "container_memory": "TERMINAL_CONTAINER_MEMORY",
+    "container_disk": "TERMINAL_CONTAINER_DISK",
+    "container_persistent": "TERMINAL_CONTAINER_PERSISTENT",
     "ssh_host": "TERMINAL_SSH_HOST",
     "ssh_user": "TERMINAL_SSH_USER",
     "ssh_port": "TERMINAL_SSH_PORT",
     "ssh_key": "TERMINAL_SSH_KEY",
     "persistent_shell": "TERMINAL_PERSISTENT_SHELL",
     "daemon_term_grace_seconds": "TERMINAL_DAEMON_TERM_GRACE_SECONDS",
+    "home_mode": "TERMINAL_HOME_MODE",
+    "shell_init_files": "TERMINAL_SHELL_INIT_FILES",
+    "auto_source_bashrc": "TERMINAL_AUTO_SOURCE_BASHRC",
 }
 
 
@@ -872,10 +1182,9 @@ def resolve_llm_credentials(
         config = load_config()
 
     pconf = config.get("providers", {}).get(provider, {})
-    llm = config.get("llm", {})
 
-    api_key = pconf.get("api_key") or llm.get("api_key", "")
-    base_url = pconf.get("base_url") or llm.get("base_url") or ""
+    api_key = pconf.get("api_key") or ""
+    base_url = pconf.get("base_url") or ""
     model = pconf.get("model") or llm.get("model", "")
     # provider-level model overrides the top-level model
     provider_model = pconf.get("model") or model
@@ -1011,10 +1320,13 @@ class ConfigValidator:
             self.warnings.append("LLM provider not configured")
         if not llm.get("model") and not config.get("model_settings", {}).get("name"):
             self.warnings.append("Model not configured")
-        if llm.get("provider") not in ("none", "") and not llm.get("api_key"):
-            self.warnings.append(
-                "API key not set for provider: " + llm.get("provider", "")
-            )
+        provider = llm.get("provider", "")
+        if provider and provider != "none":
+            pconf = config.get("providers", {}).get(provider, {})
+            if not pconf.get("api_key"):
+                self.warnings.append(
+                    f"API key not set for provider: {provider}"
+                )
         return len(self.errors) == 0
 
     def get_report(self) -> str:

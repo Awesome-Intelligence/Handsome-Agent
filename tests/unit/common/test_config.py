@@ -7,6 +7,7 @@ Tests cover: load/save, cache, env override, dotenv, migration,
 workspace directories, and config helpers.
 """
 
+import importlib
 import os
 import tempfile
 from pathlib import Path
@@ -24,7 +25,7 @@ class TestLoadSaveConfig:
 
         cfg = load_config()
         assert isinstance(cfg, dict)
-        assert "model" in cfg
+        assert "providers" in cfg
         assert "agent" in cfg
         assert "terminal" in cfg
 
@@ -191,6 +192,109 @@ class TestDefaultConfig:
         assert "hard_stop_after" in tlr
         assert tlr["warn_after"]["exact_failure"] == 2
         assert tlr["hard_stop_after"]["exact_failure"] == 5
+
+
+class TestConfigSafety:
+    """Test the four P0 hardening additions: corrupt backup, denylist,
+    env-snapshot cache invalidation, and atomic writes."""
+
+    def test_corrupt_yaml_creates_backup_and_returns_defaults(self, tmp_path):
+        """A broken config.yaml should be snapshotted to .corrupt.<ts>.bak
+        and the loader should fall back to defaults without raising."""
+        from common.config import (
+            _load_from_yaml,
+            _backup_corrupt_config,
+            _warn_config_parse_failure,
+            _CONFIG_PARSE_WARNED,
+        )
+
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("model: [\nbroken: : :", encoding="utf-8")
+
+        # Reset the warn-dedup set so this run always emits.
+        _CONFIG_PARSE_WARNED.clear()
+
+        result = _load_from_yaml(config_path)
+        assert result == {}
+
+        # Backup should exist and have the same size as the broken file.
+        baks = list(tmp_path.glob("config.yaml.corrupt.*.bak"))
+        assert len(baks) == 1
+        assert baks[0].stat().st_size == config_path.stat().st_size
+
+    def test_denylist_rejects_dangerous_keys(self):
+        """set_config_value must refuse leaf names on the env-var denylist."""
+        from common.config import set_config_value, _ENV_VAR_NAME_DENYLIST
+
+        for dangerous in [
+            "PATH",
+            "LD_PRELOAD",
+            "PYTHONPATH",
+            "EDITOR",
+            "AGENT_Z_HOME",
+        ]:
+            with pytest.raises(ValueError, match="denylist"):
+                set_config_value(f"some.nested.{dangerous}", "x")
+
+        # The denylist should still allow benign leaf names.
+        assert "PATH" in _ENV_VAR_NAME_DENYLIST
+        assert "max_turns" not in _ENV_VAR_NAME_DENYLIST
+
+    def test_env_snapshot_invalidates_cache(self, tmp_path):
+        """When a ${VAR} reference's value changes in os.environ, the
+        next load_config() must NOT return the stale expanded value."""
+        from common import config as cfg_module
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            custom_home = Path(tmpdir) / "agentz"
+            config_path = custom_home / "config.yaml"
+            custom_home.mkdir(parents=True)
+
+            config_path.write_text(
+                "model_settings:\n  name: ${AGENTZ_TEST_MODEL}\n",
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"AGENT_Z_HOME": str(custom_home), "AGENTZ_TEST_MODEL": "alpha"},
+            ):
+                importlib.reload(cfg_module)
+                cfg1 = cfg_module.load_config(use_cache=False)
+                assert cfg1["model_settings"]["name"] == "alpha"
+
+            with patch.dict(
+                os.environ,
+                {"AGENT_Z_HOME": str(custom_home), "AGENTZ_TEST_MODEL": "beta"},
+            ):
+                importlib.reload(cfg_module)
+                cfg2 = cfg_module.load_config(use_cache=False)
+                assert cfg2["model_settings"]["name"] == "beta", (
+                    "env snapshot did not invalidate cache on referenced VAR change"
+                )
+
+    def test_atomic_write_does_not_leave_partial_file_on_failure(self, tmp_path):
+        """If yaml.dump raises mid-write, the target file must NOT be left
+        in a half-written state. Either it stays untouched, or the tmp is
+        cleaned up."""
+        from common import config as cfg_module
+
+        target = tmp_path / "config.yaml"
+        target.write_text("original: keep\n", encoding="utf-8")
+        original = target.read_text(encoding="utf-8")
+
+        # Inject a yaml.dump that always raises — exercises the except
+        # branch in _atomic_yaml_write.
+        with patch.object(cfg_module.yaml, "dump", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError, match="boom"):
+                cfg_module._atomic_yaml_write(target, {"model": "anything"})
+
+        # Original content must survive (no half-written overwrite).
+        assert target.read_text(encoding="utf-8") == original
+
+        # Tmp leftovers should be cleaned up (no orphan .tmp in dir).
+        leftovers = list(tmp_path.glob(".*.tmp"))
+        assert leftovers == [], f"orphan tmp files left: {leftovers}"
 
 
 if __name__ == "__main__":

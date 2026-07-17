@@ -78,8 +78,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "llm": {
         "provider": "",
         "model": "",
-        "api_key": "",
-        "base_url": "",
     },
     "model_settings": {
         "name": "",
@@ -119,6 +117,24 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "docker_volumes": [],
         "docker_network": True,
         "docker_extra_args": [],
+        "docker_env": {},
+        "docker_forward_env": [],
+        "singularity_image": "docker://nikolaik/python-nodejs:python3.11-nodejs20",
+        "modal_image": "nikolaik/python-nodejs:python3.11-nodejs20",
+        "daytona_image": "nikolaik/python-nodejs:python3.11-nodejs20",
+        "ssh_host": None,
+        "ssh_user": None,
+        "ssh_port": 22,
+        "ssh_key": None,
+        "daemon_term_grace_seconds": 2.0,
+        "persistent_shell": True,
+        "home_mode": "auto",
+        "shell_init_files": [],
+        "auto_source_bashrc": True,
+        "container_cpu": 1,
+        "container_memory": 5120,
+        "container_disk": 51200,
+        "container_persistent": True,
     },
     "agent": {
         "max_turns": 90,
@@ -133,6 +149,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "parallel_tool_call_guidance": True,
         "task_completion_guidance": True,
         "environment_probe": True,
+        "environment_hint": "",
         "clarify_timeout": 3600,
         "gateway_notify_interval": 180,
         "gateway_timeout_warning": 900,
@@ -142,6 +159,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "disabled_toolsets": [],
         "judge_timeout": 30.0,
         "judge_max_tokens": 4096,
+        "gateway_auto_continue_freshness": 3600,
     },
     "providers": {},
     "fallback_providers": [],
@@ -161,7 +179,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "compression": {
         "enabled": True,
-        "threshold": 0.75,
+        "threshold": 0.50,
+        "target_ratio": 0.20,
+        "protect_last_n": 20,
+        "hygiene_hard_message_limit": 5000,
+        "protect_first_n": 3,
+        "abort_on_summary_failure": False,
     },
     "session_reset": {
         "mode": "both",
@@ -195,8 +218,6 @@ class LLMConfig(BaseModel):
 
     provider: str = ""
     model: str = ""
-    api_key: str = ""
-    base_url: str = ""
 
 
 class ModelSettingsConfig(BaseModel):
@@ -259,6 +280,24 @@ class TerminalConfig(BaseModel):
     docker_volumes: list[str] = Field(default_factory=list)
     docker_network: bool = True
     docker_extra_args: list[str] = Field(default_factory=list)
+    docker_env: dict[str, str] = Field(default_factory=dict)
+    docker_forward_env: list[str] = Field(default_factory=list)
+    singularity_image: Optional[str] = None
+    modal_image: Optional[str] = None
+    daytona_image: Optional[str] = None
+    ssh_host: Optional[str] = None
+    ssh_user: Optional[str] = None
+    ssh_port: int = Field(default=22, ge=1, le=65535)
+    ssh_key: Optional[str] = None
+    daemon_term_grace_seconds: float = Field(default=2.0, ge=0.0)
+    persistent_shell: bool = True
+    home_mode: str = "auto"
+    shell_init_files: list[str] = Field(default_factory=list)
+    auto_source_bashrc: bool = True
+    container_cpu: int = Field(default=1, ge=1, le=64)
+    container_memory: int = Field(default=5120, ge=256, le=131072)
+    container_disk: int = Field(default=51200, ge=1024, le=1048576)
+    container_persistent: bool = True
 
 
 class AgentConfig(BaseModel):
@@ -276,6 +315,7 @@ class AgentConfig(BaseModel):
     parallel_tool_call_guidance: bool = True
     task_completion_guidance: bool = True
     environment_probe: bool = True
+    environment_hint: str = ""
     clarify_timeout: int = Field(default=3600, ge=0, le=86400)
     gateway_notify_interval: int = Field(default=180, ge=0, le=3600)
     gateway_timeout_warning: int = Field(default=900, ge=0, le=3600)
@@ -285,6 +325,7 @@ class AgentConfig(BaseModel):
     disabled_toolsets: list[str] = Field(default_factory=list)
     judge_timeout: float = Field(default=30.0, ge=1.0, le=300.0)
     judge_max_tokens: int = Field(default=4096, ge=1, le=32000)
+    gateway_auto_continue_freshness: int = Field(default=3600, ge=0, le=86400)
 
 
 class ToolLoopWarningThresholds(BaseModel):
@@ -349,7 +390,12 @@ class CompressionConfig(BaseModel):
     """压缩配置 (对应 config.compression)"""
 
     enabled: bool = True
-    threshold: float = Field(default=0.75, ge=0.1, le=0.99)
+    threshold: float = Field(default=0.50, ge=0.1, le=0.99)
+    target_ratio: float = Field(default=0.20, ge=0.05, le=0.95)
+    protect_last_n: int = Field(default=20, ge=0)
+    hygiene_hard_message_limit: int = Field(default=5000, ge=0)
+    protect_first_n: int = Field(default=3, ge=0)
+    abort_on_summary_failure: bool = False
 
 
 class SessionResetConfig(BaseModel):
@@ -375,6 +421,70 @@ class LoggingConfig(BaseModel):
     """日志配置 (TUI 专用)"""
 
     file_enabled: bool = False
+
+
+class CamofoxConfig(BaseModel):
+    """Camofox 反检测 Firefox 配置"""
+
+    managed_persistence: bool = False
+    user_id: str = ""
+    session_key: str = ""
+    adopt_existing_tab: bool = False
+    rewrite_loopback_urls: bool = False
+    loopback_host_alias: str = "host.docker.internal"
+
+
+class BrowserConfig(BaseModel):
+    """浏览器配置 (对应 config.browser)"""
+
+    enabled: bool = False
+    provider: str = "browserbase"
+    api_key: Optional[str] = None
+    project_id: Optional[str] = None
+    proxies: bool = True
+    advanced_stealth: bool = False
+    session_timeout: int = Field(default=300, ge=30)
+    inactivity_timeout: int = Field(default=120, ge=10)
+    command_timeout: int = Field(default=30, ge=5)
+    record_sessions: bool = False
+    allow_private_urls: bool = False
+    engine: str = "auto"
+    auto_local_for_private_urls: bool = True
+    cdp_url: str = ""
+    allow_unsafe_evaluate: bool = False
+    dialog_policy: str = "must_respond"
+    dialog_timeout_s: int = Field(default=300, ge=0)
+    camofox: CamofoxConfig = Field(default_factory=CamofoxConfig)
+
+
+class WebConfig(BaseModel):
+    """Web 配置 (对应 config.web)"""
+
+    backend: str = ""
+    search_backend: str = ""
+    extract_backend: str = ""
+    extract_char_limit: int = Field(default=15000, ge=100)
+
+
+class CheckpointsConfig(BaseModel):
+    """文件系统快照配置 (对应 config.checkpoints)"""
+
+    enabled: bool = False
+    max_snapshots: int = Field(default=20, ge=1)
+    max_total_size_mb: int = Field(default=500, ge=0)
+    max_file_size_mb: int = Field(default=10, ge=0)
+    auto_prune: bool = True
+    retention_days: int = Field(default=7, ge=1)
+    delete_orphans: bool = True
+    min_interval_hours: int = Field(default=24, ge=1)
+
+
+class ToolOutputConfig(BaseModel):
+    """工具输出截断配置 (对应 config.tool_output)"""
+
+    max_bytes: int = Field(default=50000, ge=1000)
+    max_lines: int = Field(default=2000, ge=10)
+    max_line_length: int = Field(default=2000, ge=10)
 
 
 class AboutInfo(BaseModel):
@@ -411,6 +521,12 @@ class SettingsDocument(BaseModel):
     tools: ToolConfig = ToolConfig()
     logging: LoggingConfig = LoggingConfig()
     intent_mode: IntentMode = IntentMode.LLM
+
+    # YAML 扩展配置
+    browser: BrowserConfig = BrowserConfig()
+    web: WebConfig = WebConfig()
+    checkpoints: CheckpointsConfig = CheckpointsConfig()
+    tool_output: ToolOutputConfig = ToolOutputConfig()
 
     # 关于信息
     about: AboutInfo = AboutInfo()
@@ -507,6 +623,10 @@ class SettingsDocument(BaseModel):
             intent_mode=IntentMode(
                 cfg.get("intent_mode", TUI_DEFAULTS.get("intent_mode", "llm"))
             ),
+            browser=BrowserConfig(**cfg.get("browser", {})),
+            web=WebConfig(**cfg.get("web", {})),
+            checkpoints=CheckpointsConfig(**cfg.get("checkpoints", {})),
+            tool_output=ToolOutputConfig(**cfg.get("tool_output", {})),
         )
 
     def to_dict(self) -> dict:
