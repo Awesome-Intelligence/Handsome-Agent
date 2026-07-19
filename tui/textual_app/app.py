@@ -46,7 +46,6 @@ from .imports import (
     Style,
     estimate_messages_tokens_rough,
     ChatContainer,
-    SessionPickerScreen,
     SidebarContainer,
     TUIConsumer,
     ApprovalDialog,
@@ -59,6 +58,8 @@ from .imports import (
     InputQueuePanel,
     SessionStore,
     HelpScreen,
+    WelcomeScreen,
+    WizardScreen,
     FilePreviewScreen,
     SettingsScreen,
     LogScreen,
@@ -90,7 +91,6 @@ from .sidebar_panels import SidebarPanelMixin
 from .slash_completion_bind import SlashCompletionMixin
 from .status_bar import StatusBarMixin
 from .text_area import SubmitTextArea
-from .screens import CustomModelInputScreen
 from tui.widgets.slash_completion import SlashCompletionList
 
 from .constants import (
@@ -283,8 +283,71 @@ class AgentApp(
                 self._logger.warning(f'Failed to wire up history navigation: {e}')
         self._bind_slash_completion()
         self.call_later(self._update_token_count)
+        # 检查是否需要显示首次使用引导
+        self.call_later(self._check_onboarding)
         # 延迟聚焦确保所有异步初始化完成后再聚焦
         self.set_timer(0.5, self._focus_input)
+
+    def _check_onboarding(self) -> None:
+        """检查是否需要显示首次使用引导."""
+        try:
+            config_file = Path.home() / ".agent_z" / "config.json"
+            if config_file.exists():
+                import json
+                with open(config_file, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                if config.get("onboarding_completed"):
+                    self._logger.debug("Onboarding already completed")
+                    return
+
+            # 未完成引导，弹出 WelcomeScreen
+            if WelcomeScreen:
+                self._logger.info("Showing WelcomeScreen")
+                self.push_screen(WelcomeScreen(has_api_key=self._has_api_key_configured()))
+        except Exception as e:
+            self._logger.warning(f"Failed to check onboarding status: {e}")
+
+    def _has_api_key_configured(self) -> bool:
+        """检查是否已配置 API Key."""
+        import os
+        api_key_vars = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+        return any(os.environ.get(v) for v in api_key_vars)
+
+    def _on_welcome_start_onboarding(self, event: "WelcomeScreen.StartOnboarding") -> None:
+        """处理开始引导流程."""
+        self._logger.info("User requested to start onboarding")
+        if WizardScreen:
+            self.push_screen(WizardScreen())
+
+    def _on_welcome_skip_onboarding(self, event: "WelcomeScreen.SkipOnboarding") -> None:
+        """处理跳过引导流程."""
+        self._logger.info("User skipped onboarding")
+        # 标记为已完成
+        try:
+            config_file = Path.home() / ".agent_z" / "config.json"
+            if config_file.exists():
+                import json
+                with open(config_file, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                config["onboarding_completed"] = True
+                with open(config_file, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            self._logger.warning(f"Failed to mark onboarding as skipped: {e}")
+
+    def _on_wizard_complete(self, event: "WizardScreen.Complete") -> None:
+        """处理向导完成."""
+        self._logger.info("Wizard completed with config")
+        # 重置语言设置
+        try:
+            from common.i18n import reset_language_cache
+            reset_language_cache()
+        except Exception:
+            pass
+
+    def _on_wizard_skip(self, event: "WizardScreen.Skip") -> None:
+        """处理向导跳过."""
+        self._logger.info("Wizard skipped")
 
     def _focus_input(self) -> None:
         """聚焦到用户输入框."""
@@ -454,6 +517,7 @@ class AgentApp(
         self.call_later(lambda: self._call_agent_async(user_input))
 
     def _register_event_listeners(self) -> None:
+        """注册事件监听器."""
         pass
 
     def _toggle_sidebar(self) -> None:
@@ -666,32 +730,6 @@ class AgentApp(
                     logging.root.addHandler(self._saved_console_handler)
             except Exception:
                 pass
-
-    def _on_session_selected(self, event: 'SessionPickerScreen.SessionSelected') -> None:
-        old_session_id = self.session_id
-        self.session_id = event.session_id
-        self._logger.info(f'Session switched: {old_session_id} -> {event.session_id}')
-        self._render_welcome_banner()
-        chat_view = self.query_one('#chat-area', ChatContainer)
-        chat_view.clear_messages()
-        history = self._restore_session(event.session_id)
-        for msg in history:
-            chat_view.append_message(msg['role'], msg['content'], thinking=msg.get('thinking'))
-        if not history:
-            chat_view.show_greeting()
-        self.notify(t('session.switched', '已切换到会话: {title}').format(title=event.session_title))
-
-    def _on_session_deleted(self, event: 'SessionPickerScreen.SessionDeleted') -> None:
-        if event.session_id == self.session_id:
-            self._logger.info('Current session deleted, switching to new session')
-            if self._session_store:
-                new_id, _ = self._session_store.get_or_create_session(model=self.model_name or '', provider=self.provider or '')
-                self.session_id = new_id
-                self._render_welcome_banner()
-                chat_view = self.query_one('#chat-area', ChatContainer)
-                chat_view.clear_messages()
-                chat_view.show_greeting()
-        self._logger.info(f'Session deleted: {event.session_id}')
 
     def append_chat_message(self, role: str, content: str) -> None:
         chat_area = self.query_one('#chat-area', ChatContainer)

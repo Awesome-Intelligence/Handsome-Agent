@@ -24,7 +24,6 @@ from . import css as _css_module
 from . import log_handler as _log_handler_module
 from . import notifications as _notifications_module
 from . import text_area as _text_area_module
-from . import screens as _screens_module
 
 # 主应用类 & 启动函数（来自 app.py）
 AgentApp = _app_module.AgentApp
@@ -48,9 +47,6 @@ NotificationType = _notifications_module.NotificationType
 
 # 文本区域
 SubmitTextArea = _text_area_module.SubmitTextArea
-
-# Modal Screens
-CustomModelInputScreen = _screens_module.CustomModelInputScreen
 
 # 主题颜色常量
 PURPLE_PRIMARY = _app_module.PURPLE_PRIMARY
@@ -79,8 +75,6 @@ __all__ = [
     "NotificationType",
     # 文本区域
     "SubmitTextArea",
-    # Modal Screens
-    "CustomModelInputScreen",
     # 主题颜色
     "PURPLE_PRIMARY",
     "PURPLE_BRIGHT",

@@ -182,12 +182,6 @@ except ImportError:
 
 
 try:
-    from tui.views.session_picker import SessionPickerScreen
-except ImportError:
-    SessionPickerScreen = None  # type: ignore
-
-
-try:
     from tui.sidebar import SidebarContainer
 except ImportError:
     SidebarContainer = None  # type: ignore
@@ -235,6 +229,13 @@ try:
     from tui.views.help_view import HelpScreen
 except ImportError:
     HelpScreen = None  # type: ignore
+
+
+try:
+    from tui.views.onboarding import WelcomeScreen, WizardScreen
+except ImportError:
+    WelcomeScreen = None  # type: ignore
+    WizardScreen = None  # type: ignore
 
 
 try:
@@ -302,7 +303,6 @@ __all__ = [
     # cross-module
     "estimate_messages_tokens_rough",
     "ChatContainer",
-    "SessionPickerScreen",
     "SidebarContainer",
     "TUIConsumer",
     "ApprovalDialog",

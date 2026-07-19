@@ -7,9 +7,8 @@ TUI Views - Textual UI View Components
 
 提供 Textual TUI 所需的内容视图组件，包括：
 - HelpScreen: 帮助面板组件
-- SessionPickerScreen: 会话选择器
 - WelcomeScreen: 欢迎界面组件
-- OnboardingScreen: 首次使用引导流程
+- WizardScreen: 首次使用引导向导
 
 注意：原先 ChatView 已被替换为 tui.widgets.ChatContainer（oterm 风格），
 见 `tui/widgets/chat_container.py`。
@@ -23,45 +22,15 @@ try:
 except ImportError:
     HelpScreen = None
 
-# 会话选择器（带降级机制）
+# 首次使用引导（带降级机制）
 try:
-    from .session_picker import SessionPickerScreen
-except ImportError:
-    SessionPickerScreen = None
-
-# 欢迎界面（带降级机制）
-try:
-    from .welcome_screen import (
+    from .onboarding import (
         WelcomeScreen,
-        WelcomeScreenMessage,
-        StartOnboarding,
-        SkipOnboarding,
-        OpenSettings,
+        WizardScreen,
     )
 except ImportError:
     WelcomeScreen = None
-    WelcomeScreenMessage = None
-    StartOnboarding = None
-    SkipOnboarding = None
-    OpenSettings = None
-
-# 首次使用引导（带降级机制）
-try:
-    from .onboarding_screen import (
-        OnboardingStep,
-        OnboardingScreen,
-        OnboardingMessage,
-        OnboardingComplete,
-        OnboardingSkipped,
-        ConfigurationSaved,
-    )
-except ImportError:
-    OnboardingStep = None
-    OnboardingScreen = None
-    OnboardingMessage = None
-    OnboardingComplete = None
-    OnboardingSkipped = None
-    ConfigurationSaved = None
+    WizardScreen = None
 
 # 设置界面（带降级机制）
 try:
@@ -77,20 +46,9 @@ except ImportError:
 
 __all__ = [
     "HelpScreen",
-    "SessionPickerScreen",
-    # 欢迎界面
+    # 首次使用引导
     "WelcomeScreen",
-    "WelcomeScreenMessage",
-    "StartOnboarding",
-    "SkipOnboarding",
-    "OpenSettings",
-    # 引导流程
-    "OnboardingStep",
-    "OnboardingScreen",
-    "OnboardingMessage",
-    "OnboardingComplete",
-    "OnboardingSkipped",
-    "ConfigurationSaved",
+    "WizardScreen",
     # 设置界面
     "SettingsScreen",
     # 日志窗口

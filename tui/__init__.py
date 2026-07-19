@@ -42,9 +42,8 @@ from tui.textual_app import (
 # 视图
 from tui.views import (
     HelpScreen,
-    SessionPickerScreen,
     WelcomeScreen,
-    OnboardingScreen,
+    WizardScreen,
 )
 
 # 组件
@@ -88,7 +87,6 @@ __all__ = [
     "PURPLE_DARK",
     # 视图
     "HelpScreen",
-    "SessionPickerScreen",
     "WelcomeScreen",
     "OnboardingScreen",
     # 组件

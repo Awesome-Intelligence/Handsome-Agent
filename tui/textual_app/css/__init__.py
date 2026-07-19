@@ -16,7 +16,7 @@ v8.x 重构：
 - input_area     输入区（#input-area / #user-input）
 - slash_completion  斜杠补全浮层
 - sidebar_layout 侧边栏与主区域布局
-- screens        Modal/Dialog Screen 的内嵌 CSS（CustomModelInputScreen）
+- input_queue    输入队列悬浮面板
 
 v8.x→毛玻璃（透明度）样式已随自定义主题系统一并删除。
 """
@@ -31,7 +31,6 @@ from .input_area import INPUT_AREA_CSS
 from .input_queue import INPUT_QUEUE_CSS
 from .slash_completion import SLASH_COMPLETION_CSS
 from .sidebar_layout import SIDEBAR_LAYOUT_CSS
-from .screens import CUSTOM_MODEL_SCREEN_CSS
 
 
 # ============================================================================
@@ -76,5 +75,4 @@ __all__ = [
     "INPUT_QUEUE_CSS",
     "SLASH_COMPLETION_CSS",
     "SIDEBAR_LAYOUT_CSS",
-    "CUSTOM_MODEL_SCREEN_CSS",
 ]
