@@ -68,7 +68,6 @@ WelcomeScreen {
 .welcome-features {
     height: auto;
     layout: vertical;
-    spacing: 0;
 }
 
 .feature-item {
@@ -89,7 +88,6 @@ WelcomeScreen {
 .welcome-actions {
     height: auto;
     layout: horizontal;
-    spacing: 1;
 }
 
 .welcome-actions Button {
