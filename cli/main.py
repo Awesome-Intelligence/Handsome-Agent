@@ -439,7 +439,61 @@ def cmd_skills_search(args: argparse.Namespace):
     """Handle 'skills search' command."""
     from cli.cli_commands.skills import search_skills
 
-    search_skills(args.query)
+    asyncio.run(search_skills(args.query))
+
+
+def cmd_skills_browse(args: argparse.Namespace):
+    """Handle 'skills browse' command."""
+    from cli.cli_commands.skills import browse_hub_skills
+
+    asyncio.run(browse_hub_skills(page=args.page, page_size=args.size, source=args.source))
+
+
+def cmd_skills_inspect(args: argparse.Namespace):
+    """Handle 'skills inspect' command."""
+    from cli.cli_commands.skills import inspect_hub_skill
+
+    asyncio.run(inspect_hub_skill(args.identifier))
+
+
+def cmd_skills_install(args: argparse.Namespace):
+    """Handle 'skills install' command."""
+    from cli.cli_commands.skills import install_from_hub
+
+    name = getattr(args, "name", None)
+    category = getattr(args, "category", None)
+    asyncio.run(install_from_hub(args.identifier, name=name, category=category, force=args.force))
+
+
+def cmd_skills_tap(args: argparse.Namespace):
+    """Handle 'skills tap' command."""
+    from agent.skill_sources.taps_manager import get_taps_manager
+
+    mgr = get_taps_manager()
+    tap_cmd = getattr(args, "skills_tap_command", None)
+
+    if tap_cmd == "list":
+        taps = mgr.list_taps()
+        if not taps:
+            print("No taps configured.")
+            return
+        print(f"Configured taps ({len(taps)}):\n")
+        for t in taps:
+            status = "enabled" if t.get("enabled", True) else "disabled"
+            print(f"  {t['repo']} -> {t.get('path', 'skills/')} [{status}]")
+    elif tap_cmd == "add":
+        repo = args.repo
+        path = getattr(args, "path", "skills/")
+        if mgr.add_tap(repo, path):
+            print(f"Added tap: {repo}")
+        else:
+            print(f"Tap already exists: {repo}")
+    elif tap_cmd == "remove":
+        repo = args.repo
+        if mgr.remove_tap(repo):
+            print(f"Removed tap: {repo}")
+        else:
+            print(f"Tap not found: {repo}")
 
 
 def cmd_config_show(args: argparse.Namespace):
@@ -871,6 +925,14 @@ def main():
             cmd_skills_list(args)
         elif args.skills_command == "search":
             cmd_skills_search(args)
+        elif args.skills_command == "browse":
+            cmd_skills_browse(args)
+        elif args.skills_command == "inspect":
+            cmd_skills_inspect(args)
+        elif args.skills_command == "install":
+            cmd_skills_install(args)
+        elif args.skills_command == "tap":
+            cmd_skills_tap(args)
         return
     elif args.command == "config":
         if args.config_command == "show":

@@ -412,6 +412,63 @@ def build_top_level_parser():
         help="Search query",
     )
 
+    skills_browse_parser = skills_subparsers.add_parser(
+        "browse",
+        help="Browse skills from Hub",
+    )
+    skills_browse_parser.add_argument(
+        "--page", "-p", type=int, default=1, help="Page number (default: 1)",
+    )
+    skills_browse_parser.add_argument(
+        "--size", "-s", type=int, default=20, help="Page size (default: 20)",
+    )
+    skills_browse_parser.add_argument(
+        "--source", default="all", help="Filter by source (default: all)",
+    )
+
+    skills_inspect_parser = skills_subparsers.add_parser(
+        "inspect",
+        help="Preview a skill without installing",
+    )
+    skills_inspect_parser.add_argument(
+        "identifier", help="Skill identifier (e.g. owner/repo/skill-name or URL)",
+    )
+
+    skills_install_parser = skills_subparsers.add_parser(
+        "install",
+        help="Install a skill from Hub, GitHub, or URL",
+    )
+    skills_install_parser.add_argument(
+        "identifier", help="Skill identifier, GitHub repo (owner/repo), or URL",
+    )
+    skills_install_parser.add_argument(
+        "--name", "-n", help="Override skill name",
+    )
+    skills_install_parser.add_argument(
+        "--category", "-c", help="Category for the skill",
+    )
+    skills_install_parser.add_argument(
+        "--force", "-f", action="store_true", help="Force overwrite existing skill",
+    )
+
+    skills_tap_parser = skills_subparsers.add_parser(
+        "tap",
+        help="Manage GitHub skill taps",
+    )
+    skills_tap_subparsers = skills_tap_parser.add_subparsers(
+        dest="skills_tap_command", help="Tap command",
+    )
+    skills_tap_list_parser = skills_tap_subparsers.add_parser("list", help="List configured taps")
+    skills_tap_add_parser = skills_tap_subparsers.add_parser("add", help="Add a GitHub tap")
+    skills_tap_add_parser.add_argument("repo", help="GitHub repo (owner/repo)")
+    skills_tap_add_parser.add_argument(
+        "--path", "-p", default="skills/", help="Skills directory path (default: skills/)",
+    )
+    skills_tap_remove_parser = skills_tap_subparsers.add_parser(
+        "remove", help="Remove a GitHub tap",
+    )
+    skills_tap_remove_parser.add_argument("repo", help="GitHub repo (owner/repo)")
+
     # =========================================================================
     # config command
     # =========================================================================

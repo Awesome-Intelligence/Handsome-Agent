@@ -971,6 +971,224 @@ async def search_skills(query: str, sources: Optional[List[str]] = None) -> bool
     return True
 
 
+async def browse_hub_skills(
+    page: int = 1,
+    page_size: int = 20,
+    source: str = "all",
+) -> bool:
+    """Browse available skills from Hub sources.
+
+    Args:
+        page: Page number (1-indexed)
+        page_size: Items per page
+        source: Source filter (default: all)
+
+    Returns:
+        Whether the operation succeeded
+    """
+    try:
+        from agent.skill_sources import create_default_router
+    except ImportError:
+        print("❌ skill_sources 模块未安装")
+        return False
+
+    router = create_default_router()
+
+    # Try HermesIndexSource.list_all() for the main catalog
+    index_source = router.find_source_by_type("hermes-index")
+    all_skills = []
+    if index_source:
+        # list_all() is HermesIndexSource-specific, not in the ABC
+        all_skills = getattr(index_source, "list_all", lambda: [])()
+
+    if not all_skills and source == "all":
+        # Fallback: search with empty query across all sources
+        results = await router.search("")
+        for src_name, skills in results.items():
+            all_skills.extend(skills)
+
+    if not all_skills:
+        print("📭 没有可用的技能")
+        return True
+
+    # Filter by source if needed
+    if source != "all":
+        all_skills = [s for s in all_skills if s.source == source]
+
+    total = len(all_skills)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_items = all_skills[start:end]
+
+    print(f"\n📦 Skills Hub — Page {page}/{total_pages} ({total} total)\n")
+
+    for i, skill in enumerate(page_items, start=start + 1):
+        print(f"  {i}. {skill.name}")
+        desc = skill.description[:60] + ("..." if len(skill.description) > 60 else "")
+        print(f"     {desc}")
+        print(f"     来源: {skill.source}")
+        if skill.tags:
+            print(f"     标签: {', '.join(skill.tags[:5])}")
+        print()
+
+    if total_pages > 1:
+        nav = []
+        if page > 1:
+            nav.append("--page {0} <- prev".format(page - 1))
+        if page < total_pages:
+            nav.append("next --page {0}".format(page + 1))
+        print("  | ".join(nav))
+        print()
+
+    print("💡 Use: agentz skills inspect <name> to preview")
+    print("       agentz skills install <name> to install\n")
+    return True
+
+
+async def inspect_hub_skill(identifier: str) -> bool:
+    """Preview a skill without installing.
+
+    Args:
+        identifier: Skill identifier (e.g. owner/repo/skill-name)
+
+    Returns:
+        Whether the operation succeeded
+    """
+    import tempfile
+    import shutil
+
+    try:
+        from agent.skill_sources import create_default_router
+    except ImportError:
+        print("❌ skill_sources 模块未安装")
+        return False
+
+    router = create_default_router()
+
+    # Resolve short names via search
+    if "/" not in identifier:
+        results = await router.unified_search(identifier, max_results=20)
+        exact = [r for r in results if r.name.lower() == identifier.lower()]
+        if len(exact) == 1:
+            identifier = exact[0].url
+        elif len(exact) > 1:
+            print(f"Multiple matches for '{identifier}':")
+            for r in exact:
+                print(f"  - {r.name} ({r.source})")
+            print("Use the full identifier.\n")
+            return False
+        else:
+            print(f"❌ Skill '{identifier}' not found in any source\n")
+            return False
+
+    print(f"\n🔍 Fetching: {identifier}")
+
+    # Install to temp dir to preview
+    temp_dir = Path(tempfile.mkdtemp())
+    try:
+        result = await router.install(identifier, temp_dir)
+
+        if not result.success:
+            print(f"❌ {result.error or 'Failed to fetch skill'}\n")
+            return False
+
+        skill_path = result.metadata.get("path", temp_dir / identifier.split("/")[-1])
+        skill_file = Path(skill_path) / "SKILL.md"
+
+        if not skill_file.exists():
+            # Try to find SKILL.md anywhere in the temp dir
+            matches = list(temp_dir.rglob("SKILL.md"))
+            if matches:
+                skill_file = matches[0]
+
+        if not skill_file.exists():
+            print("❌ SKILL.md not found in fetched content\n")
+            return False
+
+        content = skill_file.read_text(encoding="utf-8")
+        lines = content.split("\n")
+        preview = "\n".join(lines[:60])
+        if len(lines) > 60:
+            preview += f"\n\n... ({len(lines) - 60} more lines)"
+
+        print(f"\n📄 SKILL.md Preview:\n")
+        print("=" * 60)
+        print(preview)
+        print("=" * 60)
+        print(f"\n💡 Install with: agentz skills install {identifier}\n")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    return True
+
+
+async def install_from_hub(
+    identifier: str,
+    name: Optional[str] = None,
+    category: Optional[str] = None,
+    force: bool = False,
+) -> bool:
+    """Install a skill from Hub, GitHub, or URL (auto-routed).
+
+    Args:
+        identifier: Skill identifier, GitHub repo, or URL
+        name: Override skill name
+        category: Category for the skill
+        force: Force overwrite existing
+
+    Returns:
+        Whether installation succeeded
+    """
+    from agent.skill_sources import create_default_router
+    from common.config import get_skills_dir
+
+    router = create_default_router()
+    skills_dir = get_skills_dir()
+
+    # Resolve short name via search
+    if "/" not in identifier and not identifier.startswith("http"):
+        results = await router.unified_search(identifier, max_results=20)
+        exact = [r for r in results if r.name.lower() == identifier.lower()]
+        if len(exact) == 1:
+            identifier = exact[0].url
+        elif len(exact) > 1:
+            print(f"Multiple matches for '{identifier}':")
+            for r in exact:
+                print(f"  - {r.name} ({r.source})")
+            print("Use the full identifier.\n")
+            return False
+        elif not results:
+            print(f"❌ No skill found matching '{identifier}'\n")
+            return False
+
+    print(f"\n📥 Installing: {identifier}")
+
+    # Install via router (handles GitHub/URL/index automatically)
+    result = await router.install(identifier, skills_dir)
+
+    if not result.success:
+        print(f"❌ {result.error or 'Installation failed'}\n")
+        return False
+
+    skill_name = result.skill_name or name or identifier.split("/")[-1]
+    skill_path = result.metadata.get("path", skills_dir / skill_name)
+
+    print(f"✅ Installed: {skill_name}")
+    print(f"📁 Location: {skill_path}\n")
+
+    # Invalidate prompt cache so skill is available immediately
+    try:
+        from agent.prompt_builder import clear_skills_system_prompt_cache
+        clear_skills_system_prompt_cache(clear_snapshot=True)
+    except Exception:
+        pass
+
+    return True
+
+
 def list_sources() -> bool:
     """列出配置的技能来源
     
