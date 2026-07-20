@@ -186,7 +186,7 @@ class AgentApp(
         if context_length is None:
             try:
                 from common.config import get_model_config
-                context_length = get_model_config().context_window
+                context_length = get_model_config().get("context_window")
             except Exception:
                 context_length = None
         self.context_length = context_length
@@ -291,14 +291,10 @@ class AgentApp(
     def _check_onboarding(self) -> None:
         """检查是否需要显示首次使用引导."""
         try:
-            config_file = Path.home() / ".agent_z" / "config.json"
-            if config_file.exists():
-                import json
-                with open(config_file, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                if config.get("onboarding_completed"):
-                    self._logger.debug("Onboarding already completed")
-                    return
+            from common.config import is_configured
+            if is_configured():
+                self._logger.debug("Config already configured, skipping onboarding")
+                return
 
             # 未完成引导，弹出 WelcomeScreen
             if WelcomeScreen:
