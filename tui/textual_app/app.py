@@ -171,7 +171,7 @@ class AgentApp(
                         self._saved_console_handler = lm._console_handler
                     logging.root.addHandler(self._tui_log_handler)
                     for logger_name in logging.Logger.manager.loggerDict:
-                        logger = logging.getLogger(logger_name)
+                        logger = get_logger(logger_name)
                         if lm._console_handler in logger.handlers:
                             logger.removeHandler(lm._console_handler)
                             logger.addHandler(self._tui_log_handler)
@@ -764,7 +764,7 @@ class AgentApp(
                 if self._tui_log_handler in logging.root.handlers:
                     logging.root.removeHandler(self._tui_log_handler)
                 for logger_name in logging.Logger.manager.loggerDict:
-                    logger = logging.getLogger(logger_name)
+                    logger = get_logger(logger_name)
                     if self._tui_log_handler in logger.handlers:
                         logger.removeHandler(self._tui_log_handler)
                 if self._saved_console_handler not in logging.root.handlers:
