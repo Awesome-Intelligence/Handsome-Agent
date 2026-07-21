@@ -594,7 +594,11 @@ class LayerLogger:
         
         # 获取子层信息（如果有）
         self._sublayer_info = SUB_LAYERS.get(sublayer) if sublayer else None
-    
+
+    def set_level(self, level: int) -> None:
+        """Set the logging level of the underlying logger."""
+        self._logger.setLevel(level)
+
     def _format_msg(self, msg: str) -> str:
         """Format log message
         
@@ -735,6 +739,11 @@ def get_tui_logger(name: str = "tui", sublayer: str = None) -> LayerLogger:
     return LayerLogger(name, "access", sublayer)
 
 
+def get_gateway_logger(name: str = "gateway", sublayer: str = None) -> LayerLogger:
+    """Get gateway layer logger (Access layer, sublayer=gateway)."""
+    return LayerLogger(name, "access", sublayer or "gateway")
+
+
 def configure_logging(config: Optional[Dict[str, Any]] = None) -> None:
     """Configure logging system
     
@@ -764,6 +773,22 @@ def configure_logging(config: Optional[Dict[str, Any]] = None) -> None:
         return
     
     LogManager.get_instance().configure(config)
+
+
+def suppress_library_logs() -> None:
+    """Silence noisy third-party library loggers (httpx, httpcore, openai)."""
+    for lib in ("httpx", "httpcore", "openai"):
+        logging.getLogger(lib).setLevel(logging.WARNING)
+
+
+def set_module_log_level(module: str, level: int) -> None:
+    """Set log level for a specific module logger.
+
+    Args:
+        module: Module name, e.g. "gateway.platforms"
+        level: Logging level, e.g. logging.INFO
+    """
+    logging.getLogger(module).setLevel(level)
 
 
 def set_log_level(level: str) -> None:
@@ -802,6 +827,7 @@ __all__ = [
     "get_task_logger",
     "get_tui_logger",
     "configure_logging",
+    "suppress_library_logs",
     "set_log_level",
     "get_log_level",
     "setup_logging_from_config",

@@ -19,7 +19,7 @@ import logging
 import sys
 from pathlib import Path
 
-from common.logging_manager import get_decision_logger
+from common.logging_manager import get_decision_logger, suppress_library_logs
 
 
 def _setup_logging() -> None:
@@ -37,9 +37,7 @@ def _setup_logging() -> None:
     root.setLevel(logging.INFO)
 
     # Quiet down noisy libraries
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("openai").setLevel(logging.WARNING)
+    suppress_library_logs()
 
 
 def _load_env() -> None:

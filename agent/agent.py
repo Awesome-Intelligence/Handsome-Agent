@@ -13,7 +13,7 @@ import json
 import logging
 import time
 
-from common.logging_manager import get_decision_logger
+from common.logging_manager import get_decision_logger, set_module_log_level
 from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -106,11 +106,10 @@ class Agent:
     ):
         if debug_logs:
             set_log_level("detailed")
-            logging.getLogger("TrajectoryManager").setLevel(logging.DEBUG)
-            logging.getLogger("Curator").setLevel(logging.DEBUG)
+            set_module_log_level("TrajectoryManager", logging.DEBUG)
+            set_module_log_level("Curator", logging.DEBUG)
 
-        httpx_logger = logging.getLogger("httpx")
-        httpx_logger.setLevel(logging.WARNING)
+        set_module_log_level("httpx", logging.WARNING)
 
         self.llm_provider = llm_provider
         self.enable_session = enable_session

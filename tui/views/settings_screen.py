@@ -57,15 +57,7 @@ except ImportError:
 
 
 # 日志支持
-try:
-    from common.logging_manager import get_access_logger
-except ImportError:
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
-
-    def get_access_logger(name, sublayer=None):
-        return logging.getLogger(name)
+from common.logging_manager import get_access_logger
 
 
 # 设置模块导入

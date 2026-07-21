@@ -40,15 +40,7 @@ except ImportError:
     reset_language_cache = reset_language_cache
 
 
-try:
-    from common.logging_manager import get_access_logger
-except ImportError:
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
-
-    def get_access_logger(name, sublayer=None):
-        return logging.getLogger(name)
+from common.logging_manager import get_access_logger
 
 
 try:

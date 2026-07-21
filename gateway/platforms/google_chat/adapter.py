@@ -39,12 +39,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 import random
 import re
 from pathlib import Path as _Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from common.logging_manager import get_access_logger
 
 # Heavy google-cloud + googleapiclient imports are deferred to first
 # adapter use. Importing them eagerly here added ~110ms wall and ~33MB
@@ -146,9 +147,9 @@ from gateway.platforms.base import (
 # grep aliases, and the gateway's bundled log views keep matching after
 # the in-tree → plugin migration. ``__name__`` resolves to
 # ``hermes_plugins.platforms__google_chat.adapter`` once the plugin
-# loader namespaces this module, which would silently break every
-# downstream log-monitor that greps for ``gateway.platforms.google_chat``.
-logger = logging.getLogger("gateway.platforms.google_chat")
+# Pin the legacy logger name so operator-side log filters keep matching.
+# Using get_access_logger for unified log format + layer tracking.
+logger = get_access_logger("google_chat", "gateway")
 
 
 # Regex validating Pub/Sub subscription path format.

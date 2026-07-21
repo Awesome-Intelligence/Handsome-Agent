@@ -33,12 +33,9 @@ def normalize_proxy_url(proxy_url: str | None) -> str | None:
     return candidate
 
 
-try:
-    from common.logging_manager import get_access_logger as _get_access_logger
-except ImportError:
-    _get_access_logger = None
+from common.logging_manager import get_access_logger
 
-logger = _get_access_logger("platform_base") if _get_access_logger else logging.getLogger(__name__)
+logger = get_access_logger("platform_base")
 
 # Audio file extensions Hermes recognizes for native audio delivery.
 # Kept in sync with tools/send_message_tool.py and cron/scheduler.py via

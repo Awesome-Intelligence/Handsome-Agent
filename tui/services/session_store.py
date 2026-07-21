@@ -26,26 +26,10 @@ from pathlib import Path
 from typing import Any, Generator, Iterator, Optional
 
 # 日志支持
-try:
-    from common.logging_manager import get_access_logger
-except ImportError:
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    def get_access_logger(name, sublayer=None):
-        return logging.getLogger(name)
+from common.logging_manager import get_access_logger
 
 # i18n 支持
-try:
-    from common.i18n import get_i18n, t
-except ImportError:
-    def get_i18n():
-        class SimpleI18n:
-            def t(self, key, default=None, **kwargs):
-                return default or key
-        return SimpleI18n()
-    
-    def t(key, default=None, **kwargs):
-        return default or key
+from common.i18n import get_i18n, t
 
 
 # ============================================================================

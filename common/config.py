@@ -27,9 +27,9 @@ from typing import Any, Optional
 
 import yaml
 
-import logging
+from common.logging_manager import get_system_logger
 
-logger = logging.getLogger(__name__)
+logger = get_system_logger(__name__)
 
 # =============================================================================
 # Constants

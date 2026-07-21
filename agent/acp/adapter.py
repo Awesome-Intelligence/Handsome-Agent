@@ -40,7 +40,7 @@ from acp.schema import (
 from agent.acp.session import SessionManager, SessionStatus
 from agent.rails.edit_approval import EditApprovalRail, set_edit_approval_requester
 from agent.rails import get_rail_registry
-from common.logging_manager import get_decision_logger
+from common.logging_manager import get_decision_logger, suppress_library_logs
 
 logger = get_decision_logger("adapter")
 
@@ -361,8 +361,7 @@ def _setup_logging() -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(logging.INFO)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    suppress_library_logs()
 
 
 if __name__ == "__main__":

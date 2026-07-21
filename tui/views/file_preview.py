@@ -31,14 +31,7 @@ except ImportError:
     TEXTUAL_AVAILABLE = False
     ModalScreen = object
 
-# 日志支持
-try:
-    from common.logging_manager import get_access_logger
-except ImportError:
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    def get_access_logger(*args, **kwargs):
-        return logging.getLogger("Agent")
+from common.logging_manager import get_access_logger
 
 
 # ============================================================================

@@ -130,15 +130,7 @@ except ImportError:
 # 日志系统
 # ============================================================================
 
-try:
-    from common.logging_manager import get_access_logger, LogManager
-except ImportError:
-    logging.basicConfig(level=logging.INFO)
-
-    def get_access_logger(*args, **kwargs):
-        return logging.getLogger("Agent")
-
-    LogManager = None  # type: ignore
+from common.logging_manager import get_access_logger, LogManager
 
 
 # ============================================================================

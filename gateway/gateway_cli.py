@@ -25,9 +25,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import logging
 import sys
 from pathlib import Path
+
+from common.logging_manager import get_access_logger, set_module_log_level
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -192,7 +193,7 @@ def _cmd_status() -> int:
 async def _run_http_mode(args) -> int:
     host = getattr(args, "host", "0.0.0.0") or "0.0.0.0"
     port = int(getattr(args, "port", 8000) or 8000)
-    logger = logging.getLogger("gateway.http")
+    logger = get_access_logger("http", "gateway")
 
     from agent.agent import create_agent_from_config
 
@@ -234,7 +235,7 @@ async def _main_async(argv=None) -> int:
     if mode == "channel-gateway":
         # Logging: silence noisy platform-import debug lines so the human
         # sees the "Starting Agent-Z Gateway" banner above the fold.
-        logging.getLogger("gateway.platforms").setLevel(logging.INFO)
+        set_module_log_level("gateway.platforms", logging.INFO)
         return await _run_channel_gateway_mode()
 
     return await _run_http_mode(args)
