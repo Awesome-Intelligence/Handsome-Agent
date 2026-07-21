@@ -652,6 +652,11 @@ tui:
   queue:
     message_queued: "메시지가 큐에 추가되었습니다 (대기 중: {n}개)"
     placeholder: "⏳ (대기 중) #1: {msg}"
+    clear_all: "비우기"
+    count: "⏳ {n}개 대기"
+    delete_item_tooltip: "이 항목 삭제"
+    cleared: "대기열이 비워졌습니다"
+    item_removed: "대기 항목이 제거되었습니다"
   cron:
     summary: "⏰  작업 {total}개 · 활성 {active} · 일시정지 {paused}"
     empty: "예약된 작업이 없습니다. [a]를 눌러 추가하세요."

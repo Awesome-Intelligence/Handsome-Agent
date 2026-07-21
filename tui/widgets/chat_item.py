@@ -19,11 +19,12 @@ ChatItem - 单条消息 widget（oterm 风格）
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal
 
 from textual.containers import Horizontal, Vertical
-from textual.css.query import NoMatches
+from textual.css.query import NoMatches, WrongType
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -156,9 +157,23 @@ class ChatItem(Widget):
             self.add_class(author)
 
     def on_mount(self) -> None:
-        """mount 后确保 author 类被正确添加。"""
+        """mount 后确保 author 类被正确添加。
+
+        assistant 类型：如果在 mount **之前** text / thinking 就已经被赋值（例
+        如非流式 add_assistant_message / 历史会话恢复），watcher 会在 widget
+        未加入 DOM 时触发，query_one 失败导致 Markdown 内容没写入。mount 后
+        必须主动补一次写入。
+        """
         if self.author:
             self.add_class(self.author)
+
+        if self.author == "assistant":
+            # watch_text / watch_thinking 是 async。call_next 太早（子 widget
+            # 可能还没 ready），用 create_task 抛到事件循环下一轮再跑。
+            if self.text:
+                asyncio.create_task(self.watch_text(self.text))
+            if self.thinking:
+                asyncio.create_task(self.watch_thinking(self.thinking))
 
     # ------------------------------------------------------------------
     # 渲染结构
@@ -246,6 +261,8 @@ class ChatItem(Widget):
         Markdown 子树换成单个 ``Static(RichMarkdown(...))``，中间任何
         update 都是浪费。
         """
+        if self.author != "assistant":
+            return
         if not self._user_toggled and self.thinking:
             self.set_reactive(ChatItem.thoughts_collapsed, True)
             self._refresh_thinking_chrome()
@@ -329,21 +346,43 @@ class ChatItem(Widget):
     # ------------------------------------------------------------------
 
     async def watch_text(self, text: str) -> None:  # type: ignore[override]
+        """text reactive 变化时的同步逻辑。
+
+        分两条路径：
+        * 流式进行中（``_response_stream is not None``）：内容由
+          ``MarkdownStream.write`` 增量写入，watcher **不再**全文
+          ``update(text)`` —— 避免重复写入 + 全文重解析 + 闪烁。
+        * 非流式 / 流已停止（``_response_stream is None``）：比如
+          ``add_assistant_message("xxx")``、历史会话恢复、流式到达前
+          就被赋值等，必须用 ``Markdown.update(text)`` 写入一次，否则
+          widget 永远是空。
+        """
         if self.author != "assistant" or self._frozen:
+            return
+        if self._response_stream is not None:
+            # 流式中：只保证 chrome（thinking 标签）跟上状态，不重写正文。
+            self._refresh_thinking_chrome()
             return
         try:
             response = self.query_one(".response", Markdown)
-        except NoMatches:
+        except (NoMatches, WrongType):
+            # NoMatches：子 widget 尚未挂载（还没 compose 完或被摘掉）。
+            # WrongType：.response 已经被 _freeze_markdown() 从 Markdown 换
+            #   成 Static(classes="response")，即将/已经冻结，无需再 update。
             return
         await response.update(text)
         self._refresh_thinking_chrome()
 
     async def watch_thinking(self, thinking: str) -> None:  # type: ignore[override]
+        """thinking reactive 变化时的同步逻辑，镜像 ``watch_text`` 策略。"""
         if self.author != "assistant" or self._frozen:
+            return
+        if self._thinking_stream is not None:
+            self._refresh_thinking_chrome()
             return
         try:
             body = self.query_one(".thinking-body", Markdown)
-        except NoMatches:
+        except (NoMatches, WrongType):
             return
         await body.update(thinking)
         self._refresh_thinking_chrome()

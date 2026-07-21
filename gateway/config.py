@@ -1,10 +1,48 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Gateway configuration and rate limiting."""
+"""Gateway configuration and rate limiting.
+
+Also re-exports the :class:`Platform` enum from the platform-registry module
+because many ported platform adapters (discord, telegram, slack, qqbot, ...)
+expect ``from gateway.config import Platform`` to work.
+"""
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Any, List
 import time
+
+from gateway.session import Platform  # noqa: F401 - re-export for platform adapters
+
+
+@dataclass
+class PlatformConfig:
+    """Configuration for a platform adapter."""
+
+    platform: Any = None
+    enabled: bool = False
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def app_id(self) -> str | None:
+        return self.extra.get("app_id")
+
+    @property
+    def app_secret(self) -> str | None:
+        return self.extra.get("app_secret")
+
+    @property
+    def bot_token(self) -> str | None:
+        return self.extra.get("bot_token")
+
+    @property
+    def api_key(self) -> str | None:
+        return self.extra.get("api_key")
+
+    @property
+    def proxy_url(self) -> str | None:
+        return self.extra.get("proxy_url")
 
 
 @dataclass
@@ -19,6 +57,10 @@ class GatewayConfig:
     enable_rate_limit: bool = True
     enable_cors: bool = True
     max_request_size: int = 1024 * 1024
+    # Weixin credentials (set by agentz gateway setup)
+    weixin_account_id: str = ""
+    weixin_token: str = ""
+    weixin_base_url: str = ""
 
 
 class RateLimiter:

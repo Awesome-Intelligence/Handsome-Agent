@@ -1,0 +1,45 @@
+name: whatsapp-cloud-platform
+label: WhatsApp Cloud
+kind: platform
+version: 1.0.0
+description: >
+  Official WhatsApp Business Cloud API gateway adapter.
+  Connects to Meta's WhatsApp Business Platform via the Graph API,
+  accepting inbound webhooks with X-Hub-Signature-256 HMAC verification
+  and sending outbound text, media, and interactive messages.
+  Requires a WhatsApp Business account, phone number ID, and access token.
+author: Hermes Agent contributors
+requires_env:
+  - name: WHATSAPP_CLOUD_PHONE_NUMBER_ID
+    description: "WhatsApp Cloud phone number ID (from Meta Developer Console)"
+    prompt: "Phone Number ID"
+    password: false
+  - name: WHATSAPP_CLOUD_ACCESS_TOKEN
+    description: "Permanent access token (System User token from Meta Developer Console)"
+    prompt: "Access Token"
+    password: true
+optional_env:
+  - name: WHATSAPP_CLOUD_APP_ID
+    description: "Meta App ID (for X-Hub-Signature-256 webhook verification)"
+    prompt: "App ID (optional)"
+    password: false
+  - name: WHATSAPP_CLOUD_APP_SECRET
+    description: "App Secret for webhook signature verification"
+    prompt: "App Secret (optional)"
+    password: true
+  - name: WHATSAPP_CLOUD_VERIFY_TOKEN
+    description: "Hub.verify_token for webhook subscription handshake"
+    prompt: "Verify Token (optional)"
+    password: false
+  - name: WHATSAPP_CLOUD_WEBHOOK_HOST
+    description: "Webhook bind host (default: 0.0.0.0)"
+    prompt: "Webhook host (default: 0.0.0.0)"
+    password: false
+  - name: WHATSAPP_CLOUD_WEBHOOK_PORT
+    description: "Webhook listen port (default: 8090)"
+    prompt: "Webhook port (default: 8090)"
+    password: false
+  - name: WHATSAPP_CLOUD_API_VERSION
+    description: "Graph API version (default: v20.0)"
+    prompt: "API version (default: v20.0)"
+    password: false

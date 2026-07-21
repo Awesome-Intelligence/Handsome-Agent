@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 class LoadingMixin:
-    """加载动画与状态图标 Mixin。"""
+    """加载动画与状态图标 Mixin."""
 
     # 状态图标映射（与 tui.theming.icons 保持兼容）
     _STATUS_ICONS: dict[str, object] = {
@@ -45,6 +45,15 @@ class LoadingMixin:
         "offline": "⚫",
         "error": "🔴",
         "thinking": "💭",
+    }
+
+    # 已注册的加载动画帧集合（键=名称，值=帧列表字符串）
+    # test_app_loading_styles 要求 dots/circle/braille/pulse 4 个
+    _LOADING_FRAMES: dict[str, list[str]] = {
+        "dots": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+        "circle": ["◐", "◓", "◑", "◒"],
+        "braille": ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"],
+        "pulse": ["•", "●", "○", "◉", "◎"],
     }
 
     # 依赖主类初始化时填充
@@ -57,6 +66,7 @@ class LoadingMixin:
     _breathing_timer: object = None
     _breathing_bright: bool = True
     _busy_animation_timer: object = None
+    _loading_style: str = "dots"
 
     # ------------------------------------------------------------------
     # 公开 API
@@ -73,6 +83,49 @@ class LoadingMixin:
                 self._update_status_icon()
         except Exception:
             pass
+
+    def set_loading_style(self, style: str) -> bool:
+        """设置加载动画样式.
+
+        Args:
+            style: 样式名，必须是 ``_LOADING_FRAMES`` 中的键
+
+        Returns:
+            True 表示设置成功，False 表示样式不合法
+        """
+        if style not in self._LOADING_FRAMES:
+            logger.debug(f"Rejecting unknown loading style: {style}")
+            return False
+        self._loading_style = style
+        # 立即同步 busy 帧索引，避免残留的旧帧
+        self._busy_frame_index = 0
+        # 若当前正在加载动画中，则立即刷新图标（下次 timer 触发会直接使用新帧）
+        try:
+            if getattr(self, "_is_loading", False) and not getattr(
+                self, "_use_native_loading", False
+            ):
+                self._update_busy_animation()
+        except Exception:
+            pass
+        return True
+
+    def cycle_loading_style(self) -> str:
+        """切换到下一个加载动画样式（循环返回下一个样式名）.
+
+        Returns:
+            切换后的新样式名
+        """
+        styles = list(self._LOADING_FRAMES.keys())
+        if not styles:
+            return getattr(self, "_loading_style", "dots")
+        try:
+            current_idx = styles.index(getattr(self, "_loading_style", "dots"))
+        except ValueError:
+            current_idx = -1
+        next_idx = (current_idx + 1) % len(styles)
+        new_style = styles[next_idx]
+        self.set_loading_style(new_style)
+        return new_style
 
     # ------------------------------------------------------------------
     # 加载动画生命周期

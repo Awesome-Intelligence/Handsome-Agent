@@ -64,7 +64,6 @@ tmp-dir-prefix = "/tmp/agent-z"
 allow-dup = true
 
 # 代码复杂度
-[lint.complexity]
 max-branches = 20
 max-returns = 10
 max-statements = 100

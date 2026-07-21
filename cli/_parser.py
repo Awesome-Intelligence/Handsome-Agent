@@ -560,6 +560,7 @@ def build_top_level_parser():
     gateway_stop_parser = gateway_subparsers.add_parser("stop", help="Stop gateway")
     gateway_status_parser = gateway_subparsers.add_parser("status", help="Check gateway status")
     gateway_restart_parser = gateway_subparsers.add_parser("restart", help="Restart gateway")
+    gateway_setup_parser = gateway_subparsers.add_parser("setup", help="Configure messaging platforms (Weixin, etc.)")
 
     # =========================================================================
     # cron command

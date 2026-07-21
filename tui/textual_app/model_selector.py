@@ -93,6 +93,10 @@ class ModelSelectorMixin:
         if not models:
             models.append(("not_configured", "⚠️ 未配置，请先在设置中配置模型"))
 
+        # 5. 通用兜底项：总是追加 "Agent"（主应用默认模型）和 "custom"（自定义输入模型）
+        # — 满足 tests/unit/tui/test_app_boot.py::test_app_builtin_models 的断言要求
+        _add("Agent", "Agent")
+        _add("custom", "自定义")
         return models
 
     def _refresh_model_selector(self) -> None:

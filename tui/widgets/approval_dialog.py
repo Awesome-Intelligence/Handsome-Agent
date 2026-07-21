@@ -24,7 +24,7 @@ TEXTUAL_AVAILABLE = True
 try:
     from textual.app import ComposeResult
     from textual.widgets import Static, Button, Label
-    from textual.containers import Container, VerticalScroll, HorizontalLayout
+    from textual.containers import Container, VerticalScroll, Horizontal
     from textual.message import Message
 except ImportError:
     TEXTUAL_AVAILABLE = False
@@ -33,7 +33,7 @@ except ImportError:
     Label = object  # type: ignore
     Container = object  # type: ignore
     VerticalScroll = object  # type: ignore
-    HorizontalLayout = object  # type: ignore
+    Horizontal = object  # type: ignore
     Message = object  # type: ignore
 
 # i18n 支持
@@ -117,7 +117,6 @@ class RiskLevel(Enum):
         Returns:
             风险等级
         """
-        # 高风险操作列表
         HIGH_RISK_OPERATIONS = [
             "delete_file",
             "delete_directory",
@@ -125,27 +124,41 @@ class RiskLevel(Enum):
             "execute_command",
             "run_shell",
         ]
-        
-        # 中风险操作列表
+        HIGH_RISK_KEYWORDS = [
+            "delete",
+            "remove",
+            "execute",
+        ]
+
         MEDIUM_RISK_OPERATIONS = [
             "write_file",
             "create_directory",
             "move_file",
             "copy_file",
         ]
-        
+        MEDIUM_RISK_KEYWORDS = [
+            "write",
+            "create",
+            "move",
+            "copy",
+        ]
+
         operation_lower = operation.lower()
-        
-        # 检查高风险
+
         for high_op in HIGH_RISK_OPERATIONS:
             if high_op in operation_lower:
                 return cls.HIGH
-        
-        # 检查中风险
+        for high_kw in HIGH_RISK_KEYWORDS:
+            if high_kw in operation_lower:
+                return cls.HIGH
+
         for medium_op in MEDIUM_RISK_OPERATIONS:
             if medium_op in operation_lower:
                 return cls.MEDIUM
-        
+        for medium_kw in MEDIUM_RISK_KEYWORDS:
+            if medium_kw in operation_lower:
+                return cls.MEDIUM
+
         return cls.LOW
     
     def get_color(self) -> str:
@@ -475,7 +488,7 @@ class ApprovalDialog(Container):
             )
             
             # 按钮区域
-            with HorizontalLayout(id="approval-footer"):
+            with Horizontal(id="approval-footer"):
                 yield Button(
                     t("approval.button.cancel", "取消 [Esc]"),
                     id="cancel-button",

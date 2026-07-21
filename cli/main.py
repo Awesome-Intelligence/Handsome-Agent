@@ -541,6 +541,7 @@ def cmd_gateway(args: argparse.Namespace):
         stop_gateway,
         check_gateway_status,
         restart_gateway,
+        setup_gateway,
     )
 
     if args.gateway_command == "start":
@@ -551,6 +552,8 @@ def cmd_gateway(args: argparse.Namespace):
         check_gateway_status()
     elif args.gateway_command == "restart":
         restart_gateway()
+    elif args.gateway_command == "setup":
+        setup_gateway()
     else:
         # Default: show status
         check_gateway_status()
@@ -573,22 +576,9 @@ def cmd_cron(args: argparse.Namespace):
 
 
 def cmd_acp(args: argparse.Namespace):
-    """Handle 'acp' command."""
-    from cli.cli_commands.acp import (
-        start_acp_server,
-        stop_acp_server,
-        check_acp_status,
-    )
-
-    if args.acp_command == "start":
-        start_acp_server()
-    elif args.acp_command == "stop":
-        stop_acp_server()
-    elif args.acp_command == "status":
-        check_acp_status()
-    else:
-        # Default: show status
-        check_acp_status()
+    """Handle 'acp' command — run ACP stdio server."""
+    from agent.acp.entry import main as acp_main
+    acp_main()
 
 
 def cmd_memory(args: argparse.Namespace):

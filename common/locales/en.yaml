@@ -687,6 +687,11 @@ tui:
   queue:
     message_queued: "Message queued ({n} in queue)"
     placeholder: "⏳ (Queued) #1: {msg}"
+    clear_all: "Clear"
+    count: "⏳ {n} queued"
+    delete_item_tooltip: "Remove this item"
+    cleared: "Queue cleared"
+    item_removed: "Queued item removed"
   cron:
     summary: "⏰  {total} jobs · {active} active · {paused} paused"
     empty: "No scheduled jobs. Press [a] to add one."

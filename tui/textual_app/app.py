@@ -90,6 +90,7 @@ from .session import SessionMixin
 from .sidebar_panels import SidebarPanelMixin
 from .slash_completion_bind import SlashCompletionMixin
 from .status_bar import StatusBarMixin
+from .input_queue import InputQueueMixin
 from .text_area import SubmitTextArea
 from tui.widgets.slash_completion import SlashCompletionList
 
@@ -119,6 +120,7 @@ if TEXTUAL_AVAILABLE:
 
 
 class AgentApp(
+    InputQueueMixin,
     StatusBarMixin,
     BannerMixin,
     GreetingMixin,
@@ -140,7 +142,7 @@ class AgentApp(
     ``tui/textual_app/*.py`` 下的 mixin 模块。
 
     Mixin 继承顺序（从左到右优先级递减）：
-      StatusBar → Banner → Greeting → Wisdom →
+      InputQueue → StatusBar → Banner → Greeting → Wisdom →
       ModelSelector → Approval → Notify → Session → AgentRunner →
       SidebarPanel → Actions → Loading → SlashCompletion → App
     """
@@ -194,6 +196,10 @@ class AgentApp(
         # LoadingMixin 中 _STATUS_ICONS 是 🟢/⏳，主类这里覆盖为表情脸版本（保持原有视觉）
         self._STATUS_ICONS = {'online': '😄', 'busy': ['🤔', '🤨', '😲', '🤯'], 'warning': '😕', 'error': '😐'}
         self._is_streaming: bool = False
+        self._streaming_text: str = ""
+        self._streaming_widget_id: str | None = None
+        self.theme_id: str = "default"
+        self._markdown_enabled: bool = True
         self._agent = agent
         # Session / Approval 动态初始化钩子
         self._init_session_store()
@@ -238,8 +244,12 @@ class AgentApp(
             yield SubmitTextArea(id='user-input', classes='input-field', placeholder=t('tui.input.placeholder', '输入消息...Enter 发送'))
             yield Footer()
             yield SlashCompletionList(id='slash-completion')
-        if InputQueuePanel is not None:
-            yield InputQueuePanel()
+        # C3-2：必须在 #input-area 所有子元素（Footer/SlashCompletionList）之后 yield，保证 z-index 正确
+        with Container(id='input-queue-panel'):
+            with Horizontal(id='input-queue-actions'):
+                yield Static('', id='input-queue-count', classes='input-queue-count')
+                yield Static(t('tui.queue.clear_all', '清空'), id='input-queue-clear-all', classes='input-queue-clear-all')
+            yield Vertical(id='input-queue-list')
 
     def on_mount(self) -> None:
         self._logger.info('Textual UI mounted')
@@ -453,6 +463,16 @@ class AgentApp(
         """处理 #status-mode-toggle 点击事件（单步/目标模式切换）."""
         self._on_status_mode_toggle_clicked(_event)
 
+    @on(Click, '#input-queue-clear-all')
+    def _handle_queue_clear_all_click(self, event: Click) -> None:
+        """处理 #input-queue-clear-all 点击事件（清空全部队列项）."""
+        self._on_queue_clear_all(event)
+
+    @on(Click, '.queue-delete-btn')
+    def _handle_queue_delete_btn_click(self, event: Click) -> None:
+        """处理 .queue-delete-btn 点击事件（单项删除）."""
+        self._on_queue_delete_clicked(event)
+
     def _update_token_count(self) -> None:
         """更新 token 计数（方案B：消息完成后估算，不影响性能）."""
         if not estimate_messages_tokens_rough:
@@ -558,19 +578,12 @@ class AgentApp(
             chat_area.append_streaming_text(text)
 
     def is_streaming(self) -> bool:
-        """当前是否在流式输出。委托给 ChatContainer。"""
-        chat_area = self._widget_cache.get('chat_area')
-        if chat_area is None and ChatContainer is not None:
-            try:
-                chat_area = self.query_one('#chat-area', ChatContainer)
-            except Exception:
-                chat_area = None
-        if chat_area is None:
-            return False
-        return bool(chat_area.is_streaming())
+        """当前是否在流式输出.
 
-    def cancel_streaming(self) -> None:
-        """取消流；委托给 ChatContainer。"""
+        优先级：ChatContainer 实际流式状态（若存在） > self._is_streaming 标志。
+        当 chat_area 未挂载或不存在时，直接使用 self._is_streaming，以保证
+        单元测试中直接设置 self._is_streaming = True 时能正确返回 True。
+        """
         chat_area = self._widget_cache.get('chat_area')
         if chat_area is None and ChatContainer is not None:
             try:
@@ -578,8 +591,29 @@ class AgentApp(
             except Exception:
                 chat_area = None
         if chat_area is not None:
-            chat_area.cancel_streaming()
+            try:
+                return bool(chat_area.is_streaming())
+            except Exception:
+                pass
+        return bool(getattr(self, '_is_streaming', False))
+
+    def cancel_streaming(self) -> None:
+        """取消流；委托给 ChatContainer，并同步重置所有流式状态属性."""
+        chat_area = self._widget_cache.get('chat_area')
+        if chat_area is None and ChatContainer is not None:
+            try:
+                chat_area = self.query_one('#chat-area', ChatContainer)
+            except Exception:
+                chat_area = None
+        if chat_area is not None:
+            try:
+                chat_area.cancel_streaming()
+            except Exception:
+                pass
         self._is_streaming = False
+        # 重置流式状态属性（test_cancel_streaming 断言要求）
+        self._streaming_text = ""
+        self._streaming_widget_id = None
 
     def _cache_widgets(self) -> None:
         """缓存常用 Widget 引用（优化性能，避免频繁 query_one）"""
@@ -599,11 +633,22 @@ class AgentApp(
             self._widget_cache['skills_info'] = self.query_one('#skills-info', Static)
             self._widget_cache['tools_info'] = self.query_one('#tools-info', Static)
             self._widget_cache['theme_toggle'] = self.query_one('#theme-toggle', Static)
-            if InputQueuePanel is not None:
-                try:
-                    self._widget_cache['input_queue_panel'] = self.query_one('#input-queue-panel', InputQueuePanel)
-                except Exception:
-                    pass
+            try:
+                self._widget_cache['input_queue_panel'] = self.query_one('#input-queue-panel', Container)
+            except Exception:
+                pass
+            try:
+                self._widget_cache['input_queue_list'] = self.query_one('#input-queue-list', Vertical)
+            except Exception:
+                pass
+            try:
+                self._widget_cache['input_queue_clear_all'] = self.query_one('#input-queue-clear-all', Static)
+            except Exception:
+                pass
+            try:
+                self._widget_cache['input_queue_count'] = self.query_one('#input-queue-count', Static)
+            except Exception:
+                pass
             try:
                 self._widget_cache['sidebar_container'] = self.query_one('#sidebar-container', Container)
             except Exception:

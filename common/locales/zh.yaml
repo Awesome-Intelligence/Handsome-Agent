@@ -667,6 +667,11 @@ tui:
   queue:
     message_queued: "消息已加入队列 (排队中: {n}条)"
     placeholder: "⏳ (队列中) 第1条: {msg}"
+    clear_all: "清空"
+    count: "⏳ {n} 条排队"
+    delete_item_tooltip: "删除此条"
+    cleared: "队列已清空"
+    item_removed: "已移除排队项"
   cron:
     summary: "⏰  {total} 个任务 · 启用 {active} · 暂停 {paused}"
     empty: "暂无定时任务。按 [a] 新建一个。"

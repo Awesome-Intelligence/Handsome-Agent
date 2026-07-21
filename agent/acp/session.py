@@ -270,6 +270,17 @@ class SessionManager:
             return []
         return session.history
 
+    def clear_history(self, session_id: str) -> bool:
+        """Clear message history for a session (keeps session, resets conversation)."""
+        session = self._sessions.get(session_id)
+        if not session:
+            return False
+        with self._lock:
+            session.history.clear()
+            session.updated_at = time.time()
+            self._save_sessions()
+        return True
+
     def clear_old_sessions(self, max_age_seconds: int = 30 * 24 * 3600) -> int:
         """Clear sessions older than max_age_seconds."""
         now = time.time()

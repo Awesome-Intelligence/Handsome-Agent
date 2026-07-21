@@ -121,12 +121,15 @@ class TestTrailingNewlineHandling:
     def test_preserve_internal_newlines(self):
         """测试保留内部换行符"""
         content = "line1\nline2\nline3\n"
-        
+
         stripped = content.rstrip('\n')
         lines = stripped.split('\n')
-        
+
         assert len(lines) == 3
-        assert '\n' not in stripped
+        # rstip('\n') 只删除尾随的，内部换行必须保留
+        assert '\n' in stripped
+        # 但不能再有尾随换行
+        assert not stripped.endswith('\n')
 
     def test_multiple_trailing_newlines(self):
         """测试多个尾随换行符"""
@@ -222,60 +225,70 @@ class TestSubmitTextArea:
 
     def test_text_area_submit_on_enter(self):
         """测试按 Enter 触发提交"""
+        import asyncio
         from tui.textual_app.text_area import SubmitTextArea
-        
+
         # 模拟 Enter 键事件
         class MockEvent:
             def __init__(self, key):
                 self.key = key
-            
+
             def stop(self):
                 pass
-            
+
             def prevent_default(self):
                 pass
-        
+
         # Enter 键应该触发 InputSubmitted
         event = MockEvent("enter")
-        
-        # 创建 mock TextArea
-        with patch("tui.textual_app.text_area.TextArea"):
-            area = SubmitTextArea()
-            area.post_message = MagicMock()
-            
-            # 模拟 _on_key 处理
-            area._on_key(event)
-            
-            area.post_message.assert_called()
-            call_args = area.post_message.call_args
-            assert hasattr(call_args[0][0], "__class__")
-            assert "InputSubmitted" in str(type(call_args[0][0]))
+
+        area = SubmitTextArea()
+        area.post_message = MagicMock()
+
+        # _on_key 是 async，必须 await 才会执行
+        asyncio.run(area._on_key(event))
+
+        area.post_message.assert_called()
+        call_args = area.post_message.call_args
+        assert hasattr(call_args[0][0], "__class__")
+        assert "InputSubmitted" in str(type(call_args[0][0]))
 
     def test_ctrl_enter_inserts_newline(self):
         """测试 Ctrl+Enter 插入换行"""
+        import asyncio
+        from unittest.mock import AsyncMock, PropertyMock
         from tui.textual_app.text_area import SubmitTextArea
-        
+        try:
+            from textual.widgets import TextArea as _TextArea
+        except ImportError:
+            _TextArea = None
+
         class MockEvent:
             def __init__(self, key):
                 self.key = key
-            
-            def stop(self):
-                pass
-            
-            def prevent_default(self):
-                pass
-        
+                self.stop = MagicMock()
+                self.prevent_default = MagicMock()
+                # 父类 TextArea._on_key 会读取 event.is_printable
+                self.is_printable = False
+                # 再补 character 属性，避免父类进一步读属性报错
+                try:
+                    self.character = ""
+                except Exception:
+                    pass
+
         event = MockEvent("ctrl+enter")
-        
-        with patch("tui.textual_app.text_area.TextArea") as MockTextArea:
-            area = SubmitTextArea()
-            MockTextArea.return_value._on_key = MagicMock(return_value=None)
-            
-            # Ctrl+Enter 应该调用父类的 _on_key
-            result = area._on_key(event)
-            
-            # 验证事件未被停止，传递给父类处理
-            assert event.stop.call_count == 0 or result is not None
+        area = SubmitTextArea()
+
+        # 隔离：patch 父类 TextArea._on_key（AsyncMock，因为父方法也是 async），不实际调用真实父类
+        if _TextArea is not None:
+            with patch.object(_TextArea, "_on_key", new_callable=AsyncMock) as mock_super:
+                asyncio.run(area._on_key(event))
+                mock_super.assert_called_once()
+        else:
+            asyncio.run(area._on_key(event))
+
+        # 核心断言：Ctrl+Enter 不命中 enter 分支，event.stop() 应该未被调用
+        assert event.stop.call_count == 0
 
     def test_shift_enter_inserts_newline(self):
         """测试 Shift+Enter 插入换行"""
@@ -358,21 +371,45 @@ class TestShouldNavigateHistory:
     def test_multiline_first_row_up_disabled(self):
         """测试多行内容在首行时向上导航禁用"""
         from tui.textual_app.text_area import SubmitTextArea
-        
+        try:
+            from textual.widgets import TextArea as _TextArea
+        except ImportError:
+            _TextArea = None
+
         area = SubmitTextArea()
         area.text = "line1\nline2\nline3"
-        
-        # 模拟光标在第一行
-        with patch.object(area, "document") as mock_doc, \
-             patch.object(area, "cursor_location", (0, 0)):
-            mock_doc.line_count = 3
-            
-            should_up = area._should_navigate_history(-1)
-            should_down = area._should_navigate_history(1)
-            
-            # 首行不能向上导航，但可以向下
-            assert should_up is True  # 单行内容测试中这个行为可能不同
-            # 在首行，向上应该被禁用（如果能检测到行号）
+
+        # 用 PropertyMock 替换 **TextArea 父类**的 property（SubmitTextArea 自身未定义 document/cursor_location）
+        # 避免 patch SubmitTextArea 自身时报「does not have the attribute」
+        from unittest.mock import PropertyMock
+        class MockDocument:
+            line_count = 3
+
+        if _TextArea is not None:
+            # create=True：允许在目标类上创建新属性（TextArea 自身 __dict__ 可能未直接写 document/cursor_location，但允许 patch 时临时创建）
+            # return_value 必须是 MockDocument 实例（document 属性是对象 instance），不能是类本身
+            from unittest.mock import PropertyMock
+            class MockDocument:
+                line_count = 3
+                def __init__(self, text):
+                    self.text = text
+
+            mock_doc_instance = MockDocument(text=area.text)
+
+            with patch.object(_TextArea, "document", new_callable=PropertyMock, return_value=mock_doc_instance, create=True), \
+                 patch.object(_TextArea, "cursor_location", new_callable=PropertyMock, return_value=(0, 0), create=True):
+
+                should_up = area._should_navigate_history(-1)
+                should_down = area._should_navigate_history(1)
+
+                # 首行 row=0：根据 text_area.py L158-161 逻辑，up 返回 True（交给历史导航）
+                assert should_up is True
+                # 第一行 row=0 < line_count - 1 = 2 → down 返回 False（让光标向下移动一行）
+                assert should_down is False
+        else:
+            # 无 Textual 时：_should_navigate_history 通过 try/except AttributeError 返回 True/True
+            assert area._should_navigate_history(-1) is True
+            assert area._should_navigate_history(1) is True
 
 
 class TestPasteDetection:
@@ -446,10 +483,10 @@ class TestMultilineInputScenarios:
     "name": "test",
     "value": 123
 }'''
-        
+
         lines = json_content.split('\n')
-        
-        assert len(lines) == 5
+
+        assert len(lines) == 4
         assert lines[0] == '{'
         assert lines[1] == '    "name": "test",'
 
@@ -538,25 +575,27 @@ class TestMultilinePasteIntegration:
     def test_full_paste_workflow_bracketed(self):
         """测试完整的 Bracketed Paste 工作流"""
         # 1. 检测 Bracketed Paste
-        raw_paste = "\x1b[200~line1\nline2\nline3\x1b[201~"
-        
-        assert raw_paste.startswith("\x1b[200~")
-        assert raw_paste.endswith("\x1b[201~")
-        
-        # 2. 提取内容
-        inner = raw_paste[5:-5]
+        start = "\x1b[200~"
+        end = "\x1b[201~"
+        raw_paste = start + "line1\nline2\nline3" + end
+
+        assert raw_paste.startswith(start)
+        assert raw_paste.endswith(end)
+
+        # 2. 提取内容：边界标记长度都是 6（\x1b [ 2 0 0 ~），不是 5
+        inner = raw_paste[len(start):-len(end)]
         assert inner == "line1\nline2\nline3"
-        
-        # 3. 检查尾随换行符
+
+        # 3. 检查尾随换行符（本用例输入 line3 后面不带 \n → False）
         has_trailing = inner.endswith('\n')
-        assert has_trailing is True
-        
+        assert has_trailing is False
+
         # 4. 去除尾随换行符（防止自动提交）
         if has_trailing:
             content = inner.rstrip('\n')
         else:
             content = inner
-        
+
         assert content == "line1\nline2\nline3"
         assert not content.endswith('\n')
 
@@ -564,23 +603,23 @@ class TestMultilinePasteIntegration:
         """测试完整的 Unbracketed Paste 工作流"""
         # 1. 检测不是 Bracketed Paste
         raw_paste = "line1\nline2\nline3"
-        
+
         is_bracketed = raw_paste.startswith("\x1b[200~")
         assert is_bracketed is False
-        
+
         # 2. 内容就是原始内容
         inner = raw_paste
-        
-        # 3. 检查尾随换行符
+
+        # 3. 检查尾随换行符：本用例 line3 后面没有 \n → False
         has_trailing = inner.endswith('\n')
-        assert has_trailing is True
-        
+        assert has_trailing is False
+
         # 4. 去除尾随换行符
         if has_trailing:
             content = inner.rstrip('\n')
         else:
             content = inner
-        
+
         assert content == "line1\nline2\nline3"
 
     def test_paste_then_explicit_submit(self):

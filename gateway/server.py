@@ -4,11 +4,14 @@
 
 import json
 import argparse
+import asyncio
+import os
 import time
 import uuid
 import psutil
-import os
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
 from typing import Optional, Dict, Any
 from .config import GatewayConfig
 from .middleware import RateLimitMiddleware, AuthMiddleware
@@ -391,63 +394,109 @@ class GatewayHandler(BaseHTTPRequestHandler):
         })
 
 
+def _load_weixin_credentials(config: GatewayConfig) -> None:
+    """Load Weixin credentials from environment or .env file."""
+    config.weixin_account_id = os.environ.get("WEIXIN_ACCOUNT_ID", "")
+    config.weixin_token = os.environ.get("WEIXIN_TOKEN", "")
+    config.weixin_base_url = os.environ.get("WEIXIN_BASE_URL", "https://ilinkai.weixin.qq.com")
+
+    if not config.weixin_account_id or not config.weixin_token:
+        dotenv_path = Path.home() / ".agent_z" / ".env"
+        if dotenv_path.exists():
+            for line in dotenv_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip())
+            config.weixin_account_id = os.environ.get("WEIXIN_ACCOUNT_ID", "")
+            config.weixin_token = os.environ.get("WEIXIN_TOKEN", "")
+            config.weixin_base_url = os.environ.get("WEIXIN_BASE_URL", "https://ilinkai.weixin.qq.com")
+
+
+async def _run_async(config: GatewayConfig, agent, llm_provider):
+    """Async main: start adapters, run HTTP server in background thread."""
+    import threading
+    from .gateway import Gateway
+    from .platforms.weixin import WeixinAdapter
+    from .platforms.base import PlatformConfig, Platform
+
+    _load_weixin_credentials(config)
+    gateway = Gateway(config)
+    gateway.set_message_handler(lambda msg: agent.respond(msg.content.text, {}) if agent else msg)
+    GatewayHandler._gateway = gateway
+
+    if config.weixin_account_id and config.weixin_token:
+        weixin_cfg = PlatformConfig(
+            platform=Platform.WEIXIN,
+            enabled=True,
+            extra={
+                "account_id": config.weixin_account_id,
+                "token": config.weixin_token,
+                "base_url": config.weixin_base_url,
+            },
+        )
+        adapter = WeixinAdapter(weixin_cfg)
+        gateway.register_adapter(adapter)  # 自动从 adapter.platform 取 key
+        await adapter.start()
+        print(f"📱 Weixin adapter started (account={config.weixin_account_id[:8]}...)")
+
+    server = HTTPServer((config.host, config.port), GatewayHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    print(f"🌐 Gateway HTTP server running on http://{config.host}:{config.port}")
+    await asyncio.Future()  # block forever
+
+
 def run_gateway(config: Optional[GatewayConfig] = None, agent=None, llm_provider=None):
     """Run the gateway server with Hermes-style architecture."""
     if config is None:
         config = GatewayConfig()
-    
+
     GatewayHandler.config = config
     GatewayHandler.rate_limiter = RateLimitMiddleware(config)
     GatewayHandler.auth_middleware = AuthMiddleware(config)
-    
+
     init_agent(agent, llm_provider)
-    
-    server = HTTPServer((config.host, config.port), GatewayHandler)
-    
-    print(f"""
+
+    banner = f"""
 ╔══════════════════════════════════════════════════════════════════╗
 ║                  Agent Gateway                               ║
 ║                  Hermes-style Architecture                 ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  URL: http://{config.host}:{config.port}                          
-║  Auth: {'Enabled' if config.enable_auth else 'Disabled'}                                       
-║  Rate: {config.limit} req/{config.rate_window}s                              
+║  URL: http://{config.host}:{config.port}
+║  Auth: {'Enabled' if config.enable_auth else 'Disabled'}
+║  Rate: {config.rate_limit} req/{config.rate_window}s
 ╠══════════════════════════════════════════════════════════════════╣
-║  Endpoints:                                                  
-║    ACP Protocol:                                           
-║      POST /acp              - ACP protocol endpoint         
-║                                                            
-║    Health:                                                
-║      GET  /health          - Full health check              
-║      GET  /health/live     - Liveness probe               
-║      GET  /health/ready    - Readiness probe              
-║                                                            
-║    Info:                                                  
-║      GET  /stats           - Statistics                   
-║      GET  /info            - Gateway info                
-║      GET  /routes          - List routes                 
-║                                                            
-║    Legacy:                                                
-║      POST /respond         - Legacy respond endpoint       
-║                                                            
-║  ACP Actions:                                            
-║    respond, register_tool, register_provider             
-║    get_stats, list_tools, health_check                   
-╠══════════════════════════════════════════════════════════════════╣
-║  Examples:                                                
-║    curl http://{config.host}:{config.port}/health                   
-║    curl -X POST http://{config.host}:{config.port}/acp \\          
-║      -H "Content-Type: application/json" \\               
-║      -d '{{"action":"respond","payload":{{"query":"hi"}}}}' 
+║  Endpoints:
+║    ACP Protocol:
+║      POST /acp              - ACP protocol endpoint
+║
+║    Health:
+║      GET  /health          - Full health check
+║      GET  /health/live     - Liveness probe
+║      GET  /health/ready    - Readiness probe
+║
+║    Info:
+║      GET  /stats           - Statistics
+║      GET  /info            - Gateway info
+║      GET  /routes          - List routes
+║
+║    Legacy:
+║      POST /respond         - Legacy respond endpoint
+║
+║  ACP Actions:
+║    respond, register_tool, register_provider
+║    get_stats, list_tools, health_check
 ╚══════════════════════════════════════════════════════════════════╝
 🛑 Press Ctrl+C to stop...
-""")
-    
+"""
+    print(banner)
+
     try:
-        server.serve_forever()
+        asyncio.run(_run_async(config, agent, llm_provider))
     except KeyboardInterrupt:
         print("\n👋 Shutting down...")
-        server.shutdown()
 
 
 if __name__ == '__main__':

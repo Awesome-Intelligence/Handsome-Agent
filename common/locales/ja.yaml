@@ -652,6 +652,11 @@ tui:
   queue:
     message_queued: "メッセージがキューに追加されました (キュー内: {n}件)"
     placeholder: "⏳ (キュー内) #1: {msg}"
+    clear_all: "クリア"
+    count: "⏳ {n} 件待ち"
+    delete_item_tooltip: "この項目を削除"
+    cleared: "キューをクリアしました"
+    item_removed: "待ち項目を削除しました"
   cron:
     summary: "⏰  {total} 件のタスク · 有効 {active} · 停止 {paused}"
     empty: "スケジュールされたタスクはありません。[a] で新規作成。"

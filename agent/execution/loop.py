@@ -407,6 +407,9 @@ class AgentLoop:
 
         else:
             content = decision.content or "\n".join(decision.questions)
+            # 流式输出 LLM 文本响应到 TUI
+            if content and self._agent:
+                self._agent._emit_stream(content)
             return LoopStepResult(
                 step=step_num,
                 action=decision.action,

@@ -1,0 +1,27 @@
+name: signal-platform
+label: Signal
+kind: platform
+version: 1.0.0
+description: >
+  Signal messenger gateway adapter.
+  Connects to Signal via signal-cli and relays messages between
+  Signal groups and the Hermes agent.
+author: Hermes Project
+requires_env:
+  - name: SIGNAL_PHONE_NUMBER
+    description: "Phone number registered with Signal CLI"
+    prompt: "Signal phone number"
+    password: false
+  - name: SIGNAL_CLI_PATH
+    description: "Path to signal-cli binary"
+    prompt: "signal-cli path"
+    password: false
+optional_env:
+  - name: SIGNAL_ALLOWED_GROUPS
+    description: "Comma-separated Signal group IDs allowed to talk to the bot"
+    prompt: "Allowed groups (comma-separated)"
+    password: false
+  - name: SIGNAL_ALLOWED_CONTACTS
+    description: "Comma-separated phone numbers allowed to talk to the bot"
+    prompt: "Allowed contacts (comma-separated)"
+    password: false

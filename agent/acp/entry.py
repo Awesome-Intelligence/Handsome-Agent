@@ -107,11 +107,8 @@ def _print_version() -> None:
 def _run_check() -> None:
     """Verify ACP dependencies and imports."""
     try:
-        from agent.acp import ACPServer
-        from agent.acp.session import SessionManager
-        from agent.acp.auth import build_auth_methods
-        from agent.acp.permissions import PermissionManager
-        from agent.acp.tools import get_tool_registry
+        import acp
+        from agent.acp.adapter import AgentZACPAgent
         print("ACP check OK")
     except Exception as e:
         print(f"ACP check FAILED: {e}")
@@ -120,20 +117,24 @@ def _run_check() -> None:
 
 def _run_setup() -> None:
     """Run interactive setup."""
-    try:
-        from cli.setup.setup_wizard import run_setup_wizard
-        run_setup_wizard()
-    except Exception as e:
-        print(f"Setup failed: {e}")
-        sys.exit(1)
+    print("ACP setup: configure your LLM provider in ~/.agent_z/.env")
+    print("  ANTHROPIC_API_KEY=sk-...  # or other provider")
 
 
 async def _run_stdio_server() -> None:
-    """Run ACP server with stdio transport."""
-    from agent.acp.adapter import run_stdio_server
+    """Run ACP server with stdio transport using agent-client-protocol."""
+    import acp
+    from agent.acp.adapter import AgentZACPAgent
+
+    agent = None
+    try:
+        from agent.agent import create_agent_from_config
+        agent = create_agent_from_config()
+    except Exception as e:
+        logging.getLogger(__name__).warning("Could not create agent: %s", e)
 
     try:
-        await run_stdio_server()
+        await acp.run_agent(AgentZACPAgent(agent), use_unstable_protocol=True)
     except KeyboardInterrupt:
         pass
     except Exception as e:
@@ -142,16 +143,9 @@ async def _run_stdio_server() -> None:
 
 
 async def _run_http_server(host: str, port: int) -> None:
-    """Run ACP server with HTTP transport."""
-    from agent.acp.adapter import run_http_server
-
-    try:
-        await run_http_server(host=host, port=port)
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        logging.getLogger(__name__).error(f"HTTP server error: {e}")
-        sys.exit(1)
+    """Run ACP server with HTTP transport (not standard ACP, for dev only)."""
+    print(f"HTTP transport not implemented. Use: python -m agent.acp.entry (stdio mode)")
+    print(f"To run HTTP ACP server, use: python -m agent.acp.adapter")
 
 
 async def _async_main(args: argparse.Namespace) -> None:

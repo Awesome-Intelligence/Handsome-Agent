@@ -132,11 +132,24 @@ class StatusBarMixin:
             self._logger.debug(f"Failed to update queue display: {e}")
 
     def _refresh_queue_panel_async(self, queue_len: int) -> None:
-        """异步调度悬浮面板刷新（使用 call_next 延迟到下一帧）."""
+        """异步调度悬浮面板刷新（使用 call_next 延迟到下一帧）.
+
+        v8.x：从旧的 InputQueuePanel.refresh_from_queue 迁移到
+        InputQueueMixin._refresh_input_queue 方法（Mixin 封装）。
+
+        防递归：若当前正处于 _queue_rendering 状态，不再触发刷新。
+        """
         try:
+            # --- 防递归（避免 _render_input_queue_panel → _update_queue_display → 无限循环）---
+            if getattr(self, "_queue_rendering", False):
+                return
+            # --- 优先使用 InputQueueMixin 公开刷新入口 ---
+            if hasattr(self, "_refresh_input_queue") and callable(self._refresh_input_queue):
+                self._refresh_input_queue()
+                return
+            # --- 兼容旧版 InputQueuePanel Widget（兜底） ---
             panel = self._widget_cache.get("input_queue_panel")
             if panel is None:
-                # 尝试从 imports 中判断 InputQueuePanel 是否可用，可用则尝试 query
                 try:
                     from .imports import InputQueuePanel
                     if InputQueuePanel is not None:
@@ -145,7 +158,6 @@ class StatusBarMixin:
                 except Exception:
                     pass
             if panel is not None and hasattr(panel, "refresh_from_queue"):
-                # 必须使用 call_next，避免在当前布局计算周期内 mount widget 导致 height=0
                 if hasattr(self, "call_next"):
                     self.call_next(panel.refresh_from_queue, queue_len)
                 elif hasattr(self, "app") and self.app is not None and hasattr(self.app, "call_next"):

@@ -79,15 +79,10 @@ def start_acp_server() -> None:
         cmd = None
         
         # 方式 1: 作为模块运行
-        if _is_module_available("acp.server"):
-            cmd = [sys.executable, "-m", "acp.server"]
-        # 方式 2: 作为包运行
-        elif _is_module_available("cli.stdio"):
-            cmd = [sys.executable, "-m", "cli.stdio"]
-        
-        if cmd is None:
-            # 方式 3: 使用 stdio 模式启动 agent
-            cmd = [sys.executable, "-m", "cli.main", "--stdio"]
+        if _is_module_available("agent.acp.entry"):
+            cmd = [sys.executable, "-m", "agent.acp.entry"]
+        elif _is_file_available("agent/acp/entry.py"):
+            cmd = [sys.executable, "-m", "agent.acp.entry"]
         
         # 启动进程
         proc = subprocess.Popen(

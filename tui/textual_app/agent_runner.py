@@ -280,9 +280,20 @@ class AgentRunnerMixin:
             else:
                 content = "（无回复）"
 
+            # ⚠️ 必须在 _complete_agent_stream() **清空流式状态之前** 判断
+            # 是否实际走了流式输出；否则 _complete_agent_stream 把
+            # _current_streaming_id 置 None 后，再判断 not _current_streaming_id
+            # 永远为 True，导致「流式第一条 + typewriter 第二条」双重追加。
+            chat_area = self._widget_cache.get("chat_area")
+            did_stream = bool(getattr(self, "_current_streaming_id", None)) or (
+                chat_area is not None
+                and hasattr(chat_area, "is_streaming")
+                and chat_area.is_streaming()
+            )
+
             self._complete_agent_stream()
 
-            if not getattr(self, "_current_streaming_id", None):
+            if not did_stream:
                 self._show_typewriter_message(content)
 
             time_widget = self._widget_cache.get("status_time")

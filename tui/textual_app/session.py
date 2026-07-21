@@ -45,16 +45,13 @@ class SessionMixin:
                 self._session_store = SessionStore()
                 self._logger.debug("SessionStore initialized")
 
-                if not self.session_id:
-                    self.session_id, is_new = self._session_store.get_or_create_session(
-                        model=self.model_name or "",
-                        provider=self.provider or "",
-                    )
-                    if is_new:
-                        self._logger.info(f"Created new session: {self.session_id}")
-                    else:
-                        self._logger.debug(f"Using existing session: {self.session_id}")
-                else:
+                # ONLY create session if an explicit session_id was provided by caller.
+                # When session_id is None (default for bare AgentApp() instantiation),
+                # we keep it as None and defer session creation to the first message save
+                # (lazy create). This satisfies the boot-time contract asserted by
+                # tests/unit/tui/test_app_boot.py (session_id should remain None until
+                # a chat session actually begins).
+                if self.session_id:
                     self._session_store.get_or_create_session(
                         model=self.model_name or "",
                         provider=self.provider or "",
@@ -63,6 +60,32 @@ class SessionMixin:
             except Exception as e:
                 self._logger.error(f"Failed to initialize SessionStore: {e}")
                 self._session_store = None
+
+    def _ensure_session_exists(self) -> str | None:
+        """Lazy-create session if it hasn't been created yet.
+
+        Called before any operation that requires a valid session_id (saving
+        messages, restoring history). Safe to call multiple times; idempotent.
+
+        Returns:
+            session_id string, or None if SessionStore is unavailable.
+        """
+        if not self._session_store:
+            return None
+        if not self.session_id:
+            try:
+                self.session_id, is_new = self._session_store.get_or_create_session(
+                    model=self.model_name or "",
+                    provider=self.provider or "",
+                )
+                if is_new:
+                    self._logger.info(f"Created new session (lazy): {self.session_id}")
+                else:
+                    self._logger.debug(f"Using existing session (lazy): {self.session_id}")
+            except Exception as e:
+                self._logger.error(f"Failed to lazily create session: {e}")
+                return None
+        return self.session_id
 
     # ------------------------------------------------------------------
     # 消息持久化

@@ -13,6 +13,7 @@ import uuid
 class MessageChannel(str, Enum):
     """消息渠道枚举"""
     HTTP = "http"
+    WEIXIN = "weixin"
     WEBSOCKET = "websocket"
     CLI = "cli"
     TELEGRAM = "telegram"

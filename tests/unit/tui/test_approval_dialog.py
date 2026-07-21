@@ -197,7 +197,8 @@ class TestApprovalDialog:
         
         dialog = ApprovalDialog(operation="test_op")
         
-        with patch.object(dialog, "post_message") as mock_post:
+        with patch.object(dialog, "post_message") as mock_post, \
+             patch.object(dialog, "remove"):
             dialog._confirm()
             
             mock_post.assert_called_once()
@@ -222,7 +223,8 @@ class TestApprovalDialog:
         
         dialog = ApprovalDialog(operation="test_op")
         
-        with patch.object(dialog, "post_message") as mock_post:
+        with patch.object(dialog, "post_message") as mock_post, \
+             patch.object(dialog, "remove"):
             dialog._reject()
             
             mock_post.assert_called_once()

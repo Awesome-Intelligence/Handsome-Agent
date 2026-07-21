@@ -14,6 +14,7 @@ Session Store Service - SQLite Database for Session Persistence
 
 from __future__ import annotations
 
+import gc
 import json
 import sqlite3
 import threading
@@ -876,21 +877,41 @@ class SessionStore:
     
     def close(self) -> None:
         """关闭数据库连接"""
-        if hasattr(self._local, "connection"):
-            self._local.connection.close()
-            del self._local.connection
-        
-        # 刷新待写入消息
+        # 先 flush pending（复用已打开的主连接），否则关完连接再 flush 会
+        # 重新打开一个新连接且不关闭，导致 Windows 文件句柄泄漏。
         self.flush_pending_messages()
-        
+
+        if hasattr(self._local, "connection"):
+            conn = self._local.connection
+            try:
+                # 在 close 前把 WAL 合并回主库、截断 WAL 文件，
+                # 避免 Windows 下 .db-wal / .db-shm 句柄残留。
+                try:
+                    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                except sqlite3.Error:
+                    conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+                except Exception:
+                    pass
+                conn.commit()
+            except Exception:
+                pass
+            finally:
+                conn.close()
+                del self._local.connection
+
+        # CPython 对闭包/局部变量里的 cursor 可能有引用残留，
+        # Windows 下会阻止 sqlite3 释放文件锁，强制 gc 一轮。
+        gc.collect()
+
         self._logger.debug("SessionStore closed")
-    
+
     @classmethod
     def reset_instance(cls) -> None:
         """重置单例（主要用于测试）"""
         if cls._instance is not None:
             cls._instance.close()
             cls._instance = None
+        gc.collect()
 
 
 # ============================================================================
