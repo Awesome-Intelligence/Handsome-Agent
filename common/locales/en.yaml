@@ -348,6 +348,32 @@ cli:
   info: "Info: {message}"
   success: "Success: {message}"
 
+  commands:
+    help_hint: "Type /help <command> for detailed help."
+    help_unknown: "Unknown command: /{cmd_name}"
+    status_title: "System Status:"
+    status_ready: "  ✓ CLI Ready"
+    skill_usage: "Usage: /skill <skill_name> - Activate a skill"
+    model_usage: "Usage: /model <model_name> - Switch model"
+    context_usage: "Usage: /context <info> - Add context for current task"
+    goal_no_active: "No active goal"
+    goal_no_active_to_pause: "No active goal to pause"
+    goal_no_goal_to_resume: "No goal to resume"
+    goal_no_active_set_first: "No active goal. Set one with /goal <text>."
+    goal_usage: "Usage: /goal <text>"
+    goal_status_paused: "Goal paused"
+    goal_status_resumed: "Goal resumed"
+    goal_status_cleared: "Goal cleared"
+    subgoal_no_active: "No active goal. Use /goal <text> first."
+    subgoal_usage: "Usage: /subgoal <text> | list | remove <n> | clear"
+    subgoal_no_subgoals: "No subgoals. Use /subgoal <text> to add one."
+    subgoal_list_title: "Subgoals:"
+    subgoal_removed: "Removed subgoal {idx}: {text}"
+    subgoal_invalid_index: "Invalid subgoal index: {error}"
+    subgoal_cleared: "Cleared {count} subgoals"
+    subgoal_added: "Subgoal added: {text}"
+    unknown_command: "Unknown command: /{command}. Type /help for available commands."
+
 # =============================================================================
 # Interactive Select
 # =============================================================================

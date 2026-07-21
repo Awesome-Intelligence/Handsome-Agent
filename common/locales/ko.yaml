@@ -339,6 +339,32 @@ cli:
   info: "정보: {message}"
   success: "성공: {message}"
 
+  commands:
+    help_hint: "/help <명령> 을 입력하여 자세한 도움말을 확인하세요."
+    help_unknown: "알 수 없는 명령: /{cmd_name}"
+    status_title: "시스템 상태："
+    status_ready: "  ✓ CLI 준비 완료"
+    skill_usage: "用法：/skill <스킬명> - 스킬 활성화"
+    model_usage: "用法：/model <모델명> - 모델 전환"
+    context_usage: "用法：/context <정보> - 현재 작업에 컨텍스트 추가"
+    goal_no_active: "활성 목표 없음"
+    goal_no_active_to_pause: "일시정지할 활성 목표 없음"
+    goal_no_goal_to_resume: "재개할 목표 없음"
+    goal_no_active_set_first: "활성 목표 없음. /goal <텍스트> 로 설정하세요."
+    goal_usage: "用法：/goal <텍스트>"
+    goal_status_paused: "목표 일시정지됨"
+    goal_status_resumed: "목표 재개됨"
+    goal_status_cleared: "목표 삭제됨"
+    subgoal_no_active: "활성 목표 없음. 먼저 /goal <텍스트> 로 설정하세요."
+    subgoal_usage: "用法：/subgoal <텍스트> | list | remove <n> | clear"
+    subgoal_no_subgoals: "하위 목표 없음. /subgoal <텍스트> 로 추가하세요."
+    subgoal_list_title: "하위 목표："
+    subgoal_removed: "하위 목표 {idx} 삭제：{text}"
+    subgoal_invalid_index: "잘못된 하위 목표 인덱스：{error}"
+    subgoal_cleared: "{count}개 하위 목표 삭제됨"
+    subgoal_added: "하위 목표 추가：{text}"
+    unknown_command: "알 수 없는 명령：/{command}. /help 입력하여 사용 가능한 명령을 확인하세요."
+
 # =============================================================================
 # Interactive Select
 # =============================================================================

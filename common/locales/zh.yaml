@@ -339,6 +339,32 @@ cli:
   info: "提示：{message}"
   success: "成功：{message}"
 
+  commands:
+    help_hint: "输入 /help <命令> 查看详细帮助。"
+    help_unknown: "未知命令：/{cmd_name}"
+    status_title: "系统状态："
+    status_ready: "  ✓ CLI 就绪"
+    skill_usage: "用法：/skill <技能名> - 激活技能"
+    model_usage: "用法：/model <模型名> - 切换模型"
+    context_usage: "用法：/context <信息> - 为当前任务添加上下文"
+    goal_no_active: "无活跃目标"
+    goal_no_active_to_pause: "无活跃目标，无法暂停"
+    goal_no_goal_to_resume: "无目标可恢复"
+    goal_no_active_set_first: "无活跃目标，请先用 /goal <文本> 设置一个。"
+    goal_usage: "用法：/goal <文本>"
+    goal_status_paused: "目标已暂停"
+    goal_status_resumed: "目标已恢复"
+    goal_status_cleared: "目标已清除"
+    subgoal_no_active: "无活跃目标，请先用 /goal <文本> 设置一个。"
+    subgoal_usage: "用法：/subgoal <文本> | list | remove <n> | clear"
+    subgoal_no_subgoals: "无子目标，使用 /subgoal <文本> 添加一个。"
+    subgoal_list_title: "子目标："
+    subgoal_removed: "已删除子目标 {idx}：{text}"
+    subgoal_invalid_index: "无效的子目标索引：{error}"
+    subgoal_cleared: "已清除 {count} 个子目标"
+    subgoal_added: "已添加子目标：{text}"
+    unknown_command: "未知命令：/{command}，输入 /help 查看可用命令。"
+
 # =============================================================================
 # Interactive Select
 # =============================================================================

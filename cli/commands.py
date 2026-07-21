@@ -21,9 +21,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, Optional, List, Dict, Any
 
+from common.i18n import i18n, t
+
 
 class CommandCategory(Enum):
     """Command categories."""
+
     GENERAL = "general"
     SESSION = "session"
     TOOLS = "tools"
@@ -35,6 +38,7 @@ class CommandCategory(Enum):
 @dataclass
 class SubCommand:
     """Sub-command definition."""
+
     name: str
     description: str = ""
     handler: Optional[Callable] = None
@@ -44,6 +48,7 @@ class SubCommand:
 @dataclass
 class CommandDef:
     """Command definition with enhanced metadata."""
+
     name: str
     handler: Callable
     description: str = ""
@@ -283,7 +288,7 @@ def format_help(category: Optional[str] = None, full: bool = False) -> str:
             lines.append(f"  /{cmd.name} - {cmd.description}")
 
     lines.append("")
-    lines.append("Type /help <command> for detailed help.")
+    lines.append(t("cli.commands.help_hint"))
 
     return "\n".join(lines)
 
@@ -291,6 +296,7 @@ def format_help(category: Optional[str] = None, full: bool = False) -> str:
 # ============================================================================
 # Built-in Commands
 # ============================================================================
+
 
 def _cmd_help(args: str, context: dict) -> str:
     """Handle /help command."""
@@ -300,7 +306,7 @@ def _cmd_help(args: str, context: dict) -> str:
         cmd = get_command(cmd_name)
         if cmd:
             return get_command_help(cmd, full=True)
-        return f"Unknown command: /{cmd_name}"
+        return t("cli.commands.help_unknown", cmd_name=cmd_name)
     return format_help()
 
 
@@ -308,8 +314,8 @@ def _cmd_status(args: str, context: dict) -> str:
     """Handle /status command."""
     from cli.cli_commands.status import show_status
 
-    lines = ["System Status:", ""]
-    lines.append("  ✓ CLI Ready")
+    lines = [t("cli.commands.status_title"), ""]
+    lines.append(t("cli.commands.status_ready"))
 
     # TODO: Add more status info
     return "\n".join(lines)
@@ -343,7 +349,7 @@ def _cmd_quit(args: str, context: dict) -> str:
 def _cmd_skill(args: str, context: dict) -> str:
     """Handle /skill command."""
     if not args:
-        return "Usage: /skill <skill_name> - Activate a skill"
+        return t("cli.commands.skill_usage")
 
     skill_name = args.strip()
     return f"__ACTIVATE_SKILL__{skill_name}"
@@ -352,7 +358,7 @@ def _cmd_skill(args: str, context: dict) -> str:
 def _cmd_model(args: str, context: dict) -> str:
     """Handle /model command."""
     if not args:
-        return "Usage: /model <model_name> - Switch model"
+        return t("cli.commands.model_usage")
 
     model_name = args.strip()
     return f"__SWITCH_MODEL__{model_name}"
@@ -361,7 +367,7 @@ def _cmd_model(args: str, context: dict) -> str:
 def _cmd_context(args: str, context: dict) -> str:
     """Handle /context command."""
     if not args:
-        return "Usage: /context <info> - Add context for current task"
+        return t("cli.commands.context_usage")
 
     return f"__ADD_CONTEXT__{args}"
 
@@ -386,38 +392,38 @@ def _cmd_goal(args: str, context: dict) -> str:
         goal_manager = _get_goal_manager()
         if goal_manager:
             return goal_manager.status_line()
-        return "No active goal"
+        return t("cli.commands.goal_no_active")
 
     elif args.startswith("pause"):
         # 暂停 Goal
         goal_manager = _get_goal_manager()
         if goal_manager and goal_manager.is_active():
             goal_manager.pause()
-            return "Goal paused"
-        return "No active goal to pause"
+            return t("cli.commands.goal_status_paused")
+        return t("cli.commands.goal_no_active_to_pause")
 
     elif args.startswith("resume"):
         # 恢复 Goal
         goal_manager = _get_goal_manager()
         if goal_manager and goal_manager.has_goal():
             goal_manager.resume()
-            return "Goal resumed"
-        return "No goal to resume"
+            return t("cli.commands.goal_status_resumed")
+        return t("cli.commands.goal_no_goal_to_resume")
 
     elif args.startswith("clear"):
         # 清除 Goal
         goal_manager = _get_goal_manager()
         if goal_manager and goal_manager.has_goal():
             goal_manager.clear()
-            return "Goal cleared"
-        return "No active goal"
+            return t("cli.commands.goal_status_cleared")
+        return t("cli.commands.goal_no_active")
 
     elif args == "":
         # 无参数，显示状态
         goal_manager = _get_goal_manager()
         if goal_manager:
             return goal_manager.status_line()
-        return "No active goal. Set one with /goal <text>."
+        return t("cli.commands.goal_no_active_set_first")
 
     else:
         # 创建新 Goal（剩余文本作为 Goal 内容）
@@ -428,7 +434,7 @@ def _cmd_goal(args: str, context: dict) -> str:
                 goal_manager.set(goal_text)
                 # 返回特殊标记，通知 CLI 启动 agent 执行
                 return f"__START_GOAL__{goal_text}"
-        return "Usage: /goal <text>"
+        return t("cli.commands.goal_usage")
 
 
 def _cmd_subgoal(args: str, context: dict) -> str:
@@ -439,16 +445,16 @@ def _cmd_subgoal(args: str, context: dict) -> str:
 
     goal_manager = _get_goal_manager()
     if not goal_manager or not goal_manager.has_goal():
-        return "No active goal. Use /goal <text> first."
+        return t("cli.commands.subgoal_no_active")
 
     if not subcmd:
-        return "Usage: /subgoal <text> | list | remove <n> | clear"
+        return t("cli.commands.subgoal_usage")
 
     if subcmd == "list":
         subgoals = goal_manager.get_subgoals()
         if not subgoals:
-            return "No subgoals. Use /subgoal <text> to add one."
-        lines = ["Subgoals:"]
+            return t("cli.commands.subgoal_no_subgoals")
+        lines = [t("cli.commands.subgoal_list_title")]
         for i, sg in enumerate(subgoals, start=1):
             lines.append(f"  {i}. {sg}")
         return "\n".join(lines)
@@ -457,21 +463,21 @@ def _cmd_subgoal(args: str, context: dict) -> str:
         try:
             idx = int(subarg)
             removed = goal_manager.remove_subgoal(idx)
-            return f"Removed subgoal {idx}: {removed[:50]}..."
+            return t("cli.commands.subgoal_removed", idx=idx, text=removed[:50])
         except (ValueError, IndexError) as e:
-            return f"Invalid subgoal index: {e}"
+            return t("cli.commands.subgoal_invalid_index", error=str(e))
 
     elif subcmd == "clear":
         count = goal_manager.clear_subgoals()
-        return f"Cleared {count} subgoals"
+        return t("cli.commands.subgoal_cleared", count=count)
 
     else:
         # 添加子目标
         subgoal_text = (subcmd + " " + subarg).strip()
         if subgoal_text:
             goal_manager.add_subgoal(subgoal_text)
-            return f"Subgoal added: {subgoal_text[:50]}..."
-        return "Usage: /subgoal <text>"
+            return t("cli.commands.subgoal_added", text=subgoal_text[:50])
+        return t("cli.commands.subgoal_usage")
 
 
 # GoalManager 实例缓存 - 使用 session_id 作为键
@@ -483,23 +489,25 @@ _today_session_cache: Optional[Any] = None
 
 def _get_goal_manager():
     """获取当前会话的 GoalManager 实例（单例模式）
-    
+
     使用 session_id 作为缓存键，确保同一会话复用同一个 GoalManager 实例。
     直接使用 session.store 来持久化 goal，避免 FileSessionStore 的路径问题。
     """
     global _today_session_cache
-    
+
     from agent.goal import GoalManager
     from agent.session import session_manager
     from datetime import datetime
 
     # 检查缓存的 session 是否是今天的
     today = datetime.now().strftime("%Y%m%d")
-    
-    if _today_session_cache is None or not _today_session_cache.session_id.startswith(today):
+
+    if _today_session_cache is None or not _today_session_cache.session_id.startswith(
+        today
+    ):
         # 创建或获取今日 session
         _today_session_cache = session_manager.get_or_create_today_session()
-    
+
     session = _today_session_cache
     session_id = session.session_id
 
@@ -509,15 +517,15 @@ def _get_goal_manager():
 
     # 创建新实例并缓存
     goal_manager = GoalManager(session_id=session_id)
-    
+
     # 直接使用 session 的 store 来持久化 goal
     goal_manager._session_db = session.store
-    
+
     # 手动加载已有 goal（因为 GoalManager 初始化时用的不是 session.store）
     loaded_goal = goal_manager._load_goal_from_db()
     if loaded_goal:
         goal_manager._current_goal = loaded_goal
-    
+
     _goal_manager_cache[session_id] = goal_manager
     return goal_manager
 
@@ -681,6 +689,7 @@ register_command(
 # Public API
 # ============================================================================
 
+
 def parse_command(input_str: str) -> tuple[str, str]:
     """Parse a command string into (command, args).
 
@@ -717,7 +726,7 @@ def execute_command(input_str: str, context: dict) -> str:
 
     cmd_def = get_command(command)
     if not cmd_def:
-        return f"Unknown command: /{command}. Type /help for available commands."
+        return t("cli.commands.unknown_command", command=command)
 
     # Check if it's a subcommand
     if args and cmd_def.subcommands:
@@ -725,7 +734,7 @@ def execute_command(input_str: str, context: dict) -> str:
         if sub_name in cmd_def.subcommands:
             sub = cmd_def.subcommands[sub_name]
             if sub.handler:
-                return sub.handler(args[len(sub_name):].strip(), context)
+                return sub.handler(args[len(sub_name) :].strip(), context)
             return f"Sub-command not implemented: {command} {sub_name}"
 
     return cmd_def.handler(args, context)
@@ -734,6 +743,7 @@ def execute_command(input_str: str, context: dict) -> str:
 # ============================================================================
 # Autocomplete Support
 # ============================================================================
+
 
 def get_completions(
     partial: str,
@@ -846,6 +856,7 @@ def get_command_suggestions(
 # Platform-specific Commands
 # ============================================================================
 
+
 def get_platform_commands(platform: str) -> List[CommandDef]:
     """Get commands for a specific platform.
 
@@ -856,7 +867,9 @@ def get_platform_commands(platform: str) -> List[CommandDef]:
         List of platform-specific commands
     """
     command_names = PLATFORM_COMMANDS.get(platform, [])
-    return [COMMAND_REGISTRY[name] for name in command_names if name in COMMAND_REGISTRY]
+    return [
+        COMMAND_REGISTRY[name] for name in command_names if name in COMMAND_REGISTRY
+    ]
 
 
 if __name__ == "__main__":

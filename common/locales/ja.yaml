@@ -339,6 +339,32 @@ cli:
   info: "情報: {message}"
   success: "成功: {message}"
 
+  commands:
+    help_hint: "/help <コマンド> で詳細なヘルプを表示。"
+    help_unknown: "不明なコマンド: /{cmd_name}"
+    status_title: "システムステータス："
+    status_ready: "  ✓ CLI 準備完了"
+    skill_usage: "用法：/skill <スキル名> - スキルを有効化"
+    model_usage: "用法：/model <モデル名> - モデル切替"
+    context_usage: "用法：/context <情報> - 現在のタスクにコンテキストを追加"
+    goal_no_active: "アクティブな目標がありません"
+    goal_no_active_to_pause: "一時停止するアクティブな目標がありません"
+    goal_no_goal_to_resume: "再開する目標がありません"
+    goal_no_active_set_first: "アクティブな目標がありません。/goal <テキスト> で設定してください。"
+    goal_usage: "用法：/goal <テキスト>"
+    goal_status_paused: "目標が一時停止しました"
+    goal_status_resumed: "目標が再開しました"
+    goal_status_cleared: "目標がクリアされました"
+    subgoal_no_active: "アクティブな目標がありません。先に /goal <テキスト> で設定してください。"
+    subgoal_usage: "用法：/subgoal <テキスト> | list | remove <n> | clear"
+    subgoal_no_subgoals: "サブ目標がありません。/subgoal <テキスト> で追加してください。"
+    subgoal_list_title: "サブ目標："
+    subgoal_removed: "サブ目標 {idx} を削除：{text}"
+    subgoal_invalid_index: "無効なサブ目標インデックス：{error}"
+    subgoal_cleared: "{count} 個のサブ目標をクリア"
+    subgoal_added: "サブ目標を追加：{text}"
+    unknown_command: "不明なコマンド：/{command}。/help で利用可能なコマンドを確認してください。"
+
 # =============================================================================
 # Interactive Select
 # =============================================================================
