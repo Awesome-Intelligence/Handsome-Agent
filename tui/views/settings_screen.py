@@ -310,11 +310,16 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         self._setting_controls: dict[str, tuple] = {}  # 保存设置控件引用
         self._logger = get_access_logger("SettingsScreen", sublayer="tui")
         self._content_built: bool = False  # guard: only build content once on mount
+        self._i18n = get_i18n()
+
+    def _t(self, key: str, **kwargs) -> str:
+        """Shortcut for i18n translation."""
+        return self._i18n.t(f"tui.settings.{key}", **kwargs)
 
     def compose(self) -> ComposeResult:
         """组合组件"""
         with Container(id="settings-container"):
-            yield Static("⚙ 设置  (Esc/F2 关闭)", id="settings-header")
+            yield Static(self._t("header"), id="settings-header")
 
             # 主体：左侧分类按钮列表 + 右侧内容
             with Horizontal(id="settings-body"):
@@ -326,16 +331,13 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                 with VerticalScroll(id="content-area"):
                     yield from self._compose_content()
 
-            yield Static(
-                "Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭",
-                id="settings-footer",
-            )
+            yield Static(self._t("footer"), id="settings-footer")
 
     def _compose_sidebar_buttons(self) -> ComposeResult:
         """生成侧边栏分类按钮列表"""
         if CategoryMeta:
-            for cat_id, icon, name, _ in CategoryMeta.CATEGORIES:
-                label = f"{icon}  {name}"
+            for cat_id, icon, name_key, _ in CategoryMeta.CATEGORIES:
+                label = f"{icon}  {self._t(name_key)}"
                 yield Button(
                     label,
                     id=f"btn-{cat_id}",
@@ -383,21 +385,21 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         elif category == "about":
             yield from self._build_about_content(settings)
         else:
-            yield Static("暂无设置项")
+            yield Static(self._t("no_items"))
 
     def _build_language_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建语言设置内容"""
-        yield Static("🌐 显示语言", classes="setting-group-title")
+        yield Static(self._t("language"), classes="setting-group-title")
         language_options = [
-            ("中文", "中文"),
-            ("English", "English"),
+            (self._t("lang_zh"), "zh"),
+            (self._t("lang_en"), "en"),
         ]
         current = (
             settings.display.language.value
             if hasattr(settings.display, "language")
             else "zh"
         )
-        current_label = "中文" if current == "zh" else "English"
+        current_label = "zh" if current == "zh" else "en"
         yield Select(
             options=language_options,
             value=current_label,
@@ -408,7 +410,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def _build_llm_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建 LLM 设置内容 - 已配置 Provider 列表置顶，选中后下方编辑"""
-        yield Static("🤖 大模型配置", classes="setting-group-title")
+        yield Static(self._t("llm"), classes="setting-group-title")
 
         active_provider = (
             settings.llm.provider if hasattr(settings.llm, "provider") else ""
@@ -432,7 +434,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         available.sort(key=lambda x: x[0])
 
         # ── 已配置 Provider 列表（可点击选中）────────────────────
-        yield Static("已配置模型", classes="setting-row")
+        yield Static(self._t("configured_providers"), classes="setting-row")
         if providers_items:
             yield VerticalScroll(
                 *(
@@ -445,7 +447,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             )
         else:
             yield Static(
-                "[dim]尚未配置任何 Provider[/dim]",
+                self._t("no_provider"),
                 classes="provider-config-item",
             )
 
@@ -461,35 +463,35 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         cur_pid = active_provider if active_provider in dict(available) else None
 
         # ── 编辑 / 添加表单（始终可见）────────────────────────
-        yield Static("编辑 / 添加 Provider", classes="setting-group-title")
+        yield Static(self._t("edit_add_provider"), classes="setting-group-title")
 
-        yield Static("Provider", classes="setting-row")
+        yield Static(self._t("provider"), classes="setting-row")
         select_kwargs = {"id": "llm-provider-select", "allow_blank": True, "classes": "setting-row"}
         if cur_pid:
             select_kwargs["value"] = cur_pid
         yield Select(options=[(name, pid) for name, pid in available], **select_kwargs)
 
-        yield Static("API Key", classes="setting-row")
+        yield Static(self._t("api_key"), classes="setting-row")
         yield Input(
             value=cur_key,
-            placeholder="输入 API Key",
+            placeholder=self._t("provider_apikey_placeholder"),
             id="llm-apikey-input",
             password=True,
             classes="setting-row",
         )
 
-        yield Static("模型名称", classes="setting-row")
+        yield Static(self._t("model_name"), classes="setting-row")
         yield Input(
             value=cur_model,
-            placeholder="留空用 provider 默认",
+            placeholder=self._t("provider_model_placeholder"),
             id="llm-model-input",
             classes="setting-row",
         )
 
-        yield Static("Base URL", classes="setting-row")
+        yield Static(self._t("base_url"), classes="setting-row")
         yield Input(
             value=cur_url,
-            placeholder="留空用 provider 默认",
+            placeholder=self._t("provider_baseurl_placeholder"),
             id="llm-baseurl-input",
             classes="setting-row",
         )
@@ -517,7 +519,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
         if not has_any:
             yield Static(
-                "[dim]尚未配置任何 Provider，请在下方添加[/]",
+                self._t("no_provider"),
                 classes="provider-config-item",
             )
 
@@ -540,27 +542,27 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         self._editing_provider_id = provider_id
 
         await details_container.mount(
-            Static(f"[bold]编辑:[/bold] {provider_id}", id="provider-edit-title"),
-            Static("API Key", classes="setting-row"),
+            Static(self._t("provider_edit_title", provider=provider_id), id="provider-edit-title"),
+            Static(self._t("api_key"), classes="setting-row"),
             Input(
                 api_key,
                 id="provider-apikey-input",
-                placeholder="输入 API Key（不填则保留原值）",
+                placeholder=self._t("provider_apikey_placeholder"),
                 password=True,
                 classes="setting-row",
             ),
-            Static("模型名称", classes="setting-row"),
+            Static(self._t("model_name"), classes="setting-row"),
             Input(
                 model,
                 id="provider-model-input",
-                placeholder="留空使用 provider 默认模型",
+                placeholder=self._t("provider_model_placeholder"),
                 classes="setting-row",
             ),
-            Static("Base URL（可选）", classes="setting-row"),
+            Static(f"{self._t('base_url')}（可选）", classes="setting-row"),
             Input(
                 base_url,
                 id="provider-baseurl-input",
-                placeholder="留空使用 provider 默认地址",
+                placeholder=self._t("provider_baseurl_placeholder"),
                 classes="setting-row",
             ),
         )
@@ -573,59 +575,59 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def _build_model_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建模型参数设置内容"""
-        yield Static("🔧 模型参数", classes="setting-group-title")
+        yield Static(self._t("model"), classes="setting-group-title")
 
         model = settings.model_settings
 
-        yield Static("Temperature (0.0-1.0)", classes="setting-row")
+        yield Static(self._t("temperature"), classes="setting-row")
         yield Input(
             str(model.temperature),
             id="model-temperature-input",
-            placeholder=f"当前: {model.temperature} (范围: 0.0-1.0)",
+            placeholder=f"{self._t('temperature')}: {model.temperature} (0.0-1.0)",
             classes="setting-row",
         )
 
-        yield Static("Max Tokens", classes="setting-row")
+        yield Static(self._t("max_tokens"), classes="setting-row")
         yield Input(
             str(model.max_tokens),
             id="model-maxtokens-input",
-            placeholder=f"当前: {model.max_tokens}",
+            placeholder=f"{self._t('max_tokens')}: {model.max_tokens}",
             classes="setting-row",
         )
 
-        yield Static("Context Window", classes="setting-row")
+        yield Static(self._t("context_window"), classes="setting-row")
         yield Input(
             str(model.context_window),
             id="model-contextwindow-input",
-            placeholder=f"当前: {model.context_window}",
+            placeholder=f"{self._t('context_window')}: {model.context_window}",
             classes="setting-row",
         )
 
         # 辅助任务专用模型
-        yield Static("辅助任务模型配置", classes="setting-row")
-        yield Static("[dim]为空则使用主模型 gpt-4o-mini[/dim]", classes="setting-row")
+        yield Static(self._t("auxiliary_models"), classes="setting-row")
+        yield Static(self._t("auxiliary_hint"), classes="setting-row")
 
         aux_fields = [
-            ("compression_model", "压缩模型", model.compression_model),
-            ("title_model", "标题生成", model.title_model),
-            ("synthesis_model", "技能合成", model.synthesis_model),
-            ("memory_model", "记忆摘要", model.memory_model),
-            ("auxiliary_model", "其他辅助任务", model.auxiliary_model),
+            ("compression_model", "compression_model", model.compression_model),
+            ("title_model", "title_model", model.title_model),
+            ("synthesis_model", "synthesis_model", model.synthesis_model),
+            ("memory_model", "memory_model", model.memory_model),
+            ("auxiliary_model", "auxiliary_model", model.auxiliary_model),
         ]
-        for fid, label, current in aux_fields:
-            yield Static(label, classes="setting-row")
+        for fid, label_key, current in aux_fields:
+            yield Static(self._t(label_key), classes="setting-row")
             yield Input(
                 current or "",
                 id=f"model-{fid}-input",
-                placeholder=f"当前: {current or '(default: 主模型)'}",
+                placeholder=f"{self._t(label_key)}: {current or self._t('depth_normal')}",
                 classes="setting-row",
             )
 
     def _build_fallback_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建 Fallback 配置内容"""
-        yield Static("🔄 Fallback 链", classes="setting-group-title")
+        yield Static(self._t("fallback"), classes="setting-group-title")
         yield Static(
-            "[dim]主模型失败时按顺序尝试的备选模型（从上到下）[/dim]",
+            self._t("fallback_hint"),
             classes="setting-row",
         )
 
@@ -652,14 +654,14 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         else:
             fb_widgets.append(
                 Static(
-                    "[dim]尚未配置 Fallback，请添加备选模型[/dim]",
+                    self._t("no_fallback"),
                     classes="fallback-item",
                 )
             )
         yield VerticalScroll(*fb_widgets, id="fallback-list", classes="fallback-list")
 
         # 添加 Fallback 选择
-        yield Static("添加 Fallback Provider", classes="setting-row")
+        yield Static(self._t("add_fallback"), classes="setting-row")
         try:
             from common.llm_providers import PROVIDERS as CATALOG
         except ImportError:
@@ -677,17 +679,17 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def _build_terminal_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建终端设置内容"""
-        yield Static("💻 终端设置", classes="setting-group-title")
+        yield Static(self._t("terminal"), classes="setting-group-title")
 
         backend_options = [
-            ("本地执行", "本地执行"),
-            ("Docker 容器", "Docker 容器"),
+            (self._t("backend_local"), "local"),
+            (self._t("backend_docker"), "docker"),
         ]
         current_backend = (
-            "本地执行"
+            "local"
             if hasattr(settings.terminal, "backend")
             and settings.terminal.backend == "local"
-            else "Docker 容器"
+            else "docker"
         )
         yield Select(
             options=backend_options,
@@ -699,46 +701,46 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def _build_agent_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建 Agent 设置内容"""
-        yield Static("⚙️ Agent 设置", classes="setting-group-title")
+        yield Static(self._t("agent"), classes="setting-group-title")
 
         agent = settings.agent
 
-        yield Static("最大迭代次数", classes="setting-row")
+        yield Static(self._t("max_iterations"), classes="setting-row")
         yield Input(
             str(agent.max_turns),
             id="agent-maxiterations-input",
-            placeholder=f"当前: {agent.max_turns}",
+            placeholder=f"{self._t('max_iterations')}: {agent.max_turns}",
             classes="setting-row",
         )
 
-        yield Static("超时时间 (秒)", classes="setting-row")
+        yield Static(self._t("timeout"), classes="setting-row")
         yield Input(
             str(agent.gateway_timeout),
             id="agent-timeout-input",
-            placeholder=f"当前: {agent.gateway_timeout}s",
+            placeholder=f"{self._t('timeout')}: {agent.gateway_timeout}s",
             classes="setting-row",
         )
 
     def _build_session_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建会话设置内容"""
-        yield Static("🔄 会话与记忆", classes="setting-group-title")
+        yield Static(self._t("session"), classes="setting-group-title")
 
         session = settings.session
         memory = settings.memory
         compression = settings.compression
 
         # 会话开关
-        yield Static("启用会话", classes="setting-row")
+        yield Static(self._t("enable_session"), classes="setting-row")
         yield Switch(
             session.enabled, id="session-enabled-switch", classes="setting-row"
         )
 
         # 记忆系统开关
-        yield Static("启用记忆系统", classes="setting-row")
+        yield Static(self._t("enable_memory"), classes="setting-row")
         yield Switch(memory.enabled, id="memory-enabled-switch", classes="setting-row")
 
         # 语义检索开关
-        yield Static("启用语义检索", classes="setting-row")
+        yield Static(self._t("enable_semantic"), classes="setting-row")
         yield Switch(
             memory.semantic_retrieval_enabled,
             id="semantic-switch",
@@ -746,34 +748,32 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         )
 
         # Context 压缩开关
-        yield Static("启用 Context 压缩", classes="setting-row")
+        yield Static(self._t("enable_compression"), classes="setting-row")
         yield Switch(
             compression.enabled, id="compression-switch", classes="setting-row"
         )
 
     def _build_preferences_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建响应偏好设置内容"""
-        yield Static("📝 响应偏好", classes="setting-group-title")
+        yield Static(self._t("preferences"), classes="setting-group-title")
 
         prefs = settings.preferences
 
         # 详细程度
         depth_options = [
-            ("简洁", "简洁"),
-            ("普通", "普通"),
-            ("详细", "详细"),
+            (self._t("depth_brief"), "brief"),
+            (self._t("depth_normal"), "normal"),
+            (self._t("depth_detailed"), "detailed"),
         ]
         current_depth = (
             prefs.explanation_depth.value
             if hasattr(prefs, "explanation_depth")
-            else "普通"
+            else "normal"
         )
-        depth_label_map = {"brief": "简洁", "normal": "普通", "detailed": "详细"}
-        depth_label = depth_label_map.get(current_depth, "普通")
-        yield Static("详细程度", classes="setting-row")
+        yield Static(self._t("explanation_depth"), classes="setting-row")
         yield Select(
             options=depth_options,
-            value=depth_label,
+            value=current_depth,
             id="depth-select",
             allow_blank=False,
             classes="setting-row",
@@ -781,21 +781,19 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
         # 响应格式
         format_options = [
-            ("自动", "自动"),
-            ("Markdown", "Markdown"),
-            ("纯文本", "纯文本"),
+            (self._t("format_auto"), "auto"),
+            (self._t("format_markdown"), "markdown"),
+            (self._t("format_plain"), "plain"),
         ]
         current_format = (
             prefs.response_format.value
             if hasattr(prefs, "response_format")
             else "markdown"
         )
-        format_label_map = {"auto": "自动", "markdown": "Markdown", "plain": "纯文本"}
-        format_label = format_label_map.get(current_format, "Markdown")
-        yield Static("响应格式", classes="setting-row")
+        yield Static(self._t("response_format"), classes="setting-row")
         yield Select(
             options=format_options,
-            value=format_label,
+            value=current_format,
             id="format-select",
             allow_blank=False,
             classes="setting-row",
@@ -803,24 +801,24 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def _build_tools_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建工具设置内容"""
-        yield Static("🛠️ 工具设置", classes="setting-group-title")
+        yield Static(self._t("tools"), classes="setting-group-title")
 
         tools = settings.tools
 
-        yield Static("STT (语音转文字)", classes="setting-row")
+        yield Static(self._t("stt"), classes="setting-row")
         yield Switch(tools.stt_enabled, id="stt-switch", classes="setting-row")
 
-        yield Static("TTS (文字转语音)", classes="setting-row")
+        yield Static(self._t("tts"), classes="setting-row")
         yield Switch(tools.tts_enabled, id="tts-switch", classes="setting-row")
 
-        yield Static("Browser 工具", classes="setting-row")
+        yield Static(self._t("browser"), classes="setting-row")
         yield Switch(tools.browser_enabled, id="browser-switch", classes="setting-row")
 
     def _build_logging_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建日志设置内容"""
-        yield Static("📄 日志设置", classes="setting-group-title")
+        yield Static(self._t("logging"), classes="setting-group-title")
 
-        yield Static("启用文件日志", classes="setting-row")
+        yield Static(self._t("enable_file_log"), classes="setting-row")
         yield Switch(
             settings.logging.file_enabled, id="file-log-switch", classes="setting-row"
         )
@@ -828,10 +826,10 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     def _build_about_content(self, settings: SettingsDocument) -> ComposeResult:
         """构建关于内容"""
         about = settings.about
-        yield Static("ℹ️ 关于 Agent-Z", classes="about-title")
-        yield Static(f"版本: {about.version}", classes="about-content")
-        yield Static(f"许可证: {about.license}", classes="about-content")
-        yield Static("一个基于 LLM 的智能助手", classes="about-content")
+        yield Static(self._t("about"), classes="about-title")
+        yield Static(self._t("version", version=about.version), classes="about-content")
+        yield Static(self._t("license", license=about.license), classes="about-content")
+        yield Static(self._t("about_desc"), classes="about-content")
 
     # ========================================================================
     # 事件处理
@@ -902,9 +900,9 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
         # 如果有验证错误，不保存并提示
         if validation_errors:
-            error_msg = "✗ " + "\n✗ ".join(validation_errors[:3])
+            error_msg = self._t("validation_error") + ("\n" + self._t("validation_error")).join(validation_errors[:3])
             if len(validation_errors) > 3:
-                error_msg += f"\n... 还有 {len(validation_errors) - 3} 个错误"
+                error_msg += "\n" + self._t("more_errors", n=len(validation_errors) - 3)
             self.notify(error_msg, timeout=4.0)
             return
 
@@ -912,15 +910,15 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             if self._settings_manager.save():
                 # 显示变更列表
                 if changed_settings:
-                    changes_msg = "✓ 已保存: " + ", ".join(changed_settings[:5])
+                    changes_msg = self._t("saved_changes") + ", ".join(changed_settings[:5])
                     if len(changed_settings) > 5:
-                        changes_msg += f"\n... 还有 {len(changed_settings) - 5} 项"
+                        changes_msg += "\n" + self._t("more_changes", n=len(changed_settings) - 5)
                     self.notify(changes_msg, timeout=3.0)
                 else:
-                    self.notify("✓ 设置已保存（无变更）", timeout=2.0)
+                    self.notify(self._t("save_no_change"), timeout=2.0)
             else:
                 self._logger.error("Failed to save settings")
-                self.notify("✗ 保存失败", timeout=2.0)
+                self.notify(self._t("save_error"), timeout=2.0)
         self.post_message(SettingsSaved(self))
         self.dismiss()
 
@@ -934,15 +932,16 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
         settings = self._settings_manager.get_settings()
 
-        # 语言设置（Select）：label → value
+        # 语言设置（Select）：value 直接就是代码
         try:
             lang_select = self.query_one("#language-select", Select)
-            lang_map = {"中文": "zh", "English": "en"}
             old_lang = settings.display.language.value
-            new_lang = lang_map.get(lang_select.value, "zh")
+            new_lang = lang_select.value
             if old_lang != new_lang:
                 settings.display.language.value = new_lang
-                changed_settings.append(f"语言: {old_lang} → {new_lang}")
+                old_label = self._t(f"lang_{old_lang}")
+                new_label = self._t(f"lang_{new_lang}")
+                changed_settings.append(self._t("category_changed", old=old_label, new=new_label))
         except Exception:
             pass
 
@@ -1111,20 +1110,20 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
         # 辅助任务专用模型
         aux_fields = [
-            ("compression_model", "压缩模型"),
-            ("title_model", "标题生成"),
-            ("synthesis_model", "技能合成"),
-            ("memory_model", "记忆摘要"),
-            ("auxiliary_model", "其他辅助任务"),
+            ("compression_model", "compression_model"),
+            ("title_model", "title_model"),
+            ("synthesis_model", "synthesis_model"),
+            ("memory_model", "memory_model"),
+            ("auxiliary_model", "auxiliary_model"),
         ]
-        for fid, label in aux_fields:
+        for fid, label_key in aux_fields:
             try:
                 inp = self.query_one(f"#model-{fid}-input", Input)
                 new_val = inp.value.strip()
                 old_val = getattr(settings.model_settings, fid, "") or ""
                 if new_val != old_val:
                     setattr(settings.model_settings, fid, new_val)
-                    changed_settings.append(f"{label}: {new_val or '(default)'}")
+                    changed_settings.append(f"{self._t(label_key)}: {new_val or self._t('depth_normal')}")
             except Exception:
                 pass
 
@@ -1175,42 +1174,39 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             else:
                 validation_errors.append(f"超时时间 必须是正数（当前: {timeout_val}）")
         except ValueError:
-            validation_errors.append("超时时间必须是数字")
+            validation_errors.append(f"timeout: {self._t('timeout')} must be a number")
         except Exception:
             pass
 
-        # 终端后端：label → value
+        # 终端后端：value 直接就是代码
         try:
             backend_select = self.query_one("#terminal-backend-select", Select)
-            backend_map = {"本地执行": "local", "Docker 容器": "docker"}
-            new_backend = backend_map.get(backend_select.value, "local")
+            new_backend = backend_select.value
             if settings.terminal.backend != new_backend:
                 settings.terminal.backend = new_backend
-                changed_settings.append(f"终端: {new_backend}")
+                changed_settings.append(f"Terminal: {new_backend}")
         except Exception:
             pass
 
         # 偏好设置
         try:
             depth_select = self.query_one("#depth-select", Select)
-            depth_map = {"简洁": "brief", "普通": "normal", "详细": "detailed"}
             prefs = self._settings_manager.get_settings().preferences
             if hasattr(prefs, "explanation_depth"):
-                new_depth = depth_map.get(depth_select.value, "normal")
+                new_depth = depth_select.value
                 if prefs.explanation_depth.value != new_depth:
                     prefs.explanation_depth.value = new_depth
-                    changed_settings.append(f"详细程度: {new_depth}")
+                    changed_settings.append(f"explanation_depth: {new_depth}")
         except Exception:
             pass
         try:
             format_select = self.query_one("#format-select", Select)
-            format_map = {"自动": "auto", "Markdown": "markdown", "纯文本": "plain"}
             prefs = self._settings_manager.get_settings().preferences
             if hasattr(prefs, "response_format"):
-                new_format = format_map.get(format_select.value, "markdown")
+                new_format = format_select.value
                 if prefs.response_format.value != new_format:
                     prefs.response_format.value = new_format
-                    changed_settings.append(f"响应格式: {new_format}")
+                    changed_settings.append(f"response_format: {new_format}")
         except Exception:
             pass
 
@@ -1219,7 +1215,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             new_enabled = self.query_one("#session-enabled-switch", Switch).value
             if settings.session.enabled != new_enabled:
                 settings.session.enabled = new_enabled
-                changed_settings.append(f"会话: {'启用' if new_enabled else '禁用'}")
+                changed_settings.append(f"session: {new_enabled}")
         except Exception:
             pass
 
@@ -1228,7 +1224,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             new_mem = self.query_one("#memory-enabled-switch", Switch).value
             if settings.memory.enabled != new_mem:
                 settings.memory.enabled = new_mem
-                changed_settings.append(f"记忆系统: {'启用' if new_mem else '禁用'}")
+                changed_settings.append(f"memory: {new_mem}")
         except Exception:
             pass
 
@@ -1237,7 +1233,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             new_sem = self.query_one("#semantic-switch", Switch).value
             if settings.memory.semantic_retrieval_enabled != new_sem:
                 settings.memory.semantic_retrieval_enabled = new_sem
-                changed_settings.append(f"语义检索: {'启用' if new_sem else '禁用'}")
+                changed_settings.append(f"semantic: {new_sem}")
         except Exception:
             pass
 
@@ -1246,9 +1242,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             new_comp = self.query_one("#compression-switch", Switch).value
             if settings.compression.enabled != new_comp:
                 settings.compression.enabled = new_comp
-                changed_settings.append(
-                    f"Context压缩: {'启用' if new_comp else '禁用'}"
-                )
+                changed_settings.append(f"compression: {new_comp}")
         except Exception:
             pass
 
@@ -1257,21 +1251,21 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             new_stt = self.query_one("#stt-switch", Switch).value
             if settings.tools.stt_enabled != new_stt:
                 settings.tools.stt_enabled = new_stt
-                changed_settings.append(f"STT: {'启用' if new_stt else '禁用'}")
+                changed_settings.append(f"stt: {new_stt}")
         except Exception:
             pass
         try:
             new_tts = self.query_one("#tts-switch", Switch).value
             if settings.tools.tts_enabled != new_tts:
                 settings.tools.tts_enabled = new_tts
-                changed_settings.append(f"TTS: {'启用' if new_tts else '禁用'}")
+                changed_settings.append(f"tts: {new_tts}")
         except Exception:
             pass
         try:
             new_browser = self.query_one("#browser-switch", Switch).value
             if settings.tools.browser_enabled != new_browser:
                 settings.tools.browser_enabled = new_browser
-                changed_settings.append(f"Browser: {'启用' if new_browser else '禁用'}")
+                changed_settings.append(f"browser: {new_browser}")
         except Exception:
             pass
 
@@ -1280,7 +1274,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             new_log = self.query_one("#file-log-switch", Switch).value
             if settings.logging.file_enabled != new_log:
                 settings.logging.file_enabled = new_log
-                changed_settings.append(f"文件日志: {'启用' if new_log else '禁用'}")
+                changed_settings.append(f"file_log: {new_log}")
         except Exception:
             pass
 
@@ -1303,7 +1297,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         if self._settings_manager:
             self._settings_manager.reset_to_defaults(self._current_category)
             self._switch_category(self._current_category)  # 刷新内容
-            self.notify("✓ 已重置", timeout=2.0)
+            self.notify(self._t("reset_done"), timeout=2.0)
 
     def on_mount(self) -> None:
         """挂载时初始化"""

@@ -703,6 +703,93 @@ tui:
     error_create_failed: "✗ 创建失败: {err}"
     no_output: "(暂无输出)"
 
+  settings:
+    header: "⚙ 设置  (Esc/F2 关闭)"
+    footer: "Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭"
+    no_items: "暂无设置项"
+    # Categories
+    language: "显示语言"
+    llm: "大模型配置"
+    model: "模型参数"
+    terminal: "终端"
+    agent: "Agent"
+    session: "会话与记忆"
+    preferences: "响应偏好"
+    tools: "工具"
+    logging: "日志"
+    fallback: "Fallback 链"
+    about: "关于"
+    # Language
+    lang_zh: "中文"
+    lang_en: "English"
+    # LLM
+    configured_providers: "已配置模型"
+    no_provider: "[dim]尚未配置任何 Provider[/dim]"
+    edit_add_provider: "编辑 / 添加 Provider"
+    provider: "Provider"
+    api_key: "API Key"
+    model_name: "模型名称"
+    base_url: "Base URL"
+    provider_edit_title: "[bold]编辑:[/bold] {provider}"
+    provider_apikey_placeholder: "输入 API Key（不填则保留原值）"
+    provider_model_placeholder: "留空使用 provider 默认模型"
+    provider_baseurl_placeholder: "留空使用 provider 默认地址"
+    # Model
+    temperature: "Temperature (0.0-1.0)"
+    max_tokens: "Max Tokens"
+    context_window: "Context Window"
+    auxiliary_models: "辅助任务模型配置"
+    auxiliary_hint: "[dim]为空则使用主模型 gpt-4o-mini[/dim]"
+    compression_model: "压缩模型"
+    title_model: "标题生成"
+    synthesis_model: "技能合成"
+    memory_model: "记忆摘要"
+    auxiliary_model: "其他辅助任务"
+    # Fallback
+    fallback_hint: "[dim]主模型失败时按顺序尝试的备选模型（从上到下）[/dim]"
+    no_fallback: "[dim]尚未配置 Fallback，请添加备选模型[/dim]"
+    add_fallback: "添加 Fallback Provider"
+    # Terminal
+    backend: "后端"
+    backend_local: "本地执行"
+    backend_docker: "Docker 容器"
+    # Agent
+    max_iterations: "最大迭代次数"
+    timeout: "超时时间 (秒)"
+    # Session
+    enable_session: "启用会话"
+    enable_memory: "启用记忆系统"
+    enable_semantic: "启用语义检索"
+    enable_compression: "启用 Context 压缩"
+    # Preferences
+    explanation_depth: "详细程度"
+    depth_brief: "简洁"
+    depth_normal: "普通"
+    depth_detailed: "详细"
+    response_format: "响应格式"
+    format_auto: "自动"
+    format_markdown: "Markdown"
+    format_plain: "纯文本"
+    # Tools
+    stt: "STT (语音转文字)"
+    tts: "TTS (文字转语音)"
+    browser: "Browser 工具"
+    # Logging
+    enable_file_log: "启用文件日志"
+    # About
+    version: "版本: {version}"
+    license: "许可证: {license}"
+    about_desc: "一个基于 LLM 的智能助手"
+    # Notifications
+    save_error: "✗ 保存失败"
+    save_no_change: "✓ 设置已保存（无变更）"
+    reset_done: "✓ 已重置"
+    validation_error: "✗ "
+    more_errors: "... 还有 {n} 个错误"
+    saved_changes: "✓ 已保存: "
+    more_changes: "... 还有 {n} 项"
+    category_changed: "分类: {old} → {new}"
+
 # =============================================================================
 # Message Role Labels (TUI)
 # =============================================================================

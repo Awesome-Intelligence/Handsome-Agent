@@ -723,6 +723,93 @@ tui:
     error_create_failed: "✗ Failed to create job: {err}"
     no_output: "(no output yet)"
 
+  settings:
+    header: "⚙ Settings  (Esc/F2 to close)"
+    footer: "Tab switch category  |  ↑↓ move  |  Enter/Space confirm  |  Ctrl+S save  |  Ctrl+R reset  |  Esc close"
+    no_items: "No items"
+    # Categories
+    language: "Display Language"
+    llm: "LLM Configuration"
+    model: "Model Parameters"
+    terminal: "Terminal"
+    agent: "Agent"
+    session: "Session & Memory"
+    preferences: "Response Preferences"
+    tools: "Tools"
+    logging: "Logging"
+    fallback: "Fallback Chain"
+    about: "About"
+    # Language
+    lang_zh: "中文"
+    lang_en: "English"
+    # LLM
+    configured_providers: "Configured Providers"
+    no_provider: "[dim]No Provider configured yet[/dim]"
+    edit_add_provider: "Edit / Add Provider"
+    provider: "Provider"
+    api_key: "API Key"
+    model_name: "Model Name"
+    base_url: "Base URL"
+    provider_edit_title: "[bold]Edit:[/bold] {provider}"
+    provider_apikey_placeholder: "Enter API Key (leave empty to keep current)"
+    provider_model_placeholder: "Leave empty to use provider default"
+    provider_baseurl_placeholder: "Leave empty to use provider default address"
+    # Model
+    temperature: "Temperature (0.0-1.0)"
+    max_tokens: "Max Tokens"
+    context_window: "Context Window"
+    auxiliary_models: "Auxiliary Task Model Configuration"
+    auxiliary_hint: "[dim]Leave empty to use main model gpt-4o-mini[/dim]"
+    compression_model: "Compression Model"
+    title_model: "Title Generation"
+    synthesis_model: "Skill Synthesis"
+    memory_model: "Memory Summarization"
+    auxiliary_model: "Other Auxiliary Tasks"
+    # Fallback
+    fallback_hint: "[dim]Fallback models tried in order when primary fails (top to bottom)[/dim]"
+    no_fallback: "[dim]No Fallback configured, please add a fallback model[/dim]"
+    add_fallback: "Add Fallback Provider"
+    # Terminal
+    backend: "Backend"
+    backend_local: "Local Execution"
+    backend_docker: "Docker Container"
+    # Agent
+    max_iterations: "Max Iterations"
+    timeout: "Timeout (seconds)"
+    # Session
+    enable_session: "Enable Session"
+    enable_memory: "Enable Memory"
+    enable_semantic: "Enable Semantic Retrieval"
+    enable_compression: "Enable Context Compression"
+    # Preferences
+    explanation_depth: "Explanation Depth"
+    depth_brief: "Brief"
+    depth_normal: "Normal"
+    depth_detailed: "Detailed"
+    response_format: "Response Format"
+    format_auto: "Auto"
+    format_markdown: "Markdown"
+    format_plain: "Plain Text"
+    # Tools
+    stt: "STT (Speech to Text)"
+    tts: "TTS (Text to Speech)"
+    browser: "Browser Tool"
+    # Logging
+    enable_file_log: "Enable File Logging"
+    # About
+    version: "Version: {version}"
+    license: "License: {license}"
+    about_desc: "An LLM-powered intelligent assistant"
+    # Notifications
+    save_error: "✗ Save failed"
+    save_no_change: "✓ Settings saved (no changes)"
+    reset_done: "✓ Reset"
+    validation_error: "✗ "
+    more_errors: "... and {n} more errors"
+    saved_changes: "✓ Saved: "
+    more_changes: "... and {n} more items"
+    category_changed: "Category: {old} → {new}"
+
 # =============================================================================
 # Message Role Labels (TUI)
 # =============================================================================

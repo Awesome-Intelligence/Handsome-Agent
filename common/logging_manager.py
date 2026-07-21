@@ -72,13 +72,12 @@ class ConsoleStyle:
 
 class LogConfig:
     """Log configuration class"""
-    
+
     def __init__(self):
-        from common.config import get_logs_dir
         self.log_level: str = "moderate"
         self.console_enabled: bool = True
         self.file_enabled: bool = False
-        self.file_path: str = str(get_logs_dir() / "agent-z.log")
+        self._file_path: str | None = None  # lazy: computed on first access
         self.console_style: str = ConsoleStyle.PRETTY
         self.console_show_time: bool = False  # 控制台不显示时间，文件日志带时间
         self.max_file_size: int = 50 * 1024 * 1024  # 50MB per file
@@ -89,6 +88,17 @@ class LogConfig:
 
         # 默认禁用第三方库的 DEBUG 日志，避免过多的网络请求细节
         self._setup_third_party_log_levels()
+
+    @property
+    def file_path(self) -> str:
+        if self._file_path is None:
+            from common.config import get_logs_dir
+            self._file_path = str(get_logs_dir() / "agent-z.log")
+        return self._file_path
+
+    @file_path.setter
+    def file_path(self, value: str) -> None:
+        self._file_path = value
 
     def _setup_third_party_log_levels(self) -> None:
         """设置第三方库的日志级别，减少过多输出"""

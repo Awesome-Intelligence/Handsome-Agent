@@ -688,6 +688,93 @@ tui:
     error_create_failed: "✗ 作成失敗: {err}"
     no_output: "(出力なし)"
 
+  settings:
+    header: "⚙ 設定  (Esc/F2 閉じる)"
+    footer: "Tab カテゴリ切替  |  ↑↓ 移動  |  Enter/Space 確定  |  Ctrl+S 保存  |  Ctrl+R リセット  |  Esc 閉じる"
+    no_items: "項目なし"
+    # Categories
+    language: "表示言語"
+    llm: "LLM設定"
+    model: "モデルパラメータ"
+    terminal: "ターミナル"
+    agent: "Agent"
+    session: "セッションとメモリ"
+    preferences: "応答設定"
+    tools: "ツール"
+    logging: "ログ"
+    fallback: "フォールバック"
+    about: "について"
+    # Language
+    lang_zh: "中文"
+    lang_en: "English"
+    # LLM
+    configured_providers: "設定済みプロバイダー"
+    no_provider: "[dim]プロバイダーが設定されていません[/dim]"
+    edit_add_provider: "編集 / プロバイダー追加"
+    provider: "Provider"
+    api_key: "API Key"
+    model_name: "モデル名"
+    base_url: "Base URL"
+    provider_edit_title: "[bold]編集:[/bold] {provider}"
+    provider_apikey_placeholder: "API Key を入力（空の場合は現在値を維持）"
+    provider_model_placeholder: "空の場合、プロバイダーのデフォルトを使用"
+    provider_baseurl_placeholder: "空の場合、プロバイダーのデフォルト地址を使用"
+    # Model
+    temperature: "Temperature (0.0-1.0)"
+    max_tokens: "Max Tokens"
+    context_window: "Context Window"
+    auxiliary_models: "補助タスクモデル設定"
+    auxiliary_hint: "[dim]空の場合、メイン模型的 gpt-4o-mini を使用[/dim]"
+    compression_model: "圧縮モデル"
+    title_model: "タイトル生成"
+    synthesis_model: "スキル合成"
+    memory_model: "メモリ要約"
+    auxiliary_model: "その他の補助タスク"
+    # Fallback
+    fallback_hint: "[dim]プライマリ失敗時に試行するフォールバックモデル（上部から下部へ）[/dim]"
+    no_fallback: "[dim]フォールバックが設定されていません[/dim]"
+    add_fallback: "フォールバック追加"
+    # Terminal
+    backend: "バックエンド"
+    backend_local: "ローカル実行"
+    backend_docker: "Docker コンテナ"
+    # Agent
+    max_iterations: "最大イテレーション"
+    timeout: "タイムアウト (秒)"
+    # Session
+    enable_session: "セッション有効"
+    enable_memory: "メモリ有効"
+    enable_semantic: "セマンティック検索有効"
+    enable_compression: "コンテキスト圧縮有効"
+    # Preferences
+    explanation_depth: "説明の詳しさ"
+    depth_brief: "簡潔"
+    depth_normal: "普通"
+    depth_detailed: "詳細"
+    response_format: "応答フォーマット"
+    format_auto: "自動"
+    format_markdown: "Markdown"
+    format_plain: "プレーンテキスト"
+    # Tools
+    stt: "STT (音声→テキスト)"
+    tts: "TTS (テキスト→音声)"
+    browser: "Browser ツール"
+    # Logging
+    enable_file_log: "ファイルログ有効"
+    # About
+    version: "バージョン: {version}"
+    license: "ライセンス: {license}"
+    about_desc: "LLM搭載のスマートアシスタント"
+    # Notifications
+    save_error: "✗ 保存失敗"
+    save_no_change: "✓ 設定保存（変更なし）"
+    reset_done: "✓ リセット完了"
+    validation_error: "✗ "
+    more_errors: "... 他 {n} 件のエラー"
+    saved_changes: "✓ 保存: "
+    more_changes: "... 他 {n} 件"
+    category_changed: "カテゴリ: {old} → {new}"
+
 # =============================================================================
 # Message Role Labels (TUI)
 # =============================================================================

@@ -688,6 +688,93 @@ tui:
     error_create_failed: "✗ 생성 실패: {err}"
     no_output: "(출력 없음)"
 
+  settings:
+    header: "⚙ 설정  (Esc/F2 닫기)"
+    footer: "Tab 카테고리 전환  |  ↑↓ 이동  |  Enter/Space 확인  |  Ctrl+S 저장  |  Ctrl+R 초기화  |  Esc 닫기"
+    no_items: "항목 없음"
+    # Categories
+    language: "표시 언어"
+    llm: "LLM 설정"
+    model: "모델 매개변수"
+    terminal: "터미널"
+    agent: "Agent"
+    session: "세션 및 메모리"
+    preferences: "응답 설정"
+    tools: "도구"
+    logging: "로그"
+    fallback: "폴백 체인"
+    about: "정보"
+    # Language
+    lang_zh: "中文"
+    lang_en: "English"
+    # LLM
+    configured_providers: "설정된 프로바이더"
+    no_provider: "[dim]프로바이더가 설정되지 않았습니다[/dim]"
+    edit_add_provider: "편집 / 프로바이더 추가"
+    provider: "Provider"
+    api_key: "API Key"
+    model_name: "모델 이름"
+    base_url: "Base URL"
+    provider_edit_title: "[bold]편집:[/bold] {provider}"
+    provider_apikey_placeholder: "API Key 입력 (비워두면 현재 값 유지)"
+    provider_model_placeholder: "비워두면 프로바이더 기본 모델 사용"
+    provider_baseurl_placeholder: "비워두면 프로바이더 기본 주소 사용"
+    # Model
+    temperature: "Temperature (0.0-1.0)"
+    max_tokens: "Max Tokens"
+    context_window: "Context Window"
+    auxiliary_models: "보조 작업 모델 설정"
+    auxiliary_hint: "[dim]비워두면 주 모델 gpt-4o-mini 사용[/dim]"
+    compression_model: "압축 모델"
+    title_model: "제목 생성"
+    synthesis_model: "스킬 합성"
+    memory_model: "메모리 요약"
+    auxiliary_model: "기타 보조 작업"
+    # Fallback
+    fallback_hint: "[dim]주 모델 실패 시 순서대로 시도하는 폴백 모델 (위→아래)[/dim]"
+    no_fallback: "[dim]폴백이 설정되지 않았습니다[/dim]"
+    add_fallback: "폴백 프로바이더 추가"
+    # Terminal
+    backend: "백엔드"
+    backend_local: "로컬 실행"
+    backend_docker: "Docker 컨테이너"
+    # Agent
+    max_iterations: "최대 반복 횟수"
+    timeout: "타임아웃 (초)"
+    # Session
+    enable_session: "세션 활성화"
+    enable_memory: "메모리 활성화"
+    enable_semantic: "시맨틱 검색 활성화"
+    enable_compression: "컨텍스트 압축 활성화"
+    # Preferences
+    explanation_depth: "설명 상세 정도"
+    depth_brief: "간결"
+    depth_normal: "보통"
+    depth_detailed: "상세"
+    response_format: "응답 형식"
+    format_auto: "자동"
+    format_markdown: "Markdown"
+    format_plain: "일반 텍스트"
+    # Tools
+    stt: "STT (음성→텍스트)"
+    tts: "TTS (텍스트→음성)"
+    browser: "Browser 도구"
+    # Logging
+    enable_file_log: "파일 로그 활성화"
+    # About
+    version: "버전: {version}"
+    license: "라이선스: {license}"
+    about_desc: "LLM 기반 지능형 어시스턴트"
+    # Notifications
+    save_error: "✗ 저장 실패"
+    save_no_change: "✓ 설정 저장 (변경 없음)"
+    reset_done: "✓ 초기화 완료"
+    validation_error: "✗ "
+    more_errors: "... 외 {n}개 오류"
+    saved_changes: "✓ 저장: "
+    more_changes: "... 외 {n}개"
+    category_changed: "카테고리: {old} → {new}"
+
 # =============================================================================
 # Message Role Labels (TUI)
 # =============================================================================
