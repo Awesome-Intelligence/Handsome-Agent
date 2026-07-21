@@ -59,6 +59,10 @@ from common.config import get_agent_z_home as get_agentz_home
 from common.cron_time import now as _hermes_now
 from common.i18n import t
 from common.logging_manager import get_decision_logger
+from agent.error.error_classifier import (
+    classify_api_error,
+    FailoverReason,
+)
 
 from cron.jobs import (
     advance_next_run,
@@ -208,7 +212,9 @@ class _ReadWriteLock:
 _terminal_cwd_lock = _ReadWriteLock()
 
 
-def _get_parallel_pool(max_workers: Optional[int]) -> concurrent.futures.ThreadPoolExecutor:
+def _get_parallel_pool(
+    max_workers: Optional[int],
+) -> concurrent.futures.ThreadPoolExecutor:
     global _parallel_pool, _parallel_pool_max_workers
     if _parallel_pool is None or _parallel_pool_max_workers != max_workers:
         if _parallel_pool is not None:
@@ -254,44 +260,102 @@ def _summarize_cron_failure_for_delivery(job: dict, error: Optional[str]) -> str
     """Compact one-line failure message for delivery.
 
     Full details stay in the cron output directory and the logs.
+    Uses the shared error classifier for structured pattern matching.
     """
     job_name = job.get("name") or job.get("id") or "cron job"
     text = (error or "unknown error").strip()
-    lower = text.lower()
 
-    if "429" in text or "rate limit" in lower or "usage limit" in lower:
-        reason = "rate limit"
-        if "weekly usage limit" in lower:
-            reason = "weekly usage limit"
-        elif "quota" in lower:
-            reason = "quota limit"
-        return (
-            f"⚠️ Cron '{job_name}' failed: provider {reason}. "
-            "Fallback chain was exhausted or unavailable."
-        )
+    # Build a mock exception with status_code so the classifier can use it
+    class _MockAPIError(Exception):
+        def __init__(self, msg: str, status_code: Optional[int] = None):
+            super().__init__(msg)
+            self.status_code = status_code
+            self.body = {}
 
-    if "readtimeout" in lower or "timed out" in lower or "timeout" in lower:
-        return (
-            f"⚠️ Cron '{job_name}' failed: provider timeout. "
-            "Fallback chain was exhausted or unavailable."
-        )
+    # Extract HTTP status code from common error message patterns
+    status_code: Optional[int] = None
+    if "429" in text:
+        status_code = 429
+    elif re.search(r"\b401\b", text):
+        status_code = 401
+    elif re.search(r"\b403\b", text):
+        status_code = 403
+    elif "402" in text:
+        status_code = 402
+    elif "413" in text:
+        status_code = 413
+    elif re.search(r"\b400\b", text):
+        status_code = 400
+    elif re.search(r"\b404\b", text):
+        status_code = 404
+    elif re.search(r"\b500\b", text):
+        status_code = 500
+    elif re.search(r"\b502\b", text):
+        status_code = 502
+    elif re.search(r"\b503\b", text):
+        status_code = 503
 
-    if re.search(r"authenticat|authoriz", lower) or re.search(
-        r"\b(401|403)\b", text
+    exc = _MockAPIError(text, status_code)
+    classified = classify_api_error(exc)
+    reason = classified.reason
+
+    # Map FailoverReason to a human-readable label
+    if reason == FailoverReason.rate_limit:
+        label = "rate limit"
+    elif reason == FailoverReason.billing:
+        label = "billing issue"
+    elif reason == FailoverReason.timeout:
+        label = "timeout"
+    elif reason == FailoverReason.auth or reason == FailoverReason.auth_permanent:
+        label = "authentication error"
+    elif reason == FailoverReason.context_overflow:
+        label = "context overflow"
+    elif reason == FailoverReason.overloaded:
+        label = "server overloaded"
+    elif reason == FailoverReason.server_error:
+        label = "server error"
+    elif reason == FailoverReason.format_error:
+        label = "bad request"
+    elif reason == FailoverReason.payload_too_large:
+        label = "payload too large"
+    elif reason == FailoverReason.image_too_large:
+        label = "image too large"
+    elif reason == FailoverReason.multimodal_tool_content_unsupported:
+        label = "unsupported tool content"
+    elif reason == FailoverReason.llama_cpp_grammar_pattern:
+        label = "grammar pattern error"
+    elif reason == FailoverReason.model_not_found:
+        label = "model not found"
+    elif reason == FailoverReason.provider_policy_blocked:
+        label = "policy blocked"
+    elif reason == FailoverReason.thinking_signature:
+        label = "thinking signature error"
+    elif reason == FailoverReason.long_context_tier:
+        label = "long context tier"
+    elif reason == FailoverReason.tool_error:
+        label = "tool error"
+    elif reason == FailoverReason.rail_blocked:
+        label = "rail blocked"
+    else:
+        label = "unknown error"
+
+    # Truncate long messages
+    message = classified.message
+    if len(message) > 180:
+        message = message[:177].rstrip() + "..."
+
+    base = f"⚠️ Cron '{job_name}' failed: {label}"
+    if message and reason not in (
+        FailoverReason.unknown,
+        FailoverReason.rate_limit,
+        FailoverReason.billing,
+        FailoverReason.timeout,
     ):
-        return (
-            f"⚠️ Cron '{job_name}' failed: provider authentication error."
-        )
+        base += f" — {message}"
+    elif message:
+        base += f" ({message[:80]})"
 
-    cleaned = re.sub(
-        r"^(RuntimeError|Exception|ValueError|HTTPStatusError):\s*",
-        "",
-        text[:2000],
-    )
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    if len(cleaned) > 180:
-        cleaned = cleaned[:177].rstrip() + "..."
-    return f"⚠️ Cron '{job_name}' failed: {cleaned}"
+    return base
 
 
 def _is_cron_silence_response(text: str) -> bool:
@@ -399,7 +463,9 @@ def _parse_wake_gate(script_output: str) -> bool:
 # =============================================================================
 
 
-def _build_job_prompt(job: dict, prerun_script: Optional[Tuple[bool, str]] = None) -> Optional[str]:
+def _build_job_prompt(
+    job: dict, prerun_script: Optional[Tuple[bool, str]] = None
+) -> Optional[str]:
     """Assemble the final agent prompt for a cron job.
 
     Returns ``None`` when the prerun script produced no usable output
@@ -421,9 +487,7 @@ def _build_job_prompt(job: dict, prerun_script: Optional[Tuple[bool, str]] = Non
 # =============================================================================
 
 
-def _run_agent_prompt(
-    job: dict, prompt: str
-) -> Tuple[bool, str, Optional[str]]:
+def _run_agent_prompt(job: dict, prompt: str) -> Tuple[bool, str, Optional[str]]:
     """Invoke the Agent on a cron-assembled prompt.
 
     Integration points (in priority order):
@@ -528,9 +592,7 @@ def _run_agent_prompt(
 
                 set_enabled_toolsets(prior_toolsets or [])
             except Exception as exc:
-                logger.debug(
-                    "Failed to restore prior toolsets: %s", exc
-                )
+                logger.debug("Failed to restore prior toolsets: %s", exc)
 
 
 # =============================================================================
@@ -708,15 +770,13 @@ def run_one_job(job: dict, *, verbose: bool = False) -> bool:
         except Exception as exc:
             logger.error("Failed to save cron output for %s: %s", job["id"], exc)
 
-        deliver_content = final_response if success else _summarize_cron_failure_for_delivery(
-            job, error
+        deliver_content = (
+            final_response
+            if success
+            else _summarize_cron_failure_for_delivery(job, error)
         )
         should_deliver = bool(deliver_content.strip())
-        if (
-            should_deliver
-            and success
-            and _is_cron_silence_response(deliver_content)
-        ):
+        if should_deliver and success and _is_cron_silence_response(deliver_content):
             logger.info(
                 "Job '%s': agent returned %s — skipping delivery",
                 job["id"],
@@ -731,9 +791,7 @@ def run_one_job(job: dict, *, verbose: bool = False) -> bool:
                     delivery_error = deliver(job, deliver_content)
                 except Exception as exc:
                     delivery_error = str(exc)
-                    logger.error(
-                        "Delivery hook failed for job %s: %s", job["id"], exc
-                    )
+                    logger.error("Delivery hook failed for job %s: %s", job["id"], exc)
 
         if success and not final_response.strip():
             success = False
@@ -794,9 +852,7 @@ def tick(verbose: bool = True, sync: bool = True) -> int:
         due_jobs = get_due_jobs()
 
         if verbose and not due_jobs:
-            logger.info(
-                "%s - No jobs due", _hermes_now().strftime("%H:%M:%S")
-            )
+            logger.info("%s - No jobs due", _hermes_now().strftime("%H:%M:%S"))
             return 0
 
         if verbose:
@@ -838,12 +894,8 @@ def tick(verbose: bool = True, sync: bool = True) -> int:
                 max_workers if max_workers else "unbounded",
             )
 
-        sequential_jobs = [
-            j for j in due_jobs if (j.get("workdir") or "").strip()
-        ]
-        parallel_jobs = [
-            j for j in due_jobs if not (j.get("workdir") or "").strip()
-        ]
+        sequential_jobs = [j for j in due_jobs if (j.get("workdir") or "").strip()]
+        parallel_jobs = [j for j in due_jobs if not (j.get("workdir") or "").strip()]
 
         results: List[bool] = []
         all_futures: List[concurrent.futures.Future] = []
