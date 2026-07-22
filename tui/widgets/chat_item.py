@@ -467,9 +467,6 @@ class ChatItem(Widget):
                     )
                 return
             cur = cur.parent  # type: ignore[assignment]
-        # 其余点击：复制文本到剪贴板（与 oterm 一致）。
-        if self.text:
-            self.app.copy_to_clipboard(self.text)
 
 
 class ToolCallItem(Widget):

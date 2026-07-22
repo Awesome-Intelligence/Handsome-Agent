@@ -223,8 +223,6 @@ ApprovalDialog {
 #approval-container {
     width: 100%;
     height: auto;
-    background: $boost;
-    border: round $primary 50%;     /* 半透明边框 */
     padding: 1 2;
 }
 
