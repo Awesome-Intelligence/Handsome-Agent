@@ -6,11 +6,10 @@ Gateway Core - Abstract Interface
 Does not directly call Agent, instead sends requests to Brain Service
 """
 
-from abc import ABC, abstractmethod
 from typing import Optional, Callable, Awaitable
 from dataclasses import dataclass
 
-from .message import StandardMessage, MessageChannel
+from .message import StandardMessage
 from common.logging_manager import get_access_logger
 
 
@@ -30,25 +29,15 @@ class GatewayConfig:
     api_key: Optional[str] = None
 
 
-class BaseGateway(ABC):
-    """Base class for Gateway"""
+class Gateway:
+    """Gateway 主类 - 协调各渠道适配器"""
 
     def __init__(self, config: GatewayConfig):
         self.config = config
         self.logger = get_access_logger(self.__class__.__name__)
         self._message_handler: Optional[Callable[[StandardMessage], Awaitable[StandardMessage]]] = None
-
-    @abstractmethod
-    async def start(self) -> None:
-        pass
-
-    @abstractmethod
-    async def stop(self) -> None:
-        pass
-
-    @abstractmethod
-    async def send_message(self, message: StandardMessage) -> StandardMessage:
-        pass
+        self._adapters: dict[str, object] = {}
+        self._running = False
 
     def set_message_handler(self, handler: Callable[[StandardMessage], Awaitable[StandardMessage]]) -> None:
         self._message_handler = handler
@@ -58,16 +47,6 @@ class BaseGateway(ABC):
             raise RuntimeError("Message handler not set. Please connect to Brain Service first.")
         self.logger.info(f"Handling message from {message.channel}: {message.user_id}")
         return await self._message_handler(message)
-
-
-class Gateway(BaseGateway):
-    """Gateway 主类 - 协调各渠道适配器"""
-
-    def __init__(self, config: GatewayConfig):
-        super().__init__(config)
-        # 用 string key 桥接 MessageChannel（旧） 和 Platform（Hermes 新）
-        self._adapters: dict[str, "BaseAdapter"] = {}
-        self._running = False
 
     def register_adapter(self, channel_or_adapter, adapter=None) -> None:
         """注册渠道适配器。
@@ -123,25 +102,3 @@ class Gateway(BaseGateway):
         if adapter is None:
             raise ValueError(f"Adapter for {channel_key} is None (registered but not set)")
         return await adapter.send(message)
-
-
-# 旧的 BaseAdapter（兼容旧渠道） - 不再用于新渠道
-class BaseAdapter(ABC):
-    """Abstract base class for channel adapters (legacy, for backward compat)."""
-
-    def __init__(self, gateway: BaseGateway, channel: MessageChannel):
-        self.gateway = gateway
-        self.channel = channel
-        self.logger = get_access_logger(f"{__name__}.{channel}")
-
-    @abstractmethod
-    async def start(self) -> None:
-        pass
-
-    @abstractmethod
-    async def stop(self) -> None:
-        pass
-
-    @abstractmethod
-    async def send(self, message: StandardMessage) -> StandardMessage:
-        pass

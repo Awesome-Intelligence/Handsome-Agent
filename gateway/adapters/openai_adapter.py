@@ -1356,12 +1356,3 @@ class OpenAIAdapter:
 def create_openai_adapter(config: Optional[Dict[str, Any]] = None) -> OpenAIAdapter:
     """Create and return an OpenAI adapter instance."""
     return OpenAIAdapter(config)
-
-
-# 向后兼容别名
-APIServerAdapter = OpenAIAdapter
-
-
-def create_api_server(config: Optional[Dict[str, Any]] = None) -> OpenAIAdapter:
-    """Create and return an API server adapter instance. (向后兼容别名)"""
-    return create_openai_adapter(config)

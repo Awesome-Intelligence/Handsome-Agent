@@ -93,12 +93,12 @@ class TestPrintFunctions:
         assert "Bold Green" in stripped
         assert "\033" not in stripped
     
-    def test_supports_color(self):
+    def test_should_use_color(self):
         """Test color support detection."""
-        from cli.ui import supports_color
+        from common.terminal import should_use_color
         
         # Should return boolean
-        result = supports_color()
+        result = should_use_color()
         assert isinstance(result, bool)
     
     def test_enable_ansi_support(self):

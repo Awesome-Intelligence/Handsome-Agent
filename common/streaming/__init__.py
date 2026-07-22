@@ -43,7 +43,6 @@
     - CallbackConsumer: 自定义回调
     - WebSocketConsumer: Web 前端
     - LoggerConsumer: 日志记录
-    - CompositeConsumer: 组合消费者
 """
 
 from .events import (
@@ -66,7 +65,6 @@ from .consumer import (
     CallbackConsumer,
     WebSocketConsumer,
     LoggerConsumer,
-    CompositeConsumer,
 )
 
 from .registry import (
@@ -121,7 +119,6 @@ __all__ = [
     "CallbackConsumer",
     "WebSocketConsumer",
     "LoggerConsumer",
-    "CompositeConsumer",
     # 注册表
     "ConsumerRegistry",
     "ConsumerScope",

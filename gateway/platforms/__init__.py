@@ -45,12 +45,9 @@ logger = get_access_logger("platforms")
 # instead of inside their own sub-directory.  These also expose a ``register``
 # callable matching the sub-directory convention.
 _SINGLE_FILE_PLATFORMS = (
-    "weixin",
     "webhook",
     "msgraph_webhook",
     "bluebubbles",
-    "signal",
-    "whatsapp_cloud",
     "yuanbao",
 )
 
@@ -64,7 +61,6 @@ _DISCOVERY_BLACKLIST = frozenset(
         "_hermes_stubs",
         "_http_client_limits",
         "helpers",
-        "signal_format",
         "whatsapp_common",
         "yuanbao_proto",
         "yuanbao_media",

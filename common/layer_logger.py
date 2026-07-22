@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Layer-Aware Logging Module for Agent-Z
@@ -271,34 +271,4 @@ def decision_logger() -> logging.Logger:
 
 def execution_logger() -> logging.Logger:
     """Get logger for execution layer."""
-    return get_layer_logger("execution")
-
-
-def user_logger() -> logging.Logger:
-    """Get logger for user layer (deprecated - use access_logger)."""
-    return get_layer_logger("access")
-
-
-def control_logger() -> logging.Logger:
-    """Get logger for control layer (deprecated - use decision_logger)."""
-    return get_layer_logger("decision")
-
-
-def reasoning_logger() -> logging.Logger:
-    """Get logger for reasoning layer (deprecated - use decision_logger)."""
-    return get_layer_logger("decision")
-
-
-def llm_logger() -> logging.Logger:
-    """Get logger for LLM layer (deprecated - use decision_logger)."""
-    return get_layer_logger("decision")
-
-
-def tools_logger() -> logging.Logger:
-    """Get logger for tools layer (deprecated - use execution_logger)."""
-    return get_layer_logger("execution")
-
-
-def storage_logger() -> logging.Logger:
-    """Get logger for storage layer (deprecated - use execution_logger)."""
     return get_layer_logger("execution")

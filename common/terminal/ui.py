@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Custom TUI Module - Geek Green themed terminal output.
@@ -591,15 +591,6 @@ def print_rich_info(message: str) -> None:
         _rich_console.print(f"[bold #2196F3]ℹ[/] {message}")
     else:
         print_info(message)
-
-
-# ============================================================================
-# Backward compatibility aliases (deprecated, use output instead)
-# ============================================================================
-
-def supports_color() -> bool:
-    """Check if terminal supports colors. Alias for should_use_color()."""
-    return should_use_color()
 
 
 # ============================================================================

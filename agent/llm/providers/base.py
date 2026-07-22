@@ -37,11 +37,8 @@ class Message(BaseModel):
     name: Optional[str] = None
 
     def model_dump(self, **kwargs):
-        """兼容 Pydantic v1/v2"""
-        try:
-            return super().model_dump(**kwargs)
-        except AttributeError:
-            return self.dict(**kwargs)
+        """Pydantic v2"""
+        return super().model_dump(**kwargs)
 
 
 class ProviderResponse(BaseModel):
@@ -55,15 +52,11 @@ class ProviderResponse(BaseModel):
     function_call: Optional[Dict[str, Any]] = Field(default=None, description="函数调用信息 (用于 function calling)")
     reasoning_content: Optional[str] = Field(default=None, description="思维链/推理内容 (如 MiniMax reasoning_content)")
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
     def model_dump(self, **kwargs):
-        """兼容 Pydantic v1/v2"""
-        try:
-            return super().model_dump(**kwargs)
-        except AttributeError:
-            return self.dict(**kwargs)
+        """Pydantic v2"""
+        return super().model_dump(**kwargs)
 
 
 class StreamChunk(BaseModel):

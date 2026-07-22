@@ -263,6 +263,21 @@ def check_signal_requirements() -> bool:
     return bool(os.getenv("SIGNAL_HTTP_URL") and os.getenv("SIGNAL_ACCOUNT"))
 
 
+def _build_adapter(config):
+    """Factory wrapper that constructs SignalAdapter from a PlatformConfig."""
+    return SignalAdapter(config)
+
+
+def _is_connected(config=None) -> bool:
+    """Cheap connectivity heuristic used by the gateway status page."""
+    return check_signal_requirements()
+
+
+def _standalone_send(recipient: str, text: str, *, config=None) -> bool:
+    """Best-effort standalone sender (used by cron delivery paths)."""
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Signal Adapter
 # ---------------------------------------------------------------------------
@@ -1856,5 +1871,19 @@ class SignalAdapter(BasePlatformAdapter):
 
 
 def register(ctx) -> None:
-    """Register the Signal platform adapter."""
-    pass
+    """Plugin entry point — called by the Hermes plugin system."""
+    ctx.register_platform(
+        name="signal",
+        label="Signal",
+        adapter_factory=_build_adapter,
+        check_fn=check_signal_requirements,
+        is_connected=_is_connected,
+        required_env=["SIGNAL_HTTP_URL", "SIGNAL_ACCOUNT"],
+        install_hint="Install and run signal-cli daemon: signal-cli daemon --http 127.0.0.1:8080",
+        allowed_users_env="SIGNAL_ALLOWED_USERS",
+        allow_all_env="SIGNAL_ALLOW_ALL_USERS",
+        standalone_sender_fn=_standalone_send,
+        max_message_length=8000,
+        emoji="💬",
+        allow_update_command=False,
+    )

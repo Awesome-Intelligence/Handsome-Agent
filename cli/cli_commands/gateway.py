@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Gateway command - Gateway service management
@@ -311,7 +311,7 @@ def _setup_weixin() -> None:
         print_warning,
     )
     from common.config import get_agent_z_home
-    from gateway.adapters.weixin_adapter import qr_login, AIOHTTP_AVAILABLE
+    from gateway.platforms.weixin import qr_login, AIOHTTP_AVAILABLE
 
     if not AIOHTTP_AVAILABLE:
         print_error("微信适配器需要 aiohttp，请先安装：")
