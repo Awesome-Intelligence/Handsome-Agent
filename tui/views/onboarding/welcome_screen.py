@@ -40,7 +40,6 @@ WelcomeScreen {
     width: 70;
     height: auto;
     background: $surface;
-    border: solid $accent;
     padding: 1 2;
 }
 
@@ -184,6 +183,15 @@ class WelcomeScreen(ModalScreen):
         elif button_id == "btn-skip":
             self.post_message(self.SkipOnboarding())
             self.dismiss()
+
+    def action_close(self) -> None:
+        """关闭欢迎界面."""
+        self.dismiss()
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()
 
 
 __all__ = ["WelcomeScreen"]

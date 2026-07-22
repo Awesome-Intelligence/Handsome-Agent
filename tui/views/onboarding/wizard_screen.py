@@ -209,6 +209,16 @@ class WizardScreen(ModalScreen):
         self._logger.info("WizardScreen mounted")
         self._render_step()
 
+    def action_close(self) -> None:
+        """关闭向导."""
+        self.post_message(self.Skip())
+        self.dismiss()
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()
+
     def _render_step(self) -> None:
         """根据当前步骤渲染内容."""
         container = self.query_one("#wizard-container")

@@ -36,7 +36,6 @@ SkillDetailScreen {
     height: auto;
     max-height: 85%;
     background: $surface 85%;
-    border: solid $primary;
     padding: 0;
 }
 
@@ -178,3 +177,8 @@ class SkillDetailScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     def action_close(self) -> None:
         """关闭弹窗."""
         self.dismiss()
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()

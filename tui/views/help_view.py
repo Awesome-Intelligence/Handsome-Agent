@@ -65,7 +65,6 @@ HelpScreen {
 #help-container {
     width: 70%;
     height: 70%;
-    border: solid $accent;
     background: $surface;
 }
 
@@ -146,7 +145,7 @@ class HelpScreen(ModalScreen):
         i18n = get_i18n()
         
         with Container(id="help-container"):
-            yield Static("⌨ 快捷键帮助  (Esc/Q 关闭)", id="help-header")
+            yield Static("⌨ 快捷键帮助", id="help-header")
             
             with VerticalScroll(id="help-body"):
                 yield Static(self._build_help_content(), id="help-content")
@@ -237,6 +236,11 @@ class HelpScreen(ModalScreen):
         self._logger.debug("Closing help screen")
         self.post_message(self.HelpClosed())
         self.dismiss()
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()
 
 
 # ============================================================================

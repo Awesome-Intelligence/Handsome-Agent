@@ -196,7 +196,6 @@ FilePreviewScreen {
 #preview-container {
     width: 90%;
     height: 85%;
-    border: solid $primary;
     background: $surface 85%;
     padding: 0;
 }
@@ -388,6 +387,11 @@ class FilePreviewScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         """关闭预览窗口."""
         self.dismiss()
         self._logger.debug("File preview closed")
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()
 
 
 # ============================================================================

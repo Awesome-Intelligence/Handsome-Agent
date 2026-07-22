@@ -47,7 +47,6 @@ class LogScreen(ModalScreen):
     #log-window {
         width: 90%;
         height: 80%;
-        border: solid $accent;
         background: $surface 85%;
     }
 
@@ -179,6 +178,11 @@ class LogScreen(ModalScreen):
         except Exception as e:
             self._logger.debug(f"detach_widget failed (ignored): {e}")
         self.dismiss()
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()
 
     def _get_log_file_path(self) -> str:
         """获取最新的日志文件路径（按日期轮转后不再是固定名字）"""

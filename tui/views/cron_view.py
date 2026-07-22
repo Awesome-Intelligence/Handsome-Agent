@@ -83,7 +83,6 @@ CronDetailScreen #detail-container {
     height: auto;
     max-height: 90%;
     background: $surface 90%;
-    border: solid $primary;
     padding: 0;
 }
 
@@ -373,6 +372,11 @@ class CronDetailScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def action_close(self) -> None:
         self.dismiss(None)
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()
 
     @on(Button.Pressed, "#btn-close")
     def _on_close_pressed(self, event: Button.Pressed) -> None:

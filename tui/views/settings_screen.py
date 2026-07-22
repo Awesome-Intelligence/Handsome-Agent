@@ -83,7 +83,6 @@ SettingsScreen {
 #settings-container {
     width: 90%;
     height: 80%;
-    border: solid $accent;
     background: $surface;
 }
 
@@ -892,6 +891,11 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         self._logger.debug("Settings screen closed")
         self.post_message(SettingsClosed())
         self.dismiss()
+
+    def on_click(self, event) -> None:
+        """点击背景时关闭"""
+        if event.target is self:
+            self.action_close()
 
     def action_save(self) -> None:
         """保存设置"""
