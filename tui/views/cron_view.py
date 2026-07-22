@@ -161,9 +161,25 @@ CronDetailScreen #detail-meta {
 }
 
 CronDetailScreen #detail-footer {
-    height: auto;
-    align-horizontal: center;
-    padding: 0 1 1 1;
+    height: 1;
+    layout: horizontal;
+    content-align: center middle;
+}
+
+CronDetailScreen .detail-footer-item {
+    width: auto;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+CronDetailScreen .detail-footer-item:hover {
+    color: $accent;
+    background: $surface;
+}
+
+CronDetailScreen .detail-footer-separator {
+    width: auto;
+    color: $text-disabled;
 }
 
 CronDetailScreen #detail-footer Button {

@@ -16,6 +16,8 @@ from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button
 from textual.binding import Binding
+from textual.events import Click
+from textual import on
 
 from common.logging_manager import get_access_logger
 
@@ -92,10 +94,25 @@ class LogScreen(ModalScreen):
 
     #log-footer {
         width: 100%;
-        height: 2;
-        background: $accent 20%;
+        height: 1;
+        layout: horizontal;
         content-align: center middle;
-        color: $foreground 70%;
+    }
+
+    .log-footer-item {
+        width: auto;
+        color: $text-muted;
+        padding: 0 1;
+    }
+
+    .log-footer-item:hover {
+        color: $accent;
+        background: $surface;
+    }
+
+    .log-footer-separator {
+        width: auto;
+        color: $text-disabled;
     }
     """
 
@@ -121,7 +138,12 @@ class LogScreen(ModalScreen):
                 yield Button("📄 打开日志文件", id="btn-open-log")
             with ScrollableContainer(id="log-scroll"):
                 yield WrappedLog(id="log-content")
-            yield Static("↑↓ 滚动  |  鼠标可选中文本  |  Esc/F3 关闭", id="log-footer")
+            with Horizontal(id="log-footer"):
+                yield Static("↑↓ 滚动", classes="log-footer-item")
+                yield Static("|", classes="log-footer-separator")
+                yield Static("鼠标可选中文本", classes="log-footer-item")
+                yield Static("|", classes="log-footer-separator")
+                yield Static("Esc/F3 关闭", id="log-footer-close", classes="log-footer-item")
 
     def on_mount(self) -> None:
         """挂载时注册到 TuiLogHandler 并滚动到底部."""
@@ -183,6 +205,12 @@ class LogScreen(ModalScreen):
         """点击背景时关闭"""
         if event.widget is self:
             self.action_close()
+
+    @on(Click, "#log-footer-close")
+    def _handle_footer_close_click(self, event: Static.Click) -> None:
+        """点击 footer 关闭按钮"""
+        event.stop()
+        self.action_close()
 
     def _get_log_file_path(self) -> str:
         """获取最新的日志文件路径（按日期轮转后不再是固定名字）"""

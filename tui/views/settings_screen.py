@@ -25,6 +25,7 @@ try:
     from textual.binding import Binding
     from textual.message import Message
     from textual.events import Click
+    from textual import on
 except ImportError:
     TEXTUAL_AVAILABLE = False
     ModalScreen = object
@@ -112,8 +113,24 @@ SettingsScreen {
 
 #settings-footer {
     height: 1;
+    layout: horizontal;
     content-align: center middle;
+}
+
+.settings-footer-item {
+    width: auto;
     color: $text-muted;
+    padding: 0 1;
+}
+
+.settings-footer-item:hover {
+    color: $accent;
+    background: $surface;
+}
+
+.settings-footer-separator {
+    width: auto;
+    color: $text-disabled;
 }
 
 #content-scroll {
@@ -330,7 +347,18 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                 with VerticalScroll(id="content-area"):
                     yield from self._compose_content()
 
-            yield Static(self._t("footer"), id="settings-footer")
+            with Horizontal(id="settings-footer"):
+                yield Static("Tab 切换", classes="settings-footer-item")
+                yield Static("|", classes="settings-footer-separator")
+                yield Static("↑↓ 移动", classes="settings-footer-item")
+                yield Static("|", classes="settings-footer-separator")
+                yield Static("确认", classes="settings-footer-item")
+                yield Static("|", classes="settings-footer-separator")
+                yield Static("Ctrl+S 保存", id="settings-footer-save", classes="settings-footer-item")
+                yield Static("|", classes="settings-footer-separator")
+                yield Static("Ctrl+R 重置", id="settings-footer-reset", classes="settings-footer-item")
+                yield Static("|", classes="settings-footer-separator")
+                yield Static("Esc 关闭", id="settings-footer-close", classes="settings-footer-item")
 
     def _compose_sidebar_buttons(self) -> ComposeResult:
         """生成侧边栏分类按钮列表"""
@@ -896,6 +924,24 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         """点击背景时关闭"""
         if event.widget is self:
             self.action_close()
+
+    @on(Click, "#settings-footer-close")
+    def _handle_footer_close_click(self, event: Static.Click) -> None:
+        """点击 footer 关闭按钮"""
+        event.stop()
+        self.action_close()
+
+    @on(Click, "#settings-footer-save")
+    def _handle_footer_save_click(self, event: Static.Click) -> None:
+        """点击 footer 保存按钮"""
+        event.stop()
+        self.action_save()
+
+    @on(Click, "#settings-footer-reset")
+    def _handle_footer_reset_click(self, event: Static.Click) -> None:
+        """点击 footer 重置按钮"""
+        event.stop()
+        self.action_reset_category()
 
     def action_save(self) -> None:
         """保存设置"""

@@ -25,6 +25,7 @@ try:
     from textual.widgets import TextArea, Static, Button
     from textual.containers import Container, Vertical, Horizontal
     from textual.binding import Binding
+    from textual.events import Click
     from textual import on
     TEXTUAL_AVAILABLE = True
 except ImportError:
@@ -223,10 +224,25 @@ FilePreviewScreen {
 }
 
 #preview-footer {
-    height: auto;
+    height: 1;
+    layout: horizontal;
+    content-align: center middle;
+}
+
+.preview-footer-item {
+    width: auto;
+    color: $text-muted;
     padding: 0 1;
-    background: $primary 10%;
-    border-top: solid $primary;
+}
+
+.preview-footer-item:hover {
+    color: $accent;
+    background: $surface;
+}
+
+.preview-footer-separator {
+    width: auto;
+    color: $text-disabled;
 }
 
 #preview-textarea {
@@ -302,7 +318,11 @@ class FilePreviewScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             
             # 底部：提示信息
             with Horizontal(id="preview-footer"):
-                yield Static("按 Esc 或 q 关闭 | ↑↓ 滚动 | Ctrl+↑↓ 快速滚动", id="hint-text")
+                yield Static("Esc/q 关闭", id="preview-footer-close", classes="preview-footer-item")
+                yield Static("|", classes="preview-footer-separator")
+                yield Static("↑↓ 滚动", classes="preview-footer-item")
+                yield Static("|", classes="preview-footer-separator")
+                yield Static("Ctrl+↑↓ 快速滚动", classes="preview-footer-item")
 
     def _get_path_display(self) -> str:
         """获取文件路径显示文本."""
@@ -392,6 +412,12 @@ class FilePreviewScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         """点击背景时关闭"""
         if event.widget is self:
             self.action_close()
+
+    @on(Click, "#preview-footer-close")
+    def _handle_footer_close_click(self, event: Static.Click) -> None:
+        """点击 footer 关闭按钮"""
+        event.stop()
+        self.action_close()
 
 
 # ============================================================================
