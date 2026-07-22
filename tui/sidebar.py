@@ -1,5 +1,5 @@
 ﻿"""
-TUI 侧边栏组件 - 提供文件树、目标、Agent、日志面板
+TUI 侧边栏组件 - 提供文件树、目标、Agent 面板
 使用 Textual TabbedContent + TabPane 组件实现
 """
 
@@ -1825,30 +1825,6 @@ class CronPane(Vertical, can_focus=True):
         self.app.notify(msg)
         # 即时反馈
         self.call_after_refresh(self._refresh_data)
-
-
-class LogsPane(SidebarPane):
-    """日志面板（使用 WrappedLog 支持自动换行）."""
-
-    DEFAULT_CSS = """
-    LogsPane {
-        width: 100%;
-        height: 100%;
-    }
-
-    LogsPane #log-output {
-        width: 100%;
-        height: 100%;
-        overflow-y: auto;
-    }
-    """
-
-    def __init__(self) -> None:
-        super().__init__(id="logs", title="日志")
-
-    def compose(self) -> ComposeResult:
-        """组合子组件."""
-        yield WrappedLog(id="log-output")
 
 
 # ============================================================================
