@@ -190,7 +190,7 @@ def get_file_size_display(size: int) -> str:
 FILE_PREVIEW_CSS = """
 FilePreviewScreen {
     align: center middle;
-    background: $boost 40%;
+    background: $primary 30%;
 }
 
 #preview-container {
@@ -390,7 +390,7 @@ class FilePreviewScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def on_click(self, event) -> None:
         """点击背景时关闭"""
-        if event.target is self:
+        if event.widget is self:
             self.action_close()
 
 

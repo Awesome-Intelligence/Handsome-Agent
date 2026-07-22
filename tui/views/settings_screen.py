@@ -77,7 +77,7 @@ except ImportError:
 SETTINGS_SCREEN_CSS = """
 SettingsScreen {
     align: center middle;
-    background: $boost 40%;
+    background: $primary 30%;
 }
 
 #settings-container {
@@ -894,7 +894,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def on_click(self, event) -> None:
         """点击背景时关闭"""
-        if event.target is self:
+        if event.widget is self:
             self.action_close()
 
     def action_save(self) -> None:

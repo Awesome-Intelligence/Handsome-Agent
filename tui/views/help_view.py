@@ -59,7 +59,7 @@ from common.logging_manager import get_access_logger
 HELP_VIEW_CSS = """
 HelpScreen {
     align: center middle;
-    background: $boost 40%;
+    background: $primary 30%;
 }
 
 #help-container {
@@ -239,7 +239,7 @@ class HelpScreen(ModalScreen):
 
     def on_click(self, event) -> None:
         """点击背景时关闭"""
-        if event.target is self:
+        if event.widget is self:
             self.action_close()
 
 

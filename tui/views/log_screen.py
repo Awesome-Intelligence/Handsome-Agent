@@ -181,7 +181,7 @@ class LogScreen(ModalScreen):
 
     def on_click(self, event) -> None:
         """点击背景时关闭"""
-        if event.target is self:
+        if event.widget is self:
             self.action_close()
 
     def _get_log_file_path(self) -> str:

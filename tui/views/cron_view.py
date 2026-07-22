@@ -74,7 +74,7 @@ _LOG = get_access_logger("tui.cron_view")
 CRON_VIEW_CSS = """
 CronCreateScreen, CronDetailScreen {
     align: center middle;
-    background: $boost 40%;
+    background: $primary 30%;
 }
 
 CronCreateScreen #create-container,
@@ -375,7 +375,7 @@ class CronDetailScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def on_click(self, event) -> None:
         """点击背景时关闭"""
-        if event.target is self:
+        if event.widget is self:
             self.action_close()
 
     @on(Button.Pressed, "#btn-close")

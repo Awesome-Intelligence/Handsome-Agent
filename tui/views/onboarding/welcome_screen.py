@@ -190,7 +190,7 @@ class WelcomeScreen(ModalScreen):
 
     def on_click(self, event) -> None:
         """点击背景时关闭"""
-        if event.target is self:
+        if event.widget is self:
             self.action_close()
 
 

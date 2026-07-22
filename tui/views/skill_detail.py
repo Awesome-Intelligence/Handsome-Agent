@@ -28,7 +28,7 @@ from common.logging_manager import get_access_logger
 SKILL_DETAIL_CSS = """
 SkillDetailScreen {
     align: center middle;
-    background: $boost 40%;
+    background: $primary 30%;
 }
 
 #detail-container {
@@ -180,5 +180,5 @@ class SkillDetailScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
 
     def on_click(self, event) -> None:
         """点击背景时关闭"""
-        if event.target is self:
+        if event.widget is self:
             self.action_close()
