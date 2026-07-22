@@ -811,6 +811,7 @@ tui:
     explanation_depth: "Explanation Depth"
     depth_brief: "Brief"
     depth_normal: "Normal"
+    depth_moderate: "Moderate"
     depth_detailed: "Detailed"
     response_format: "Response Format"
     format_auto: "Auto"

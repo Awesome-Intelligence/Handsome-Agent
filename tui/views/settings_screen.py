@@ -791,7 +791,7 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         # 详细程度
         depth_options = [
             (self._t("depth_brief"), "brief"),
-            (self._t("depth_normal"), "normal"),
+            (self._t("depth_moderate"), "moderate"),
             (self._t("depth_detailed"), "detailed"),
         ]
         current_depth = (

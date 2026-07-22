@@ -730,7 +730,7 @@ tui:
     no_output: "(暂无输出)"
 
   settings:
-    header: "⚙ 设置  (Esc/F2 关闭)"
+    header: "⚙ 设置"
     footer: "Tab 切换分类  |  ↑↓ 移动  |  Enter/Space 确认  |  Ctrl+S 保存  |  Ctrl+R 重置  |  Esc 关闭"
     no_items: "暂无设置项"
     # Categories
@@ -791,6 +791,7 @@ tui:
     explanation_depth: "详细程度"
     depth_brief: "简洁"
     depth_normal: "普通"
+    depth_moderate: "适中"
     depth_detailed: "详细"
     response_format: "响应格式"
     format_auto: "自动"

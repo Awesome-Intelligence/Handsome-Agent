@@ -776,6 +776,7 @@ tui:
     explanation_depth: "설명 상세 정도"
     depth_brief: "간결"
     depth_normal: "보통"
+    depth_moderate: "보통"
     depth_detailed: "상세"
     response_format: "응답 형식"
     format_auto: "자동"

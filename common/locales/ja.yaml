@@ -776,6 +776,7 @@ tui:
     explanation_depth: "説明の詳しさ"
     depth_brief: "簡潔"
     depth_normal: "普通"
+    depth_moderate: "中程度"
     depth_detailed: "詳細"
     response_format: "応答フォーマット"
     format_auto: "自動"
