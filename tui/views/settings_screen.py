@@ -210,25 +210,25 @@ Input {
     border-bottom: solid $border;
 }
 
-/* 侧边栏按钮样式 */
-#sidebar Button {
+/* 侧边栏分类项样式（使用 Static 避免焦点底色） */
+.sidebar-item {
     width: 100%;
     height: 3;
     padding: 0 2;
     margin: 0;
     background: $panel;
-    border: none;
     content-align: left middle;
+    color: $text-muted;
 }
 
-#sidebar Button:hover {
+.sidebar-item:hover {
     background: $accent 20%;
+    color: $text;
 }
 
-#sidebar Button.selected {
+.sidebar-item.selected {
     background: $primary 40%;
     color: $text;
-    border: none;
 }
 
 /* Provider 配置列表 */
@@ -361,19 +361,21 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                 yield Static("Esc 关闭", id="settings-footer-close", classes="settings-footer-item")
 
     def _compose_sidebar_buttons(self) -> ComposeResult:
-        """生成侧边栏分类按钮列表"""
+        """生成侧边栏分类按钮列表（使用 Static 避免焦点底色）"""
         if CategoryMeta:
             for cat_id, icon, name_key, _ in CategoryMeta.CATEGORIES:
                 label = f"{icon}  {self._t(name_key)}"
-                yield Button(
+                item = Static(
                     label,
-                    id=f"btn-{cat_id}",
+                    id=f"sidebar-item-{cat_id}",
                     classes=(
-                        "sidebar-btn selected"
+                        "sidebar-item selected"
                         if cat_id == self._current_category
-                        else "sidebar-btn"
+                        else "sidebar-item"
                     ),
                 )
+                item._category_id = cat_id
+                yield item
 
     def _compose_content(self) -> ComposeResult:
         """生成设置内容区"""
@@ -863,11 +865,22 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
     # ========================================================================
 
     async def on_click(self, event: Click) -> None:
-        """处理 provider 配置项点击"""
-        if self._current_category != "llm":
+        """统一处理点击事件：背景关闭 + 侧边栏分类切换 + provider 配置项点击"""
+        if event.widget is self:
+            self.action_close()
             return
+
         target = getattr(event, "widget", None) or getattr(event, "target", None)
         if target is None:
+            return
+
+        if hasattr(target, "_category_id"):
+            cat_id = target._category_id
+            if cat_id != self._current_category:
+                self.call_later(lambda: self._switch_category(cat_id))
+            return
+
+        if self._current_category != "llm":
             return
         for widget in self.query(".provider-config-item"):
             if widget == target and hasattr(widget, "_provider_id"):
@@ -876,30 +889,20 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
                 self.call_later(lambda: self._switch_category("llm"))
                 return
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """处理侧边栏按钮点击"""
-        btn_id = event.button.id or ""
-        if btn_id.startswith("btn-"):
-            cat_id = btn_id[4:]
-            if cat_id != self._current_category:
-                self._update_sidebar_selection(cat_id)
-                # Defer: compose() must finish before _switch_category
-                # to avoid generator exhaustion and duplicate IDs
-                self.call_later(lambda: self._switch_category(cat_id))
-
     def _update_sidebar_selection(self, cat_id: str) -> None:
-        """更新侧边栏按钮选中状态"""
-        for btn in self.query("#sidebar Button"):
-            if btn.id == f"btn-{cat_id}":
-                btn.add_class("selected")
+        """更新侧边栏分类项选中状态"""
+        for item in self.query(".sidebar-item"):
+            if getattr(item, "_category_id", None) == cat_id:
+                item.add_class("selected")
             else:
-                btn.remove_class("selected")
+                item.remove_class("selected")
 
     def _switch_category(self, category: str) -> None:
         """切换到指定分类"""
         if category == self._current_category:
             return
         self._current_category = category
+        self._update_sidebar_selection(category)
 
         # Guard: if content hasn't been built yet (during compose),
         # let compose() handle it to avoid generator exhaustion
@@ -919,11 +922,6 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
         self._logger.debug("Settings screen closed")
         self.post_message(SettingsClosed())
         self.dismiss()
-
-    def on_click(self, event) -> None:
-        """点击背景时关闭"""
-        if event.widget is self:
-            self.action_close()
 
     @on(Click, "#settings-footer-close")
     def _handle_footer_close_click(self, event: Static.Click) -> None:
