@@ -738,7 +738,7 @@ tui:
     llm: "大模型配置"
     model: "模型参数"
     terminal: "终端"
-    agent: "Agent"
+    behavior: "行为设置"
     session: "会话与记忆"
     preferences: "响应偏好"
     tools: "工具"

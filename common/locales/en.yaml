@@ -758,7 +758,7 @@ tui:
     llm: "LLM Configuration"
     model: "Model Parameters"
     terminal: "Terminal"
-    agent: "Agent"
+    behavior: "Behavior"
     session: "Session & Memory"
     preferences: "Response Preferences"
     tools: "Tools"

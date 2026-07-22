@@ -700,10 +700,8 @@ class CategoryMeta:
     CATEGORIES = [
         ("llm", "🤖", "llm", "llm"),
         ("terminal", "💻", "terminal", "terminal"),
-        ("agent", "⚙️", "agent", "agent"),
+        ("behavior", "⚙️", "behavior", "agent"),
         ("session", "💾", "session", "session"),
-        ("intent", "🧠", "intent", "intent_mode"),
-        ("preferences", "💬", "preferences", "preferences"),
         ("tools", "🛠️", "tools", "tools"),
         ("logging", "📄", "logging", "logging"),
         ("about", "ℹ️", "about", "about"),

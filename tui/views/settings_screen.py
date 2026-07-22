@@ -398,16 +398,13 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             yield from self._build_fallback_content(settings)
         elif category == "terminal":
             yield from self._build_terminal_content(settings)
-        elif category == "agent":
-            # 合并 agent + tool_loop
+        elif category == "behavior":
+            # 合并 agent + preferences
             yield from self._build_agent_content(settings)
+            yield from self._build_preferences_content(settings)
         elif category == "session":
             # 合并 session + memory + compression + session_reset
             yield from self._build_session_content(settings)
-        elif category == "intent":
-            yield from self._build_intent_content(settings)
-        elif category == "preferences":
-            yield from self._build_preferences_content(settings)
         elif category == "tools":
             yield from self._build_tools_content(settings)
         elif category == "logging":
@@ -840,29 +837,6 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             options=format_options,
             value=current_format,
             id="format-select",
-            allow_blank=False,
-            classes="setting-row",
-        )
-
-    def _build_intent_content(self, settings: SettingsDocument) -> ComposeResult:
-        """构建意图识别设置内容"""
-        yield Static(self._t("intent"), classes="setting-group-title")
-
-        intent_mode = (
-            settings.intent_mode.value if hasattr(settings, "intent_mode") else "llm"
-        )
-
-        # 意图识别模式
-        intent_options = [
-            (self._t("intent_llm"), "llm"),
-            (self._t("intent_hybrid"), "hybrid"),
-            (self._t("intent_keyword"), "keyword"),
-        ]
-        yield Static(self._t("intent_mode"), classes="setting-row")
-        yield Select(
-            options=intent_options,
-            value=intent_mode,
-            id="intent-mode-select",
             allow_blank=False,
             classes="setting-row",
         )
@@ -1340,16 +1314,6 @@ class SettingsScreen(ModalScreen if TEXTUAL_AVAILABLE else object):
             if settings.session_reset.mode.value != new_reset:
                 settings.session_reset.mode.value = new_reset
                 changed_settings.append(f"reset_mode: {new_reset}")
-        except Exception:
-            pass
-
-        # 意图识别模式
-        try:
-            intent_select = self.query_one("#intent-mode-select", Select)
-            new_intent = intent_select.value
-            if settings.intent_mode.value != new_intent:
-                settings.intent_mode.value = new_intent
-                changed_settings.append(f"intent_mode: {new_intent}")
         except Exception:
             pass
 

@@ -138,12 +138,6 @@ class LogScreen(ModalScreen):
                 yield Button("📄 打开日志文件", id="btn-open-log")
             with ScrollableContainer(id="log-scroll"):
                 yield WrappedLog(id="log-content")
-            with Horizontal(id="log-footer"):
-                yield Static("↑↓ 滚动", classes="log-footer-item")
-                yield Static("|", classes="log-footer-separator")
-                yield Static("鼠标可选中文本", classes="log-footer-item")
-                yield Static("|", classes="log-footer-separator")
-                yield Static("", id="log-footer-close", classes="log-footer-item")
 
     def on_mount(self) -> None:
         """挂载时注册到 TuiLogHandler 并滚动到底部."""
